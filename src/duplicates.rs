@@ -1,5 +1,6 @@
 //! Duplicates: images with exactly the same bytes in a folder (and its subfolders if asked), on any
-//! source. Only images of the same size are read, and compared by SHA-256 of their content.
+//! source. Only images of the same size are read: first their first 64 KB, then, where those
+//! match, the SHA-256 of their whole content, a piece at a time.
 //! The page that shows them is `dup_page`.
 
 use std::collections::{HashMap, HashSet};
@@ -111,6 +112,9 @@ fn date_key(f: &File) -> (i64, usize, String) {
     (minute, f.path.chars().count(), f.path.clone())
 }
 
+/// Bytes compared first: files of the same size that differ in these are not read further.
+const HEAD: u64 = 64 << 10;
+
 /// The images of `dir` (and of its subfolders with `sub`) grouped by identical content, the
 /// groups in path order of their first image. Unreadable subfolders and images are left out.
 pub async fn find(op: &Store, dir: &str, sub: bool, p: &Progress) -> Result<Vec<Group>, Error> {
@@ -122,30 +126,84 @@ pub async fn find(op: &Store, dir: &str, sub: bool, p: &Progress) -> Result<Vec<
     let mut groups = Vec::new();
     for same in by_size.into_values() {
         let same = if same.len() < 2 { same } else { distinct(op, same, p).await };
-        if same.len() < 2 {
-            p.examined.fetch_add(same.len() as u64, Ordering::Relaxed);
+        groups.extend(identical(op, same, p).await?);
+    }
+    groups.sort_by(|a, b| crate::source::natural(&a.files[0].path, &b.files[0].path));
+    Ok(groups)
+}
+
+/// Files of the same size grouped by content: first by their first `HEAD` bytes (all of a small
+/// file), then, where those match, by the SHA-256 of the whole file read a piece at a time.
+async fn identical(op: &Store, same: Vec<File>, p: &Progress) -> Result<Vec<Group>, Error> {
+    if same.len() < 2 {
+        p.examined.fetch_add(same.len() as u64, Ordering::Relaxed);
+        return Ok(Vec::new());
+    }
+    // ponytail: one file at a time; in parallel (local disks only, phones serve one) if it is too slow
+    let mut by_head: HashMap<Vec<u8>, Vec<File>> = HashMap::new();
+    for f in same {
+        cancelled(p)?;
+        match head_hash(op, &f, p).await {
+            Ok(hash) => by_head.entry(hash).or_default().push(f),
+            Err(e) => {
+                log!("duplicates: {:?} not read: {e:?}", f.path);
+                p.examined.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+    }
+    let mut groups = Vec::new();
+    for files in by_head.into_values() {
+        // Alone with its first bytes, or those were the whole file: nothing more to read.
+        if files.len() < 2 || files[0].size <= HEAD {
+            p.examined.fetch_add(files.len() as u64, Ordering::Relaxed);
+            groups.extend((files.len() > 1).then(|| Group::new(files)));
             continue;
         }
         let mut by_hash: HashMap<Vec<u8>, Vec<File>> = HashMap::new();
-        // ponytail: one file at a time; in parallel (local disks only, phones serve one) if it is too slow
-        for f in same {
-            if p.cancel.load(Ordering::Relaxed) {
-                return Err(("error-cancelled", String::new()));
-            }
-            match op.read(&f.path).await {
-                Ok(bytes) => {
-                    p.read.fetch_add(bytes.len() as u64, Ordering::Relaxed);
-                    let hash = ring::digest::digest(&ring::digest::SHA256, &bytes).as_ref().to_vec();
-                    by_hash.entry(hash).or_default().push(f);
-                }
+        for f in files {
+            cancelled(p)?;
+            match whole_hash(op, &f, p).await {
+                Ok(hash) => by_hash.entry(hash).or_default().push(f),
+                Err(e) if e.0 == "error-cancelled" => return Err(e),
                 Err(e) => log!("duplicates: {:?} not read: {e:?}", f.path),
             }
             p.examined.fetch_add(1, Ordering::Relaxed);
         }
         groups.extend(by_hash.into_values().filter(|g| g.len() > 1).map(Group::new));
     }
-    groups.sort_by(|a, b| crate::source::natural(&a.files[0].path, &b.files[0].path));
     Ok(groups)
+}
+
+fn cancelled(p: &Progress) -> Result<(), Error> {
+    if p.cancel.load(Ordering::Relaxed) { Err(("error-cancelled", String::new())) } else { Ok(()) }
+}
+
+/// SHA-256 of the first `HEAD` bytes of a file.
+async fn head_hash(op: &Store, f: &File, p: &Progress) -> Result<Vec<u8>, Error> {
+    let len = f.size.min(HEAD);
+    let bytes = if len == 0 { Vec::new() } else { op.read_range(&f.path, 0, len).await? };
+    if bytes.len() as u64 != len {
+        return Err(("error-detail", format!("{}: {} bytes read of {len}", f.path, bytes.len())));
+    }
+    p.read.fetch_add(len, Ordering::Relaxed);
+    Ok(ring::digest::digest(&ring::digest::SHA256, &bytes).as_ref().to_vec())
+}
+
+/// SHA-256 of a whole file, streamed by `send_chunks` (a few chunks in memory at a time, the
+/// bytes added to `read`, stopped by `cancel`) to a thread outside the runtime that hashes them.
+async fn whole_hash(op: &Store, f: &File, p: &Progress) -> Result<Vec<u8>, Error> {
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<std::io::Result<bytes::Bytes>>(4);
+    let hashing = tokio::task::spawn_blocking(move || {
+        let mut hash = ring::digest::Context::new(&ring::digest::SHA256);
+        while let Some(chunk) = rx.blocking_recv() {
+            hash.update(&chunk.ok()?);
+        }
+        Some(hash.finish().as_ref().to_vec())
+    });
+    let sent = op.send_chunks(&f.path, f.size, tx, &p.read, &p.cancel).await;
+    let hash = hashing.await.map_err(|e| ("error-detail", e.to_string()))?;
+    sent?;
+    hash.ok_or_else(|| ("error-detail", format!("{}: not read to the end", f.path)))
 }
 
 /// Every image of `dir`, and below it with `sub` (trash folders and hidden folders stay out,
