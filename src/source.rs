@@ -757,5 +757,61 @@ mod tests {
         assert!(!trash.join("f").exists());
         std::fs::remove_dir_all(&dir).unwrap();
     }
+
+    /// Renaming to a name that differs only in case, on a disk that tells case apart: another
+    /// file with that name is never replaced (audit 1.19).
+    #[test]
+    fn rename_case_not_over_another_file() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-rename-case-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a.jpg"), b"small").unwrap();
+        std::fs::write(dir.join("A.jpg"), b"CAPITAL").unwrap();
+        let both = std::fs::read_dir(&dir).unwrap().count() == 2;
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let r = tokio::runtime::Runtime::new().unwrap().block_on(op.rename("a.jpg", "A.jpg"));
+        let kept = (std::fs::read(dir.join("a.jpg")), std::fs::read(dir.join("A.jpg")));
+        std::fs::remove_dir_all(&dir).unwrap();
+        // A disk that does not tell case apart (Windows) made one file of the two: nothing to see.
+        if both {
+            assert_eq!(r.unwrap_err().0, "error-exists");
+            assert_eq!((kept.0.unwrap(), kept.1.unwrap()), (b"small".to_vec(), b"CAPITAL".to_vec()));
+        }
+    }
+
+    /// In `dir`, on a disk that does not tell case apart: a file and a folder renamed changing
+    /// only the case (`IMG_1.JPG` to `img_1.jpg`), refused as "already exists" (audit 1.19).
+    fn rename_only_case_in(dir: &std::path::Path) {
+        let dir = dir.join(format!("eyecansee-only-case-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("Sub")).unwrap();
+        std::fs::write(dir.join("IMG_1.JPG"), b"x").unwrap();
+        std::fs::write(dir.join("Sub/in.jpg"), b"y").unwrap();
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let file = rt.block_on(op.rename("IMG_1.JPG", "img_1.jpg"));
+        let folder = rt.block_on(op.rename("Sub/", "sub"));
+        let mut names: Vec<String> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        names.sort();
+        let contents = (std::fs::read(dir.join("img_1.jpg")).ok(), std::fs::read(dir.join("sub/in.jpg")).ok());
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!((file, folder), (Ok("img_1.jpg".to_string()), Ok("sub/".to_string())));
+        assert_eq!(names, ["img_1.jpg", "sub"], "the new names on the disk");
+        assert_eq!(contents, (Some(b"x".to_vec()), Some(b"y".to_vec())));
+    }
+
+    /// Windows' own disks do not tell case apart.
+    #[cfg(windows)]
+    #[test]
+    fn rename_only_case_windows() {
+        rename_only_case_in(&std::env::temp_dir());
+    }
+
+    /// On Linux, in a folder of a disk that does not tell case apart (FAT, exFAT), given by
+    /// `EYECANSEE_CASELESS_DIR`: for example an image made with `mkfs.vfat` and mounted.
+    #[test]
+    #[ignore]
+    fn rename_only_case_caseless_live() {
+        let dir = std::env::var_os("EYECANSEE_CASELESS_DIR").expect("EYECANSEE_CASELESS_DIR: a folder on a FAT or exFAT disk");
+        rename_only_case_in(std::path::Path::new(&dir));
+    }
 }
 
