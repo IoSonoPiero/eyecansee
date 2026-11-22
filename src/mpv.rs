@@ -350,6 +350,10 @@ impl Signal {
 /// video (the first ones are often black). `side` 0, the slideshow: at full size, and the first
 /// frame, the one the video starts playing from (at a tenth, the picture jumped as the video
 /// began: Piero, 2026-11-18).
+/// The error of a still (a video's thumbnail) when mpv cannot play the file at all: the
+/// slideshow takes it as a video that does not open (#209).
+pub const CANNOT_PLAY: &str = "mpv cannot play the file";
+
 pub fn still(input: Input, side: u32) -> Result<RgbaImage, String> {
     let signal = Arc::new(Signal::default());
     let s = signal.clone();
@@ -369,7 +373,7 @@ pub fn still(input: Input, side: u32) -> Result<RgbaImage, String> {
         }
         match mpv.wait(left().as_secs_f64()) {
             EVENT_PLAYBACK_RESTART => break,
-            EVENT_END_FILE | EVENT_SHUTDOWN => return Err("mpv cannot play the file".into()),
+            EVENT_END_FILE | EVENT_SHUTDOWN => return Err(CANNOT_PLAY.into()),
             _ => {}
         }
     }

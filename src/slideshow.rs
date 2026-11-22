@@ -167,11 +167,13 @@ pub fn thumb_says_unreadable(error: &str) -> bool {
 
 /// Is the slideshow's picture at `path` already known not to open, from the viewer (`full`) or its
 /// thumbnail (`thumb`)? What the viewer read wins: opened, it opens; an error counts as in the
-/// slideshow (`show_pass_unreadable`), not one too large for the memory. A video plays without its
-/// still; nothing read yet is not known.
+/// slideshow (`show_pass_unreadable`), not one too large for the memory. A video only when mpv
+/// could not play its still at all (Piero, 22/11: a slideshow of broken videos does not start
+/// either); not a still that ran out of time (a slow phone), not one waiting for the video engine,
+/// not a sound file (its picture is its cover). Nothing read yet is not known.
 pub fn known_unreadable(path: &str, full: Option<Result<(), &str>>, thumb: Option<Result<(), &str>>) -> bool {
     if crate::decode::is_played(path) {
-        return false;
+        return crate::decode::is_video(path) && matches!(thumb, Some(Err(e)) if e == crate::mpv::CANNOT_PLAY);
     }
     match full {
         Some(Ok(())) => false,
@@ -645,8 +647,16 @@ mod tests {
         assert!(known_unreadable(photo, Some(Err("damaged")), None));
         let too_large = crate::view_memory::error(6 << 30);
         assert!(!known_unreadable(photo, Some(Err(&too_large)), None));
-        // A video whose still failed may still play.
+        // A video whose still failed for another reason may still play; one mpv cannot play at
+        // all is known (Piero, 22/11); a sound file never, nor a still that ran out of time.
         assert!(!known_unreadable("a/clip.mp4", Some(Err("damaged")), Some(Err(damaged))));
+        assert!(!known_unreadable("a/clip.mp4", None, Some(Err("timeout"))));
+        assert!(!known_unreadable("a/clip.mp4", None, Some(Err(crate::video_read::NO_ENGINE))));
+        assert!(!known_unreadable("a/clip.mp4", None, None));
+        assert!(known_unreadable("a/clip.mp4", None, Some(Err(crate::mpv::CANNOT_PLAY))));
+        assert!(!known_unreadable("a/song.mp3", None, Some(Err(crate::mpv::CANNOT_PLAY))));
+        let videos: Vec<String> = ["a/1.mp4", "a/2.mp4"].map(String::from).into();
+        assert!(none_opens(&videos, |p| known_unreadable(p, None, Some(Err(crate::mpv::CANNOT_PLAY)))), "broken videos only: no start");
 
         let paths: Vec<String> = ["a/1.jpg", "a/2.jpg", "a/3.jpg"].map(String::from).into();
         assert!(none_opens(&paths, |_| true));
