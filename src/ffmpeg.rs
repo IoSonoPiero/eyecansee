@@ -659,7 +659,7 @@ pub fn run(program: &Path, args: &[String], progress: impl Fn(f32), cancel: &Ato
     let tail = Arc::new(Mutex::new(Vec::<String>::new()));
     let (l, t, err) = (length.clone(), tail.clone(), child.stderr.take().expect("piped"));
     let reader = crate::logging::spawn_named("ffmpeg-stderr", move || {
-        for line in BufReader::new(err).lines().map_while(Result::ok) {
+        for line in lossy_lines(err) {
             if let Some(d) = line.trim().strip_prefix("Duration: ").and_then(|d| clock(d.split(',').next()?)) {
                 l.lock().unwrap().get_or_insert(d);
             }
@@ -670,7 +670,7 @@ pub fn run(program: &Path, args: &[String], progress: impl Fn(f32), cancel: &Ato
             }
         }
     });
-    for line in BufReader::new(child.stdout.take().expect("piped")).lines().map_while(Result::ok) {
+    for line in lossy_lines(child.stdout.take().expect("piped")) {
         if cancel.load(Ordering::Relaxed) {
             let _ = child.kill();
             break;
@@ -686,6 +686,19 @@ pub fn run(program: &Path, args: &[String], progress: impl Fn(f32), cancel: &Ato
         return Err("cancelled".into());
     }
     if status.success() { Ok(()) } else { Err(tail.lock().unwrap().join("\n")) }
+}
+
+/// The lines of `r`, also those that are not UTF-8 (a tag of the input in Latin-1): `lines()`
+/// ends at the first of them, and with it the progress and the error text (#273).
+fn lossy_lines(r: impl std::io::Read) -> impl Iterator<Item = String> {
+    let mut r = BufReader::new(r);
+    std::iter::from_fn(move || {
+        let mut line = Vec::new();
+        match r.read_until(b'\n', &mut line) {
+            Ok(0) | Err(_) => None,
+            Ok(_) => Some(String::from_utf8_lossy(&line).trim_end_matches(['\n', '\r']).to_string()),
+        }
+    })
 }
 
 /// Seconds of "01:02:03.45".
