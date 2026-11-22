@@ -269,10 +269,14 @@ impl App {
 /// Closing EyeCanSee: a save under way is waited for; anything else in the background (the
 /// decoding of a large image, the neighbours read ahead, thumbnails) gets half a second, then is
 /// left: the runtime waited for every one of them, and the window stayed frozen for seconds on
-/// Windows after a 45-megapixel HEIC.
+/// Windows after a 45-megapixel HEIC. The video players closing on threads of their own (#276)
+/// end first, 2 s at most: mpv's threads cut off by the end of the process crashed it (a test's
+/// own process, 15 times in 20, 22/11).
 impl Drop for crate::App {
     fn drop(&mut self) {
         log!("quitting");
+        self.video = None;
+        crate::mpv::wait_closed(std::time::Duration::from_secs(2));
         if self.saving.is_empty()
             && let Ok(small) = tokio::runtime::Builder::new_current_thread().build()
         {

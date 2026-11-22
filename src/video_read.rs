@@ -308,10 +308,16 @@ impl StoreReader {
     /// From mpv's threads, outside the runtime.
     fn until_closed<T>(&self, work: impl std::future::Future<Output = Result<T, String>>) -> Result<T, String> {
         let mut closed = self.closed.subscribe();
+        // Closed already: not even started. Both ready: the closing wins (`biased`), else a
+        // read after the close could still give data (once in 10 runs under load).
+        if *closed.borrow() {
+            return Err(said(("error-cancelled", String::new())));
+        }
         self.rt.block_on(async {
             tokio::select! {
-                r = work => r,
+                biased;
                 _ = closed.wait_for(|c| *c) => Err(said(("error-cancelled", String::new()))),
+                r = work => r,
             }
         })
     }
