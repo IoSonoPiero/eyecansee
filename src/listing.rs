@@ -293,4 +293,72 @@ mod tests {
         let f = follow(&old, &listing(vec![]), Follow { anchor: 0, ..state }, None);
         assert_eq!(f.state.anchor, 0, "on the folder, still there");
     }
+
+    /// A folder of this run with PNG images of the sizes given, as `name.png`.
+    fn sized(folder: &str, images: &[(&str, u32, u32)]) -> std::path::PathBuf {
+        let dir = crate::audit_family_1::folder(folder, &[]);
+        for (name, w, h) in images {
+            image::DynamicImage::new_rgb8(*w, *h).save(dir.join(name)).unwrap();
+        }
+        dir
+    }
+
+    /// The listing of the app's open folder with `names` in it, in this order, as the loader
+    /// sends it.
+    fn listed(h: &crate::audit_family_1::Harness, names: &[&str]) -> crate::loader::Msg {
+        let files = names.iter().map(|n| File { path: format!("{}{n}", h.app.dir), size: 1, modified: String::new() }).collect();
+        crate::loader::Msg::Listed(h.app.base.clone(), h.app.dir.clone(), Ok(Listing { files, ..Default::default() }))
+    }
+
+    /// Audit 1.3: a folder read again while a reading of it is on its way (`relist_again`): the
+    /// second listing came in as it was, without the selection following its file, and with
+    /// the mark of the reading already gone.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn second_listing_followed() {
+        if crate::audit_family_1::own_folder("listing::tests::second_listing_followed") {
+            return;
+        }
+        let dir = sized("second-listing", &[("b.png", 8, 6), ("c.png", 8, 6)]);
+        let mut h = crate::audit_family_1::Harness::new(&dir);
+        (h.app.selected, h.app.anchor, h.app.cursor) = (1, 1, true);
+        // The first listing is in (its mark gone), the second on its way.
+        let here = h.app.dir.clone();
+        h.app.relisting.remove(&here);
+        h.app.listing_pending.insert(here.clone());
+        h.app.tx.send(listed(&h, &["a.png", "b.png", "c.png"])).unwrap();
+        h.frame(Vec::new());
+        assert_eq!(h.app.files().len(), 3);
+        assert_eq!((h.app.selected, h.app.anchor), (2, 2), "the selection stayed on b.png, not on c.png");
+    }
+
+    /// Audit 1.3, F5 in the viewer (`refresh`): the image open keeps its place, a file new comes
+    /// after it. The images of its neighbours, asked with the listing before, stayed under
+    /// their old places, now of other files: the image of b.png under a2.png.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn images_of_the_viewer_follow_at_f5() {
+        if crate::audit_family_1::own_folder("listing::tests::images_of_the_viewer_follow_at_f5") {
+            return;
+        }
+        let sizes = [("a.png", 8, 6), ("b.png", 20, 10)];
+        let dir = sized("viewer-f5", &sizes);
+        let mut h = crate::audit_family_1::Harness::new(&dir);
+        (h.app.selected, h.app.cursor) = (0, true);
+        h.app.viewing = Some(0);
+        h.until(|app| [0, 1].iter().all(|i| app.full.get(i).is_some_and(|r| r.is_ok())), "a.png and b.png in the viewer");
+        // As F5 leaves it: the listing before kept, the image open to find again.
+        let here = h.app.dir.clone();
+        h.app.start = Some(format!("{here}a.png"));
+        h.app.listing_pending.insert(here.clone());
+        h.app.tx.send(listed(&h, &["a.png", "a2.png", "b.png"])).unwrap();
+        h.frame(Vec::new());
+        assert_eq!(h.app.viewing, Some(0), "still on a.png");
+        let size = |name: &str| sizes.iter().find(|(n, ..)| *n == name).map(|&(_, w, h)| [w as usize, h as usize]);
+        for (k, r) in &h.app.full {
+            let Ok(p) = r else { continue };
+            let name = crate::source::name(&h.app.files()[*k].path).to_string();
+            assert_eq!(Some(p.texture_at(1.0).size()), size(&name), "the image at {k} is not the one of {name}");
+        }
+    }
 }
