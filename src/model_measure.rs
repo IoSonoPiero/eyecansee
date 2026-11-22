@@ -179,6 +179,56 @@ mod tests {
         assert_eq!(cube(false).unit, None);
     }
 
+    /// `memo.get` until the sizes are measured, 30 s at most.
+    fn measured(memo: &mut Memo, path: &str, mesh: &Arc<Mesh>) -> Sizes {
+        let start = std::time::Instant::now();
+        loop {
+            if let Some(s) = memo.get(path, mesh, || {}) {
+                return s;
+            }
+            assert!(start.elapsed().as_secs() < 30, "not measured in 30 s");
+            std::thread::yield_now();
+        }
+    }
+
+    /// Audit 6.8 (a): the file saved again under the same name and read again is measured
+    /// again, and the sizes of the model before, if they come late, are not taken for it.
+    #[test]
+    fn audit_6_8_a_new_model_same_path() {
+        let mut memo = Memo::default();
+        let (small, large) = (Arc::new(cube(false)), Arc::new(crate::model::parse(b"v 0 0 0\nv 5 0 0\nv 0 5 0\nf 1 2 3\n", "c.obj").unwrap()));
+        assert_eq!(measured(&mut memo, "d/c.stl", &small).size, [2.0; 3]);
+        assert_eq!(measured(&mut memo, "d/c.stl", &large).size, [5.0, 5.0, 0.0]);
+        // Read again while the model before is still being measured: its result, late, is not
+        // taken for the one read now.
+        let mut late = Memo::default();
+        assert_eq!(late.get("d/c.stl", &small, || {}), None);
+        assert_eq!(measured(&mut late, "d/c.stl", &large).size, [5.0, 5.0, 0.0]);
+    }
+
+    /// Audit 6.8 (b): a point that no triangle uses, far away, is not in the size.
+    #[test]
+    fn audit_6_8_b_points_not_used() {
+        let ply = "ply\nformat ascii 1.0\nelement vertex 4\nproperty float x\nproperty float y\nproperty float z\nelement face 1\nproperty list uchar int vertex_indices\nend_header\n0 0 0\n1 0 0\n0 1 0\n100 100 100\n3 0 1 2\n";
+        let m = crate::model::parse(ply.as_bytes(), "t.ply").unwrap();
+        assert_eq!(m.pos.len(), 4);
+        assert_eq!(sizes(&m).size, [1.0, 1.0, 0.0]);
+    }
+
+    /// Audit 6.8 (c): a closed cube with one face turned the other way has no volume (the sum
+    /// with its sign would give a wrong one), and the edges around that face are counted.
+    #[test]
+    fn audit_6_8_c_faces_turned_differently() {
+        let mut m = cube(false);
+        // The top (z = 2): turned, it takes its part of the volume away instead of adding it.
+        for t in &mut m.tris[2..4] {
+            t.swap(1, 2);
+        }
+        let s = sizes(&m);
+        assert_eq!((s.open_edges, s.volume), (0, None), "{s:?}");
+        assert!(sizes(&cube(false)).volume.is_some());
+    }
+
     #[test]
     fn the_point_under_the_pointer() {
         let m = cube(false);
