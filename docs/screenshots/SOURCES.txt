@@ -1,17 +1,24 @@
 What the screenshots and the GIF show (grid.png, viewer.png, mtp-open.gif and the site's mtp-open.mp4
-and mtp-open-poster.jpg: a POCO X7 Pro's folder DCIM/EyeCanSee-demo, made of the files below;
+and mtp-open-poster.jpg: a test phone's folder DCIM/EyeCanSee-demo, made of the files below;
 convert.png, rotate.png: the same photos on disk).
 
-mtp-open.gif (800 x 533, 10 fps, 10 s) and the site's mtp-open.mp4 (800 x 534): the phone's DCIM
-folder, then a double click on EyeCanSee-demo and its thumbnails. Dark theme, 1200 x 800, recorded
-by EyeCanSee itself, the pointer drawn afterwards. The home folder shown (/home/demo) is a test one,
-with no disks.
+grid.png, viewer.png, devices.png (1200 x 800) and video-convert.png (1600 x 800), and the site's
+copies (.png, and .webp 533 pixels high): made with tools/shots.sh, scenes site/grid, site/viewer,
+site/devices and site/video-convert in tools/shots/; dark theme, English, a home folder made for
+the pictures (/home/demo) with the made-up disks BACKUP and USB STICK and the made-up servers
+"Photo archive" (photos.example.com) and "Home NAS" (nas.example.com, user "demo"). The phone is a
+real test phone, a POCO X6 Pro, connected over USB; in the address bar its serial number is a
+made-up one (ABCD1234EFGH), and only some of its folders are shown. grid.png: DCIM/EyeCanSee-demo
+in the grid; viewer.png: IMG_0009.jpg (the orchid) in the viewer. devices.png: the 13 photos below
+in the folder Photos of "Home NAS", an FTP server (pyftpdlib) running for the picture on the same
+computer, the phone listed in the left panel, not opened. video-convert.png: 9 of the photos and 3
+of the videos below in a folder on disk, sorted by date, the videos selected, in Convert.
+rotate.png: Wilderness.jpg.
 
-devices.png: the 13 photos below in the folder Photos of a test FTP server on the same computer,
-saved as "NAS" (nas.example, user "demo"); in the left panel a POCO X7 Pro and a second
-saved server "Storage Box" (storage.example), not opened. rotate.png: Wilderness.jpg. Server
-names, hosts and users are made up for the screenshots. video-convert.png (1600 x 800): 9 of the
-photos and the 4 videos below in a folder on disk, sorted by date, the videos selected.
+mtp-open.gif (800 x 533, 10 fps, 10 s) and the site's mtp-open.mp4 (800 x 534): the phone's DCIM
+folder, then a double click on EyeCanSee-demo and its thumbnails. Same home folder, disks, servers
+and phone as grid.png, 1200 x 800, recorded by EyeCanSee itself at 15 frames a second (scene of
+tools/shots.sh with a temporary change that saves every frame), the pointer drawn afterwards.
 
 guide.webp, bookmarks.webp, servers.png (1200 x 800) and the site's guide, guide-search,
 bookmarks and open-location (.png 1200 x 800, .webp 800 x 533): made with tools/shots.sh, scenes in
@@ -37,15 +44,14 @@ walls, doors, windows, furniture, dimensions and texts; linear dimensions) and s
 EyeCanSee's Export drawing: free to use for any purpose.
 
 Both taken in a home folder made for the screenshots (/home/demo), 1200 x 800, dark theme;
-model-3d.png on a screen at 167 % (2000 x 1333) and reduced to 1200 x 800, to show the viewer at
-the screen's refresh rate.
+model-3d.png by EyeCanSee itself (tools/shots/site/model-3d.txt), without the frame rate.
 
 editor.png: Wilderness.jpg (below) in the image editor, with a speech bubble, an ellipse, two
 numbered steps joined by a dashed line, a text and a stamp; 1200 x 800, dark theme, taken by
 EyeCanSee itself, the objects placed by a temporary debug change instead of the mouse.
 
 Photos: public domain or CC0, from Wikimedia Commons (renamed; in the phone folder copied several
-times as IMG_0001.jpg ... IMG_0334.jpg, in the order of the list).
+times as IMG_0001.jpg ... IMG_0334.jpg, in the alphabetical order of their names).
 
 Wilderness.jpg  (original name: Alone_in_the_unspoilt_wilderness_Unsplash_.jpg)
   CC0 - David Marcu davidmarcu
@@ -99,7 +105,7 @@ Sunset.jpg  (original name: Sunset_over_Trommekilen_from_Norrkila_6.jpg)
   CC0 - W.carter
   https://commons.wikimedia.org/wiki/File:Sunset_over_Trommekilen_from_Norrkila_6.jpg
 
-Videos (video-convert.png):
+Videos (video-convert.png: all but Ocean waves):
 
 Earth from space.webm  (original name: Time-lapse_Earth_Flyover_from_NASA_Astronaut_in_Space.webm)
   Public domain - NASA
