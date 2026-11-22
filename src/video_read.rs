@@ -636,6 +636,20 @@ mod tests {
     use super::*;
     use crate::mpv::Reader;
 
+    /// #275: the size of a box comes from the file, up to the largest 64-bit number (size 1 and
+    /// a 64-bit size after the type); added to where the box starts it went past the largest
+    /// number: a panic in a debug build. Read as a box that does not fit.
+    #[test]
+    fn box_size_too_large() {
+        let mut file = [&16u32.to_be_bytes()[..], b"ftypisomisom"].concat();
+        file.extend([&1u32.to_be_bytes()[..], b"moov", &u64::MAX.to_be_bytes()].concat());
+        let end = file.len() as u64 + 1000;
+        let file = &file;
+        let read = |at: u64, len: u64| async move { file.get(at as usize..(at as usize + len as usize).min(file.len())).map(<[u8]>::to_vec) };
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        assert_eq!(rt.block_on(find_box(&read, 0, end, b"moov")), None);
+    }
+
     /// The same file asked twice at once (the viewer during its thumbnail): copied once.
     #[test]
     fn one_copy_at_once() {

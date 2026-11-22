@@ -165,4 +165,14 @@ mod tests {
         assert_eq!(iim_without_place(&iim), [ds(0, "\0\x04"), ds(80, "Ann"), ds(25, "sea")].concat());
         assert_eq!(iim_without_place(&iim[..iim.len() - 2]), [ds(0, "\0\x04"), ds(80, "Ann"), ds(25, "sea")].concat(), "cut short");
     }
+
+    /// #275: an extended length of eight bytes `FF` (the largest number) added to where the field
+    /// starts went past the largest number: a panic in a debug build. Read as a field cut short.
+    #[test]
+    fn iptc_extended_length_too_large() {
+        let ds = |n: u8, v: &str| [&[0x1C, 2, n][..], &(v.len() as u16).to_be_bytes(), v.as_bytes()].concat();
+        let huge = [&[0x1C, 2, 5, 0x80, 8][..], &[0xFF; 8], b"caption"].concat();
+        let iim = [ds(80, "Ann"), huge].concat();
+        assert_eq!(iim_without_place(&iim), ds(80, "Ann"));
+    }
 }
