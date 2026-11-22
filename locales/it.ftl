@@ -602,9 +602,10 @@ error-glb-cut = Il file è incompleto{ $detail }
 # { $expected }, { $actual }: sizes ("12.4 MB"), the one the file's header gives and the file's.
 error-glb-cut-sizes = Il file è incompleto{ $detail }: dovrebbe essere di { $expected } ma è di { $actual }.
     Forse lo scaricamento o la copia si è interrotta: prova a scaricarlo o copiarlo di nuovo.
-# A 3D model with more triangles than EyeCanSee reads in its format: { $max } in millions (10, 20, 50), { $format } the kind of file.
+# A 3D model with more triangles than EyeCanSee opens in its format: { $max } in millions (10, 20, 50), { $format } the kind of file.
+# The formats read whole before the cap is met ("other": AMF, Collada, X3D…) do not say why.
 error-model-too-many-triangles = Il modello ha più di { $max } milioni di triangoli.
-    EyeCanSee non legge { $format ->
+    EyeCanSee non apre { $format ->
         [obj] i file OBJ
         [three-mf] i file 3MF
         [ply-text] i file PLY in testo
@@ -612,10 +613,13 @@ error-model-too-many-triangles = Il modello ha più di { $max } milioni di trian
         [stl] i file STL
         [glb] i file GLB
        *[other] i modelli 3D
-    } con più di { $max } milioni di triangoli, perché la lettura non riempia la memoria del computer.
-# A point cloud (PLY) with more points than EyeCanSee reads: { $max } in millions (2.5, 12.5), { $format } the kind of file.
+    } con più di { $max } milioni di triangoli{ $format ->
+        [other] .
+       *[read] , perché la lettura non riempia la memoria del computer.
+    }
+# A point cloud (PLY) with more points than EyeCanSee opens: { $max } in millions (2.5, 12.5), { $format } the kind of file.
 error-model-too-many-points = La nuvola di punti ha più di { $max } milioni di punti.
-    EyeCanSee non legge { $format ->
+    EyeCanSee non apre { $format ->
         [ply-binary] i file PLY binari
        *[ply-text] i file PLY in testo
     } con più di { $max } milioni di punti, perché la lettura non riempia la memoria del computer.
