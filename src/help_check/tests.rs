@@ -141,6 +141,34 @@ fn images() {
     finds(&check(&docs).problems, "docs/help/it/one.md: shows the images [\"other\"], the English page [\"grid\"]");
 }
 
+/// The images of a language (issue #280): a page shows its language's image or the English one.
+#[test]
+fn images_of_a_language() {
+    let own = |names: &[&str]| names.iter().map(|n| n.to_string()).collect::<BTreeSet<_>>();
+    // Italian has its own grid.webp: nothing to say, and the English one is still what English shows.
+    let mut docs = fake();
+    docs.own.insert("it".to_string(), own(&["grid"]));
+    assert!(check(&docs).problems.is_empty(), "{:#?}", check(&docs).problems);
+    // Without the English image the Italian page still has its own, the English page has none.
+    docs.images.remove("grid");
+    let problems = check(&docs).problems;
+    finds(&problems, "docs/help/en/one.md:7: image grid.webp is not in docs/help/img, for this language or in English");
+    assert!(!problems.iter().any(|p| p.starts_with("docs/help/it/one.md:7")), "{problems:#?}");
+    finds(&problems, "docs/help/img/it/grid.webp: no docs/help/img/grid.webp, the English image it stands for");
+    // An image of a language that no English image has, and so no page shows.
+    let mut docs = fake();
+    docs.own.insert("it".to_string(), own(&["grid", "lonely"]));
+    finds(&check(&docs).problems, "docs/help/img/it/lonely.webp: no docs/help/img/lonely.webp");
+    // Two languages with their own images have the same ones.
+    let mut docs = fake();
+    docs.images.insert("menu".to_string());
+    edit(&mut docs, "en", "three", "In the net", "![Menu](../img/menu.webp) In the net");
+    edit(&mut docs, "it", "three", "In rete", "![Menu](../img/menu.webp) In rete");
+    docs.own.insert("it".to_string(), own(&["grid", "menu"]));
+    docs.own.insert("de".to_string(), own(&["grid"]));
+    finds(&check(&docs).problems, "docs/help/img/de/menu.webp: missing, another language has its own menu.webp");
+}
+
 #[test]
 fn icons() {
     let mut docs = fake();
@@ -174,20 +202,30 @@ fn embedded() {
     let docs = fake();
     let mut pages: Vec<(&str, &str)> =
         docs.pages.iter().flat_map(|(l, p)| p.keys().map(move |id| (l.as_str(), id.as_str()))).collect();
-    assert!(check_embedded(&docs, &pages, &["grid"]).is_empty());
+    assert!(check_embedded(&docs, &pages, &[("en", "grid")]).is_empty());
     pages.retain(|&p| p != ("it", "three"));
     pages.push(("en", "zzz"));
-    let p = check_embedded(&docs, &pages, &["pic"]);
+    let p = check_embedded(&docs, &pages, &[("en", "pic")]);
     finds(&p, "docs/help/it/three.md: not embedded in help::PAGES");
     finds(&p, "help::PAGES has en/zzz, but docs/help/en/zzz.md does not exist");
-    finds(&p, "help::IMAGES has pic, but docs/help/img/pic.webp does not exist");
+    finds(&p, "help::IMAGES has en/pic, but docs/help/img/pic.webp does not exist");
     finds(&p, "docs/help/img/grid.webp: not embedded in help::IMAGES");
+    // The images of a language: its files and what the program carries are the same.
+    let mut docs = fake();
+    docs.own.insert("it".to_string(), ["grid".to_string()].into());
+    let pages: Vec<(&str, &str)> = docs.pages.iter().flat_map(|(l, p)| p.keys().map(move |id| (l.as_str(), id.as_str()))).collect();
+    assert!(check_embedded(&docs, &pages, &[("en", "grid"), ("it", "grid")]).is_empty());
+    finds(&check_embedded(&docs, &pages, &[("en", "grid")]), "docs/help/img/it/grid.webp: not embedded in help::IMAGES");
+    let p = check_embedded(&docs, &pages, &[("en", "grid"), ("it", "grid"), ("it", "pic"), ("de", "grid")]);
+    finds(&p, "help::IMAGES has it/pic, but docs/help/img/it/pic.webp does not exist");
+    finds(&p, "help::IMAGES has de/grid, but docs/help/img/de/grid.webp does not exist");
 }
 
 #[test]
 fn load_from_disk() {
     let root = std::env::temp_dir().join(format!("eyecansee-help-check-{}", std::process::id()));
-    for (path, text) in [("en/one.md", "# One\n"), ("en/notes.txt", ""), ("it/one.md", "# Uno\n"), ("img/grid.webp", "")] {
+    let files = [("en/one.md", "# One\n"), ("en/notes.txt", ""), ("it/one.md", "# Uno\n"), ("img/grid.webp", ""), ("img/it/grid.webp", "")];
+    for (path, text) in files.into_iter().chain([("img/it/draft.png", ""), ("img/xx/grid.webp", ""), ("img/en/grid.webp", "")]) {
         let path = root.join(path);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, text).unwrap();
@@ -200,6 +238,11 @@ fn load_from_disk() {
     assert_eq!(docs.pages["en"]["one"], "# One\n");
     assert_eq!(docs.pages["it"].keys().collect::<Vec<_>>(), ["one"]);
     assert_eq!(docs.images.iter().collect::<Vec<_>>(), ["grid"]);
+    assert_eq!(docs.own.keys().collect::<Vec<_>>(), ["it"], "the folder of a language of the guide, not English");
+    assert_eq!(docs.own["it"].iter().collect::<Vec<_>>(), ["grid"]);
+    finds(&docs.problems, "draft.png: images are .webp");
+    finds(&docs.problems, "img/xx: images are .webp");
+    finds(&docs.problems, "img/en: images are .webp");
     finds(&docs.problems, "notes.txt: not a .md page");
     finds(&docs.problems, "grid.png: images are .webp");
     finds(&docs.problems, "notes.md: images are .webp");

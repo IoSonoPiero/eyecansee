@@ -1,6 +1,11 @@
 //! The guide (F1, Help > Guide): pages embedded in the executable (`docs/help/<lang>/<id>.md`,
 //! pictures in `docs/help/img/`), a table of contents read from `index.md`, Back and Forward as in
 //! a browser, and a search over every page. The search itself is in `help_search`, without egui.
+//!
+//! The pictures (issue #280): the pages of every language name the same ones, `../img/<name>.webp`.
+//! Where a picture shows words the page names, a language has its own in `docs/help/img/<lang>/`;
+//! the others, and a language without its own, show the one in `docs/help/img/`, English or
+//! without words.
 
 use eframe::egui::{self, text::LayoutJob};
 use egui_commonmark::{CommonMarkCache, CommonMarkViewer, SearchOptions};
@@ -27,40 +32,25 @@ pages![
     "server-manager", "passwords", "options", "updates", "components", "keyboard", "formats", "limits",
 ];
 
-/// The pictures of the pages, the same for every language.
+/// The pictures of the pages: first those in English or without words, then for each language
+/// its own.
 macro_rules! images {
-    ($($name:literal),* $(,)?) => {
-        /// (name, bytes) of every `docs/help/img/<name>.webp`.
-        pub(crate) const IMAGES: &[(&str, &[u8])] = &[
-            $(($name, include_bytes!(concat!("../docs/help/img/", $name, ".webp"))),)*
+    ([$($name:literal),* $(,)?] $(, $lang:literal: [$($own:literal),* $(,)?])* $(,)?) => {
+        /// (language, name, bytes) of every `docs/help/img/<name>.webp` ("en") and
+        /// `docs/help/img/<language>/<name>.webp`.
+        pub(crate) const IMAGES: &[Picture] = &[
+            $(("en", $name, include_bytes!(concat!("../docs/help/img/", $name, ".webp"))),)*
+            $($(($lang, $own, include_bytes!(concat!("../docs/help/img/", $lang, "/", $own, ".webp"))),)*)*
         ];
     };
 }
 
 images![
-    "trash-strip",
-    "phone",
-    "bookmarks-menu",
-    "cad",
-    "convert",
-    "convert-video",
-    "devices",
-    "duplicates",
-    "editor",
-    "editor-crop",
-    "editor-props",
-    "metadata-panel",
-    "model-3d",
-    "new-image",
-    "open-location",
-    "options",
-    "save-as",
-    "server-manager",
-    "side-panel",
-    "start",
-    "tips",
-    "video",
-    "viewer",
+    [
+        "trash-strip", "phone", "bookmarks-menu", "cad", "convert", "convert-video", "devices", "duplicates", "editor", "editor-crop",
+        "editor-props", "metadata-panel", "model-3d", "new-image", "open-location", "options", "save-as", "server-manager",
+        "side-panel", "start", "tips", "video", "viewer",
+    ],
 ];
 
 /// A picture built into the program: its language, its name and its bytes. "en" is also the
@@ -73,18 +63,29 @@ pub(crate) fn picture(pictures: &[Picture], lang: &str, name: &str) -> Option<&'
     of(lang).or_else(|| of("en"))
 }
 
-/// The address of a picture as the pages write it (`../img/<name>.webp`) with the prefix the
-/// viewer gives to addresses without a scheme.
-pub(crate) fn image_uri(name: &str) -> String {
-    format!("bytes://help/../img/{name}.webp")
+/// The prefix the viewer gives to the addresses without a scheme of the pages of a language:
+/// each language has its own, so the same `../img/<name>.webp` leads to its picture.
+fn pages_uri(lang: &str) -> String {
+    format!("bytes://help/{lang}/")
 }
 
-/// The pictures given to egui, once (the guide and the tips at startup show them).
-pub(crate) fn load_images(ctx: &egui::Context) {
+/// The address of a picture as the pages write it (`../img/<name>.webp`), in a language.
+fn image_uri(lang: &str, name: &str) -> String {
+    format!("{}../img/{name}.webp", pages_uri(lang))
+}
+
+/// The pictures given to egui, once: for the pages of each language its own, or the English ones.
+fn load_images(ctx: &egui::Context) {
     let done = egui::Id::unique("help-images");
     if !ctx.data(|d| d.get_temp::<bool>(done).unwrap_or(false)) {
-        for (name, bytes) in IMAGES {
-            ctx.include_bytes(image_uri(name), *bytes);
+        let mut langs: Vec<&str> = PAGES.iter().map(|p| p.0).collect();
+        langs.dedup();
+        for lang in langs {
+            for name in IMAGES.iter().filter(|p| p.0 == "en").map(|p| p.1) {
+                if let Some(bytes) = picture(IMAGES, lang, name) {
+                    ctx.include_bytes(image_uri(lang, name), bytes);
+                }
+            }
         }
         ctx.data_mut(|d| d.insert_temp(done, true));
     }
@@ -531,7 +532,7 @@ fn draw(ui: &mut egui::Ui, g: &mut Guide, v: &View) -> Option<Do> {
     egui::Panel::left("help-side").resizable(true).default_size(260.0).size_range(160.0..=480.0).show(ui, |ui| side(ui, g, v, &mut todo));
     egui::CentralPanel::default().show(ui, |ui| {
         egui::ScrollArea::vertical().id_salt(("help-page", g.page)).auto_shrink(false).show(ui, |ui| {
-            CommonMarkViewer::new().default_implicit_uri_scheme("bytes://help/").show_with_id(viewer_id(), ui, &mut g.cache, v.text);
+            CommonMarkViewer::new().default_implicit_uri_scheme(pages_uri(g.lang)).show_with_id(viewer_id(), ui, &mut g.cache, v.text);
         });
     });
     if let Some(id) = g.clicked_link() {
@@ -665,7 +666,7 @@ mod tests {
         assert_eq!(pages_lang("it"), "it");
         assert_eq!(pages_lang("xx"), "en");
         assert_eq!(help_search::title(page_text("it", "editor-crop")), "Ritagliare e ruotare");
-        assert_eq!(image_uri("grid"), "bytes://help/../img/grid.webp");
+        assert_eq!(image_uri("it", "grid"), "bytes://help/it/../img/grid.webp");
         assert!(searched("en").iter().all(|p| p.0 != "index"));
     }
 

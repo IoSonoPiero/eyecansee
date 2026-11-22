@@ -1,6 +1,8 @@
 //! Checks of the illustrated guide in `docs/help` (issue #34): the same pages and headings in
 //! every language, the contents page, links, images, icons, image placeholders, the pages and
 //! images embedded in the program and the F1 spots (`"help:<id>"`) written in the code.
+//! The images of a language (issue #280) are in `img/<language>/`, under the names of the English
+//! ones in `img/`, which a page shows when its language has none of its own.
 //! Each check is a pure function (text in, list of problems out), tested on small fake pages;
 //! `guide_is_consistent` runs them all on the real guide.
 
@@ -60,8 +62,10 @@ const CONTRACT: &[Area] = &[
 struct Docs {
     /// Language → page id (file name without `.md`) → text.
     pages: BTreeMap<String, BTreeMap<String, String>>,
-    /// Names of the files in `img/`, without `.webp`.
+    /// Names of the files in `img/`, without `.webp`: the English images, and those without words.
     images: BTreeSet<String>,
+    /// Language → names of the files in `img/<language>/`, without `.webp`: its own images.
+    own: BTreeMap<String, BTreeSet<String>>,
     /// What could not be read, or files that do not belong.
     problems: Vec<String>,
 }
@@ -92,8 +96,22 @@ fn files(dir: &Path, problems: &mut Vec<String>) -> Vec<(String, PathBuf)> {
     out
 }
 
-/// Reads `<root>/<lang>/*.md` for every language and the names of `<root>/img/*.webp` (besides
-/// them only `CREDITS.md`).
+/// The names, without `.webp`, of the images of a folder; anything else in it is a problem, but
+/// what `besides` lets pass.
+fn images_in(dir: &Path, problems: &mut Vec<String>, mut besides: impl FnMut(&str, &Path, &mut Vec<String>) -> bool) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+    for (name, path) in files(dir, problems) {
+        match name.strip_suffix(".webp") {
+            Some(stem) => _ = names.insert(stem.to_string()),
+            None if besides(&name, &path, problems) => {}
+            None => problems.push(format!("{}: images are .webp", path.display())),
+        }
+    }
+    names
+}
+
+/// Reads `<root>/<lang>/*.md` for every language, the names of `<root>/img/*.webp` (besides them
+/// only `CREDITS.md`) and, for a language with a folder `<root>/img/<lang>/`, of its own images.
 fn load(root: &Path) -> Docs {
     let mut docs = Docs::default();
     for &(lang, _) in LANGS {
@@ -110,14 +128,17 @@ fn load(root: &Path) -> Docs {
         }
         docs.pages.insert(lang.to_string(), pages);
     }
-    for (name, path) in files(&root.join("img"), &mut docs.problems) {
-        match name.strip_suffix(".webp") {
-            Some(stem) => _ = docs.images.insert(stem.to_string()),
-            // The authors and licences of what the pictures show: not built into the program.
-            None if name == "CREDITS.md" => {}
-            None => docs.problems.push(format!("{}: images are .webp", path.display())),
+    let mut own = BTreeMap::new();
+    docs.images = images_in(&root.join("img"), &mut docs.problems, |name, path, problems| {
+        // The folder of a language of the guide, but English (its images are here): its own images.
+        if path.is_dir() && name != "en" && LANGS.iter().any(|l| l.0 == name) {
+            own.insert(name.to_string(), images_in(path, problems, |_, _, _| false));
+            return true;
         }
-    }
+        // The authors and licences of what the pictures show: not built into the program.
+        name == "CREDITS.md"
+    });
+    docs.own = own;
     docs
 }
 
@@ -235,7 +256,8 @@ fn cited_images(md: &str) -> Vec<&str> {
         .collect()
 }
 
-/// Every link leads to a page, every image to a file of `img/`, every icon to a known icon.
+/// Every link leads to a page, every image to a file of `img/` (`images`: those of the page's
+/// language and the English ones), every icon to a known icon.
 fn check_targets(
     file: &str,
     md: &str,
@@ -248,7 +270,7 @@ fn check_targets(
         match classify(t) {
             Target::Page(id) if !pages.contains_key(id) => out.push(format!("{file}:{n}: link to a missing page, {id}.md")),
             Target::Image(name) if !images.contains(name) => {
-                out.push(format!("{file}:{n}: image {name}.webp is not in docs/help/img"))
+                out.push(format!("{file}:{n}: image {name}.webp is not in docs/help/img, for this language or in English"))
             }
             Target::Icon(name) if !icon_exists(name) => out.push(format!("{file}:{n}: unknown icon icon://{name}")),
             Target::Bad(why) => out.push(format!("{file}:{n}: link ({t}): {why}")),
@@ -370,9 +392,11 @@ fn check_page(docs: &Docs, id: &str, icon_exists: &dyn Fn(&str) -> bool, report:
     let en = docs.pages.get("en").and_then(|p| p.get(id));
     for (lang, pages) in &docs.pages {
         let (file, Some(md)) = (at(lang, id), pages.get(id)) else { continue };
+        // What the page can show: the images of its language, the English ones for the others.
+        let images: BTreeSet<String> = docs.own.get(lang).into_iter().flatten().chain(&docs.images).cloned().collect();
         report.problems.extend(check_headings(&file, md));
-        report.problems.extend(check_targets(&file, md, pages, &docs.images, icon_exists));
-        check_shots(&file, md, &docs.images, report);
+        report.problems.extend(check_targets(&file, md, pages, &images, icon_exists));
+        check_shots(&file, md, &images, report);
         let Some(en) = en.filter(|_| lang != "en") else { continue };
         report.problems.extend(check_same_headings(&file, en, md));
         let (a, b) = (cited_images(en), cited_images(md));
@@ -384,6 +408,23 @@ fn check_page(docs: &Docs, id: &str, icon_exists: &dyn Fn(&str) -> bool, report:
             report.problems.push(format!("{file}: has the placeholders {b:?}, the English page {a:?}"));
         }
     }
+}
+
+/// The images of a language stand for English ones: each has the name of an image of `img/`
+/// (which the languages without their own show), and the languages that have their own have
+/// the same ones, those that show words.
+fn check_own_images(docs: &Docs) -> Vec<String> {
+    let mut out = vec![];
+    let all: BTreeSet<&String> = docs.own.values().flatten().collect();
+    for (lang, names) in &docs.own {
+        for name in names.iter().filter(|n| !docs.images.contains(*n)) {
+            out.push(format!("docs/help/img/{lang}/{name}.webp: no docs/help/img/{name}.webp, the English image it stands for"));
+        }
+        for name in all.iter().filter(|n| !names.contains(**n)) {
+            out.push(format!("docs/help/img/{lang}/{name}.webp: missing, another language has its own {name}.webp"));
+        }
+    }
+    out
 }
 
 /// All the checks of the files of the guide: pages, headings, contents, links, images, icons
@@ -404,11 +445,17 @@ fn check_guide(docs: &Docs, contract: &[Area], icon_exists: &dyn Fn(&str) -> boo
     for name in docs.images.iter().filter(|n| !cited.contains(n.as_str())) {
         report.problems.push(format!("docs/help/img/{name}.webp: not shown by any page"));
     }
+    report.problems.extend(check_own_images(docs));
     report
 }
 
-/// The pages and images embedded in the program are exactly the files of the guide.
-fn check_embedded(docs: &Docs, pages: &[(&str, &str)], images: &[&str]) -> Vec<String> {
+/// Where an image is: the English ones in `img/`, the others in the folder of their language.
+fn image_at(lang: &str, name: &str) -> String {
+    if lang == "en" { format!("docs/help/img/{name}.webp") } else { format!("docs/help/img/{lang}/{name}.webp") }
+}
+
+/// The pages and images (language, name) embedded in the program are exactly the files of the guide.
+fn check_embedded(docs: &Docs, pages: &[(&str, &str)], images: &[(&str, &str)]) -> Vec<String> {
     let mut out = vec![];
     for &(lang, id) in pages {
         if !docs.pages.get(lang).is_some_and(|p| p.contains_key(id)) {
@@ -420,11 +467,13 @@ fn check_embedded(docs: &Docs, pages: &[(&str, &str)], images: &[&str]) -> Vec<S
             out.push(format!("{}: not embedded in help::PAGES", at(lang, id)));
         }
     }
-    for name in images.iter().filter(|n| !docs.images.contains(**n)) {
-        out.push(format!("help::IMAGES has {name}, but docs/help/img/{name}.webp does not exist"));
+    let on_disk = |lang: &str| if lang == "en" { Some(&docs.images) } else { docs.own.get(lang) };
+    for &(lang, name) in images.iter().filter(|(lang, name)| !on_disk(lang).is_some_and(|names| names.contains(*name))) {
+        out.push(format!("help::IMAGES has {lang}/{name}, but {} does not exist", image_at(lang, name)));
     }
-    for name in docs.images.iter().filter(|n| !images.contains(&n.as_str())) {
-        out.push(format!("docs/help/img/{name}.webp: not embedded in help::IMAGES"));
+    let files = docs.images.iter().map(|n| ("en", n)).chain(docs.own.iter().flat_map(|(lang, names)| names.iter().map(move |n| (lang.as_str(), n))));
+    for (lang, name) in files.filter(|&(lang, name)| !images.contains(&(lang, name.as_str()))) {
+        out.push(format!("{}: not embedded in help::IMAGES", image_at(lang, name)));
     }
     out
 }
@@ -480,8 +529,7 @@ fn guide_is_consistent() {
     let docs = load(&root.join("docs/help"));
     let mut report = check_guide(&docs, CONTRACT, &icon_exists);
     let pages: Vec<(&str, &str)> = PAGES.iter().map(|&(lang, id, _)| (lang, id)).collect();
-    let stem = |n: &'static str| n.rsplit('/').next().unwrap_or(n).trim_end_matches(".webp");
-    let images: Vec<&str> = IMAGES.iter().map(|&(name, _)| stem(name)).collect();
+    let images: Vec<(&str, &str)> = IMAGES.iter().map(|&(lang, name, _)| (lang, name)).collect();
     report.problems.extend(check_embedded(&docs, &pages, &images));
     report.problems.extend(check_spots(&sources(root), &docs));
     for p in &report.pending {
