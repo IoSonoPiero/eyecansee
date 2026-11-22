@@ -288,7 +288,7 @@ fn audit_1_5_b_sort_from_the_viewer_moves_the_turn() {
 }
 
 /// Audit 1.5 (c): an address handed over by another start of EyeCanSee (a double click in the
-/// file manager), as `single::listen` sends it. Fixed (#198): asked first.
+/// file manager), as `App::answer_handed` (`single.rs`) sends it. Fixed (#198): asked first.
 #[test]
 #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
 fn audit_1_5_c_address_from_outside_drops_the_turn() {

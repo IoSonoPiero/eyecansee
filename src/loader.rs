@@ -35,7 +35,7 @@ pub enum Msg {
     Listed(String, String, Result<Listing, source::Error>),
     /// The folder a server starts in, once connected (`Loader::home`): source base and folder.
     Home(String, Result<String, source::Error>),
-    /// Address handed over by EyeCanSee started again ("" = none): `single::listen`.
+    /// Address handed over by EyeCanSee started again ("" = none): `App::answer_handed` (`single.rs`).
     Open(String),
     /// Connected external devices, sent by `devices::watch` when the list changes.
     Devices(Vec<crate::devices::Device>),
