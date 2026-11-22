@@ -68,7 +68,7 @@ pub fn apply(img: &DynamicImage, f: Filter, amount: f32, scale: f32) -> DynamicI
             let small = i.resize_exact(((w as f32 / block).ceil() as u32).max(1), ((h as f32 / block).ceil() as u32).max(1), image::imageops::FilterType::Triangle);
             small.resize_exact(w, h, image::imageops::FilterType::Nearest)
         }),
-        Filter::Sharpen => mixing(img, |i| i.unsharpen(px, 2)),
+        Filter::Sharpen => mixing(img, |i| sharpened(i, px)),
         Filter::Gray => like(img.grayscale(), img),
         Filter::Sepia => {
             let mut rgba = img.to_rgba8();
@@ -79,9 +79,60 @@ pub fn apply(img: &DynamicImage, f: Filter, amount: f32, scale: f32) -> DynamicI
             }
             like(DynamicImage::ImageRgba8(rgba), img)
         }
-        Filter::Brightness => img.brighten((amount * 2.55).round() as i32),
+        Filter::Brightness => brighter(img, amount),
         Filter::Contrast => colours_only(img.adjust_contrast(amount), img),
     }
+}
+
+/// Brightness, `amount` from -100 to 100, at the depth of the image: `image`'s `brighten` adds a
+/// number in units of the sample, so a 16-bit image got 257 times less than the 8-bit preview,
+/// and on floats it cut the samples to 0 or 1 and a NaN ended in a panic (audit 5.5).
+fn brighter(img: &DynamicImage, amount: f32) -> DynamicImage {
+    let eight = (amount * 2.55).round() as i32;
+    match img {
+        DynamicImage::ImageLuma16(_) | DynamicImage::ImageLumaA16(_) | DynamicImage::ImageRgb16(_) | DynamicImage::ImageRgba16(_) => img.brighten(eight * 257),
+        DynamicImage::ImageRgb32F(b) => DynamicImage::ImageRgb32F(floats(b, |c| (c + amount / 100.0).max(0.0))),
+        DynamicImage::ImageRgba32F(b) => DynamicImage::ImageRgba32F(floats(b, |c| (c + amount / 100.0).max(0.0))),
+        _ => img.brighten(eight),
+    }
+}
+
+/// Sharpen by `sigma`, leaving alone what differs from its blur by 2 steps of 8 bits or less, at
+/// any depth: `image`'s `unsharpen` takes the threshold in units of the sample and cuts floats to
+/// whole numbers (nothing sharpened, a NaN a panic).
+fn sharpened(img: &DynamicImage, sigma: f32) -> DynamicImage {
+    const THRESHOLD: i32 = 2;
+    match img {
+        DynamicImage::ImageLuma16(_) | DynamicImage::ImageLumaA16(_) | DynamicImage::ImageRgb16(_) | DynamicImage::ImageRgba16(_) => img.unsharpen(sigma, THRESHOLD * 257),
+        DynamicImage::ImageRgb32F(b) => DynamicImage::ImageRgb32F(sharp_floats(b, sigma, THRESHOLD as f32 / 255.0)),
+        DynamicImage::ImageRgba32F(b) => DynamicImage::ImageRgba32F(sharp_floats(b, sigma, THRESHOLD as f32 / 255.0)),
+        _ => img.unsharpen(sigma, THRESHOLD),
+    }
+}
+
+/// `unsharpen` on floats: each sample pushed away from its blur when they differ by more than
+/// `step`, never below 0.
+fn sharp_floats<P: image::Pixel<Subpixel = f32> + 'static>(b: &ImageBuffer<P, Vec<f32>>, sigma: f32, step: f32) -> ImageBuffer<P, Vec<f32>> {
+    let mut out = image::imageops::blur(b, sigma);
+    for (d, &c) in out.iter_mut().zip(b.iter()) {
+        let diff = c - *d;
+        // A NaN compares as false: kept as it was.
+        *d = if diff.abs() > step { (c + diff).max(0.0) } else { c };
+    }
+    out
+}
+
+/// Each colour of `b` through `f`; the alpha as it was.
+fn floats<P: image::Pixel<Subpixel = f32>>(b: &ImageBuffer<P, Vec<f32>>, f: impl Fn(f32) -> f32) -> ImageBuffer<P, Vec<f32>> {
+    let mut out = b.clone();
+    let n = usize::from(P::CHANNEL_COUNT);
+    let colours = if P::HAS_ALPHA { n - 1 } else { n };
+    for p in out.chunks_exact_mut(n) {
+        for c in &mut p[..colours] {
+            *c = f(*c);
+        }
+    }
+    out
 }
 
 /// `out` with the alpha of `img` back: `image`'s contrast changes every channel, so a negative
