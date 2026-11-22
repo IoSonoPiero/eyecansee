@@ -680,6 +680,22 @@ fn preview_is_the_file() {
     assert!((0..3).any(|k| alone(p[k], k).abs_diff(f[k]) > 20), "{p:?} {f:?}");
 }
 
+/// A text with a control character pasted in it (U+000B, a manual line break from Word) is in
+/// the saved file: XML has no such characters, and the text was left out without a word
+/// (audit 5.3).
+#[test]
+fn text_with_a_control_character_saved() {
+    let original = Original::with_meta(motif(), &[]);
+    let text = |s: &str| {
+        let mut doc = Doc::new(64, 48, None);
+        doc.objects.push(obj(Shape::Text { at: Pt::new(0.0, 0.0), text: s.into(), size: 20.0, rot: 0.0, font: None, path: None }, Style { color: BLUE, ..Style::default() }));
+        result(&doc, &original, &options()).to_rgba8()
+    };
+    let (bad, good, bare) = (text("a\u{b}b"), text("ab"), motif().to_rgba8());
+    assert_ne!(good, bare, "the letters drawn");
+    assert_eq!(bad, good);
+}
+
 /// Resize (#114): a phone JPEG halved with a cover box on it is saved at half its size, the box
 /// halved with it, the EXIF with the new size and the rest kept; a plain JPEG turned and resized
 /// is not the quick lossless turn (it would keep the old size).

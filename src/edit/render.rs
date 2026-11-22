@@ -599,6 +599,25 @@ pub(crate) mod tests {
         assert!(gaps(&dotted) > 30 && switches(&dotted) >= 18, "{} {}", gaps(&dotted), switches(&dotted));
     }
 
+    /// A text pasted with a control character (a manual line break from Word, U+000B; a page
+    /// break, U+000C; an escape) is drawn as without it, and so are the other objects: XML has no
+    /// such characters, so nothing was drawn at all (audit 5.3). The same for a bubble and a text
+    /// on a line.
+    #[test]
+    fn control_characters_dropped() {
+        let path = Some((Pt::new(-30.0, 0.0), Pt::new(30.0, 0.0), None));
+        let rect = Obj { shape: Shape::Rect(Area { centre: Pt::new(0.0, 20.0), w: 40.0, h: 10.0, rot: 0.0 }), style: style() };
+        let text = |s: &str, path| Obj { shape: Shape::Text { at: Pt::new(0.0, 0.0), text: s.into(), size: 20.0, rot: 0.0, font: None, path }, style: style() };
+        let bubble = |s: &str| Obj { shape: Shape::Bubble { area: Area { centre: Pt::new(0.0, -10.0), w: 60.0, h: 30.0, rot: 0.0 }, tail: Pt::new(-20.0, 30.0), text: s.into(), font: None }, style: style() };
+        for (bad, good) in [(text("a\u{b}b", None), text("ab", None)), (text("a\u{c}\u{1b}b", path), text("ab", path)), (bubble("a\u{b}b"), bubble("ab"))] {
+            let drawn = |o: &Obj| render(&doc(vec![o.clone(), rect.clone()]), (W, H), &whole(&doc(vec![])), &options()).map(|p| p.data().to_vec());
+            let got = drawn(&bad);
+            assert!(got.is_some(), "{:?} drawn", bad.shape);
+            assert_eq!(got, drawn(&good), "{:?} as without the character", bad.shape);
+            assert!(bounds(&doc(vec![bad]), (W, H), &options()).is_some());
+        }
+    }
+
     /// Accented letters keep their accents, and none is lost: each accented vowel has the ink of
     /// the plain one and more where it has none (the accent), and the words are as wide.
     #[test]
