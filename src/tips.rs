@@ -578,4 +578,28 @@ mod tests {
         h.frame(Vec::new());
         assert!(h.app.tip.is_none(), "a new Enter closes it");
     }
+
+    /// Audit 1.13, what was left (the folder that went up by itself behind the tip): egui keeps
+    /// what is under a modal from the mouse only from the frame after the modal is drawn, so a
+    /// click in the tip's first frame reached the grid, the tree or the toolbar behind it.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn no_click_behind_the_tip_in_its_first_frame() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("tips::tests::no_click_behind_the_tip_in_its_first_frame") {
+            return;
+        }
+        let mut h = Harness::new(&folder("tip-click", &["a.png"]));
+        let click = |pressed| egui::Event::PointerButton { pos: egui::pos2(20.0, 60.0), button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+        let after_hook = |h: &mut Harness| {
+            let mut raw = egui::RawInput { events: vec![click(true), click(false)], ..Default::default() };
+            eframe::App::raw_input_hook(&mut h.app, &h.ctx, &mut raw);
+            raw.events.len()
+        };
+        h.app.tip_show(0);
+        assert_eq!(after_hook(&mut h), 0, "a click in the tip's first frame reaches what is behind it");
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+        assert_eq!(after_hook(&mut h), 2, "once the tip is on top, egui keeps the click from what is behind");
+    }
 }
