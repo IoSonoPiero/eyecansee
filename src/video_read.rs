@@ -788,16 +788,15 @@ mod tests {
         let reader = Arc::new(StoreReader::new(rt.handle().clone(), &op, "v.mp4", 100, false));
         assert_eq!(reader.read(0, 10).unwrap(), [1u8; 10]);
         let r = reader.clone();
-        let waiting = std::thread::spawn(move || {
-            let t = std::time::Instant::now();
-            (r.until_closed(std::future::pending::<Result<(), String>>()), t.elapsed())
-        });
+        let waiting = std::thread::spawn(move || (r.until_closed(std::future::pending::<Result<(), String>>()), std::time::Instant::now()));
         std::thread::sleep(std::time::Duration::from_millis(300));
+        let cancelled_at = std::time::Instant::now();
         reader.cancel();
-        let (r, took) = waiting.join().unwrap();
+        let (r, ended) = waiting.join().unwrap();
+        let took = ended.saturating_duration_since(cancelled_at);
         let cancelled = said(("error-cancelled", String::new()));
         assert_eq!(r, Err(cancelled.clone()));
-        assert!(took < std::time::Duration::from_millis(600), "{took:?}");
+        assert!(took < std::time::Duration::from_millis(300), "the read ended {took:?} after the close");
         assert_eq!(reader.read(0, 10), Err(cancelled));
         std::fs::remove_dir_all(&dir).unwrap();
     }

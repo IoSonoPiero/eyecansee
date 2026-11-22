@@ -137,7 +137,8 @@ impl App {
         let Some((path, size)) = self.files().get(current).map(|f| (f.path.clone(), f.size)) else { return };
         if self.video.as_ref().is_none_or(|v| v.path != path) {
             self.video = None; // the old one stops before the new one starts
-            self.video = Some(self.open_video(ui.ctx(), path, size));
+            let at = kept_for(self.video_place.take(), &path);
+            self.video = Some(self.open_video(ui.ctx(), path, size, at));
         }
         let engine = self.engine();
         let Some(v) = &mut self.video else { return };
@@ -188,7 +189,8 @@ impl App {
     pub(crate) fn show_video(&mut self, painter: &egui::Painter, rect: Rect, path: &str, size: u64) -> (bool, bool) {
         if self.video.as_ref().is_none_or(|v| v.path != path) {
             self.video = None;
-            self.video = Some(self.open_video(painter.ctx(), path.to_string(), size));
+            let at = kept_for(self.video_place.take(), path);
+            self.video = Some(self.open_video(painter.ctx(), path.to_string(), size, at));
         }
         if self.video_failed(path) {
             return (false, false);
@@ -435,7 +437,14 @@ impl App {
         self.video.as_ref().is_some_and(|v| v.path == path && !v.player.as_ref().is_ok_and(|p| p.ended()))
     }
 
-    fn open_video(&self, ctx: &egui::Context, path: String, size: u64) -> Playing {
+    /// Before the video `path` is opened again with its new rotation (Save, #211): where it is,
+    /// for it to open there (`kept_for`).
+    pub(crate) fn keep_place(&mut self, path: &str) {
+        let place = self.video.as_ref().filter(|v| v.path == path).and_then(|v| v.player.as_ref().ok()).map(|p| p.place());
+        self.video_place = place.map(|p| (path.to_string(), p));
+    }
+
+    fn open_video(&self, ctx: &egui::Context, path: String, size: u64, at: Option<mpv::Place>) -> Playing {
         let ctx = ctx.clone();
         let mut copying = None;
         let player = match &self.loader {
@@ -444,12 +453,15 @@ impl App {
             Some(loader) => {
                 let (input, copied) = loader.video_input(&path, size);
                 copying = copied.map(|c| (c, size));
-                mpv::Player::open(input, self.settings.video_volume, self.settings.video_mute, move || ctx.request_repaint())
+                mpv::Player::open_at(input, self.settings.video_volume, self.settings.video_mute, at, move || ctx.request_repaint())
                     .map_err(|e| self.i18n.cannot_load(crate::source::name(&path), &e))
             }
         };
         if let Err(e) = &player {
             log!("video {path:?}: ERROR {e}");
+        }
+        if let Some(at) = at {
+            log!("video {path:?}: opened at {:.3} s, paused {}, at the end {}", at.time, at.paused, at.at_end);
         }
         Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying, hide: Default::default() }
     }
@@ -457,9 +469,8 @@ impl App {
 
 /// The place kept for `path` before Save (#211): used for that path only, and once (the caller
 /// takes it out whatever the path).
-#[allow(dead_code)] // until #211 is fixed
-fn kept_for(_kept: Option<(String, mpv::Place)>, _path: &str) -> Option<mpv::Place> {
-    None
+fn kept_for(kept: Option<(String, mpv::Place)>, path: &str) -> Option<mpv::Place> {
+    kept.filter(|(p, _)| p == path).map(|(_, place)| place)
 }
 
 /// Why a video does not play, as `I18n::cannot_load` says it: a Fluent id with no detail (`id\u{1}`),

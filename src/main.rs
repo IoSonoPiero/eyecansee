@@ -346,6 +346,8 @@ struct App {
     viewing: Option<usize>,
     /// The video playing in the viewer.
     video: Option<video::Playing>,
+    /// Where the video saved turned was, for it to open there again, once (#211).
+    video_place: Option<(String, mpv::Place)>,
     /// The add-ons being downloaded (`downloads`).
     downloads: downloads::Downloads,
     /// Why EyeCanSee could not be started again after the engine download.

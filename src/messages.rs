@@ -504,6 +504,8 @@ impl App {
                     self.turn = Default::default();
                     // A video saved turned: opened again, with its new rotation (#125).
                     if crate::decode::is_video(&path) {
+                        // Where it was, kept for it to open there again (#211).
+                        self.keep_place(&path);
                         self.video = None;
                     }
                 }

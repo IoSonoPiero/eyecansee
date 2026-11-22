@@ -90,9 +90,12 @@ pub struct Place {
 
 /// mpv's options that open a video at `at`: its own `start` and `pause`, so that the first frame
 /// shown is already that one (not a seek after loading).
-#[allow(dead_code)] // until #211 is fixed
-fn start_options(_at: Option<Place>) -> Vec<(&'static str, String)> {
-    Vec::new()
+/// At the end: from the end, playing, so that mpv ends there at once with the last frame kept, as
+/// after playing it (paused there it was one frame before, not at its end).
+fn start_options(at: Option<Place>) -> Vec<(&'static str, String)> {
+    let Some(at) = at else { return Vec::new() };
+    let (start, paused) = if at.at_end { ("100%".to_string(), false) } else { (format!("{:.3}", at.time.max(0.0)), at.paused) };
+    vec![("start", start), ("pause", if paused { "yes" } else { "no" }.to_string())]
 }
 
 /// A video playing (with sound), its frames drawn by a thread of its own at the size the
@@ -111,7 +114,7 @@ impl Player {
     }
 
     /// As `open`, from `at` (the place of the video before Save, #211).
-    pub fn open_at(input: Input, volume: u32, mute: bool, _at: Option<Place>, repaint: impl Fn() + Send + 'static) -> Result<Player, String> {
+    pub fn open_at(input: Input, volume: u32, mute: bool, at: Option<Place>, repaint: impl Fn() + Send + 'static) -> Result<Player, String> {
         let shared = Arc::new(Shared::default());
         let s = shared.clone();
         // keep-open: at the end the last frame stays, as in a player.
@@ -120,7 +123,9 @@ impl Player {
         // every frame) covered half of the picture (2026-10-27).
         let volume = volume.min(100).to_string();
         let mute = if mute { "yes" } else { "no" };
-        let options = [("hwdec", "auto-copy-safe"), ("keep-open", "yes"), ("audio-client-name", "EyeCanSee"), ("sub-auto", "no"), ("volume", &volume), ("mute", mute)];
+        let start = start_options(at);
+        let mut options = vec![("hwdec", "auto-copy-safe"), ("keep-open", "yes"), ("audio-client-name", "EyeCanSee"), ("sub-auto", "no"), ("volume", volume.as_str()), ("mute", mute)];
+        options.extend(start.iter().map(|(k, v)| (*k, v.as_str())));
         let mut mpv = Mpv::new(&options, move || s.change(|st| st.dirty = true))?;
         mpv.load(input)?;
         let mpv = Arc::new(mpv);
@@ -130,7 +135,6 @@ impl Player {
     }
 
     /// Where the video is: its time, paused or not, at its end or not (#211).
-    #[allow(dead_code)] // until #211 is fixed
     pub fn place(&self) -> Place {
         Place { time: self.position(), paused: self.paused(), at_end: self.ended() }
     }
