@@ -49,7 +49,7 @@ At the first start of the day a window shows a tip: one thing EyeCanSee can do, 
 
 - **Next** and **Back** (or the → and ← keys) show the other tips; the next start shows the one after the last you saw.
 - **Read more in the guide** opens the page about that tip.
-- **Close** (or **Esc**) closes the window.
+- **Close** (or **Enter** or **Esc**) closes the window. While it is open, the other keys do not reach the grid behind it (**F1** still opens this guide).
 - **Don't show at startup** stops the tips. To have them back, tick **Show a tip at startup** in **Tools > Options… > General** (see [Options](options.md)).
 
 The tips do not appear when EyeCanSee starts to open a picture or a folder from another program.

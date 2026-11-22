@@ -49,7 +49,7 @@ Al primo avvio del giorno una finestra mostra un suggerimento: una cosa che EyeC
 
 - **Avanti** e **Indietro** (o i tasti → e ←) mostrano gli altri suggerimenti; l'avvio successivo mostra quello dopo l'ultimo che hai visto.
 - **Leggi di più nella guida** apre la pagina di quel suggerimento.
-- **Chiudi** (o **Esc**) chiude la finestra.
+- **Chiudi** (o **Invio** o **Esc**) chiude la finestra. Finché è aperta, gli altri tasti non arrivano alla griglia dietro (**F1** apre comunque questa guida).
 - **Non mostrare più all'avvio** ferma i suggerimenti. Per riaverli, spunta **Mostra un suggerimento all'avvio** in **Strumenti > Opzioni… > Generale** (vedi [Opzioni](options.md)).
 
 I suggerimenti non compaiono quando EyeCanSee parte per aprire un'immagine o una cartella da un altro programma.

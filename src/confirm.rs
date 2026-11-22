@@ -107,6 +107,11 @@ fn answers(top: Option<egui::LayerId>, id: &str) -> bool {
     top.is_none_or(|top| top == modal_layer(id))
 }
 
+/// The modal window `id` is on top, or no modal is (`answers`).
+pub(crate) fn on_top(ctx: &egui::Context, id: &str) -> bool {
+    answers(ctx.memory(|m| m.top_modal_layer()), id)
+}
+
 /// Enter (`Some(true)`) or Esc (`Some(false)`) pressed while a window asks (`App::key_answer`,
 /// from `raw_input_hook`), for the window whose modal is `id`: only the window on top takes it,
 /// the others under it wait. One answer for all of them went to the first one drawn: Enter on a
@@ -131,12 +136,18 @@ impl App {
             return false;
         }
         let (answer, typing) = (&mut self.key_answer, self.help.in_field());
+        // The tip of the day (audit 1.13, D6): ← and → turn it, unless the guide is over it. A key
+        // held down from before it came (Enter on Done of the first-start window) does not close it.
+        let tip = self.tip.is_some() && !self.help.open;
+        let mut turn = None;
         raw_input.events.retain(|e| match e {
             e if crate::help::stays(typing, e) => true,
-            egui::Event::Key { key, pressed: true, .. } => {
+            egui::Event::Key { key, pressed: true, repeat, .. } => {
                 match key {
+                    egui::Key::Enter | egui::Key::Escape if *repeat && tip => {}
                     egui::Key::Enter => *answer = Some(true),
                     egui::Key::Escape => *answer = Some(false),
+                    egui::Key::ArrowLeft | egui::Key::ArrowRight if tip => turn = Some(*key == egui::Key::ArrowRight),
                     _ => {}
                 }
                 false
@@ -144,15 +155,18 @@ impl App {
             egui::Event::Key { .. } | egui::Event::Text(_) => false,
             _ => true,
         });
+        if let (Some(next), Some(open)) = (turn, &mut self.tip) {
+            open.turn(next);
+        }
         true
     }
 
     /// A confirmation or a message is open: deletion, a name already taken when restoring or
-    /// pasting, a message to close, the first-start window's question on closing… Its keys are
-    /// its own (`raw_input_hook`).
+    /// pasting, a message to close, the first-start window's question on closing, the tip of the
+    /// day… Its keys are its own (`raw_input_hook`).
     pub(crate) fn asking(&self) -> bool {
         let pasting = self.paste_ask.as_ref().is_some_and(|a| a.conflicts.as_ref().is_some_and(|c| !c.is_empty()));
-        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.ffmpeg_ask.is_some() || self.batch_turn.is_some() || self.notice.is_some() || !self.kept.is_empty() || self.batch_summary.is_some() || self.update_note.is_some() || self.about || self.kiod_ask || self.host_ask || self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.duplicates.as_ref().is_some_and(crate::dup_page::Window::asking) || self.editor.as_ref().is_some_and(crate::edit_page::Window::asking) || self.after_turn.is_some() || self.batch.as_ref().is_some_and(crate::batch_page::Window::asking) || self.convert.as_ref().is_some_and(crate::convert::Window::asking) || self.first_start.as_ref().is_some_and(crate::first_start_ui::Open::asking)
+        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.ffmpeg_ask.is_some() || self.batch_turn.is_some() || self.notice.is_some() || !self.kept.is_empty() || self.batch_summary.is_some() || self.update_note.is_some() || self.about || self.kiod_ask || self.host_ask || self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.duplicates.as_ref().is_some_and(crate::dup_page::Window::asking) || self.editor.as_ref().is_some_and(crate::edit_page::Window::asking) || self.after_turn.is_some() || self.batch.as_ref().is_some_and(crate::batch_page::Window::asking) || self.convert.as_ref().is_some_and(crate::convert::Window::asking) || self.first_start.as_ref().is_some_and(crate::first_start_ui::Open::asking) || self.tip.is_some()
     }
 }
 

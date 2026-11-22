@@ -21,6 +21,8 @@ Every key of EyeCanSee, by place. The menus show the key next to each item, and 
 
 In the windows that tell how an operation went, **Enter** or **Esc** closes them; in those that ask for a choice, **Enter** confirms and **Esc** cancels. Two exceptions: a deletion that includes a folder (there Enter cancels too) and turning or flipping pictures in the grid (Enter does not confirm). With this guide open over the window, **Esc** goes to the guide first (two close it, as everywhere), **Enter** does not answer the window, and what you type in the search field of the guide stays there.
 
+In the tip at startup, → and ← show the next and the previous tip, **Enter** or **Esc** closes it, and the other keys do nothing (see [Getting started](start.md)).
+
 ## In the grid
 
 | Key | Action |

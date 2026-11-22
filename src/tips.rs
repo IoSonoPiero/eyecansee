@@ -117,11 +117,18 @@ pub(crate) struct Open {
     loaded: Option<&'static str>,
     /// What the texts measure, for the body's height.
     fit: Option<Fit>,
+    /// → (`true`) or ← pressed, taken from the keys before the frame (`App::asking_keys`): with
+    /// the tip open no key reaches the grid behind it (audit 1.13).
+    turn: Option<bool>,
 }
 
 impl Open {
     fn new(i: usize) -> Self {
-        Open { i, cache: CommonMarkCache::default(), from: 0.0, since: 0.0, loaded: None, fit: None }
+        Open { i, cache: CommonMarkCache::default(), from: 0.0, since: 0.0, loaded: None, fit: None, turn: None }
+    }
+
+    pub(crate) fn turn(&mut self, next: bool) {
+        self.turn = Some(next);
     }
 }
 
@@ -241,13 +248,10 @@ impl App {
             ui.add_space(4.0);
             ui.checkbox(&mut off, off_text).on_hover_text(off_hint);
         });
-        let keys = ctx.input(|k| (k.key_pressed(egui::Key::Escape), k.key_pressed(egui::Key::ArrowRight), k.key_pressed(egui::Key::ArrowLeft)));
-        choice = choice.or(match keys {
-            (true, _, _) => Some(Choice::Close),
-            (_, true, _) => Some(Choice::Next),
-            (_, _, true) => Some(Choice::Back),
-            _ => None,
-        });
+        // Enter and Esc close it, ← and → turn it, only with the tip on top (D6).
+        let turn = open.turn.take().filter(|_| crate::confirm::on_top(ctx, "tip"));
+        let close = crate::confirm::answer(ctx, &mut self.key_answer, "tip").map(|_| Choice::Close);
+        choice = choice.or(close).or(turn.map(|next| if next { Choice::Next } else { Choice::Back }));
         if off == self.settings.tips {
             self.settings.tips = !off;
             log!("tips: at startup {}", self.settings.tips);
@@ -548,5 +552,30 @@ mod tests {
         h.frame(Vec::new());
         assert_eq!(tip(&h), None, "Esc closes the tip");
         assert_eq!(grid(&h.app), before, "Esc reached the grid");
+    }
+
+    /// D6, condition: Enter that presses Done in the first-start window does not also close the
+    /// tip that comes right after it (`first_start_closed`, drawn after `tip_window`: the tip is
+    /// born at the end of the frame of the key), neither when the key is let go nor when it is held
+    /// down (the system repeats it).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn enter_on_done_does_not_close_the_tip_after_it() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("tips::tests::enter_on_done_does_not_close_the_tip_after_it") {
+            return;
+        }
+        let mut h = Harness::new(&folder("tip-done", &["a.png"]));
+        let enter = |pressed, repeat| egui::Event::Key { key: egui::Key::Enter, physical_key: None, pressed, repeat, modifiers: egui::Modifiers::NONE };
+        // The frame of Enter on Done: no tip yet, the key is the window's; Done opens the tip.
+        h.frame(vec![enter(true, false)]);
+        h.app.tip_show(0);
+        h.frame(vec![enter(true, true)]);
+        h.frame(vec![enter(true, true), enter(false, false)]);
+        h.frame(Vec::new());
+        assert!(h.app.tip.is_some(), "the Enter of Done closed the tip");
+        h.key(egui::Key::Enter);
+        h.frame(Vec::new());
+        assert!(h.app.tip.is_none(), "a new Enter closes it");
     }
 }
