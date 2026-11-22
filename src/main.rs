@@ -21,6 +21,7 @@ mod audio_convert;
 mod audio_job;
 mod app_dialogs;
 mod app_new;
+mod argument;
 mod batch;
 mod batch_page;
 mod batch_summary;
@@ -688,7 +689,7 @@ fn main() -> eframe::Result {
     logging::install_panic_hook();
     // Each start marked, also in a log file shared with an earlier instance.
     log!("EyeCanSee {} started, process {}", version(), std::process::id());
-    let arg = std::env::args_os().nth(1).map(|a| argument(&a.to_string_lossy()));
+    let arg = std::env::args_os().nth(1).map(|a| argument::argument(&a.to_string_lossy()));
     // Flatpak points XDG_DATA_HOME into the sandbox: files would go to a trash no file manager sees.
     let flatpak_id = std::env::var("FLATPAK_ID").ok();
     if let (Some(_), Some(home)) = (&flatpak_id, std::env::var_os("HOME")) {
@@ -776,47 +777,10 @@ fn main() -> eframe::Result {
     result
 }
 
-/// The address given on the command line. A local path is made absolute: the instance it is
-/// handed to has another working folder.
-fn argument(a: &str) -> String {
-    if a.contains("://") {
-        return a.to_string();
-    }
-    let a = if cfg!(windows) { quote_left(a) } else { a.to_string() };
-    std::path::absolute(&a).map_or(a, |p| p.to_string_lossy().into_owned())
-}
-
-/// Windows: a backslash before the closing quote escapes it (`CommandLineToArgvW`), so
-/// `"C:\Photos\"` arrives as `C:\Photos"` (#101). No Windows path can hold a `"`: it is dropped,
-/// and a drive left alone gets its backslash back (`D:` is the drive's current folder, not its root).
-/// cmd and PowerShell's `Start-Process` end the command line with a space, which then stays inside
-/// the quotes (`C:\Photos" `): spaces at the end are dropped first, as Windows drops them from paths.
-fn quote_left(a: &str) -> String {
-    let a = a.trim_end();
-    match a.strip_suffix('"') {
-        Some(p) if p.ends_with(':') => format!("{p}\\"),
-        Some(p) => p.to_string(),
-        None => a.to_string(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     #[test]
     fn version_matches_cargo() {
         assert_eq!(super::version(), env!("CARGO_PKG_VERSION"), "VERSION and Cargo.toml must match");
-    }
-
-    #[test]
-    fn quote_left_by_windows() {
-        use super::quote_left;
-        assert_eq!(quote_left(r#"C:\Photos""#), r"C:\Photos");
-        assert_eq!(quote_left(r#"D:""#), r"D:\");
-        // The space cmd and Start-Process put at the end of the command line.
-        assert_eq!(quote_left(r#"C:\Photos" "#), r"C:\Photos");
-        assert_eq!(quote_left(r#"D:" "#), r"D:\");
-        assert_eq!(quote_left(r#"\\server\share""#), r"\\server\share");
-        assert_eq!(quote_left(r"C:\Photos\"), r"C:\Photos\");
-        assert_eq!(quote_left(r"C:\Photos"), r"C:\Photos");
     }
 }
