@@ -1,10 +1,10 @@
 # Opzioni
 
-Le opzioni cambiano come EyeCanSee si avvia, il suo aspetto, come passa da un'immagine all'altra, come elimina, come mostra il carosello, come riproduce i video e come salva l'editor.
+Le opzioni cambiano come EyeCanSee si avvia, il suo aspetto, come passa da un'immagine all'altra, come elimina, come mostra il carosello, come riproduce i video, come salva l'editor e come scrive un registro di diagnosi.
 
 ## Aprire le opzioni
 
-Scegli **Strumenti > Opzioni…** (![Opzioni…](icon://settings)). La finestra è divisa in schede: **Generale**, **Aspetto**, **Visore**, **Carosello**, **Video**, **Editor**, **Ridimensiona**, **Eliminazione**, **Miniature** e **Componenti aggiuntivi**, in colonna a sinistra. Passando sopra molte opzioni compare una breve spiegazione. **Esc** o la X della finestra la chiudono.
+Scegli **Strumenti > Opzioni…** (![Opzioni…](icon://settings)). La finestra è divisa in schede: **Generale**, **Aspetto**, **Visore**, **Carosello**, **Video**, **Editor**, **Ridimensiona**, **Eliminazione**, **Miniature**, **Diagnosi** e **Componenti aggiuntivi**, in colonna a sinistra. Passando sopra molte opzioni compare una breve spiegazione. **Esc** o la X della finestra la chiudono.
 
 Ogni modifica viene salvata subito in `settings.json`: in `~/.config/eyecansee` su Linux e in `%APPDATA%\eyecansee` su Windows. È un file di testo che puoi anche modificare a mano. Se EyeCanSee non riesce a leggerlo (per esempio perché è stato salvato in UTF-16 o non è JSON valido), il file viene messo da parte come `settings.json.bad` ed EyeCanSee parte con le impostazioni predefinite. Se invece riesce a leggerlo ma non conosce uno dei valori, quell'impostazione prende il valore predefinito e le altre restano; una copia del file com'era va in `settings.json.bad`.
 
@@ -77,6 +77,13 @@ Vedi [Eliminare e cestino](delete.md).
 - **Sotto le miniature**: cosa viene scritto sotto ogni miniatura. **Nome**, **Dimensioni in pixel**, **Peso**, **Data**, **Durata** e **Numero e revisione del disegno**, tutte spuntate all'inizio. Dimensioni e peso stanno su una riga ("1920 × 1080 · 350 KB"; per un disegno DWG o DXF prima il suo numero e la revisione, "A-101 rev. C · 350 KB", dal cartiglio o altrimenti dal titolo e dal numero di revisione del disegno), la data e la durata di video e audio sulla riga sotto; con le miniature piccole resta solo il nome. La data è quella dello scatto, se il file la dice, altrimenti quella di modifica del file: passandoci sopra col mouse, un suggerimento dice quale delle due ("Scattata il…" o "Modificata il…"). Dimensioni e data di scatto vengono lette da ogni foto insieme alla sua miniatura e conservate con lei, così la volta dopo arrivano subito, anche da telefoni e server. Di un video o di un audio dimensioni, data di registrazione e durata vengono lette una volta, come le legge la scheda File, e conservate allo stesso modo; il suggerimento sulla sua data dice "Registrato il…".
 - **Pulizia della cache miniature** (spenta): una volta per sessione, per ogni posto che apri, toglie le miniature delle immagini eliminate e rifà quelle delle immagini cambiate; poi toglie le miniature usate meno di recente finché la cache sta entro il **Limite della cache** (1024 MB all'inizio). Le cartelle che non si trovano o non si raggiungono vengono saltate, così un disco scollegato o un NAS spento non perdono le loro miniature.
 - **Svuota la cache miniature…**: elimina tutte le miniature salvate, dopo una conferma che dice quante sono e quanto spazio si libera. Le tue immagini non vengono toccate: le miniature della cartella aperta vengono rifatte subito, le altre quando apri la loro cartella.
+
+## Diagnosi
+
+- **Scrivi un registro di diagnosi** (spento): dal prossimo avvio, ogni avvio di EyeCanSee scrive ciò che fa in un file suo, `eyecansee-<data>_<ora>.log`, con in testa la versione, il sistema e la scheda video, e gli errori che incontra. Allegalo alla segnalazione di un problema. Il registro contiene i nomi delle cartelle e dei file che apri: leggilo prima di allegarlo a una segnalazione pubblica. Un file che arriva a 5 MB continua in uno nuovo, e si tengono solo i 10 file più recenti: i più vecchi si cancellano. Un avvio che passa soltanto un file all'EyeCanSee già aperto non scrive nessun registro.
+- **Apri la cartella dei registri**: la cartella nel gestore dei file. È `logs` nella cartella dei dati di EyeCanSee: `~/.local/share/eyecansee/logs` su Linux, `%LOCALAPPDATA%\eyecansee\logs` su Windows.
+
+La scheda dice anche in quale file scrive questo avvio. Se è impostata la variabile d'ambiente `EYECANSEE_LOG`, decide lei dove va il registro (`1` sull'uscita degli errori, altrimenti il file che nomina) e l'interruttore è grigio.
 
 ## Componenti aggiuntivi
 

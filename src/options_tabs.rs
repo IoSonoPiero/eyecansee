@@ -29,7 +29,7 @@ const PAD: f32 = 8.0;
 /// The tabs in their order, each with the id of its name and its icon. General first, upkeep
 /// (the thumbnail cache) last; between them the order of a visit: look, watch, edit, delete
 /// (Microsoft's guidelines for options windows). Then the add-ons.
-const TABS: [(OptTab, &str, Line); 10] = [
+const TABS: [(OptTab, &str, Line); 11] = [
     (OptTab::General, "opt-tab-general", Line::Settings),
     (OptTab::Look, "opt-tab-look", Line::Palette),
     (OptTab::Viewer, "opt-tab-viewer", Line::Image),
@@ -39,6 +39,7 @@ const TABS: [(OptTab, &str, Line); 10] = [
     (OptTab::Resize, "opt-tab-resize", Line::Batch),
     (OptTab::Deleting, "opt-tab-deleting", Line::Delete),
     (OptTab::Thumbnails, "opt-tab-thumbnails", Line::Grid),
+    (OptTab::Diagnostics, "opt-tab-diagnostics", Line::Info),
     (OptTab::Addons, "opt-tab-addons", Line::Puzzle),
 ];
 
@@ -100,10 +101,10 @@ mod tests {
     use crate::addons_ui::tests::{click, frame, headless};
     use crate::app_dialogs::OPTIONS_HEIGHT as HEIGHT;
 
-    /// The middle of row `i` of the column drawn at `area`, names on one line; the add-ons (9)
+    /// The middle of row `i` of the column drawn at `area`, names on one line; the add-ons (10)
     /// are under the line.
     fn middle(area: egui::Rect, i: usize) -> egui::Pos2 {
-        let line = if i == 9 { RULE + GAP } else { 0.0 };
+        let line = if i == 10 { RULE + GAP } else { 0.0 };
         area.min + egui::vec2(WIDTH / 2.0, EDGE / 2.0 + i as f32 * (ROW + GAP) + line + ROW / 2.0)
     }
 
@@ -114,7 +115,7 @@ mod tests {
         for (i, tab) in tabs.iter().enumerate() {
             assert!(!tabs[..i].contains(tab), "{tab:?} twice");
         }
-        assert_eq!((tabs[0], tabs[9]), (OptTab::General, OptTab::Addons));
+        assert_eq!((tabs[0], tabs[10]), (OptTab::General, OptTab::Addons));
     }
 
     /// In every language the column is as wide and as tall as it is meant to be: no name is cut,
@@ -137,11 +138,11 @@ mod tests {
         let (ctx, area) = headless();
         let i18n = I18n::new("en");
         let mut open = OptTab::General;
-        for (i, wanted) in [(2, OptTab::Viewer), (9, OptTab::Addons), (6, OptTab::Resize), (0, OptTab::General)] {
+        for (i, wanted) in [(2, OptTab::Viewer), (10, OptTab::Addons), (9, OptTab::Diagnostics), (6, OptTab::Resize), (0, OptTab::General)] {
             click(&ctx, middle(area, i), |ui| column(ui, &mut open, &i18n, HEIGHT));
             assert_eq!(open, wanted);
         }
-        click(&ctx, middle(area, 9) - egui::vec2(0.0, (ROW + RULE) / 2.0), |ui| column(ui, &mut open, &i18n, HEIGHT));
+        click(&ctx, middle(area, 10) - egui::vec2(0.0, (ROW + RULE) / 2.0), |ui| column(ui, &mut open, &i18n, HEIGHT));
         assert_eq!(open, OptTab::General, "a click on the line");
     }
 

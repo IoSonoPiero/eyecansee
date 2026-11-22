@@ -11,9 +11,9 @@ use crate::settings::{AfterSave, Graphics, RemoteDelete, Settings, SmoothFilter,
 /// two sizes) and the space between the column of tabs and the page.
 const PAGE: f32 = 572.0;
 const GAP: f32 = 14.0;
-/// Its height, the longest tab's (General), the same for every tab: changing tab does not resize
-/// the window.
-pub(crate) const OPTIONS_HEIGHT: f32 = 330.0;
+/// Its height, the column of the tabs' (taller than the longest tab, General, since Diagnostics
+/// came, #189), the same for every tab: changing tab does not resize the window.
+pub(crate) const OPTIONS_HEIGHT: f32 = 357.0;
 
 impl App {
     /// Every change is saved immediately.
@@ -53,6 +53,7 @@ impl App {
                         OptTab::Thumbnails => purged = thumbnails_tab(ui, s, i18n, confirm),
                         OptTab::Editor => editor_tab(ui, s, i18n),
                         OptTab::Resize => crate::presets::options_ui(ui, s, i18n),
+                        OptTab::Diagnostics => crate::log_options::options_ui(ui, s, i18n),
                         OptTab::Addons => download = addons.ui(ui, downloads, i18n),
                     });
                 });

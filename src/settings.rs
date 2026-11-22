@@ -96,6 +96,9 @@ pub struct Settings {
     /// The add-ons (`Component::kind`) the first-start window already offered: a later version
     /// brings it back only for a new one.
     pub addons_offered: Vec<String>,
+    /// Options > Diagnostics: each start writes a log file in the data folder (`logging`, #189).
+    /// Read from the next start, before the rest of the settings (`log_switch`).
+    pub diagnostic_log: bool,
 }
 
 /// After Save copy, Update copy or Overwrite in the editor (issue #95): the page stays open (as
@@ -293,12 +296,25 @@ impl Default for Settings {
             // Also for who updates from a version without the window (the keys missing): #212.
             welcome_seen: false,
             addons_offered: Vec::new(),
+            diagnostic_log: false,
         }
     }
 }
 
 fn path() -> Option<PathBuf> {
     config_path("settings.json")
+}
+
+/// The switch of the diagnostic log (#189), read at the start of `main`, before the log knows where
+/// it goes: so without writing to it, and without setting a file aside (`Settings::load` does that
+/// later). As `Settings::load` reads it: false where that reads the default.
+pub(crate) fn log_switch() -> bool {
+    path().is_some_and(|p| log_switch_in(&p))
+}
+
+fn log_switch_in(path: &Path) -> bool {
+    let Some(text) = std::fs::read(path).ok().and_then(|b| String::from_utf8(b).ok()) else { return false };
+    serde_json::from_str::<serde_json::Value>(&text).ok().and_then(|v| v.get("diagnostic_log")?.as_bool()).unwrap_or(false)
 }
 
 /// A file in EyeCanSee's configuration folder.
@@ -448,7 +464,7 @@ mod tests {
         // Every key 0.76.0 wrote, none of those added after it.
         let mut old = serde_json::to_value(Settings::default()).unwrap();
         let keys = old.as_object_mut().unwrap();
-        keys.retain(|k, _| !["edit_after_save", "edit_main_overwrite", "resize_presets", "thumb_details", "tips", "tip_next", "tips_day", "smooth", "smooth_filter", "meta_size", "graphics", "welcome_seen", "addons_offered"].contains(&k.as_str()));
+        keys.retain(|k, _| !["edit_after_save", "edit_main_overwrite", "resize_presets", "thumb_details", "tips", "tip_next", "tips_day", "smooth", "smooth_filter", "meta_size", "graphics", "welcome_seen", "addons_offered", "diagnostic_log"].contains(&k.as_str()));
         assert_eq!(keys.len(), 32, "the keys of 0.76.0's settings.json");
         let s: Settings = serde_json::from_value(old).unwrap();
         assert_eq!(s.edit_after_save, AfterSave::Stay, "the page stays open unless chosen");
@@ -527,6 +543,31 @@ mod tests {
         std::fs::write(&path, "{ not json").unwrap();
         assert_eq!(Settings::load_from(&path), Settings::default());
         assert!(!path.exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// #189: the switch of the log, read before the rest without a log, is what `load_from` reads:
+    /// on with an unknown value in another key, off where its own value is not understood, the
+    /// file is not JSON or is missing; and the peek sets nothing aside.
+    #[test]
+    fn the_log_switch_read_before_the_rest_as_the_rest() {
+        let dir = test_dir("log-switch");
+        let path = dir.join("settings.json");
+        for text in [
+            r#"{"diagnostic_log": true}"#,
+            r#"{"theme": "sepia", "diagnostic_log": true}"#,
+            r#"{"diagnostic_log": "yes", "theme": "dark"}"#,
+            r#"{"diagnostic_log": false}"#,
+            "{ not json, \"diagnostic_log\": true",
+            "{}",
+        ] {
+            std::fs::write(&path, text).unwrap();
+            let peek = log_switch_in(&path);
+            assert!(path.exists() && !path.with_extension("json.bad").exists(), "{text}");
+            assert_eq!(peek, Settings::load_from(&path).diagnostic_log, "{text}");
+            let _ = std::fs::remove_file(path.with_extension("json.bad"));
+        }
+        assert!(!log_switch_in(&dir.join("missing.json")));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

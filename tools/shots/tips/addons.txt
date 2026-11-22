@@ -5,6 +5,6 @@ open /home/demo/Pictures/Holiday
 set video_engine "downloaded"
 width 640
 3 act options
-3.5 click 292 541
-5 shot addons 232 192 736 414
+3.5 click 292 556
+5 shot addons 208 165 784 441
 5.5 end

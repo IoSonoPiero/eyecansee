@@ -289,7 +289,7 @@ fn copy_whole(file: &Path, to: &Path) -> std::io::Result<()> {
 }
 
 /// The folder in the system's file manager.
-fn open_folder(folder: &Path) {
+pub(crate) fn open_folder(folder: &Path) {
     #[cfg(windows)]
     let r = std::process::Command::new("explorer").arg(folder).spawn();
     #[cfg(not(windows))]

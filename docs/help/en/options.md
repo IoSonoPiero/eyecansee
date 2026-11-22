@@ -1,10 +1,10 @@
 # Options
 
-The options change how EyeCanSee starts, looks, moves between images, deletes, shows slideshows, plays videos and saves in the editor.
+The options change how EyeCanSee starts, looks, moves between images, deletes, shows slideshows, plays videos, saves in the editor and writes a diagnostic log.
 
 ## Opening the options
 
-Choose **Tools > Options…** (![Options…](icon://settings)). The window is divided into tabs: **General**, **Look**, **Viewer**, **Slideshow**, **Video**, **Editor**, **Resize**, **Deleting**, **Thumbnails** and **Add-ons**, in a column on the left. Pointing at many options shows a short explanation. **Esc** or the window's ✕ closes it.
+Choose **Tools > Options…** (![Options…](icon://settings)). The window is divided into tabs: **General**, **Look**, **Viewer**, **Slideshow**, **Video**, **Editor**, **Resize**, **Deleting**, **Thumbnails**, **Diagnostics** and **Add-ons**, in a column on the left. Pointing at many options shows a short explanation. **Esc** or the window's ✕ closes it.
 
 Every change is saved at once in `settings.json`: in `~/.config/eyecansee` on Linux and in `%APPDATA%\eyecansee` on Windows. It is a text file you can also edit by hand. If EyeCanSee cannot read it (for example because it was saved as UTF-16 or is not valid JSON), the file is set aside as `settings.json.bad` and EyeCanSee starts with the default settings. If it can read the file but does not know one of the values, that setting takes its default and the others are kept; a copy of the file as it was goes to `settings.json.bad`.
 
@@ -77,6 +77,13 @@ See [Deleting and the trash](delete.md).
 - **Under the thumbnails**: what is written under each thumbnail. **Name**, **Dimensions in pixels**, **Size**, **Date**, **Duration** and **Drawing number and revision**, all ticked at first. Dimensions and size go on one row ("1920 × 1080 · 350 KB"; for a DWG or DXF drawing its number and revision first, "A-101 rev. C · 350 KB", from the title block or else from the drawing's title and revision number), the date and the duration of videos and audio files on the row below; with small thumbnails only the name stays. The date is when the photo was taken, if the file says so, otherwise when the file was modified: with the mouse over it, a tip says which one ("Taken on…" or "Modified on…"). Dimensions and date taken are read from each photo with its thumbnail and kept with it, so they come at once the next time, also from phones and servers. The dimensions, date recorded and duration of a video or an audio file are read once, as the File box reads them, and kept the same way; the tip over its date says "Recorded on…".
 - **Clean up the thumbnail cache** (off): once per session, for each location you open, removes the thumbnails of deleted images and makes again those of changed images; then removes the least recently used thumbnails until the cache is within **Cache limit** (1024 MB at first). Folders that cannot be found or reached are skipped, so a disconnected disk or a switched-off NAS keeps its thumbnails.
 - **Empty the thumbnail cache…**: deletes all the saved thumbnails, after a confirmation saying how many and how much space is freed. Your images are not touched: the thumbnails of the open folder are made again at once, the others when you open their folder.
+
+## Diagnostics
+
+- **Write a diagnostic log** (off): from the next start, each start of EyeCanSee writes what it does in a file of its own, `eyecansee-<date>_<time>.log`, with the version, the system and the graphics card first, and any error it meets. Attach it to the report of a problem. The log holds the names of the folders and files you open: read it before attaching it to a public report. A file that reaches 5 MB is followed by a new one, and only the 10 newest files are kept: the older ones are deleted. A start that only hands a file to the EyeCanSee already open writes no log.
+- **Open the folder of the logs**: the folder in the file manager. It is `logs` in the data folder of EyeCanSee: `~/.local/share/eyecansee/logs` on Linux, `%LOCALAPPDATA%\eyecansee\logs` on Windows.
+
+The tab also says the file this start is writing. If the `EYECANSEE_LOG` environment variable is set, it decides where the log goes (`1` to the error output, otherwise the file it names) and the switch is grey.
 
 ## Add-ons
 

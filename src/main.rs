@@ -3,7 +3,8 @@
 
 /// Diagnostic log: with `EYECANSEE_LOG=1` writes to stderr what happens, with the seconds since
 /// startup; with `EYECANSEE_LOG=<file>` appends it to that file, so the instance started again
-/// after an engine is downloaded (which inherits the variable) writes on in the same log.
+/// after an engine is downloaded (which inherits the variable) writes on in the same log; without
+/// the variable, Options > Diagnostics writes a file for each start (`logging`, #189).
 /// Defined before the modules so they can use it too.
 macro_rules! log {
     ($($arg:tt)*) => {
@@ -93,6 +94,7 @@ mod kept;
 mod icons;
 mod listing;
 mod loader;
+mod log_options;
 mod logging;
 mod menu;
 mod messages;
@@ -277,6 +279,8 @@ enum OptTab {
     Resize,
     Deleting,
     Thumbnails,
+    /// The diagnostic log (#189).
+    Diagnostics,
     /// The add-ons, to download or update (#212).
     Addons,
 }
@@ -679,6 +683,8 @@ impl eframe::App for App {
 }
 
 fn main() -> eframe::Result {
+    // Before the first line of the log: where it goes (Options > Diagnostics, #189).
+    logging::start(settings::log_switch());
     logging::install_panic_hook();
     // Each start marked, also in a log file shared with an earlier instance.
     log!("EyeCanSee {} started, process {}", version(), std::process::id());
@@ -694,6 +700,10 @@ fn main() -> eframe::Result {
     // Not next to a copy that holds the name: that copy may be playing its video copies.
     if matches!(start, single::Start::Listening(_) | single::Start::Alone) {
         temp_file::remove_old_copies();
+    }
+    // The log of Options gets its file only now: a start that hands its address over makes none.
+    if !matches!(start, single::Start::HandedOver) {
+        logging::keep();
     }
     let inbox = match start {
         single::Start::HandedOver => return Ok(()),
