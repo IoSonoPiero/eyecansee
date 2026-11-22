@@ -21,6 +21,7 @@ const MAX_INLINE_READS: usize = 1000;
 const SEGMENTS: usize = 32;
 const RINGS: usize = 16;
 
+#[cfg(test)]
 pub fn read(bytes: &[u8], sibling: Sibling, unpacked: &Unpacked) -> Result<Mesh, String> {
     read_as(bytes, sibling, unpacked, crate::model_limit::X3D)
 }
