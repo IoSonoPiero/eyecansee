@@ -142,6 +142,12 @@ impl App {
     }
 
     fn on_listed(&mut self, ctx: &egui::Context, base: &str, dir: String, r: Result<Listing, source::Error>) {
+        // From the source left: the folder of the same path ("" of two servers) of the one open
+        // would take it (audit 1.2). Before anything else, as its reading being over.
+        if base != self.base {
+            log!("listing {dir:?} of {:?}, a source left: dropped", without_password(base));
+            return;
+        }
         let base = without_password(base);
         match &r {
             Ok(l) => log!("listing {dir:?} of {base:?}: {} folders, {} images", l.dirs.len(), l.files.len()),

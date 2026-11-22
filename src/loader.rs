@@ -127,6 +127,11 @@ pub(crate) fn replaced(path: String, r: Result<(), (source::Error, Option<Box<cr
     }
 }
 
+/// The generations of every loader of the process: those of a new source never are those of the
+/// one before, whose late results were taken by position for the folder open (audit 1.2), and
+/// its requests still waiting stop at once (`load_full`).
+static GENERATION: std::sync::LazyLock<Arc<AtomicU64>> = std::sync::LazyLock::new(Arc::default);
+
 pub struct Loader {
     rt: Handle,
     op: Store,
@@ -134,6 +139,7 @@ pub struct Loader {
     tx: Sender<Msg>,
     ctx: Context,
     /// Changes at every folder change: requests of the old one still queued are discarded.
+    /// One for all the loaders (`GENERATION`).
     generation: Arc<AtomicU64>,
     full: Arc<Semaphore>,
     queue: Arc<Mutex<ThumbQueue>>,
@@ -155,7 +161,7 @@ impl Loader {
             base: base.clone(),
             tx,
             ctx,
-            generation: Arc::default(),
+            generation: GENERATION.clone(),
             full: Arc::new(Semaphore::new(2)),
             queue: Arc::default(),
             wake: Arc::default(),
@@ -1484,13 +1490,13 @@ mod tests {
     }
 
     /// A loader on a new folder of this run with an image `a.png`, and what it sends.
-    fn loader_on(rt: &tokio::runtime::Runtime, name: &str) -> (Loader, std::sync::mpsc::Receiver<Msg>) {
+    fn loader_on(rt: &tokio::runtime::Runtime, name: &str) -> (Loader, std::sync::mpsc::Receiver<Msg>, std::path::PathBuf) {
         let dir = std::env::temp_dir().join(format!("eyecansee-generations-{name}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         image::DynamicImage::new_rgb8(8, 6).save(dir.join("a.png")).unwrap();
         let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
         let (tx, rx) = std::sync::mpsc::channel();
-        (Loader::new(rt.handle().clone(), op, format!("{}/", dir.display()), tx, egui::Context::default()), rx)
+        (Loader::new(rt.handle().clone(), op, format!("{}/", dir.display()), tx, egui::Context::default()), rx, dir)
     }
 
     /// Audit 1.2: the generation of a new loader (another source opened) is never one of the
@@ -1498,12 +1504,15 @@ mod tests {
     #[test]
     fn generations_of_two_loaders_differ() {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (old, _rx) = loader_on(&rt, "two-old");
+        let (old, _rx, a) = loader_on(&rt, "two-old");
         let before = old.next_generation();
-        let (new, _rx) = loader_on(&rt, "two-new");
+        let (new, _rx, b) = loader_on(&rt, "two-new");
         let now = new.next_generation();
         assert_ne!(before, now, "the new source's results could not be told from the old one's");
         assert!(now > before);
+        for d in [a, b] {
+            std::fs::remove_dir_all(d).unwrap();
+        }
     }
 
     /// Audit 1.2 and 2.6 (choice D1): an image of the viewer asked to the loader before, still
@@ -1512,7 +1521,7 @@ mod tests {
     #[test]
     fn queued_image_of_the_old_loader_not_read() {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let (old, rx) = loader_on(&rt, "queued");
+        let (old, rx, a) = loader_on(&rt, "queued");
         // The loader's own, and the one of the permits held here.
         let idle = Arc::strong_count(&old.full);
         let held = old.full.clone().try_acquire_many_owned(2).unwrap();
@@ -1523,7 +1532,7 @@ mod tests {
             assert!(start.elapsed().as_secs() < 30, "the request did not start");
             std::thread::yield_now();
         }
-        let (new, _rx) = loader_on(&rt, "queued-new");
+        let (new, _rx, b) = loader_on(&rt, "queued-new");
         new.next_generation();
         drop(held);
         while Arc::strong_count(&old.full) > idle {
@@ -1535,5 +1544,8 @@ mod tests {
             _ => None,
         }).collect();
         assert!(read.is_empty(), "the old loader read its image after the new source opened: {read:?}");
+        for d in [a, b] {
+            std::fs::remove_dir_all(d).unwrap();
+        }
     }
 }
