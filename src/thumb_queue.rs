@@ -494,4 +494,30 @@ pub(super) mod tests {
         assert_eq!(source::BYTES_READ.with(std::cell::Cell::get), crate::view_memory::HEAD);
         std::fs::remove_dir_all(&dir).unwrap();
     }
+
+    /// Audit 2.18: the thumbnail workers never hold more than 1 GiB of whole files at once (by the
+    /// size listed); one larger than that is made alone. Small pictures listed as 400 MiB and 2 GiB
+    /// files, so that nothing near that much is read: eight made at once.
+    #[test]
+    fn audit_2_18_bytes_of_the_files_read_at_once() {
+        let dir = std::env::temp_dir().join(format!("thumb-reading-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        image::RgbImage::new(2000, 2000).save(dir.join("0.png")).unwrap();
+        for i in 1..8 {
+            std::fs::copy(dir.join("0.png"), dir.join(format!("{i}.png"))).unwrap();
+        }
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let base = "test-audit-2-18://";
+        let listed = |i: u64| File { path: format!("{i}.png"), size: if i == 7 { 2 << 30 } else { 400 << 20 }, modified: i.to_string() };
+        let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(8).build().unwrap();
+        let made = rt.block_on(futures_util::future::join_all((0..8).map(|i| generate(&op, base, listed(i), || true))));
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(made.iter().all(Result::is_ok), "{:?}", made.iter().filter_map(|r| r.as_ref().err()).collect::<Vec<_>>());
+        let held: Vec<(u64, usize)> = HELD.lock().unwrap().iter().filter(|h| h.0 == base).map(|h| (h.1 >> 20, h.2)).collect();
+        let most = held.iter().map(|h| h.1).max();
+        let over: Vec<_> = held.iter().filter(|(mib, files)| *files > 1 && *mib > 1024).collect();
+        assert!(over.is_empty(), "more than 1 GiB held by several files at once (MiB, files): {over:?}");
+        assert!(most.is_some_and(|n| n >= 2), "never two at once: {held:?}");
+    }
 }
