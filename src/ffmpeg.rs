@@ -619,7 +619,7 @@ fn try_card(program: &Path, encoder: &str) -> bool {
     let filters = card_filters(card, encoder, Size::Percent(50), false, Turn::default().then(crate::transform::Op::Cw)).join(",");
     // Not smaller: turned and halved it must stay 160 px wide or more, the least NVENC takes.
     let black = ["-f", "lavfi", "-i", "color=c=black:s=640x360:r=25:d=0.4"];
-    let clip = std::env::temp_dir().join(format!("eyecansee-card-{}-{encoder}.mkv", std::process::id()));
+    let Ok(clip) = card_clip(encoder) else { return false };
     let mut c = command(program);
     c.args(["-hide_banner", "-loglevel", "error"]);
     match card {
@@ -641,6 +641,11 @@ fn try_card(program: &Path, encoder: &str) -> bool {
     let works = ok(&mut c);
     let _ = std::fs::remove_file(&clip);
     works
+}
+
+/// The clip `try_card` makes with `encoder` for QSV.
+fn card_clip(encoder: &str) -> std::io::Result<PathBuf> {
+    Ok(std::env::temp_dir().join(format!("eyecansee-card-{}-{encoder}.mkv", std::process::id())))
 }
 
 /// Audio encoders of `ffmpeg -encoders` (lines " A..... name  description").
