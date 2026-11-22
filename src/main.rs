@@ -576,25 +576,7 @@ impl eframe::App for App {
         }
         let paste_to = if raw_input.events.iter().any(|e| matches!(e, egui::Event::Paste(_))) { self.paste_to.take().map(|(dir, _)| dir) } else { None };
         browser::menu_clicks(ctx, raw_input);
-        // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer); F1 still opens the guide, and what is typed in its search field stays (`help::stays`).
-        // Open location, Convert and resize and the editor's Resize have fields to type in: there
-        // the keys go to the field.
-        let fields = self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some() || self.editor.as_ref().is_some_and(crate::edit_page::Window::resizing);
-        if self.asking() && !(fields && ctx.egui_wants_keyboard_input()) {
-            let (answer, typing) = (&mut self.key_answer, self.help.in_field());
-            raw_input.events.retain(|e| match e {
-                e if help::stays(typing, e) => true,
-                egui::Event::Key { key, pressed: true, .. } => {
-                    match key {
-                        Key::Enter => *answer = Some(true),
-                        Key::Escape => *answer = Some(false),
-                        _ => {}
-                    }
-                    false
-                }
-                egui::Event::Key { .. } | egui::Event::Text(_) => false,
-                _ => true,
-            });
+        if self.asking_keys(ctx, raw_input) {
             return;
         }
         if ctx.egui_wants_keyboard_input() || egui::Popup::is_any_open(ctx) || self.rename.is_some() || self.new_folder.is_some() {

@@ -121,6 +121,32 @@ pub(crate) fn answer(ctx: &egui::Context, key: &mut Option<bool>, id: &str) -> O
 }
 
 impl App {
+    /// Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer);
+    /// F1 still opens the guide, and what is typed in its search field stays (`help::stays`).
+    /// Open location, Convert and resize and the editor's Resize have fields to type in: there
+    /// the keys go to the field. `true`: the keys were the confirmation's (`raw_input_hook`).
+    pub(crate) fn asking_keys(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) -> bool {
+        let fields = self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some() || self.editor.as_ref().is_some_and(crate::edit_page::Window::resizing);
+        if !self.asking() || (fields && ctx.egui_wants_keyboard_input()) {
+            return false;
+        }
+        let (answer, typing) = (&mut self.key_answer, self.help.in_field());
+        raw_input.events.retain(|e| match e {
+            e if crate::help::stays(typing, e) => true,
+            egui::Event::Key { key, pressed: true, .. } => {
+                match key {
+                    egui::Key::Enter => *answer = Some(true),
+                    egui::Key::Escape => *answer = Some(false),
+                    _ => {}
+                }
+                false
+            }
+            egui::Event::Key { .. } | egui::Event::Text(_) => false,
+            _ => true,
+        });
+        true
+    }
+
     /// A confirmation or a message is open: deletion, a name already taken when restoring or
     /// pasting, a message to close, the first-start window's question on closing… Its keys are
     /// its own (`raw_input_hook`).
