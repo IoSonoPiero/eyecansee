@@ -327,6 +327,51 @@ mod tests {
         }
     }
 
+    /// #192: a copy whose window does not take the address (stuck, or gone while the process
+    /// lives on) took it all the same, and the new start showed nothing.
+    #[test]
+    fn a_copy_that_does_not_answer_is_not_handed_over() {
+        let socket = test_socket("mute");
+        let _inbox = super::listen_on(&socket).unwrap();
+        let start = Instant::now();
+        assert_ne!(super::hand_over_to(&socket, "/x"), Handover::Done);
+        assert!(matches!(super::start_on(&socket, "/x"), Start::NextTo));
+        assert!(start.elapsed() < Duration::from_secs(20), "{:?}", start.elapsed());
+    }
+
+    /// #192: a name nobody accepts on: the new start waited with no limit (Windows), or handed
+    /// its address to nobody (Linux).
+    #[test]
+    fn a_name_nobody_accepts_on() {
+        let socket = test_socket("deaf");
+        let name = super::ns_name(&socket).unwrap();
+        let _deaf = interprocess::local_socket::ListenerOptions::new().name(name).create_sync().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || tx.send(super::hand_over_to(&socket, "/x")));
+        let handed = rx.recv_timeout(Duration::from_secs(10));
+        assert!(handed.as_ref().is_ok_and(|h| *h != Handover::Done), "{handed:?}");
+    }
+
+    /// #192: closing, the copy stops listening first, so the next start becomes the copy.
+    #[test]
+    fn closing_lets_the_name_go() {
+        let socket = test_socket("closing");
+        drop(super::listen_on(&socket).unwrap());
+        assert!(matches!(super::start_on(&socket, "/y"), Start::Listening(_)));
+    }
+
+    /// A copy whose window takes the address: handed over.
+    #[test]
+    fn a_copy_that_answers_takes_it() {
+        let socket = test_socket("answers");
+        let inbox = super::listen_on(&socket).unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let s = socket.clone();
+        std::thread::spawn(move || tx.send(super::hand_over_to(&s, "/z")));
+        assert_eq!(arrived(&inbox, 1), ["/z"]);
+        assert_eq!(rx.recv_timeout(Duration::from_secs(10)), Ok(Handover::Done));
+    }
+
     /// One line, not too long, without its end; anything else is no address.
     #[test]
     fn address_read() {
