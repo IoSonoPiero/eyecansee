@@ -502,6 +502,113 @@ mod tests {
         assert_eq!(end_player.error(), None, "at the end with its last frame: not a damaged video");
     }
 
+    /// #173: a video whose file says to turn it is shown turned from its first frame: the size
+    /// the window reads first and every frame drawn in the first second have the turned shape.
+    /// The real MP4 of the site turned a quarter in its display matrix (as Save writes it), opened
+    /// 12 times (a race: unturned 3 times in 8 before the fix). Skipped without libmpv (the CI).
+    #[test]
+    fn turned_from_the_first_frame() {
+        if !crate::mpv::available() {
+            println!("skipped: no libmpv");
+            return;
+        }
+        let original = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/site/img/mtp-open.mp4")).unwrap();
+        let turned = crate::mp4::turned(&original, crate::transform::Turn::default().then(crate::transform::Op::Cw)).unwrap();
+        let file = std::env::temp_dir().join(format!("eyecansee-173-{}.mp4", std::process::id()));
+        std::fs::write(&file, turned).unwrap();
+        let mut wrong = Vec::new();
+        for n in 0..12 {
+            let player = Player::open(Input::File(file.clone()), 0, true, || {}).unwrap();
+            let (t, mut first_size, mut frames) = (Instant::now(), None, Vec::new());
+            while t.elapsed() < Duration::from_secs(1) || first_size.is_none() && t.elapsed() < Duration::from_secs(5) {
+                if let Some(size) = player.video_size() {
+                    first_size.get_or_insert(size);
+                    player.set_size(crate::mpv::fit(size, 400));
+                }
+                if let Some(f) = player.frame() {
+                    frames.push(f.size);
+                }
+                std::thread::sleep(Duration::from_millis(2));
+            }
+            let lying = frames.iter().filter(|[w, h]| w > h).count();
+            println!("opening {n}: first size {first_size:?}, {} frames, {lying} lying, first {:?}", frames.len(), frames.first());
+            if first_size.is_none_or(|[w, h]| w > h) || lying > 0 {
+                wrong.push((n, first_size, lying));
+            }
+        }
+        let _ = std::fs::remove_file(&file);
+        assert!(wrong.is_empty(), "shown unturned: {wrong:?}");
+    }
+
+    /// The video, audio and subtitle tracks playing (`current-tracks/*/id`), once loaded.
+    fn tracks_chosen(mpv: &Mpv) -> [Option<i64>; 3] {
+        let t = Instant::now();
+        while mpv.property::<i64>("current-tracks/video/id", FORMAT_INT64).is_none() && t.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        std::thread::sleep(Duration::from_millis(300));
+        ["video", "audio", "sub"].map(|k| mpv.property::<i64>(&format!("current-tracks/{k}/id"), FORMAT_INT64))
+    }
+
+    /// #173 (Piero, 22/11): opening every video with no track and turning them on after the
+    /// rotation must choose the same tracks mpv chose by itself before: audio of several languages,
+    /// subtitles default, forced, of other languages. The files are made with ffmpeg in the
+    /// temporary folder. `cargo test track_choice_as_before_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn track_choice_as_before_live() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-173-tracks-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        for (lang, text) in [("en", "hello"), ("it", "ciao"), ("fr", "salut")] {
+            std::fs::write(dir.join(format!("{lang}.srt")), format!("1\n00:00:00,000 --> 00:00:03,000\n{text}\n")).unwrap();
+        }
+        // Audio: English, Italian (default), French; subtitles: English (default), Italian
+        // (forced), French. Then no default anywhere; then only a forced subtitle; then a video
+        // whose first track is the default one; then silent, with subtitles.
+        let cases: [(&str, &[&str]); 5] = [
+            ("all", &["-disposition:a:0", "0", "-disposition:a:1", "default", "-disposition:a:2", "0", "-disposition:s:0", "default", "-disposition:s:1", "forced", "-disposition:s:2", "0"]),
+            ("none-default", &["-disposition:a:0", "0", "-disposition:a:1", "0", "-disposition:a:2", "0", "-disposition:s:0", "0", "-disposition:s:1", "0", "-disposition:s:2", "0"]),
+            ("forced-only", &["-disposition:a:0", "0", "-disposition:a:1", "0", "-disposition:a:2", "default", "-disposition:s:0", "0", "-disposition:s:1", "0", "-disposition:s:2", "forced"]),
+            ("first-default", &["-disposition:a:0", "default", "-disposition:a:1", "0", "-disposition:a:2", "0", "-disposition:s:0", "default", "-disposition:s:1", "0", "-disposition:s:2", "0"]),
+            ("silent", &["-an", "-disposition:s:0", "0", "-disposition:s:1", "default", "-disposition:s:2", "0"]),
+        ];
+        let mut differ = Vec::new();
+        for (name, dispositions) in cases {
+            let file = dir.join(format!("{name}.mkv"));
+            let mut args: Vec<String> = ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=25:duration=3"].map(String::from).into();
+            for f in [440, 550, 660] {
+                args.extend(["-f", "lavfi", "-i", &format!("sine=f={f}:d=3")].map(String::from));
+            }
+            for lang in ["en", "it", "fr"] {
+                args.extend(["-i".to_string(), dir.join(format!("{lang}.srt")).to_string_lossy().into_owned()]);
+            }
+            for i in 0..7 {
+                args.extend(["-map".to_string(), i.to_string()]);
+            }
+            args.extend(["-c:v", "libx264", "-c:a", "libopus", "-c:s", "srt"].map(String::from));
+            for (i, l) in ["eng", "ita", "fra"].iter().enumerate() {
+                args.extend([format!("-metadata:s:a:{i}"), format!("language={l}"), format!("-metadata:s:s:{i}"), format!("language={l}")]);
+            }
+            args.extend(dispositions.iter().map(|d| d.to_string()));
+            args.push(file.to_string_lossy().into_owned());
+            let out = std::process::Command::new("ffmpeg").args(&args).output().expect("ffmpeg");
+            assert!(out.status.success(), "ffmpeg: {}", String::from_utf8_lossy(&out.stderr));
+            // Before #173: mpv chose by itself, with the player's options of then.
+            let options = [("hwdec", "auto-copy-safe"), ("keep-open", "yes"), ("audio-client-name", "EyeCanSee"), ("sub-auto", "no"), ("volume", "0"), ("mute", "yes")];
+            let mut before = Mpv::new(&options, || {}).unwrap();
+            before.load(Input::File(file.clone())).unwrap();
+            let before = tracks_chosen(&before);
+            let player = Player::open(Input::File(file.clone()), 0, true, || {}).unwrap();
+            let now = tracks_chosen(&player.mpv);
+            println!("{name}: video, audio, subtitles before {before:?}, now {now:?}");
+            if before != now {
+                differ.push(name);
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(differ.is_empty(), "other tracks chosen: {differ:?}");
+    }
+
     /// #276: a video closed while its stream waits 5 s on a slow phone or server: the window's
     /// thread is back at once, and the read is let go at once too. Skipped without libmpv (the CI).
     #[test]
