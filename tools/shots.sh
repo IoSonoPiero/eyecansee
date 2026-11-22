@@ -10,7 +10,7 @@
 # tools/shots/SOURCES.txt.
 #
 # Isolation, as for the announcement video: a user, mount and network namespace with an empty home
-# (/home/demo) made for the pictures, settings in it (dark theme, English, no update check), made-up
+# (/home/demo) made for the pictures, settings in it (dark theme, no update check), the language asked for (see below), made-up
 # servers (example.com), a made-up USB stick and external disk (/run/media/demo), and the real disks
 # hidden (/sys/class/block, /dev/disk/by-label, /run/media, /mnt, gvfs), as the real USB devices
 # but in the scenes of a phone. Nothing of the user's settings, cache or disks is read or written.
