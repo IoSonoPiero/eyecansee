@@ -253,11 +253,12 @@ fn epsv_port(answer: &str) -> Option<u16> {
     answer.split_once("|||")?.1.split_once('|')?.0.trim().parse().ok()
 }
 
-/// The port of a PASV answer: "227 Entering Passive Mode (127,0,0,1,217,125)" → 55677.
+/// The port of a PASV answer: "227 Entering Passive Mode (127,0,0,1,217,125)" → 55677. The six
+/// numbers are bytes: one beyond 255 is a bad answer (audit 2.19).
 fn pasv_port(answer: &str) -> Option<u16> {
     let inside = answer.split_once('(')?.1.split_once(')')?.0;
-    let n: Vec<u16> = inside.split(',').map(|x| x.trim().parse().ok()).collect::<Option<_>>()?;
-    (n.len() == 6).then(|| n[4] * 256 + n[5])
+    let n: Vec<u8> = inside.split(',').map(|x| x.trim().parse().ok()).collect::<Option<_>>()?;
+    (n.len() == 6).then(|| u16::from_be_bytes([n[4], n[5]]))
 }
 
 /// A file whose data ended before its size (`Server::send`): the server's answer to the transfer
