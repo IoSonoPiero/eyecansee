@@ -246,6 +246,23 @@ mod tests {
         assert_eq!(refused(crate::model::parse(ply.as_bytes(), "a.ply")), Ok(PLY_TEXT.error()));
     }
 
+    /// A point cloud in a PLY in text of one point more than 2.5 million (10 million triangles,
+    /// 4 a point) is refused with an error of its own, which speaks of points (Piero, 22/11/2026).
+    #[test]
+    fn cloud_in_text_over_its_cap_d1() {
+        let n = 2_500_001;
+        let mut ply = format!("ply\nformat ascii 1.0\nelement vertex {n}\nproperty float x\nproperty float y\nproperty float z\nend_header\n");
+        for i in 0..n {
+            ply.push_str(&format!("{i} 0 0\n"));
+        }
+        let e = refused(crate::model::parse(ply.as_bytes(), "a.ply")).unwrap();
+        assert_eq!(e, "error-model-too-many-points\u{1}ply-text 2500000");
+        assert_eq!(I18n::new("en").load_error(&e), "The point cloud has more than 2.5 million points.\nEyeCanSee does not read PLY files in text with more than 2.5 million points, so that reading them does not fill the computer's memory.");
+        assert_eq!(I18n::new("it").load_error(&e), "La nuvola di punti ha più di 2,5 milioni di punti.\nEyeCanSee non legge i file PLY in testo con più di 2,5 milioni di punti, perché la lettura non riempia la memoria del computer.");
+        assert_eq!(I18n::new("en").brief_load(&e).as_deref(), Some("more than 2.5 million points"));
+        assert_eq!(I18n::new("it").brief_load(&e).as_deref(), Some("più di 2,5 milioni di punti"));
+    }
+
     /// The error said in the viewer, in the lists of Export and Convert (a few words, and the
     /// whole sentence), and in a message window, in English and in Italian.
     #[test]
