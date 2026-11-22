@@ -195,8 +195,9 @@ impl App {
         if self.video_failed(path) {
             return (false, false);
         }
-        let Some(v) = &mut self.video else { return (false, false) };
-        let Ok(player) = &v.player else { return (false, false) };
+        // Without the engine: over at once, as before (the card is the viewer's).
+        let Some(v) = &mut self.video else { return (false, true) };
+        let Ok(player) = &v.player else { return (false, true) };
         (paint_fitted(painter, rect, player, &mut v.texture, Turn::default()), player.ended())
     }
 
@@ -408,9 +409,13 @@ impl App {
         Some(self.video_failure(v).filter(|_| !card))
     }
 
-    /// The video open for `path` cannot be played: it did not open, or mpv found it cannot (#209).
+    /// The video open for `path` cannot be played: mpv could not open it, or found it cannot
+    /// play it (#209). Not without the engine (no_engine) or the loader: that is not the file's.
     pub(crate) fn video_failed(&self, path: &str) -> bool {
-        self.video.as_ref().filter(|v| v.path == path).is_some_and(|v| v.player.as_ref().map_or(true, |p| p.error().is_some()))
+        self.video.as_ref().filter(|v| v.path == path).is_some_and(|v| match &v.player {
+            Ok(p) => p.error().is_some(),
+            Err(e) => !v.no_engine && !e.is_empty(),
+        })
     }
 
     /// The path of the video open, if the slideshow passes over it as over a file that cannot be
