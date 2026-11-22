@@ -17,7 +17,7 @@ use crate::mpv_load::{Api, api};
 pub use crate::mpv_load::{available, status};
 pub(crate) use crate::mpv_stream::OpenFn;
 pub use crate::mpv_stream::Reader;
-use crate::mpv_stream::stream_open;
+use crate::mpv_stream::{Stream, stream_open};
 
 // From mpv's client.h and render.h (API 2.x).
 pub(crate) const FORMAT_STRING: c_int = 1;
@@ -28,6 +28,8 @@ const EVENT_SHUTDOWN: c_int = 1;
 const EVENT_END_FILE: c_int = 7;
 const EVENT_FILE_LOADED: c_int = 8;
 const EVENT_PLAYBACK_RESTART: c_int = 21;
+/// `mpv_end_file_reason`: the file could not be played.
+const END_FILE_REASON_ERROR: c_int = 4;
 const PARAM_API_TYPE: c_int = 1;
 const PARAM_BLOCK_FOR_TARGET_TIME: c_int = 12;
 const PARAM_SW_SIZE: c_int = 17;
@@ -84,8 +86,8 @@ struct Mpv {
     handle: Handle,
     render: Render,
     _update: Box<Update>,
-    /// The `Reader` of a stream, freed after the core (`Drop` first, then the fields).
-    reader: Option<Box<Arc<dyn Reader>>>,
+    /// The stream of a `Reader`, freed after the core (`Drop` first, then the fields).
+    stream: Option<Arc<Stream>>,
 }
 
 // SAFETY: the client API is thread-safe; the render calls are made from one thread at a time
@@ -102,7 +104,7 @@ impl Mpv {
             if handle.is_null() {
                 return Err("mpv_create failed".into());
             }
-            let mut mpv = Mpv { api, handle, render: std::ptr::null_mut(), _update: Box::new(Box::new(update)), reader: None };
+            let mut mpv = Mpv { api, handle, render: std::ptr::null_mut(), _update: Box::new(Box::new(update)), stream: None };
             // libmpv reads no configuration files and takes no keys unless asked.
             // video-rotate=no: the software renderer crops with the rotated rectangle but scales the
             // unrotated frame (libmpv_sw.c, mpv 0.41): a phone's portrait video (rotation 90 in
@@ -128,8 +130,8 @@ impl Mpv {
         let url = match input {
             Input::File(path) => path.to_string_lossy().into_owned(),
             Input::Stream(reader) => {
-                let reader = self.reader.insert(Box::new(reader));
-                let user = &**reader as *const Arc<dyn Reader> as *mut c_void;
+                let stream = self.stream.insert(Arc::new(Stream::new(reader)));
+                let user = Arc::as_ptr(stream) as *mut c_void;
                 // SAFETY: `user` lives as long as the core, `stream_open` matches `OpenFn`.
                 let r = unsafe { (self.api.stream_cb_add_ro)(self.handle, c"eyecansee".as_ptr(), user, stream_open) };
                 if r < 0 {
@@ -173,8 +175,21 @@ impl Mpv {
     }
 
     fn wait(&self, timeout: f64) -> c_int {
-        // SAFETY: the event stays valid until the next call; only its id is read.
-        unsafe { (*(self.api.wait_event)(self.handle, timeout)).id }
+        self.next_event(timeout).0
+    }
+
+    /// The next event's id and, for `END_FILE`, its reason and mpv's error (`mpv_event_end_file`,
+    /// whose first two fields are the same in every API we take).
+    fn next_event(&self, timeout: f64) -> (c_int, Option<(c_int, c_int)>) {
+        // SAFETY: the event and its data stay valid until the next call; read here only.
+        unsafe {
+            let event = &*(self.api.wait_event)(self.handle, timeout);
+            let end = (event.id == EVENT_END_FILE && !event.data.is_null()).then(|| {
+                let data = event.data as *const c_int;
+                (*data, *data.add(1))
+            });
+            (event.id, end)
+        }
     }
 
     fn update(&self) -> u64 {
@@ -439,6 +454,8 @@ struct State {
     size: [u32; 2],
     frame: Option<ColorImage>,
     quit: bool,
+    /// mpv ended the file before it was loaded: it cannot play it (#209).
+    failed: bool,
     /// Who asked for the frame shown at the video's own size (`Player::grab`).
     grab: Option<Grab>,
     /// Frames drawn, frames drawn over before the window took them, time spent drawing, the
@@ -467,7 +484,6 @@ impl Shared {
 
 /// Why a video cannot be played (`Player::error`, #209).
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)] // until #209 is fixed
 pub enum Failure {
     /// mpv does not recognise the file: not a video, or damaged at its start.
     NotVideo,
@@ -475,6 +491,28 @@ pub enum Failure {
     NoPicture,
     /// The phone or the server failed to give the bytes: their error (`id\u{1}detail`).
     Read(String),
+}
+
+/// What a video that reached its end showed: a video track (`video`), that track a cover image
+/// (`cover`), a frame that reached the screen (`shown`, mpv's `vo-configured`).
+struct Picture {
+    video: bool,
+    cover: bool,
+    shown: bool,
+}
+
+/// `Player::error` from what is known: mpv ended the file before loading it (`failed`); the
+/// stream's last read failed (`read`); at the end, what it `showed`. A read error says why;
+/// a file that ends before loading was not recognised; a video track, not a cover, that reached
+/// its end without a frame had none that decodes. Sound alone is no error.
+fn judge(failed: bool, read: Option<String>, showed: Option<Picture>) -> Option<Failure> {
+    match (failed, read, showed) {
+        (true, Some(e), _) => Some(Failure::Read(e)),
+        (true, None, _) => Some(Failure::NotVideo),
+        (false, Some(e), Some(_)) => Some(Failure::Read(e)),
+        (false, None, Some(p)) if p.video && !p.cover && !p.shown => Some(Failure::NoPicture),
+        _ => None,
+    }
 }
 
 /// A video playing (with sound), its frames drawn by a thread of its own at the size the
@@ -534,10 +572,18 @@ impl Player {
         self.mpv.property::<c_int>("pause", FORMAT_FLAG).unwrap_or(0) != 0
     }
 
-    /// Why the video cannot be played, once mpv has decided it cannot (#209).
-    #[allow(dead_code)] // until #209 is fixed
+    /// Why the video cannot be played, once mpv has decided it cannot (#209): from mpv's own
+    /// state, never a timer, so a slow phone or server only keeps the spinner longer.
     pub fn error(&self) -> Option<Failure> {
-        None
+        let read = self.mpv.stream.as_ref().and_then(|s| s.last_error());
+        let failed = self.shared.state.lock().unwrap().failed;
+        let ended = !failed && self.ended();
+        let flag = |p: &str| self.mpv.property::<c_int>(p, FORMAT_FLAG).map(|f| f != 0);
+        let picture = ended.then(|| {
+            let video = self.mpv.property::<i64>("current-tracks/video/id", FORMAT_INT64).is_some();
+            Picture { video, cover: flag("current-tracks/video/image") == Some(true), shown: flag("vo-configured") == Some(true) }
+        });
+        judge(failed, read, picture)
     }
 
     /// Played to the end (the last frame stays, see keep-open).
@@ -635,20 +681,35 @@ fn turn_frames(mpv: &Mpv) {
     let _ = if filter.is_empty() { mpv.command(&["vf", "clr", ""]) } else { mpv.command(&["vf", "set", filter]) };
 }
 
+/// Waits for the file to be loaded, as long as it takes: a phone copying a whole video first, a
+/// slow server. There was a limit of 20 s, after which no frame was ever drawn (#209). False when
+/// the viewer closed, or when mpv ended the file first: it cannot play it, said in `failed`, and
+/// the window is woken to show it.
+fn wait_loaded(mpv: &Mpv, shared: &Shared, repaint: &impl Fn()) -> bool {
+    loop {
+        if shared.state.lock().unwrap().quit {
+            return false;
+        }
+        match mpv.next_event(0.5) {
+            (EVENT_FILE_LOADED, _) => return true,
+            (EVENT_END_FILE, end) => {
+                let (reason, error) = end.unwrap_or_default();
+                log!("video: ended before it was loaded, reason {reason}{}, mpv error {error}", if reason == END_FILE_REASON_ERROR { " (error)" } else { "" });
+                shared.change(|st| st.failed = true);
+                repaint();
+                return false;
+            }
+            (EVENT_SHUTDOWN, _) => return false,
+            _ => {}
+        }
+    }
+}
+
 fn draw_loop(mpv: &Mpv, shared: &Shared, repaint: impl Fn()) {
     // The rotation is known once the file is loaded; a filter turns every frame from then on
     // (a frame decoded before is filtered again by mpv). `dwidth`/`dheight` follow the filter.
-    let deadline = Instant::now() + Duration::from_secs(20);
-    loop {
-        let left = deadline.saturating_duration_since(Instant::now());
-        if left.is_zero() || shared.state.lock().unwrap().quit {
-            return;
-        }
-        match mpv.wait(left.as_secs_f64().min(0.5)) {
-            EVENT_FILE_LOADED => break,
-            EVENT_END_FILE | EVENT_SHUTDOWN => return,
-            _ => {}
-        }
+    if !wait_loaded(mpv, shared, &repaint) {
+        return;
     }
     turn_frames(mpv);
     loop {
@@ -786,6 +847,24 @@ pub(crate) mod tests {
 
     fn stream(bytes: Vec<u8>) -> Input {
         Input::Stream(Arc::new(Bytes(bytes)))
+    }
+
+    /// #209, without mpv: what `Player::error` says from what is known.
+    #[test]
+    fn judged_from_mpv_state() {
+        let at_end = |video, cover, shown| Some(Picture { video, cover, shown });
+        let read = || Some("error-device-gone\u{1}USB".to_string());
+        assert_eq!(judge(true, None, None), Some(Failure::NotVideo));
+        assert_eq!(judge(true, read(), None), Some(Failure::Read(read().unwrap())));
+        assert_eq!(judge(false, None, at_end(true, false, false)), Some(Failure::NoPicture));
+        assert_eq!(judge(false, read(), at_end(true, false, true)), Some(Failure::Read(read().unwrap())));
+        // Playing, or still loading: nothing yet, a read error included (it may come back).
+        assert_eq!(judge(false, None, None), None);
+        assert_eq!(judge(false, read(), None), None);
+        // At the end with a frame shown, sound only, a cover: fine.
+        assert_eq!(judge(false, None, at_end(true, false, true)), None);
+        assert_eq!(judge(false, None, at_end(false, false, false)), None);
+        assert_eq!(judge(false, None, at_end(true, true, false)), None);
     }
 
     /// #209: a file mpv cannot play says why instead of a spinner forever: one it does not

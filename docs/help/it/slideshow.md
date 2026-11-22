@@ -36,4 +36,4 @@ In **Strumenti > Opzioni… > Carosello**:
 
 La foto successiva viene letta in anticipo. Se non è ancora pronta (un file grande, un telefono, un server), quella in corso resta finché non lo è.
 
-Una foto che non si apre (un file rovinato) viene saltata: per qualche secondo un piccolo avviso con il triangolo nell'angolo in alto a sinistra la nomina, senza coprire le foto che seguono. Se nessuna delle foto si apre, la presentazione si ferma e un messaggio in fondo alla finestra lo dice; quando la griglia le mostra già tutte con il triangolo, non parte nemmeno, e arriva solo il messaggio.
+Una foto o un video che non si apre (un file rovinato) viene saltato: per qualche secondo un piccolo avviso con il triangolo nell'angolo in alto a sinistra lo nomina, senza coprire le foto che seguono. Se nessuno dei file si apre, la presentazione si ferma e un messaggio in fondo alla finestra lo dice; quando la griglia le mostra già tutte con il triangolo, non parte nemmeno, e arriva solo il messaggio.

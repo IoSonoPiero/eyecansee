@@ -252,6 +252,12 @@ fn input(rt: Handle, op: &Store, path: &str, size: u64, play: bool) -> (crate::m
     }
 }
 
+/// A source's error as the viewer says it (`id\u{1}detail`, `I18n::load_error`): a video that
+/// stops because the phone or the server failed says their own message (#209).
+fn said((id, detail): crate::source::Error) -> String {
+    format!("{id}\u{1}{detail}")
+}
+
 /// A whole copy and the file kept open on it.
 type OpenCopy = (PathBuf, std::sync::Mutex<std::fs::File>);
 
@@ -336,7 +342,7 @@ impl StoreReader {
                             continue;
                         }
                         return Err(match end {
-                            Some(Err((id, detail))) => format!("{id} {detail}"),
+                            Some(Err(e)) => said(e),
                             _ => "read ahead ended".into(),
                         });
                     }
@@ -431,7 +437,7 @@ async fn copy_now(op: &Store, path: &str, size: u64, copied: &AtomicU64, key: St
         Ok(())
     };
     let (sent, written) = futures_util::future::join(op.send_chunks(path, size, tx, copied, &never), write).await;
-    match sent.map_err(|(id, d)| format!("{id} {d}")).and(written) {
+    match sent.map_err(said).and(written) {
         Ok(()) => {
             keep_copy(key, tmp.clone());
             Ok(tmp)
@@ -498,7 +504,7 @@ impl crate::mpv::Reader for StoreReader {
             },
             None if let Some(ahead) = &self.ahead => self.read_ahead(ahead, offset, len),
             // With the error's id: the log said only the path when the file was gone (2026-10-29).
-            None => self.rt.block_on(self.op.read_range(&self.path, offset, len)).map_err(|(id, detail)| format!("{id} {detail}")),
+            None => self.rt.block_on(self.op.read_range(&self.path, offset, len)).map_err(said),
         }
     }
 }

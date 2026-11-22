@@ -310,10 +310,12 @@ impl App {
 
     /// The pictures found unreadable (among those loaded: the current one and its neighbours) are
     /// remembered; the current one, if it is one, is passed over at once, with a notice in a corner
-    /// (`show_skipped`). A video whose still cannot be read is left to play (or not) as before.
+    /// (`show_skipped`). A video whose still cannot be read is left to play; one that cannot be
+    /// played is passed over as a picture (Piero, 20/11, #209).
     fn show_pass_unreadable(&mut self, ctx: &egui::Context, now: f64) {
         // One opened anyway before is not: as a neighbour it is not read (`view_memory::Wanted`).
-        let failed: Vec<String> = self.full.iter().filter(|&(i, r)| r.is_err() && !self.remembered_too_large(*i)).filter_map(|(i, _)| self.files().get(*i)).filter(|f| !crate::decode::is_played(&f.path)).map(|f| f.path.clone()).collect();
+        let mut failed: Vec<String> = self.full.iter().filter(|&(i, r)| r.is_err() && !self.remembered_too_large(*i)).filter_map(|(i, _)| self.files().get(*i)).filter(|f| !crate::decode::is_played(&f.path)).map(|f| f.path.clone()).collect();
+        failed.extend(self.failed_video());
         let again = self.settings.slideshow_loop;
         let Some(s) = &mut self.show else { return };
         s.unreadable.extend(failed);
@@ -534,7 +536,9 @@ mod tests {
         h.until(|a| a.show.as_ref().is_some_and(|s| s.skipped.as_ref().is_some_and(|k| k.0 == "b.mp4")), "b.mp4 passed over");
         let s = h.app.show.as_ref().unwrap();
         assert_eq!(s.paths[s.at], c);
-        assert_eq!(h.app.i18n.t_args("show-skipped", &[("name", "b.mp4")]), "File skipped: b.mp4 (it cannot be opened)");
+        let en = crate::i18n::I18n::new("en");
+        assert_eq!(en.t_args("show-skipped", &[("name", "b.mp4")]), "File skipped: b.mp4 (it cannot be opened)");
+        assert_eq!(en.t("show-none-readable"), "Slideshow stopped: none of its files can be opened.");
 
         let dir = folder("show-only-broken-videos", &[]);
         std::fs::write(dir.join("x.mp4"), crate::mpv::tests::noise(20_000)).unwrap();
@@ -545,7 +549,7 @@ mod tests {
         h.app.start_show(&ctx, None);
         assert!(h.app.show.is_some(), "a video whose still failed may still play: the slideshow starts");
         h.until(|a| a.show.is_none(), "the slideshow stopped");
-        assert_eq!(h.app.error.as_deref(), Some("Slideshow stopped: none of its files can be opened."));
+        assert_eq!(h.app.error, Some(h.app.i18n.t("show-none-readable")));
         let it = crate::i18n::I18n::new("it");
         assert_eq!(it.t_args("show-skipped", &[("name", "b.mp4")]), "File saltato: b.mp4 (non si apre)");
         assert_eq!(it.t("show-none-readable"), "Presentazione fermata: nessuno dei suoi file si apre.");

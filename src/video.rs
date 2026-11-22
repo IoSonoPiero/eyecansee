@@ -146,8 +146,7 @@ impl App {
             ui.ctx().request_repaint();
             return;
         }
-        if let Err(e) = &v.player {
-            let e = e.clone();
+        if let Some(e) = self.video.as_ref().and_then(|v| self.video_failure(v)) {
             match crate::component::VIDEO {
                 Some(c) if !engine => self.component_ui(ui, c),
                 // The message is in the bar (`viewer_error`): here only its start.
@@ -184,14 +183,18 @@ impl App {
     }
 
     /// The slideshow on a video: played whole at full screen (over its still, which the passage
-    /// uses). Returns (a frame was painted, the video is over or cannot play).
+    /// uses). Returns (a frame was painted, the video is over). One that cannot play is not over:
+    /// the slideshow passes over it as over a picture that cannot be opened (`show_pass_unreadable`).
     pub(crate) fn show_video(&mut self, painter: &egui::Painter, rect: Rect, path: &str, size: u64) -> (bool, bool) {
         if self.video.as_ref().is_none_or(|v| v.path != path) {
             self.video = None;
             self.video = Some(self.open_video(painter.ctx(), path.to_string(), size));
         }
-        let Some(v) = &mut self.video else { return (false, true) };
-        let Ok(player) = &v.player else { return (false, true) };
+        if self.video_failed(path) {
+            return (false, false);
+        }
+        let Some(v) = &mut self.video else { return (false, false) };
+        let Ok(player) = &v.player else { return (false, false) };
         (paint_fitted(painter, rect, player, &mut v.texture, Turn::default()), player.ended())
     }
 
@@ -400,7 +403,26 @@ impl App {
     pub(crate) fn video_error(&self, path: &str) -> Option<Option<String>> {
         let v = self.video.as_ref().filter(|v| v.path == path)?;
         let card = crate::component::VIDEO.is_some() && !self.engine();
-        Some(v.player.as_ref().err().filter(|_| !card).cloned())
+        Some(self.video_failure(v).filter(|_| !card))
+    }
+
+    /// The video open for `path` cannot be played: it did not open, or mpv found it cannot (#209).
+    pub(crate) fn video_failed(&self, path: &str) -> bool {
+        self.video.as_ref().filter(|v| v.path == path).is_some_and(|v| v.player.as_ref().map_or(true, |p| p.error().is_some()))
+    }
+
+    /// The path of the video open, if it cannot be played (`video_failed`).
+    pub(crate) fn failed_video(&self) -> Option<String> {
+        self.video.as_ref().map(|v| v.path.clone()).filter(|p| self.video_failed(p))
+    }
+
+    /// Why `v` does not play, the whole message: as for a picture that cannot be opened, "Cannot
+    /// open x" and why under it (#209).
+    fn video_failure(&self, v: &Playing) -> Option<String> {
+        match &v.player {
+            Err(e) => Some(e.clone()),
+            Ok(p) => p.error().map(|f| self.i18n.cannot_load(crate::source::name(&v.path), &said(&f))),
+        }
     }
 
     /// The video open for `path` has not reached its end (it plays, it is paused, or it could
@@ -426,6 +448,16 @@ impl App {
             log!("video {path:?}: ERROR {e}");
         }
         Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying, hide: Default::default() }
+    }
+}
+
+/// Why a video does not play, as `I18n::cannot_load` says it: a Fluent id with no detail (`id\u{1}`),
+/// or the phone's or the server's own error, already so.
+fn said(failure: &mpv::Failure) -> String {
+    match failure {
+        mpv::Failure::NotVideo => "video-not-video\u{1}".into(),
+        mpv::Failure::NoPicture => "video-no-frame\u{1}".into(),
+        mpv::Failure::Read(e) => e.clone(),
     }
 }
 
@@ -646,12 +678,15 @@ mod tests {
         std::fs::write(dir.join("no-frame.mp4"), crate::mpv::tests::header_and_noise()).unwrap();
         let mut h = Harness::new(&dir);
         h.app.settings.video_mute = true;
-        for (name, said) in [("noise.mp4", "The file is not a video, or it is damaged."), ("no-frame.mp4", "No frame can be shown: the video is damaged.")] {
+        for (name, id) in [("noise.mp4", "video-not-video"), ("no-frame.mp4", "video-no-frame")] {
             let i = h.app.files().iter().position(|f| f.path.ends_with(name)).unwrap();
             h.app.viewing = Some(i);
             h.until(|a| a.viewer_error().is_some(), name);
-            assert_eq!(h.app.viewer_error().as_deref(), Some(format!("Cannot open {name}\n{said}").as_str()));
+            assert_eq!(h.app.viewer_error(), Some(h.app.i18n.cannot_load(name, &format!("{id}\u{1}"))));
         }
+        let en = crate::i18n::I18n::new("en");
+        assert_eq!(en.cannot_load("a.mp4", "video-not-video\u{1}"), "Cannot open a.mp4\nThe file is not a video, or it is damaged.");
+        assert_eq!(en.cannot_load("a.mp4", "video-no-frame\u{1}"), "Cannot open a.mp4\nNo frame can be shown: the video is damaged.");
         let it = crate::i18n::I18n::new("it");
         assert_eq!(it.cannot_load("a.mp4", "video-not-video\u{1}"), "Impossibile aprire a.mp4\nIl file non è un video, o è rovinato.");
         assert_eq!(it.cannot_load("a.mp4", "video-no-frame\u{1}"), "Impossibile aprire a.mp4\nNessun fotogramma si può mostrare: il video è rovinato.");

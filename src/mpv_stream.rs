@@ -3,7 +3,7 @@
 //! `mpv_stream_cb_add_ro`). Split from `mpv.rs` on 2026-11-22.
 
 use std::ffi::{c_char, c_int, c_void};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 const ERROR_GENERIC: i64 = -20;
 
@@ -31,25 +31,51 @@ pub(crate) type OpenFn = unsafe extern "C" fn(*mut c_void, *mut c_char, *mut Str
 // ponytail: one block kept, no read-ahead; mpv's own cache covers playback
 const BLOCK: u64 = 1 << 20;
 
+/// The stream of a player: its `Reader` and what the player needs to know of its reads, shared
+/// with mpv's threads (the user data of `mpv_stream_cb_add_ro`, kept by `Mpv`).
+pub(crate) struct Stream {
+    reader: Arc<dyn Reader>,
+    /// The error of the last read of the `Reader`, until one succeeds again: why a video stopped
+    /// or did not open (a phone unplugged, a server gone, #209).
+    failed: Mutex<Option<String>>,
+}
+
+impl Stream {
+    pub(crate) fn new(reader: Arc<dyn Reader>) -> Stream {
+        Stream { reader, failed: Mutex::new(None) }
+    }
+
+    pub(crate) fn last_error(&self) -> Option<String> {
+        self.failed.lock().unwrap().clone()
+    }
+
+    fn fetch(&self, offset: u64, len: u64) -> Result<Vec<u8>, String> {
+        let r = self.reader.read(offset, len).and_then(|d| if d.is_empty() { Err("empty read".into()) } else { Ok(d) });
+        *self.failed.lock().unwrap() = r.as_ref().err().cloned();
+        r
+    }
+}
+
 /// An open stream: position and the last block read.
 struct Cursor {
-    reader: Arc<dyn Reader>,
+    stream: Arc<Stream>,
     pos: u64,
     block: (u64, Vec<u8>),
 }
 
 impl Cursor {
+    fn new(stream: Arc<Stream>) -> Cursor {
+        Cursor { stream, pos: 0, block: (0, Vec::new()) }
+    }
+
     fn read(&mut self, out: &mut [u8]) -> Result<usize, String> {
-        let size = self.reader.size();
+        let size = self.stream.reader.size();
         if self.pos >= size {
             return Ok(0);
         }
         let (start, data) = &self.block;
         if self.pos < *start || self.pos >= start + data.len() as u64 {
-            let data = self.reader.read(self.pos, BLOCK.min(size - self.pos))?;
-            if data.is_empty() {
-                return Err("empty read".into());
-            }
+            let data = self.stream.fetch(self.pos, BLOCK.min(size - self.pos))?;
             self.block = (self.pos, data);
         }
         let (start, data) = &self.block;
@@ -62,9 +88,13 @@ impl Cursor {
 }
 
 pub(crate) unsafe extern "C" fn stream_open(user: *mut c_void, _uri: *mut c_char, info: *mut StreamInfo) -> c_int {
-    // SAFETY: `user` is the `Arc<dyn Reader>` boxed in `Mpv`, alive as long as the core.
-    let reader = unsafe { (*(user as *const Arc<dyn Reader>)).clone() };
-    let cursor = Box::new(Cursor { reader, pos: 0, block: (0, Vec::new()) });
+    // SAFETY: `user` is the pointer of the `Arc<Stream>` kept in `Mpv`, alive as long as the core:
+    // one more reference to it is taken here.
+    let stream = unsafe {
+        Arc::increment_strong_count(user as *const Stream);
+        Arc::from_raw(user as *const Stream)
+    };
+    let cursor = Box::new(Cursor::new(stream));
     // SAFETY: `info` is mpv's, to be filled here.
     unsafe {
         *info = StreamInfo {
@@ -86,7 +116,7 @@ unsafe extern "C" fn stream_read(cookie: *mut c_void, buf: *mut c_char, n: u64) 
     match cursor.read(out) {
         Ok(n) => n as i64,
         Err(e) => {
-            log!("video stream: ERROR {e}");
+            log!("video stream: ERROR {}", e.replace('\u{1}', ": "));
             -1
         }
     }
@@ -104,7 +134,8 @@ unsafe extern "C" fn stream_seek(cookie: *mut c_void, offset: i64) -> i64 {
 
 unsafe extern "C" fn stream_size(cookie: *mut c_void) -> i64 {
     // SAFETY: as `stream_read`.
-    unsafe { (*(cookie as *const Cursor)).reader.size() as i64 }
+    let cursor = unsafe { &*(cookie as *const Cursor) };
+    cursor.stream.reader.size() as i64
 }
 
 unsafe extern "C" fn stream_close(cookie: *mut c_void) {
@@ -131,7 +162,8 @@ mod tests {
     #[test]
     fn cursor_reads_across_blocks() {
         let data: Vec<u8> = (0..BLOCK as usize * 2 + 100).map(|i| (i % 251) as u8).collect();
-        let mut c = Cursor { reader: Arc::new(Bytes(data.clone())), pos: BLOCK - 10, block: (0, Vec::new()) };
+        let mut c = Cursor::new(Arc::new(Stream::new(Arc::new(Bytes(data.clone())))));
+        c.pos = BLOCK - 10;
         let mut out = vec![0; 30];
         assert_eq!(c.read(&mut out), Ok(30)); // block read from BLOCK - 10
         assert_eq!(out, data[BLOCK as usize - 10..BLOCK as usize + 20]);
@@ -143,5 +175,34 @@ mod tests {
         assert_eq!(c.read(&mut out), Ok(10));
         assert_eq!(out[..10], data[data.len() - 10..]);
         assert_eq!(c.read(&mut out), Ok(0)); // end of file
+    }
+
+    /// Bytes failing in a range, as a phone that comes back.
+    struct Gap(Bytes, std::ops::Range<u64>);
+
+    impl Reader for Gap {
+        fn size(&self) -> u64 {
+            self.0.size()
+        }
+        fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>, String> {
+            if self.1.contains(&offset) { Err("error-device-gone\u{1}USB".into()) } else { self.0.read(offset, len) }
+        }
+    }
+
+    /// #209: the error of the last read is kept for the player, until a read succeeds again; the
+    /// end of the file reads nothing and changes nothing.
+    #[test]
+    fn last_read_error_kept() {
+        let stream = Arc::new(Stream::new(Arc::new(Gap(Bytes(vec![7; BLOCK as usize * 3]), BLOCK..BLOCK * 2))));
+        let mut c = Cursor::new(stream.clone());
+        let mut out = vec![0; 10];
+        assert_eq!((c.read(&mut out), stream.last_error()), (Ok(10), None));
+        c.pos = BLOCK;
+        assert!(c.read(&mut out).is_err());
+        c.pos = BLOCK * 3;
+        assert_eq!(c.read(&mut out), Ok(0));
+        assert_eq!(stream.last_error().as_deref(), Some("error-device-gone\u{1}USB"));
+        c.pos = BLOCK * 2;
+        assert_eq!((c.read(&mut out), stream.last_error()), (Ok(10), None));
     }
 }
