@@ -571,4 +571,36 @@ mod tests {
         assert_eq!(left, ["a.jpg", "b.jpg", "c.jpg", "d.jpg"]);
         std::fs::remove_dir_all(&dir).unwrap();
     }
+
+    /// Audit 2.23 (b): a trash folder that cannot be listed (here: no permission to read it, but to
+    /// write into it, Linux) is not taken for an empty one: the deletion stops, and the file of the
+    /// same name already in the trash is not replaced. One that is not there is empty.
+    #[cfg(unix)]
+    #[test]
+    fn audit_2_23_trash_not_listed_is_not_empty() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = std::env::temp_dir().join(format!("eyecansee-trash-unread-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let trash = root.join("d").join(TRASH_DIR);
+        std::fs::create_dir_all(&trash).unwrap();
+        std::fs::write(trash.join("a.jpg"), b"deleted before").unwrap();
+        std::fs::write(root.join("d/a.jpg"), b"deleted now").unwrap();
+        std::fs::write(root.join("e.jpg"), b"no trash here").unwrap();
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&root.to_string_lossy())).unwrap());
+        std::fs::set_permissions(&trash, std::fs::Permissions::from_mode(0o300)).unwrap();
+        // As root every folder can be read: nothing to try.
+        let readable = std::fs::read_dir(&trash).is_ok();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let r = (!readable).then(|| rt.block_on(op.delete("d/a.jpg", Deletion::TrashFolder)));
+        std::fs::set_permissions(&trash, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let before = std::fs::read(trash.join("a.jpg")).unwrap();
+        let first = rt.block_on(op.delete("e.jpg", Deletion::TrashFolder));
+        let first_in = std::fs::read(root.join(TRASH_DIR).join("e.jpg")).ok();
+        let _ = std::fs::remove_dir_all(&root);
+        if let Some(r) = r {
+            assert!(r.is_err(), "the trash taken for empty: {r:?}");
+            assert_eq!(before, b"deleted before", "the file in the trash was replaced");
+        }
+        assert_eq!((first, first_in.as_deref()), (Ok(()), Some(&b"no trash here"[..])));
+    }
 }

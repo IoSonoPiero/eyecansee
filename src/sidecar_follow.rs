@@ -338,4 +338,27 @@ mod tests {
         let all = ["a.CR2", "a.CR2.xmp", "a.xmp", "b.xmp", "c.jpg"].map(|n| format!("{t}{n}")).to_vec();
         assert_eq!(without_sidecars(all), ["a.CR2", "b.xmp", "c.jpg"].map(|n| format!("{t}{n}")));
     }
+
+    /// Audit 2.23 (b): with its sidecars too, a trash folder that cannot be listed (Linux, no
+    /// permission to read it, but to write into it) stops the deletion: the pair of the same name
+    /// in the trash is not replaced.
+    #[cfg(unix)]
+    #[test]
+    fn audit_2_23_trash_not_listed_is_not_empty() {
+        use std::os::unix::fs::PermissionsExt;
+        let f = Folder::new("unread");
+        f.put("d/a.CR2", "raw");
+        f.put("d/a.CR2.xmp", "dt");
+        f.put(&format!("d/{TRASH_DIR}/a.CR2"), "old raw");
+        f.put(&format!("d/{TRASH_DIR}/a.CR2.xmp"), "old dt");
+        let trash = f.root.join("d").join(TRASH_DIR);
+        std::fs::set_permissions(&trash, std::fs::Permissions::from_mode(0o300)).unwrap();
+        let readable = std::fs::read_dir(&trash).is_ok();
+        let r = (!readable).then(|| f.rt.block_on(delete(&f.op, "d/a.CR2", Deletion::TrashFolder, &mut Folders::new())));
+        std::fs::set_permissions(&trash, std::fs::Permissions::from_mode(0o700)).unwrap();
+        if let Some(r) = r {
+            assert!(r.is_err(), "the trash taken for empty: {r:?}");
+            assert_eq!(f.files(&format!("d/{TRASH_DIR}")), s(&[("a.CR2", "old raw"), ("a.CR2.xmp", "old dt")]));
+        }
+    }
 }
