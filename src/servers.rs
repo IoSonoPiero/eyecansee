@@ -391,6 +391,31 @@ mod tests {
         assert!(leftovers.is_empty(), "{leftovers:?}");
     }
 
+    /// Audit 2.20 (a): with the encrypted file locked (a restart, no master password typed),
+    /// a new master password or none is refused, as a save is: the list read locked is empty,
+    /// and written it would take the place of the servers. A folder and a key of the test's own.
+    #[test]
+    fn audit_2_20_password_changes_refused_while_locked() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-vault-locked-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let nas = Saved { name: "NAS".into(), scheme: "ftp".into(), host: "nas.lan".into(), ..Default::default() };
+        let sealed = super::vault::seal(&super::vault::new_key("Tramonto-viola-sul-Gran-Sasso-1976").unwrap(), &serde_json::to_vec(&[nas]).unwrap()).unwrap();
+        let (plain, vault) = (dir.join("servers.json"), dir.join("servers.vault"));
+        std::fs::write(&vault, &sealed).unwrap();
+        let key = std::sync::Mutex::new(None);
+        let files = super::Files { plain: Some(plain.clone()), vault: Some(vault.clone()), key: &key };
+        assert!(files.locked());
+        let set = files.set_password("Un-altra-frase-lunga-per-il-NAS-2026");
+        let removed = files.remove_password();
+        let (now, plain_made) = (std::fs::read(&vault).ok(), plain.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(set.is_err(), "a new master password while locked");
+        assert!(removed.is_err(), "no master password while locked");
+        assert_eq!(now.as_deref(), Some(&sealed[..]), "the encrypted file changed");
+        assert!(!plain_made, "an empty plain list written");
+    }
+
     #[test]
     fn kept_from_open_location() {
         let home = Saved { name: "Home".into(), scheme: "sftp".into(), host: "nas.lan".into(), port: Some(2222), user: "me".into(), password: "old".into(), key_file: "~/.ssh/id".into(), ..Default::default() };

@@ -144,6 +144,28 @@ mod tests {
         assert!(matches!(super::open("x", b"[]"), Err(Some(_))));
     }
 
+    /// Audit 2.20 (b): the cost written in a vault's header is refused beyond a ceiling, before
+    /// any key is derived: a damaged file asking for terabytes of memory, or a billion passes,
+    /// blocked or closed the program when the master password was typed. Only the header is read
+    /// here: deriving with such a cost is what must never happen.
+    #[test]
+    fn audit_2_20_cost_beyond_a_ceiling_refused() {
+        let key = super::new_key_with("x", CHEAP).unwrap();
+        let data = super::seal(&key, b"[]").unwrap();
+        let with = |cost: super::Cost| {
+            let mut d = data.clone();
+            for (i, n) in [cost.0, cost.1, cost.2].into_iter().enumerate() {
+                d[super::MAGIC.len() + 4 * i..][..4].copy_from_slice(&n.to_le_bytes());
+            }
+            d
+        };
+        for cost in [(u32::MAX, 3, 1), (4 << 20, 3, 1), (64 * 1024, 1_000_000_000, 1), (64 * 1024, 3, 1 << 20)] {
+            assert!(super::read_header(&with(cost)).is_none(), "{cost:?} accepted");
+        }
+        assert!(super::read_header(&with(super::COST)).is_some());
+        assert!(super::read_header(&data).is_some());
+    }
+
     #[test]
     fn strength_grows() {
         assert!(super::strength("password") <= 1);
