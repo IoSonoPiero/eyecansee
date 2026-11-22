@@ -381,7 +381,8 @@ impl Settings {
         self
     }
 
-    /// Written to a temporary file and renamed: never a half-written file. Errors are ignored.
+    /// Written to a temporary file, flushed to the disk and renamed: never a half-written file.
+    /// Errors are ignored.
     pub fn save(&self) {
         if let Some(path) = path() {
             self.save_to(&path);
@@ -393,8 +394,20 @@ impl Settings {
         let Some(dir) = path.parent() else { return };
         let Ok(text) = serde_json::to_string_pretty(self) else { return };
         let tmp = path.with_extension(format!("json.{}.tmp", std::process::id()));
-        if std::fs::create_dir_all(dir).is_ok() && std::fs::write(&tmp, text).is_ok() {
-            let _ = std::fs::rename(&tmp, path);
+        // On the disk before it replaces the old file: after a power cut the renamed file could
+        // otherwise be empty on some file systems.
+        let written = std::fs::create_dir_all(dir).and_then(|()| {
+            let mut f = std::fs::File::create(&tmp)?;
+            std::io::Write::write_all(&mut f, text.as_bytes())?;
+            f.sync_all()
+        });
+        match written {
+            Ok(()) => {
+                let _ = std::fs::rename(&tmp, path);
+            }
+            Err(_) => {
+                let _ = std::fs::remove_file(&tmp);
+            }
         }
     }
 }
