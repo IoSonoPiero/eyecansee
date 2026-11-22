@@ -43,7 +43,7 @@ Il campo in alto a sinistra cerca in tutte le pagine ed è già pronto quando la
 
 ## Suggerimenti all'avvio
 
-Al primo avvio del giorno una finestra mostra un suggerimento: una cosa che EyeCanSee sa fare, con un'immagine o i passi da seguire.
+Al primo avvio del giorno una finestra mostra un suggerimento: una cosa che EyeCanSee sa fare, con un'immagine o i passi da seguire. La primissima volta il primo suggerimento arriva appena si chiude con **Fine** la finestra del primo avvio; chiusa con **Salta** o **Esc**, i suggerimenti cominciano il giorno dopo.
 
 ![Suggerimenti all'avvio](../img/tips.webp)
 

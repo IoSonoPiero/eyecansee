@@ -43,7 +43,7 @@ The field at the top left searches every page, ready for typing as soon as the g
 
 ## Tips at startup
 
-At the first start of the day a window shows a tip: one thing EyeCanSee can do, with a picture or the steps to follow.
+At the first start of the day a window shows a tip: one thing EyeCanSee can do, with a picture or the steps to follow. The very first time, the first tip comes as soon as the first-start window is closed with **Done**; closed with **Skip** or **Esc**, the tips start the next day.
 
 ![Tips at startup](../img/tips.webp)
 

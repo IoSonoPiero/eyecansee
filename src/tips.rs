@@ -138,6 +138,12 @@ impl App {
         }
     }
 
+    /// Tip `i` opened now, already marked as seen: after the first-start window (`first_start`).
+    pub(crate) fn tip_show(&mut self, i: usize) {
+        log!("tips: showing {}", TIPS[i].key);
+        self.tip = Some(Open::new(i));
+    }
+
     /// The tip's window, while open.
     pub(crate) fn tip_window(&mut self, ctx: &egui::Context) {
         let Some(open) = &mut self.tip else { return };

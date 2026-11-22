@@ -120,22 +120,32 @@ impl App {
     pub(crate) fn first_start_esc(&mut self, ctx: &egui::Context) {
         if self.first_start.as_ref().is_some_and(|open| !open.asking) && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
             log!("first start: Esc");
-            self.first_start_leave();
+            self.first_start_leave(crate::first_start::How::Other);
         }
     }
 
-    /// Done, Skip or Esc: the window closes, and remembers (`first_start::closed`). From the
-    /// add-ons page with ticked cards not downloaded the question comes first (`first_start_ask`).
-    fn first_start_leave(&mut self) {
+    /// Done, Skip or Esc: the window closes, and remembers (`first_start::closed_with_tip`). From
+    /// the add-ons page with ticked cards not downloaded the question comes first
+    /// (`first_start_ask`).
+    fn first_start_leave(&mut self, how: crate::first_start::How) {
         let Some(open) = &mut self.first_start else { return };
         if !open.leave(&self.downloads) {
             log!("first start: closing asked with {:?} ticked and not downloaded", open.waiting(&self.downloads));
             return;
         }
-        log!("first start: closed");
-        crate::first_start::closed(&mut self.settings, &open.plan);
+        self.first_start_closed(how);
+    }
+
+    /// The window closed: remembered and saved first, so a crash during the tip does not bring the
+    /// window back; then, after Done on the first start, the tip of the day (Piero, 22/11).
+    fn first_start_closed(&mut self, how: crate::first_start::How) {
+        let Some(open) = self.first_start.take() else { return };
+        let tip = crate::first_start::closed_with_tip(&mut self.settings, &open.plan, how, crate::tips::today());
+        log!("first start: closed ({how:?}), tip {tip:?}");
         self.settings.save();
-        self.first_start = None;
+        if let Some(i) = tip {
+            self.tip_show(i);
+        }
     }
 
     /// The question when closing would leave ticked cards not downloaded: Download and close
@@ -189,9 +199,7 @@ impl App {
             }
             Some(true) => {
                 log!("first start: downloads arrived, closed");
-                crate::first_start::closed(&mut self.settings, &open.plan);
-                self.settings.save();
-                self.first_start = None;
+                self.first_start_closed(crate::first_start::How::Done);
             }
         }
     }
@@ -210,7 +218,11 @@ impl App {
             Some(Press::Back) => self.first_start_turn(-1),
             Some(Press::Next) => self.first_start_turn(1),
             Some(Press::Download) => self.first_start_download(ctx),
-            Some(Press::Close) => self.first_start_leave(),
+            // Done is the Close of the last page; Skip that of the others.
+            Some(Press::Close) => {
+                let last = self.first_start.as_ref().is_some_and(|open| open.page + 1 == open.plan.pages.len());
+                self.first_start_leave(if last { crate::first_start::How::Done } else { crate::first_start::How::Other });
+            }
             None => {}
         }
         self.first_start_ask(ctx);

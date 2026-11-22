@@ -111,6 +111,26 @@ pub(crate) fn waits(page: Page, desktop: &Desktop) -> Option<&'static str> {
     (page == Page::Desktop && *desktop == Desktop::Ask).then_some("desktop-icon-choose")
 }
 
+/// How the window closed, for the tip of the day: with Done (or Download and close, once its
+/// downloads have arrived), or another way (Skip, Esc, Close without downloading).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum How {
+    Done,
+    Other,
+}
+
+/// The window closed: remembered as `closed` does, and the tip to show at once, marked as seen
+/// today, so the next day brings the one after it. Only on the first start (the welcome page),
+/// only with Done and only with the tips on in the Options (Piero, 22/11, over the decision of
+/// 21/11 that kept the first tip for the next day): closed another way, the tip comes the next
+/// day from the first, as `at_start` set.
+pub(crate) fn closed_with_tip(s: &mut Settings, plan: &Plan, how: How, today: u64) -> Option<usize> {
+    closed(s, plan);
+    let i = (how == How::Done && s.tips && plan.pages.contains(&Page::Welcome)).then(|| s.tip_next % crate::tips::TIPS.len())?;
+    crate::tips::seen(s, i, today);
+    Some(i)
+}
+
 /// A card of the add-ons page as the rule on closing sees it.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Card {
@@ -444,6 +464,48 @@ mod tests {
         assert_eq!(answered(&mut s, &alone, vec!["pdf"], Answer::Close), After::Closed);
         assert_eq!(s.addons_offered, ["libmpv", "pdf"]);
         assert!(!s.welcome_seen, "the add-ons page alone does not show the welcome");
+    }
+
+    /// A start of the app at `day` with `s`: the window (closed `how`) and the tip shown, if any.
+    /// With `address`, started with a file.
+    fn start(s: &mut Settings, day: u64, how: How, address: bool) -> (bool, Option<usize>) {
+        match at_start(s, ALL, address, day) {
+            Some(plan) => (true, closed_with_tip(s, &plan, how, day)),
+            None => (false, crate::tips::at_start(s, day, address).inspect(|&i| crate::tips::seen(s, i, day))),
+        }
+    }
+
+    /// The cases of Piero's prompt of 22/11 (a-h): Done on the first start brings the first tip
+    /// at once, and the next day the second; closed another way, no tip that day and the first
+    /// the next day; started with a file, no window and no tip; tips off, no tip after Done.
+    #[test]
+    fn the_tip_after_the_window() {
+        let mut s = Settings::default();
+        assert_eq!(start(&mut s, DAY, How::Done, false), (true, Some(0)), "a: the window, then tip 1");
+        assert!(s.welcome_seen, "saved as seen before the tip");
+        assert_eq!(start(&mut s, DAY, How::Done, false), (false, None), "b: the same day, nothing");
+        assert_eq!(start(&mut s, DAY + 1, How::Done, false), (false, Some(1)), "c: the next day, tip 2");
+
+        let mut s = Settings::default();
+        assert_eq!(start(&mut s, DAY, How::Other, false), (true, None), "d: Skip, Esc, Close without downloading");
+        assert_eq!(start(&mut s, DAY, How::Other, false), (false, None), "e: the same day, nothing");
+        assert_eq!(start(&mut s, DAY + 1, How::Other, false), (false, Some(0)), "f: the next day, tip 1");
+
+        let mut s = Settings::default();
+        assert_eq!(start(&mut s, DAY, How::Done, true), (false, None), "g: with a file, no window and no tip");
+        assert!(!s.welcome_seen, "the window waits for a normal start");
+
+        let mut s = Settings { tips: false, ..Settings::default() };
+        assert_eq!(start(&mut s, DAY, How::Done, false), (true, None), "h: tips off in the Options");
+    }
+
+    /// The add-ons page alone, for a new add-on of a later version: Done brings no tip, the day
+    /// goes on as before.
+    #[test]
+    fn no_tip_after_the_addons_page_alone() {
+        let mut s = Settings { welcome_seen: true, ..Settings::default() };
+        let alone = Plan { pages: vec![Page::Addons], addons: vec!["pdf"] };
+        assert_eq!(closed_with_tip(&mut s, &alone, How::Done, DAY), None);
     }
 
     /// Started with an address: nothing, not even remembered; the next normal start shows it.
