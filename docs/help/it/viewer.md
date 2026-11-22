@@ -38,11 +38,11 @@ Una foto in movimento (Google Pixel, Samsung, Xiaomi e altri telefoni) contiene 
 
 ## Panorami a 360°
 
-Un panorama a 360° (da un drone, da un telefono o da una fotocamera a 360°) è una foto di tutto ciò che sta intorno alla fotocamera, srotolata in un'immagine larga il doppio di quanto è alta. Quando il file lo dice (i tag Google Photo Sphere nei suoi metadati, che scrivono quasi tutte le fotocamere e le app), il visore lo mostra da dentro, come se fossi nel punto in cui è stato scattato:
+Un panorama a 360° (da un drone, da un telefono o da una fotocamera a 360°) è una foto di tutto ciò che sta intorno alla fotocamera, srotolata in un'immagine larga il doppio di quanto è alta. Quando il file lo dice (i tag Google Photo Sphere nei suoi metadati, che scrive la maggior parte delle fotocamere e delle app), il visore lo mostra da dentro, come se fossi nel punto in cui è stato scattato:
 
 ![Un panorama a 360° nel visore](../img/viewer-360.webp)
 
-- Trascina per guardarti intorno. La **rotellina**, **+** e **−** ingrandiscono e rimpiccioliscono (la rotellina come dice [Opzioni](options.md), e sempre con **Ctrl**); **0** torna alla prima vista, **1** mostra il centro al 100%. La percentuale nella barra di stato è quella del centro della vista.
+- Trascina per guardarti intorno. La **rotellina**, **+** e **−** ingrandiscono e rimpiccioliscono (la rotellina come dice [Opzioni](options.md), e sempre con **Ctrl**); **0** torna alla vista di partenza, **1** mostra il centro al 100%. La percentuale nella barra di stato è quella del centro della vista.
 - Un panorama parziale (che non fa tutto il giro, o non arriva in alto e in basso) mostra solo ciò che copre, e la vista si ferma ai suoi bordi.
 - **P**, o **Foto piatta** in basso a sinistra, mostra la foto piatta, come ogni altra; **P** o **Vista a 360°** la mostra di nuovo come una sfera. La scelta vale per i panorami che apri dopo, finché EyeCanSee resta aperto.
 - Ruotato (**Ruota**), o mentre misuri, un panorama si vede piatto. Le miniature, il carosello, il salvataggio, la copia e l'editor usano sempre la foto piatta.

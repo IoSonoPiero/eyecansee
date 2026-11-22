@@ -1,6 +1,6 @@
 # Options
 
-The options change how EyeCanSee starts, looks, moves between images, deletes, shows slideshows, plays videos, saves in the editor and writes a diagnostic log.
+The options change how EyeCanSee starts, looks, moves between images, deletes, shows slideshows, plays videos, saves in the editor, and whether it writes a diagnostic log.
 
 ## Opening the options
 
@@ -80,10 +80,10 @@ See [Deleting and the trash](delete.md).
 
 ## Diagnostics
 
-- **Write a diagnostic log** (off): from the next start, each start of EyeCanSee writes what it does in a file of its own, `eyecansee-<date>_<time>.log`, with the version, the system and the graphics card first, and any error it meets. Attach it to the report of a problem. The log holds the names of the folders and files you open: read it before attaching it to a public report. A file that reaches 5 MB is followed by a new one, and only the 10 newest files are kept: the older ones are deleted. A start that only hands a file to the EyeCanSee already open writes no log.
-- **Open the folder of the logs**: the folder in the file manager. It is `logs` in the data folder of EyeCanSee: `~/.local/share/eyecansee/logs` on Linux, `%LOCALAPPDATA%\eyecansee\logs` on Windows.
+- **Write a diagnostic log** (off): from the next start, every start of EyeCanSee writes what it does to its own file, `eyecansee-<date>_<time>.log`, with the version, the system and the graphics card first, and any error it meets. Attach it when you report a problem. The log contains the names of the folders and files you open, and the addresses and user names of your servers: read it before attaching it to a public report. A file that reaches 5 MB is followed by a new one, and only the 10 newest files are kept: the older ones are deleted. A start that only hands a file to the EyeCanSee already open writes no log.
+- **Open the logs folder**: the folder in the file manager. It is `logs` in the data folder of EyeCanSee: `~/.local/share/eyecansee/logs` on Linux, `%LOCALAPPDATA%\eyecansee\logs` on Windows.
 
-The tab also says the file this start is writing. If the `EYECANSEE_LOG` environment variable is set, it decides where the log goes (`1` to the error output, otherwise the file it names) and the switch is grey.
+The tab also shows the file this session is writing to. If the `EYECANSEE_LOG` environment variable is set, it decides where the log goes (`1` sends it to standard error, otherwise the file it names) and the switch is grey.
 
 ## Add-ons
 

@@ -38,13 +38,13 @@ A motion photo (Google Pixel, Samsung, Xiaomi and other phones) carries a short 
 
 ## 360° panoramas
 
-A 360° panorama (from a drone, a phone or a 360° camera) is a photo of all that is around the camera, unrolled into a picture twice as wide as it is tall. When the file says so (the Google Photo Sphere tags in its metadata, which most cameras and apps write), the viewer shows it from inside, as if you stood where it was taken:
+A 360° panorama (from a drone, a phone or a 360° camera) is a photo of everything around the camera, unrolled into a picture twice as wide as it is tall. When the file says so (the Google Photo Sphere tags in its metadata, which most cameras and apps write), the viewer shows it from the inside, as if you stood where it was taken:
 
 ![A 360° panorama in the viewer](../img/viewer-360.webp)
 
-- Drag to look around. The **mouse wheel**, **+** and **−** zoom in and out (the wheel as set in [Options](options.md), and always with **Ctrl**); **0** goes back to the first view, **1** shows the middle at 100%. The percentage in the status bar is that of the middle of the view.
+- Drag to look around. The **mouse wheel**, **+** and **−** zoom in and out (the wheel as set in [Options](options.md), and always with **Ctrl**); **0** goes back to the starting view, **1** shows the middle at 100%. The percentage in the status bar is that of the middle of the view.
 - A partial panorama (not the whole way round, or not up to the top and the bottom) shows only what it covers, and the view stops at its edges.
-- **P**, or **Flat picture** at the bottom left, shows the picture flat, as any other photo; **P** or **360° view** shows it as a sphere again. The choice holds for the panoramas you open next, until EyeCanSee is closed.
+- **P**, or **Flat picture** at the bottom left, shows the picture flat, like any other photo; **P** or **360° view** shows it as a sphere again. The choice holds for the panoramas you open next, until EyeCanSee is closed.
 - Rotated (**Rotate**), or while measuring, a panorama is shown flat. The thumbnails, the slideshow, saving, copying and the editor always use the flat picture.
 - Saved turned upside down or on its side, flipped top to bottom, or cropped, a panorama is no longer one: EyeCanSee removes its Photo Sphere tags, and the rest of its metadata stays. Made smaller or larger, or flipped left to right, it stays a panorama.
 

@@ -508,11 +508,11 @@ opt-tab-deleting = Eliminazione
 opt-tab-thumbnails = Miniature
 opt-tab-addons = Componenti aggiuntivi
 opt-tab-diagnostics = Diagnosi
-opt-log = Scrivi un registro di diagnosi
-opt-log-hint = Ogni avvio di EyeCanSee scrive ciò che fa in un file suo, nella cartella dei registri: allegalo alla segnalazione di un problema. A 5 MB comincia un file nuovo; si tengono i 10 file più recenti e i più vecchi si cancellano.
-opt-log-private = Il registro contiene i nomi delle cartelle e dei file che apri: leggilo prima di allegarlo a una segnalazione pubblica.
-opt-log-variable = La variabile EYECANSEE_LOG è impostata: decide lei dove va il registro, e questo interruttore non si usa.
-opt-log-now = Questo avvio scrive il registro in { $file }
+opt-log = Scrivi un registro di diagnosi, dal prossimo avvio
+opt-log-hint = Ogni avvio di EyeCanSee scrive ciò che fa in un file suo, nella cartella dei registri: allegalo quando segnali un problema. A 5 MB comincia un file nuovo; si tengono i 10 file più recenti e i più vecchi si cancellano.
+opt-log-private = Il registro contiene i nomi delle cartelle e dei file che apri, e gli indirizzi e i nomi utente dei tuoi server: leggilo prima di allegarlo a una segnalazione pubblica.
+opt-log-variable = La variabile d'ambiente EYECANSEE_LOG è impostata: decide lei dove va il registro, e questo interruttore non ha effetto.
+opt-log-now = Questa sessione scrive il registro in { $file }
 opt-log-folder = Apri la cartella dei registri
 opt-addons-text = Parti di EyeCanSee che si scaricano solo se le vuoi. Ognuna viene proposta anche la prima volta che serve.
 opt-under-thumbs = Sotto le miniature
@@ -713,7 +713,7 @@ hint-edit-lens = Trascinare: disegna una lente | Maiusc + trascinare: un quadrat
 hint-edit-cover = Trascinare: copre | Maiusc + trascinare: un quadrato | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I: contagocce | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia
 hint-edit-crop = Trascinare un lato o un angolo: ritaglia | Trascinare dentro: sposta il ritaglio | Maiusc + rotellina: ruota di 0,1° | Ctrl + R, Ctrl + Maiusc + R: ruota a destra, a sinistra | Invio: applica | Esc: chiude
 hint-image = →, Spazio, Pag↓: successiva | ←, Backspace, Pag↑: precedente | Inizio, Fine: prima, ultima | Spazio su un'animazione: pausa e riprendi | Spazio su una foto in movimento: riproduce il video | Pag↓, Pag↑ su un TIFF con più pagine: pagina successiva, precedente | P su un panorama a 360°: vista a 360° | Rotellina, + e −: zoom | Trascinare: spostare un'immagine ingrandita | 0: adatta alla finestra | 1: 100% | Ctrl + R, Ctrl + Maiusc + R: ruota a destra, a sinistra | Ctrl + Z, Ctrl + Y: annulla, ripeti una rotazione non salvata | Ctrl + E: modifica immagine | Ctrl + S, Ctrl + Maiusc + S: salva, salva come | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
-hint-pano = Trascinare: guardarsi intorno | Rotellina, + e −: zoom | 0: prima vista | 1: 100% al centro | P: foto piatta | →, Spazio, Pag↓: successiva | ←, Backspace, Pag↑: precedente | Inizio, Fine: prima, ultima | Ctrl + R, Ctrl + Maiusc + R: ruota a destra, a sinistra (si vede piatta) | Ctrl + E: modifica immagine | Ctrl + S, Ctrl + Maiusc + S: salva, salva come | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
+hint-pano = Trascinare: guardarsi intorno | Rotellina, + e −: zoom | 0: vista di partenza | 1: 100% al centro | P: foto piatta | →, Spazio, Pag↓: successiva | ←, Backspace, Pag↑: precedente | Inizio, Fine: prima, ultima | Ctrl + R, Ctrl + Maiusc + R: ruota a destra, a sinistra (si vede piatta) | Ctrl + E: modifica immagine | Ctrl + S, Ctrl + Maiusc + S: salva, salva come | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
 hint-grid = Frecce: sposta | Maiusc + frecce: allarga la selezione | Inizio, Fine: primo, ultimo | Invio: apre | Backspace: cartella superiore | Ctrl + A: seleziona tutto | Tab, Maiusc + Tab: elemento successivo, precedente | Ctrl + C, Ctrl + X, Ctrl + V: copia, taglia, incolla | F2: rinomina | Ctrl + Maiusc + N: nuova cartella | Canc: elimina | Maiusc + Canc: elimina definitivamente | Ctrl + R, Ctrl + Maiusc + R: ruota a destra, a sinistra | Ctrl + E: modifica immagine | Ctrl + B: converti | Ctrl + D: trova duplicati | Ctrl + N: nuova immagine | Ctrl + Maiusc + D: segnalibri | F5: rileggi la cartella | Maiusc + F5: rifai le miniature | F11: schermo intero | F1: guida
 hint-dup = ↑ ↓: passa da una copia all'altra | Spazio: spunta o toglie la spunta | Clic su un'immagine: la apre nel visore (Esc torna qui, con le spunte) | Esc: chiude (Invio non elimina)
 hint-video = Spazio: pausa e riprendi | Ctrl + ← →: 5 secondi indietro, avanti | ↑ ↓, rotellina: volume | M: audio sì e no | Ctrl + R, Ctrl + Maiusc + R: ruota a destra, a sinistra | Ctrl + Z, Ctrl + Y: annulla, ripeti una rotazione non salvata | →, Pag↓: successivo | ←, Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
@@ -1979,9 +1979,9 @@ tip-addons-text =
 pano-flat = Foto piatta
 pano-flat-hint = Mostra il panorama piatto, come ogni altra foto (P).
 pano-sphere = Vista a 360°
-pano-sphere-hint = Mostra il panorama da dentro, per guardarsi intorno trascinando (P).
+pano-sphere-hint = Mostra il panorama da dentro: trascina per guardarti intorno (P).
 tip-pano-title = Panorami a 360°
 tip-pano-text =
     Un panorama a 360°, da un drone o da una fotocamera a 360°, si apre nel visore visto da dentro: trascina per guardarti intorno, ingrandisci con la rotellina o con **+** e **−**.
 
-    { "**" }P**, o **Foto piatta** in basso a sinistra, lo mostra piatto, e di nuovo a 360°.
+    { "**" }P**, o **Foto piatta** in basso a sinistra, lo mostra piatto; di nuovo **P** e torna la vista a 360°.

@@ -510,12 +510,12 @@ opt-tab-deleting = Deleting
 opt-tab-thumbnails = Thumbnails
 opt-tab-addons = Add-ons
 opt-tab-diagnostics = Diagnostics
-opt-log = Write a diagnostic log
-opt-log-hint = Each start of EyeCanSee writes what it does in a file of its own, in the folder of the logs: attach it to the report of a problem. A new file begins at 5 MB; the 10 newest files are kept and the older ones deleted.
-opt-log-private = The log holds the names of the folders and files you open: read it before attaching it to a public report.
-opt-log-variable = The EYECANSEE_LOG variable is set: it decides where the log goes, and this switch is not used.
-opt-log-now = This start writes its log in { $file }
-opt-log-folder = Open the folder of the logs
+opt-log = Write a diagnostic log, from the next start
+opt-log-hint = Every start of EyeCanSee writes what it does to its own file in the logs folder: attach it when you report a problem. At 5 MB a new file is started; the 10 newest files are kept and the older ones are deleted.
+opt-log-private = The log contains the names of the folders and files you open, and the addresses and user names of your servers: read it before attaching it to a public report.
+opt-log-variable = The EYECANSEE_LOG environment variable is set: it decides where the log goes, and this switch has no effect.
+opt-log-now = This session writes its log to { $file }
+opt-log-folder = Open the logs folder
 opt-addons-text = Parts of EyeCanSee that are downloaded only if you want them. Each one is also offered the first time it is needed.
 opt-under-thumbs = Under the thumbnails
 opt-under-thumbs-hint = The details chosen go on one line under the name. With small thumbnails only the name stays.
@@ -715,7 +715,7 @@ hint-edit-lens = Drag: draw a magnifier | Shift + drag: a square or a circle | D
 hint-edit-cover = Drag: cover | Shift + drag: a square | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go
 hint-edit-crop = Drag a side or corner: crop | Drag inside: move the crop | Shift + wheel: rotate by 0.1° | Ctrl + R, Ctrl + Shift + R: rotate right, left | Enter: apply | Esc: close
 hint-image = →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Space on an animation: pause and play | Space on a motion photo: play its video | Page Down, Page Up on a TIFF with pages: next, previous page | P on a 360° panorama: 360° view | Wheel, + and −: zoom | Drag: move a zoomed image | 0: fit the window | 1: 100% | Ctrl + R, Ctrl + Shift + R: rotate right, left | Ctrl + Z, Ctrl + Y: undo, redo an unsaved rotation | Ctrl + E: edit image | Ctrl + S, Ctrl + Shift + S: save, save as | F2: rename | Del: delete | F11: full screen | Esc: back
-hint-pano = Drag: look around | Wheel, + and −: zoom | 0: first view | 1: 100% in the middle | P: flat picture | →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Ctrl + R, Ctrl + Shift + R: rotate right, left (shown flat) | Ctrl + E: edit image | Ctrl + S, Ctrl + Shift + S: save, save as | F2: rename | Del: delete | F11: full screen | Esc: back
+hint-pano = Drag: look around | Wheel, + and −: zoom | 0: starting view | 1: 100% in the middle | P: flat picture | →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Ctrl + R, Ctrl + Shift + R: rotate right, left (shown flat) | Ctrl + E: edit image | Ctrl + S, Ctrl + Shift + S: save, save as | F2: rename | Del: delete | F11: full screen | Esc: back
 hint-grid = Arrows: move | Shift + arrows: extend the selection | Home, End: first, last | Enter: open | Backspace: parent folder | Ctrl + A: select all | Tab, Shift + Tab: next, previous item | Ctrl + C, Ctrl + X, Ctrl + V: copy, cut, paste | F2: rename | Ctrl + Shift + N: new folder | Del: delete | Shift + Del: delete for good | Ctrl + R, Ctrl + Shift + R: rotate right, left | Ctrl + E: edit image | Ctrl + B: convert | Ctrl + D: find duplicates | Ctrl + N: new image | Ctrl + Shift + D: bookmarks | F5: read the folder again | Shift + F5: thumbnails again | F11: full screen | F1: guide
 hint-dup = ↑ ↓: move between the copies | Space: tick or untick the copy | Click on a picture: open it in the viewer (Esc comes back here, with the ticks) | Esc: close (Enter does not delete)
 hint-video = Space: pause and play | Ctrl + ← →: 5 seconds back, forward | ↑ ↓, wheel: volume | M: audio off and on | Ctrl + R, Ctrl + Shift + R: rotate right, left | Ctrl + Z, Ctrl + Y: undo, redo an unsaved rotation | →, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | F2: rename | Del: delete | F11: full screen | Esc: back
@@ -1979,11 +1979,11 @@ tip-addons-text =
 
     Each one says what it is for, its size and whether it is already on this computer; **Download** or **Update** gets it.
 pano-flat = Flat picture
-pano-flat-hint = Shows the panorama flat, as any other photo (P).
+pano-flat-hint = Shows the panorama flat, like any other photo (P).
 pano-sphere = 360° view
-pano-sphere-hint = Shows the panorama from inside, to look around by dragging (P).
+pano-sphere-hint = Shows the panorama from the inside: drag to look around (P).
 tip-pano-title = 360° panoramas
 tip-pano-text =
-    A 360° panorama, from a drone or a 360° camera, opens in the viewer as seen from inside: drag to look around, zoom with the wheel or **+** and **−**.
+    A 360° panorama, from a drone or a 360° camera, opens in the viewer seen from the inside: drag to look around, zoom with the wheel or **+** and **−**.
 
-    { "**" }P**, or **Flat picture** at the bottom left, shows it flat, and back.
+    { "**" }P**, or **Flat picture** at the bottom left, shows it flat; **P** again brings back the 360° view.

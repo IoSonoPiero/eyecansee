@@ -1,6 +1,6 @@
 # Opzioni
 
-Le opzioni cambiano come EyeCanSee si avvia, il suo aspetto, come passa da un'immagine all'altra, come elimina, come mostra il carosello, come riproduce i video, come salva l'editor e come scrive un registro di diagnosi.
+Le opzioni cambiano come EyeCanSee si avvia, il suo aspetto, come passa da un'immagine all'altra, come elimina, come mostra il carosello, come riproduce i video, come salva l'editor e se scrive un registro di diagnosi.
 
 ## Aprire le opzioni
 
@@ -80,10 +80,10 @@ Vedi [Eliminare e cestino](delete.md).
 
 ## Diagnosi
 
-- **Scrivi un registro di diagnosi** (spento): dal prossimo avvio, ogni avvio di EyeCanSee scrive ciò che fa in un file suo, `eyecansee-<data>_<ora>.log`, con in testa la versione, il sistema e la scheda video, e gli errori che incontra. Allegalo alla segnalazione di un problema. Il registro contiene i nomi delle cartelle e dei file che apri: leggilo prima di allegarlo a una segnalazione pubblica. Un file che arriva a 5 MB continua in uno nuovo, e si tengono solo i 10 file più recenti: i più vecchi si cancellano. Un avvio che passa soltanto un file all'EyeCanSee già aperto non scrive nessun registro.
+- **Scrivi un registro di diagnosi** (spento): dal prossimo avvio, ogni avvio di EyeCanSee scrive ciò che fa in un file suo, `eyecansee-<data>_<ora>.log`, con in testa la versione, il sistema e la scheda video, e gli errori che incontra. Allegalo quando segnali un problema. Il registro contiene i nomi delle cartelle e dei file che apri, e gli indirizzi e i nomi utente dei tuoi server: leggilo prima di allegarlo a una segnalazione pubblica. Un file che arriva a 5 MB continua in uno nuovo, e si tengono solo i 10 file più recenti: i più vecchi si cancellano. Un avvio che passa soltanto un file all'EyeCanSee già aperto non scrive nessun registro.
 - **Apri la cartella dei registri**: la cartella nel gestore dei file. È `logs` nella cartella dei dati di EyeCanSee: `~/.local/share/eyecansee/logs` su Linux, `%LOCALAPPDATA%\eyecansee\logs` su Windows.
 
-La scheda dice anche in quale file scrive questo avvio. Se è impostata la variabile d'ambiente `EYECANSEE_LOG`, decide lei dove va il registro (`1` sull'uscita degli errori, altrimenti il file che nomina) e l'interruttore è grigio.
+La scheda dice anche in quale file scrive questa sessione. Se è impostata la variabile d'ambiente `EYECANSEE_LOG`, decide lei dove va il registro (`1` sull'uscita degli errori, altrimenti il file che nomina) e l'interruttore è grigio.
 
 ## Componenti aggiuntivi
 
