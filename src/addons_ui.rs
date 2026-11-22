@@ -186,7 +186,7 @@ fn here(ui: &egui::Ui, rect: egui::Rect, card: egui::Color32) {
 }
 
 /// A check mark in `rect` (square).
-fn check(painter: &egui::Painter, rect: egui::Rect, colour: egui::Color32) {
+pub(crate) fn check(painter: &egui::Painter, rect: egui::Rect, colour: egui::Color32) {
     let at = |x: f32, y: f32| rect.min + egui::vec2(x, y) * rect.width();
     painter.line(vec![at(0.27, 0.52), at(0.43, 0.68), at(0.73, 0.34)], egui::Stroke::new(2.0, colour));
 }

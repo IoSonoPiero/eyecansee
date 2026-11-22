@@ -67,6 +67,7 @@ mod encoders;
 mod engine;
 mod fault;
 mod first_start;
+mod first_start_desktop;
 mod first_start_ui;
 mod ffmpeg;
 mod ffmpeg_ask;

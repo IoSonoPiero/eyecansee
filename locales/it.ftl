@@ -739,9 +739,11 @@ first-start-leave-close = Chiudi senza scaricare
 
 # The desktop icon on Windows (#210): Tools menu, first-start window, messages.
 menu-desktop-icon = Crea icona sul desktop
-desktop-icon-question = Vuoi un'icona di EyeCanSee sul desktop?
+desktop-icon-title = Icona sul desktop
+desktop-icon-question = Vuoi EyeCanSee sul desktop, per avviarlo con un doppio clic?
 desktop-icon-yes = Sì
 desktop-icon-no = No
+desktop-icon-choose = Scegli Sì o No.
 desktop-icon-done = L'icona è sul desktop.
 desktop-icon-later = Con Strumenti > Crea icona sul desktop puoi crearla quando vuoi.
 desktop-icon-failed = Non è stato possibile creare l'icona.

@@ -1,6 +1,7 @@
 //! The first-start window (#212), drawn: the welcome page (logo, language, colors) and the
 //! add-ons page, with "1 of 2", Back, Next and Skip; on the last page Download and Done (Piero,
-//! 21/11). Closing the add-ons page with cards ticked and not downloaded asks first (Piero,
+//! 21/11). On Windows the desktop icon page (#210, `first_start_desktop.rs`) is between them:
+//! "1 of 3". Closing the add-ons page with cards ticked and not downloaded asks first (Piero,
 //! 22/11). Which pages it shows, what closing it remembers and when it asks: `first_start.rs`.
 
 use eframe::egui;
@@ -8,22 +9,20 @@ use eframe::egui;
 use crate::App;
 use crate::component::{Addon, Have};
 use crate::downloads::Downloads;
-use crate::first_start::{After, Answer, Card, Page, Plan};
+use crate::first_start::{After, Answer, Card, Desktop, Page, Plan};
 use crate::settings::ThemeChoice;
 
 /// Width of the window.
 const WIDTH: f32 = 560.0;
 /// Space at the sides of the pages and of the buttons.
 const SIDE: i8 = 24;
-/// Height of the pages' body, the same on both: Back and Next do not move. The add-ons page
+/// Height of the pages' body, the same on all: Back and Next do not move. The add-ons page
 /// shown alone is as tall as its rows.
-const BODY: f32 = 440.0;
+pub(crate) const BODY: f32 = 440.0;
 /// Side of the logo on the welcome page: the size of its texture, so it is sharp.
 const LOGO: f32 = 96.0;
-/// Room on the welcome page for the desktop icon question of Windows (#210), a row under the
-/// cards with the space above it. Where the question is not asked it is air, half above the logo
-/// and half under the cards.
-const DESKTOP: f32 = 42.0;
+/// Air on the welcome page, half above the logo and half under the cards.
+const AIR: f32 = 42.0;
 /// Height of a choice in a card of the welcome page, and the choices a card shows without
 /// scrolling.
 const CHOICE: f32 = 30.0;
@@ -46,19 +45,8 @@ pub(crate) struct Open {
     /// Download and close was answered: these downloads run on the add-ons page, and the window
     /// closes by itself once they have all arrived (`first_start::ended`).
     closing: Option<Vec<&'static str>>,
-    /// The desktop icon question of page 1 (Windows, #210); `None` where it is not asked.
-    desktop: Option<Desktop>,
-}
-
-/// Where the desktop icon question is. Yes makes the icon at once; no answer makes none, and
-/// the question does not come back (`welcome_seen`): Tools > Create desktop icon stays.
-#[derive(Clone, PartialEq, Debug)]
-enum Desktop {
-    Ask,
-    Made,
-    No,
-    /// The system's reason, on hover and in the log.
-    Failed(String),
+    /// Where the desktop icon page is (Windows, #210): Back and Next keep its answer.
+    desktop: Desktop,
 }
 
 /// What a button at the bottom does.
@@ -71,21 +59,22 @@ enum Press {
 }
 
 impl Open {
-    fn new(plan: Plan, desktop: bool) -> Self {
+    fn new(plan: Plan) -> Self {
         let rows = crate::addons_ui::list().into_iter().filter(|(a, _)| plan.addons.contains(&a.component.kind)).map(|(a, h)| (a, h, false)).collect();
-        // Debug only, for the screenshots of the second page: `EYECANSEE_FIRST_START_PAGE=2`.
+        // Debug only, for the screenshots of a later page: `EYECANSEE_FIRST_START_PAGE=2`.
         let page = std::env::var("EYECANSEE_FIRST_START_PAGE").ok().filter(|_| cfg!(debug_assertions)).and_then(|p| p.parse::<usize>().ok());
         let page = page.map_or(0, |p| p.saturating_sub(1).min(plan.pages.len() - 1));
-        // Debug only, for the screenshots of the rows after an answer:
-        // `EYECANSEE_DESKTOP_QUESTION=made|no|failed` (any other value: the question).
+        // Debug only, for the screenshots of the desktop icon page after an answer:
+        // `EYECANSEE_DESKTOP_QUESTION=made|there|no|failed` (any other value: the question).
         let shown = std::env::var("EYECANSEE_DESKTOP_QUESTION").ok().filter(|_| cfg!(debug_assertions));
-        let state = match shown.as_deref() {
-            Some("made") => Desktop::Made,
+        let desktop = match shown.as_deref() {
+            Some("made") => Desktop::Made("EyeCanSee".into()),
+            Some("there") => Desktop::There,
             Some("no") => Desktop::No,
             Some("failed") => Desktop::Failed("debug".into()),
             _ => Desktop::Ask,
         };
-        Open { plan, page, rows, running: Vec::new(), asking: false, closing: None, desktop: desktop.then_some(state) }
+        Open { plan, page, rows, running: Vec::new(), asking: false, closing: None, desktop }
     }
 
     /// The question on closing is open: Enter and Esc are its own (`App::asking`).
@@ -116,14 +105,13 @@ impl App {
     pub(crate) fn first_start_at_start(&mut self, opened_with_address: bool) -> bool {
         let offers: Vec<_> = crate::addons_ui::list().iter().map(|(a, h)| (a.component.kind, crate::addons_ui::offers(h))).collect();
         let before = self.settings.clone();
-        let plan = crate::first_start::at_start(&mut self.settings, &offers, opened_with_address, crate::tips::today());
+        let plan = crate::first_start::at_start(&mut self.settings, &offers, crate::desktop_icon::ask_at_start, opened_with_address, crate::tips::today());
         if self.settings != before {
             self.settings.save();
         }
         let Some(plan) = plan else { return false };
-        let desktop = plan.pages.contains(&Page::Welcome) && crate::desktop_icon::ask_at_start();
-        log!("first start: pages {:?}, add-ons {:?}, desktop icon question {desktop}", plan.pages, plan.addons);
-        self.first_start = Some(Open::new(plan, desktop));
+        log!("first start: pages {:?}, add-ons {:?}", plan.pages, plan.addons);
+        self.first_start = Some(Open::new(plan));
         true
     }
 
@@ -280,7 +268,8 @@ impl App {
                     ui.set_height(BODY);
                 }
                 match page {
-                    Page::Welcome => welcome(ui, logo, s, i18n, languages, &mut open.desktop),
+                    Page::Welcome => welcome(ui, logo, s, i18n, languages),
+                    Page::Desktop => crate::first_start_desktop::page(ui, logo, &mut open.desktop, i18n),
                     Page::Addons => addons(ui, &mut open.rows, downloads, i18n, paged),
                 }
             });
@@ -291,15 +280,14 @@ impl App {
 }
 
 /// The title of a page: bold and larger than the windows' headings, centred by the caller.
-fn title(text: String) -> egui::RichText {
+pub(crate) fn title(text: String) -> egui::RichText {
     egui::RichText::new(text).font(egui::FontId::new(22.0, egui::FontFamily::Name(crate::BOLD.into())))
 }
 
-/// Logo and welcome, then language and colors in two cards side by side, and on Windows the
-/// desktop icon question under them.
-fn welcome(ui: &mut egui::Ui, logo: egui::TextureId, s: &mut crate::settings::Settings, i18n: &crate::i18n::I18n, languages: &[(&'static str, String)], desktop: &mut Option<Desktop>) {
+/// Logo and welcome, then language and colors in two cards side by side.
+fn welcome(ui: &mut egui::Ui, logo: egui::TextureId, s: &mut crate::settings::Settings, i18n: &crate::i18n::I18n, languages: &[(&'static str, String)]) {
     ui.vertical_centered(|ui| {
-        ui.add_space(if desktop.is_some() { 20.0 } else { 20.0 + DESKTOP / 2.0 });
+        ui.add_space(20.0 + AIR / 2.0);
         ui.image((logo, egui::vec2(LOGO, LOGO)));
         ui.add_space(16.0);
         ui.label(title(i18n.t("first-start-welcome")));
@@ -326,55 +314,8 @@ fn welcome(ui: &mut egui::Ui, logo: egui::TextureId, s: &mut crate::settings::Se
             }
         });
     });
-    if let Some(d) = desktop {
-        desktop_row(ui, d, i18n);
-    }
     // The last line in the middle of what is left.
     ui.centered_and_justified(|ui| ui.label(egui::RichText::new(i18n.t("first-start-welcome-later")).weak()));
-}
-
-/// The desktop icon question (#210), in the room of `DESKTOP`: the question in line with the
-/// cards' names, Yes and No on the right (plain buttons: Next stays the only blue one); after the
-/// answer one line in the middle, of the same height, so the line under it does not move
-/// (Fable, 22/11).
-fn desktop_row(ui: &mut egui::Ui, d: &mut Desktop, i18n: &crate::i18n::I18n) {
-    ui.add_space(DESKTOP - CHOICE);
-    let size = egui::vec2(ui.available_width(), CHOICE);
-    let inset = 12.0;
-    ui.allocate_ui_with_layout(size, egui::Layout::left_to_right(egui::Align::Center), |ui| {
-        ui.set_min_size(size);
-        let weak = |ui: &mut egui::Ui, id| ui.centered_and_justified(|ui| ui.label(egui::RichText::new(i18n.t(id)).weak()));
-        match d {
-            Desktop::Ask => {
-                ui.add_space(inset);
-                ui.label(i18n.t("desktop-icon-question"));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add_space(inset);
-                    let button = |ui: &mut egui::Ui, id| ui.add(egui::Button::new(i18n.t(id)).min_size(egui::vec2(64.0, 26.0))).clicked();
-                    // Right to left: No first, so that Yes is on its left.
-                    if button(ui, "desktop-icon-no") {
-                        log!("first start: desktop icon No");
-                        *d = Desktop::No;
-                    }
-                    if button(ui, "desktop-icon-yes") {
-                        let made = crate::desktop_icon::create();
-                        log!("first start: desktop icon Yes: {made:?}");
-                        *d = made.map_or_else(Desktop::Failed, |_| Desktop::Made);
-                    }
-                });
-            }
-            Desktop::Made => {
-                weak(ui, "desktop-icon-done");
-            }
-            Desktop::No => {
-                weak(ui, "desktop-icon-later");
-            }
-            Desktop::Failed(why) => {
-                ui.add_space(inset);
-                crate::error_bar::inline(ui, &i18n.t("desktop-icon-failed")).on_hover_text(why.as_str());
-            }
-        }
-    });
 }
 
 /// A card of the welcome page, `width` wide: its name in bold and its choices, which scroll when
@@ -489,15 +430,19 @@ struct Button {
     press: Press,
     enabled: bool,
     main: bool,
+    /// Why it cannot be pressed, said when the pointer is on it greyed.
+    hint: Option<&'static str>,
 }
 
-/// The buttons of page `n` of `of`, from the left: Skip and Next, or Back, Download and Done on
-/// the last page (Piero, 21/11: Skip there would be Done).
+/// The buttons of page `n` of `of`, from the left: Skip and Next, with Back between them on a
+/// page in the middle, or Back, Download and Done on the last page (Piero, 21/11: Skip there
+/// would be Done).
 /// The main one is Next, then Done; with an add-on ticked it is Download (a choice of the
 /// redesign, not yet seen by Piero), and Done then asks before leaving the ticks behind
-/// (`Open::leave`).
-fn buttons(n: usize, of: usize, ticked: bool) -> Vec<Button> {
-    let button = |text, press, enabled, main| Button { text, press, enabled, main };
+/// (`Open::leave`). `waits`: the page wants an answer first (`first_start::waits`), so Next is
+/// greyed, with this hint; Back and Skip stay.
+fn buttons(n: usize, of: usize, ticked: bool, waits: Option<&'static str>) -> Vec<Button> {
+    let button = |text, press, enabled, main| Button { text, press, enabled, main, hint: None };
     let mut all = Vec::new();
     if n < of {
         all.push(button("first-start-skip", Press::Close, true, false));
@@ -506,7 +451,7 @@ fn buttons(n: usize, of: usize, ticked: bool) -> Vec<Button> {
         all.push(button("first-start-back", Press::Back, true, false));
     }
     if n < of {
-        all.push(button("first-start-next", Press::Next, true, true));
+        all.push(Button { hint: waits, ..button("first-start-next", Press::Next, waits.is_none(), true) });
     } else {
         all.push(button("first-start-download", Press::Download, ticked, ticked));
         all.push(button("first-start-done", Press::Close, true, !ticked));
@@ -524,7 +469,7 @@ fn band(ui: &mut egui::Ui, row: impl FnOnce(&mut egui::Ui)) {
     ui.painter().hline(rect.x_range(), rect.top(), v.widgets.noninteractive.bg_stroke);
 }
 
-/// The band at the bottom: the page's dots and "1 of 2" on the left, the buttons on the right.
+/// The band at the bottom: the pages' dots and "1 of 2" on the left, the buttons on the right.
 fn footer(ui: &mut egui::Ui, open: &Open, i18n: &crate::i18n::I18n) -> Option<Press> {
     let (n, of) = (open.page + 1, open.plan.pages.len());
     let mut press = None;
@@ -534,10 +479,15 @@ fn footer(ui: &mut egui::Ui, open: &Open, i18n: &crate::i18n::I18n) -> Option<Pr
             ui.weak(i18n.t_args("first-start-count", &[("n", &n.to_string()), ("of", &of.to_string())]));
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            for b in buttons(n, of, open.rows.iter().any(|r| r.2)).into_iter().rev() {
+            let waits = crate::first_start::waits(open.plan.pages[open.page], &open.desktop);
+            for b in buttons(n, of, open.rows.iter().any(|r| r.2), waits).into_iter().rev() {
                 let text = i18n.t(b.text);
                 let button = if b.main { crate::theme::main_button(ui, text) } else { egui::Button::new(text) };
-                if ui.add_enabled(b.enabled, button.min_size(BUTTON)).clicked() {
+                let mut response = ui.add_enabled(b.enabled, button.min_size(BUTTON));
+                if let Some(hint) = b.hint {
+                    response = response.on_disabled_hover_text(i18n.t(hint));
+                }
+                if response.clicked() {
                     press = Some(b.press);
                 }
             }
@@ -703,7 +653,7 @@ mod tests {
         let rows: Vec<_> = crate::component::addons().into_iter().map(|a| (a, Have::Missing, false)).collect();
         let Some(kind) = rows.first().map(|r| r.0.component.kind) else { return };
         let plan = Plan { pages: vec![Page::Welcome, Page::Addons], addons: rows.iter().map(|r| r.0.component.kind).collect() };
-        let mut open = Open { plan, page: 1, rows, running: Vec::new(), asking: false, closing: None, desktop: None };
+        let mut open = Open { plan, page: 1, rows, running: Vec::new(), asking: false, closing: None, desktop: Desktop::Ask };
         let mut downloads = Downloads::default();
         assert!(open.leave(&downloads), "nothing ticked");
         open.rows[0].2 = true;
@@ -728,15 +678,27 @@ mod tests {
     }
 
     /// Skip and Next on the first page; Back, Download and Done on the last, without Back when
-    /// it is the only one. One button is the main one: Download once an add-on is ticked.
+    /// it is the only one; Skip, Back and Next on one in the middle, Next greyed while its page
+    /// waits for an answer. One button is the main one: Download once an add-on is ticked.
     #[test]
     fn buttons_of_each_page() {
-        assert_eq!(named(&buttons(1, 2, false)), [("skip", true, false), ("next", true, true)]);
-        assert_eq!(named(&buttons(2, 2, false)), [("back", true, false), ("download", false, false), ("done", true, true)]);
-        assert_eq!(named(&buttons(2, 2, true)), [("back", true, false), ("download", true, true), ("done", true, false)]);
-        assert_eq!(named(&buttons(1, 1, false)), [("download", false, false), ("done", true, true)]);
-        for (n, of, ticked) in [(1, 2, false), (2, 2, false), (2, 2, true), (1, 1, true)] {
-            assert_eq!(buttons(n, of, ticked).iter().filter(|b| b.main).count(), 1);
+        assert_eq!(named(&buttons(1, 2, false, None)), [("skip", true, false), ("next", true, true)]);
+        assert_eq!(named(&buttons(2, 2, false, None)), [("back", true, false), ("download", false, false), ("done", true, true)]);
+        assert_eq!(named(&buttons(2, 2, true, None)), [("back", true, false), ("download", true, true), ("done", true, false)]);
+        assert_eq!(named(&buttons(1, 1, false, None)), [("download", false, false), ("done", true, true)]);
+        // Three pages (Windows, the desktop icon in the middle): Skip, Back and Next there.
+        assert_eq!(named(&buttons(1, 3, false, None)), [("skip", true, false), ("next", true, true)]);
+        assert_eq!(named(&buttons(2, 3, true, None)), [("skip", true, false), ("back", true, false), ("next", true, true)]);
+        assert_eq!(named(&buttons(3, 3, true, None)), [("back", true, false), ("download", true, true), ("done", true, false)]);
+        // A page that waits for an answer (the desktop icon): Next greyed, with why; Skip and Back
+        // as they are. The last page has no Next: nothing changes there.
+        let waiting = buttons(2, 3, false, Some("desktop-icon-choose"));
+        assert_eq!(named(&waiting), [("skip", true, false), ("back", true, false), ("next", false, true)]);
+        assert_eq!(waiting.iter().map(|b| b.hint).collect::<Vec<_>>(), [None, None, Some("desktop-icon-choose")]);
+        assert_eq!(buttons(3, 3, false, Some("desktop-icon-choose")), buttons(3, 3, false, None));
+        assert!(buttons(2, 3, false, None).iter().all(|b| b.hint.is_none()));
+        for (n, of, ticked) in [(1, 2, false), (2, 2, false), (2, 2, true), (1, 1, true), (2, 3, false), (3, 3, false)] {
+            assert_eq!(buttons(n, of, ticked, None).iter().filter(|b| b.main).count(), 1);
         }
     }
 }

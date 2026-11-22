@@ -1,7 +1,8 @@
 //! The first-start window (#212): which pages it shows at this start, and what closing it
-//! remembers. Everyone sees the welcome page and the add-ons once; a later version brings the
-//! window back, with the add-ons page alone, only for a new add-on that has something to offer.
-//! The window itself is in `first_start_ui.rs`.
+//! remembers. Everyone sees the welcome page and the add-ons once, on Windows with the desktop
+//! icon page between them (#210); a later version brings the window back, with the add-ons page
+//! alone, only for a new add-on that has something to offer. The window itself is in
+//! `first_start_ui.rs`, the desktop icon page in `first_start_desktop.rs`.
 
 use crate::settings::Settings;
 
@@ -9,8 +10,11 @@ use crate::settings::Settings;
 /// one more here, with its rule in `at_start`.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Page {
-    /// Logo, language, colors (and on Windows the desktop icon, #210).
+    /// Logo, language, colors.
     Welcome,
+    /// The desktop icon question of Windows (#210): only after the welcome page, and only where
+    /// it is asked (`desktop_icon::ask_at_start`).
+    Desktop,
     Addons,
 }
 
@@ -30,7 +34,9 @@ pub(crate) type Offers<'a> = &'a [(&'static str, bool)];
 /// today counts as the tip's day, the tip comes tomorrow (as #210 decided for its question).
 /// With nothing to show, a new add-on that offers nothing here (already downloaded or on the
 /// system) is remembered as offered at once: it never brings the window back (Piero, 21/11).
-pub(crate) fn at_start(s: &mut Settings, addons: Offers, opened_with_address: bool, today: u64) -> Option<Plan> {
+/// `desktop` tells whether the desktop icon is asked: it reads the desktop, so it is called only
+/// on the first start, where its page follows the welcome (Piero, 22/11: a page of its own).
+pub(crate) fn at_start(s: &mut Settings, addons: Offers, desktop: impl FnOnce() -> bool, opened_with_address: bool, today: u64) -> Option<Plan> {
     if opened_with_address {
         return None;
     }
@@ -38,7 +44,8 @@ pub(crate) fn at_start(s: &mut Settings, addons: Offers, opened_with_address: bo
         let new: Vec<_> = addons.iter().filter(|(kind, offers)| *offers && !offered(s, kind)).map(|a| a.0).collect();
         (!new.is_empty()).then(|| Plan { pages: vec![Page::Addons], addons: new })
     } else {
-        Some(Plan { pages: vec![Page::Welcome, Page::Addons], addons: addons.iter().map(|a| a.0).collect() })
+        let pages = if desktop() { vec![Page::Welcome, Page::Desktop, Page::Addons] } else { vec![Page::Welcome, Page::Addons] };
+        Some(Plan { pages, addons: addons.iter().map(|a| a.0).collect() })
     };
     match &plan {
         Some(_) => s.tips_day = Some(today),
@@ -55,6 +62,45 @@ pub(crate) fn closed(s: &mut Settings, plan: &Plan) {
         s.welcome_seen = true;
     }
     remember(s, plan.addons.iter().copied());
+}
+
+/// Where the desktop icon page is. Next waits for an answer (`waits`); Skip and Esc close the
+/// window without one and make no icon, and the page does not come back (`welcome_seen`):
+/// Tools > Create desktop icon stays.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub(crate) enum Desktop {
+    /// Nothing chosen yet.
+    Ask,
+    /// Yes made the icon, with this name.
+    Made(String),
+    /// Yes found an icon that starts this copy already.
+    There,
+    No,
+    /// Yes could not make it: the system's reason, on hover and in the log.
+    Failed(String),
+}
+
+/// A choice of the desktop icon page: Yes makes the icon at once (`create`), also after No or a
+/// failure; No makes none. Once the icon is on the desktop the answer stays: No would not take
+/// it away, and the page would say what is not true.
+pub(crate) fn chosen(now: Desktop, yes: bool, create: impl FnOnce() -> Result<crate::desktop_icon::Made, String>) -> Desktop {
+    use crate::desktop_icon::Made;
+    match (now, yes) {
+        (here @ (Desktop::Made(_) | Desktop::There), _) => here,
+        (_, false) => Desktop::No,
+        (_, true) => match create() {
+            Ok(Made::Made(name)) => Desktop::Made(name),
+            Ok(Made::There) => Desktop::There,
+            Err(why) => Desktop::Failed(why),
+        },
+    }
+}
+
+/// What a page waits for before Next: the id of the sentence its greyed Next says under the
+/// pointer. The desktop icon page waits for Yes or No (Piero, 22/11); a Yes that failed is an
+/// answer, with its error on the page. Back, Skip and Esc never wait.
+pub(crate) fn waits(page: Page, desktop: &Desktop) -> Option<&'static str> {
+    (page == Page::Desktop && *desktop == Desktop::Ask).then_some("desktop-icon-choose")
 }
 
 /// A card of the add-ons page as the rule on closing sees it.
@@ -153,6 +199,73 @@ mod tests {
 
     fn both(addons: &[&'static str]) -> Option<Plan> {
         Some(Plan { pages: vec![Page::Welcome, Page::Addons], addons: addons.to_vec() })
+    }
+
+    /// `super::at_start` where the desktop icon is not asked (Linux, the installer's copy, an
+    /// icon already there).
+    fn at_start(s: &mut Settings, addons: Offers, opened_with_address: bool, today: u64) -> Option<Plan> {
+        super::at_start(s, addons, || false, opened_with_address, today)
+    }
+
+    /// Windows, the first start: three pages, the desktop icon between the welcome and the
+    /// add-ons. Closing remembers as with two: no setting of its own, the page does not come back.
+    #[test]
+    fn first_start_on_windows_three_pages() {
+        let mut s = Settings::default();
+        let plan = super::at_start(&mut s, ALL, || true, false, DAY).unwrap();
+        assert_eq!(plan.pages, [Page::Welcome, Page::Desktop, Page::Addons]);
+        assert_eq!(plan.addons, ["libmpv", "ffmpeg", "occt"]);
+        assert_eq!(s.tips_day, Some(DAY), "the tip waits for tomorrow");
+        let before = s.clone();
+        closed(&mut s, &plan);
+        assert_eq!(s, Settings { welcome_seen: true, addons_offered: vec!["libmpv".into(), "ffmpeg".into(), "occt".into()], ..before });
+        assert_eq!(super::at_start(&mut s, ALL, || true, false, DAY + 1), None);
+    }
+
+    /// The desktop icon page never comes alone or with a new add-on, and never with an address:
+    /// on those starts the desktop is not even read.
+    #[test]
+    fn desktop_page_only_after_the_welcome() {
+        let never = || -> bool { panic!("the desktop is read only on the first start") };
+        let mut s = Settings { welcome_seen: true, addons_offered: vec!["libmpv".into(), "ffmpeg".into(), "occt".into()], ..Settings::default() };
+        let with_pdf: Offers = &[("libmpv", true), ("ffmpeg", false), ("occt", true), ("pdf", true)];
+        assert_eq!(super::at_start(&mut s, with_pdf, never, false, DAY), Some(Plan { pages: vec![Page::Addons], addons: vec!["pdf"] }));
+        assert_eq!(super::at_start(&mut s, ALL, never, false, DAY), None, "nothing new");
+        assert_eq!(super::at_start(&mut Settings::default(), ALL, never, true, DAY), None, "started with an address");
+    }
+
+    /// Next waits only on the desktop icon page, and only until Yes or No is chosen; whatever Yes
+    /// did, the failure too, is an answer.
+    #[test]
+    fn next_waits_for_the_desktop_answer() {
+        assert_eq!(waits(Page::Desktop, &Desktop::Ask), Some("desktop-icon-choose"));
+        for answered in [Desktop::No, Desktop::Made("EyeCanSee".into()), Desktop::There, Desktop::Failed("x".into())] {
+            assert_eq!(waits(Page::Desktop, &answered), None, "{answered:?}");
+        }
+        for page in [Page::Welcome, Page::Addons] {
+            assert_eq!(waits(page, &Desktop::Ask), None, "{page:?}");
+        }
+    }
+
+    /// Yes makes the icon at once and says what happened; No makes none; after No or a failure
+    /// Yes still makes it; once the icon is there neither answer changes it or makes another.
+    #[test]
+    fn desktop_answers() {
+        use crate::desktop_icon::Made;
+        let made = || Ok(Made::Made("EyeCanSee (2)".into()));
+        let never = || -> Result<Made, String> { panic!("nothing to make") };
+        assert_eq!(chosen(Desktop::Ask, true, made), Desktop::Made("EyeCanSee (2)".into()));
+        assert_eq!(chosen(Desktop::Ask, true, || Ok(Made::There)), Desktop::There);
+        assert_eq!(chosen(Desktop::Ask, true, || Err("access denied".into())), Desktop::Failed("access denied".into()));
+        assert_eq!(chosen(Desktop::Ask, false, never), Desktop::No);
+        assert_eq!(chosen(Desktop::No, true, made), Desktop::Made("EyeCanSee (2)".into()));
+        assert_eq!(chosen(Desktop::No, false, never), Desktop::No);
+        assert_eq!(chosen(Desktop::Failed("x".into()), true, made), Desktop::Made("EyeCanSee (2)".into()), "Yes again tries again");
+        assert_eq!(chosen(Desktop::Failed("x".into()), false, never), Desktop::No);
+        for here in [Desktop::Made("EyeCanSee".into()), Desktop::There] {
+            assert_eq!(chosen(here.clone(), false, never), here, "No does not take the icon away");
+            assert_eq!(chosen(here.clone(), true, never), here, "Yes makes no second one");
+        }
     }
 
     /// The first start: both pages, every add-on (also one already on the system, which says so),
