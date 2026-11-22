@@ -490,7 +490,8 @@ impl App {
                 icons::paint(painter, icon, sign);
                 icons::paint(painter, Icon::Download, Rect::from_min_size(sign.right_bottom() - vec2(side * 0.08, side * 0.14), vec2(side * 0.18, side * 0.18)));
             }
-            // Too large for the computer's memory (#177): a picture and why, in place of the warning.
+            // Too large for the computer's memory (#177), or a model beyond its cap: a sign and why, in
+            // place of the warning.
             Some(Err(e)) if let Some(icon) = too_large_sign(e) => self.paint_too_large(painter, thumb_rect, side, dim, icon),
             // An audio file without a cover has no picture: a note in place of the warning.
             Some(Err(_)) if self.files().get(file).is_some_and(|f| crate::decode::is_audio(&f.path)) => {
@@ -713,9 +714,13 @@ fn engine_sign(error: &str, path: &str) -> Option<Icon> {
 }
 
 /// The sign of a thumbnail not made because its file is too large: a picture too large for the
-/// memory (`thumb_memory::TOO_LARGE`).
+/// memory (`thumb_memory::TOO_LARGE`), a 3D model beyond the cap of its format (`model_limit`).
 fn too_large_sign(error: &str) -> Option<Icon> {
-    (error == crate::thumb_memory::TOO_LARGE).then_some(Icon::Picture)
+    if error == crate::thumb_memory::TOO_LARGE {
+        Some(Icon::Picture)
+    } else {
+        error.split_once('\u{1}').filter(|(id, _)| crate::model_limit::is_error(id)).map(|_| Icon::Model)
+    }
 }
 
 /// Order in which thumbnails are generated: selected, visible, nearby rows, the rest of those to
