@@ -361,4 +361,26 @@ mod tests {
             assert_eq!(Some(p.texture_at(1.0).size()), size(&name), "the image at {k} is not the one of {name}");
         }
     }
+
+    /// Audit 1.7: going back into a folder of this computer already read, the files another
+    /// program put in it meanwhile are shown: it showed the listing of the first time until F5.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn folder_seen_before_read_again() {
+        if crate::audit_family_1::own_folder("listing::tests::folder_seen_before_read_again") {
+            return;
+        }
+        let dir = sized("seen-before", &[("a.png", 8, 6)]);
+        image::DynamicImage::new_rgb8(8, 6).save(sized("seen-before/sub", &[]).join("s.png")).unwrap();
+        let mut h = crate::audit_family_1::Harness::new(&dir);
+        let sub = format!("{}sub/", h.app.dir);
+        h.app.set_dir(sub.clone());
+        h.until(|app| app.files().len() == 1 && app.listing_pending.is_empty(), "sub listed");
+        h.app.go_up();
+        h.until(|app| app.listing_pending.is_empty(), "back up");
+        // Another program copies a photo into it.
+        image::DynamicImage::new_rgb8(8, 6).save(dir.join("sub").join("t.png")).unwrap();
+        h.app.set_dir(sub);
+        h.until(|app| app.files().len() == 2, "the new photo in the folder seen before");
+    }
 }
