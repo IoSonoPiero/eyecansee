@@ -12,6 +12,9 @@ pub trait Reader: Send + Sync {
     fn size(&self) -> u64;
     /// `len` bytes from `offset`, inside the file. Called from mpv's threads: it may block.
     fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>, String>;
+    /// The player closes: a read under way should return at once, and the next ones too.
+    #[allow(dead_code)] // until #276 is fixed
+    fn cancel(&self) {}
 }
 
 /// mpv_stream_cb_info (stream_cb.h).

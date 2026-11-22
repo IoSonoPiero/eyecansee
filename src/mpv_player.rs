@@ -315,6 +315,103 @@ fn draw_loop(mpv: &Mpv, shared: &Shared, repaint: impl Fn()) {
 mod tests {
     use super::*;
 
+    /// A stream whose reads wait until `release` (its `cancel` too) or `limit`: a phone or a
+    /// server that stops answering, with no data and no error.
+    struct Stuck {
+        size: u64,
+        limit: Duration,
+        released: Mutex<bool>,
+        cv: Condvar,
+        reads: std::sync::atomic::AtomicUsize,
+        /// When the last read returned.
+        returned: Mutex<Option<Instant>>,
+    }
+
+    impl Stuck {
+        fn new(size: u64, limit: Duration) -> Arc<Stuck> {
+            Arc::new(Stuck { size, limit, released: Mutex::new(false), cv: Condvar::new(), reads: Default::default(), returned: Mutex::new(None) })
+        }
+        fn release(&self) {
+            *self.released.lock().unwrap() = true;
+            self.cv.notify_all();
+        }
+    }
+
+    impl crate::mpv::Reader for Stuck {
+        fn size(&self) -> u64 {
+            self.size
+        }
+        fn read(&self, _offset: u64, _len: u64) -> Result<Vec<u8>, String> {
+            self.reads.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let r = self.cv.wait_timeout_while(self.released.lock().unwrap(), self.limit, |r| !*r).unwrap();
+            drop(r);
+            *self.returned.lock().unwrap() = Some(Instant::now());
+            Err("released".into())
+        }
+        fn cancel(&self) {
+            self.release();
+        }
+    }
+
+    /// #276: a video closed while its stream waits 5 s on a slow phone or server: the window's
+    /// thread is back at once, and the read is let go at once too. Skipped without libmpv (the CI).
+    #[test]
+    fn closed_while_a_read_waits() {
+        if !crate::mpv::available() {
+            println!("skipped: no libmpv");
+            return;
+        }
+        let stuck = Stuck::new(10_000_000, Duration::from_secs(5));
+        let player = Player::open(Input::Stream(stuck.clone()), 0, true, || {}).unwrap();
+        let t = Instant::now();
+        while stuck.reads.load(std::sync::atomic::Ordering::Relaxed) == 0 && t.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        std::thread::sleep(Duration::from_millis(200));
+        let t = Instant::now();
+        drop(player);
+        let closed = t.elapsed();
+        while stuck.returned.lock().unwrap().is_none() && t.elapsed() < Duration::from_secs(10) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let read = stuck.returned.lock().unwrap().map(|r| r.duration_since(t));
+        println!("closed in {closed:?}, the read returned {read:?} after the close");
+        assert!(closed < Duration::from_millis(300), "the window waited {closed:?}");
+        assert!(read.is_some_and(|r| r < Duration::from_millis(500)), "the read was let go after {read:?}");
+    }
+
+    /// What the viewer has, with no time limit, from a stream whose first read never returns,
+    /// and how long closing it takes (Esc or an arrow drop the player on the window's thread).
+    /// `cargo test stuck_stream_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn stuck_stream_live() {
+        let stuck = Stuck::new(10_000_000, Duration::from_secs(3600));
+        let player = Player::open(Input::Stream(stuck.clone()), 0, true, || {}).unwrap();
+        for s in [1, 5, 30] {
+            let t = Instant::now();
+            while t.elapsed() < Duration::from_secs(if s == 1 { 1 } else if s == 5 { 4 } else { 25 }) {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            println!("after {s} s: reads {}, size {:?}, error {:?}, position {:.1}, duration {:.1} (no size and no error: the viewer shows its spinner)", stuck.reads.load(std::sync::atomic::Ordering::Relaxed), player.video_size(), player.error(), player.position(), player.duration());
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        let t = Instant::now();
+        std::thread::spawn(move || {
+            drop(player);
+            tx.send(()).unwrap();
+        });
+        match rx.recv_timeout(Duration::from_secs(10)) {
+            Ok(()) => println!("closed in {:?}", t.elapsed()),
+            Err(_) => {
+                println!("still closing after {:?}: the window would be frozen; read released now", t.elapsed());
+                stuck.release();
+                rx.recv().unwrap();
+                println!("closed {:?} after the start, once the read returned", t.elapsed());
+            }
+        }
+    }
+
     /// #209, without mpv: what `Player::error` says from what is known.
     #[test]
     fn judged_from_mpv_state() {
