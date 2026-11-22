@@ -3,5 +3,5 @@
 open /home/demo/Videos
 3 act select-all
 4 act batch
-9 shot convert-video 254 96 692 330
-9.5 end
+25 shot convert-video 254 96 692 330
+25.5 end

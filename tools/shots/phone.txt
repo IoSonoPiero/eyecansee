@@ -4,7 +4,7 @@
 # (with the phone's serial number) is cut away. Before: `pkill -x gvfsd-mtp` (in the namespace the
 # app cannot take the phone from gvfs); after: `gio mount mtp://<the phone>/` gives it back to the
 # desktop. The phone's place in the Devices block (third, after the made-up BACKUP and USB STICK)
-# is clicked. Take it before trash-strip: afterwards the folder has a trash, and its strip.
+# is clicked.
 # The window is 50 points taller, so that the third row of thumbnails shows with its data.
 phone-folders DCIM Documents Download Movies Music Pictures EyeCanSee-guida
 set window_start "remember"

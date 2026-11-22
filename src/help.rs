@@ -51,6 +51,11 @@ images![
         "editor-props", "metadata-panel", "model-3d", "new-image", "open-location", "options", "save-as", "server-manager",
         "side-panel", "start", "tips", "video", "viewer",
     ],
+    "it": [
+        "trash-strip", "phone", "bookmarks-menu", "cad", "convert", "convert-video", "devices", "duplicates", "editor", "editor-crop",
+        "editor-props", "metadata-panel", "model-3d", "new-image", "open-location", "options", "save-as", "server-manager",
+        "side-panel", "start", "tips", "video", "viewer",
+    ],
 ];
 
 /// A picture built into the program: its language, its name and its bytes. "en" is also the

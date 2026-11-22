@@ -7,7 +7,9 @@ open /home/demo/Documents/Drawings
 4.5 move 330 450 0.1
 4.8 wheel -300
 5.5 click 315 477
-6.5 click 285 422
+# Next to the originals: the window is a line taller where its text is longer.
+en: 6.5 click 285 422
+it: 6.5 click 285 412
 7 click 287 586
 10 key Escape
 # The DWG just written gets the made-up date of the other files, then the folder is read again.

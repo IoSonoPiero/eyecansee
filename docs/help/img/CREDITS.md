@@ -1,6 +1,6 @@
 # Picture credits
 
-The pictures of the guide (`docs/help/img/*.webp`) are screenshots of EyeCanSee, taken by the program itself (`tools/shots.sh`, the scenes in `tools/shots/`) in a home folder made for them. Every photo, video, 3D model and drawing they show, thumbnails in the grids included, is listed here with its author, licence and source. None of these licences asks for attribution; the authors are named as a courtesy.
+The pictures of the guide (`docs/help/img/*.webp`, and those of each language in `docs/help/img/<language>/`) and of the tips at startup (`docs/tips/`) are screenshots of EyeCanSee, taken by the program itself (`tools/shots.sh`, the scenes in `tools/shots/`) in a home folder made for them. Every photo, video, 3D model and drawing they show, thumbnails in the grids included, is listed here with its author, licence and source. None of these licences asks for attribution; the authors are named as a courtesy.
 
 Licences, checked on 2026-11-10 on the pages linked below:
 
@@ -9,7 +9,7 @@ Licences, checked on 2026-11-10 on the pages linked below:
 
 ## Photos
 
-In `Pictures/Holiday`, and on a phone in `DCIM/EyeCanSee-guida` (the `phone` and `trash-strip` pictures). Some are copied with other names: in `Pictures/Phone backup`, `IMG_0001.jpg`, `IMG_0002.jpg`, `IMG_0003.jpg` are Moth, Iceberg and Sunset; on the USB stick, `IMG_0101.jpg` to `IMG_0108.jpg` are Lake Sherburne, North Cascades, Grand Canyon, Wilder Kaiser, Apple blossoms, Quebec City, Iceberg and Moth. From Wikimedia Commons, resized to 1920 pixels wide, except `Lake Garda.dng`.
+In `Pictures/Holiday`, on a phone in `DCIM/EyeCanSee-guida` (the `phone` pictures) and, eight of them and Moth in its trash, in `Pictures` on the external disk (the pictures of the trash strip). Some are copied with other names: in `Pictures/Phone backup`, `IMG_0001.jpg`, `IMG_0002.jpg`, `IMG_0003.jpg` are Moth, Iceberg and Sunset; on the USB stick, `IMG_0101.jpg` to `IMG_0108.jpg` are Lake Sherburne, North Cascades, Grand Canyon, Wilder Kaiser, Apple blossoms, Quebec City, Iceberg and Moth. From Wikimedia Commons, resized to 1920 pixels wide, except `Lake Garda.dng`.
 
 | Name in the pictures | Author | Licence | Source |
 |---|---|---|---|

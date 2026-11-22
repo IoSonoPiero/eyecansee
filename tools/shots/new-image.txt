@@ -1,5 +1,6 @@
-# Crop: the New image window (A4 is the size it starts with).
+# Crop: the New image window (A4 is the size it starts with), as wide as its labels make it.
 open /home/demo/Pictures/Holiday
 3 act new-image
-5 shot new-image 412 294 377 216
+en: 5 shot new-image 412 294 377 216
+it: 5 shot new-image 398 293 404 216
 5.5 end

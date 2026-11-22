@@ -9,7 +9,8 @@ width 1000
 6.8 click 960 500
 7.5 key T
 7.7 click 360 160
-8.2 type Made it to the top!
+en: 8.2 type Made it to the top!
+it: 8.2 type Siamo in cima!
 10 key Escape
 10.5 key A
 10.7 drag 470 260 740 500 0.6
