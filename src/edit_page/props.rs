@@ -164,4 +164,23 @@ mod tests {
         }
         assert_eq!(v, 2.37);
     }
+
+    /// The outline and the box of a text are fractions of its size, shown in pixels: drawn as
+    /// they are, never written back. At size 219 an outline of 0.08 came back one bit off at each
+    /// frame (so did the margin 0.3 at 111), and each Undo made a step of its own (audit 5.7).
+    #[test]
+    fn text_look_keeps_its_fractions() {
+        use crate::edit::doc::{Back, Style};
+        let i18n = crate::i18n::I18n::new("en");
+        let ctx = egui::Context::default();
+        for (size, outline, margin, opacity) in [(219.0, 0.08, 0.3, 0.8), (111.0, 0.08, 0.3, 0.07), (27.0, 0.08, 0.3, 0.8), (217.0, 0.11, 0.3, 0.55)] {
+            let back = Back { margin, radius: 0.25, opacity, ..Back::default() };
+            let mut style = Style { width: size, outline: Some(([255, 255, 255], outline)), back: Some(back), ..Style::default() };
+            let before = style;
+            for _ in 0..3 {
+                ctx.run_ui(Default::default(), |ui| super::text_look(ui, &mut style, &i18n)).textures_delta.clear();
+            }
+            assert_eq!(style, before, "size {size}");
+        }
+    }
 }
