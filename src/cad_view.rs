@@ -68,6 +68,20 @@ pub(crate) struct State {
 }
 
 impl State {
+    /// The pictures of layouts and of layers chosen (`sheets`, `chosen`) kept only for `paths`,
+    /// the drawings near the one open, as the drawings themselves (`App::prefetch_full`); none
+    /// once the viewer closes. Each is a texture of `CAD_SIDE` pixels and its halves on the
+    /// graphics card (audit 6.9). The layers chosen stay: they are the user's for the session.
+    pub(crate) fn keep_only(&mut self, paths: &[&String]) {
+        self.sheets.retain(|k, _| paths.contains(&&k.0));
+        if self.chosen.as_ref().is_some_and(|(k, _)| !paths.contains(&&k.0)) {
+            self.chosen = None;
+        }
+        if self.sheet_failed.as_ref().is_some_and(|k| !paths.contains(&&k.0)) {
+            self.sheet_failed = None;
+        }
+    }
+
     /// The pictures drawn of `path` beyond the loader's (layouts, other layers, a comparison),
     /// forgotten when what it shows changes.
     pub(crate) fn forget(&mut self, path: &str) {
@@ -253,6 +267,8 @@ impl App {
         let s = &mut self.model.cad;
         if let Some((done, img)) = s.sheet_done.lock().unwrap().take() {
             match img {
+                // Drawn for a drawing freed meanwhile (`keep_only` took its place away): not kept.
+                Some(_) if !s.sheets.contains_key(&done) => {}
                 Some((img, halves)) => {
                     let tex = Picture::new(ctx, &format!("cad-sheet-{}", done.1), img, halves);
                     // The pictures with the layers chosen before are no longer needed.

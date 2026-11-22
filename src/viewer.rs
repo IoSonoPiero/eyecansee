@@ -191,6 +191,7 @@ impl App {
         self.model.of = None;
         self.end_compare();
         self.model.cad.drawings.clear();
+        self.model.cad.keep_only(&[]);
         self.zoom_of = None;
     }
 
@@ -239,6 +240,7 @@ impl App {
         let paths: Vec<&String> = keep.iter().filter_map(|&i| listing.files.get(i)).map(|f| &f.path).collect();
         self.model.meshes.retain(|p, _| paths.contains(&p));
         self.model.cad.drawings.retain(|p, _| paths.contains(&p));
+        self.model.cad.keep_only(&paths);
         self.frames.read.retain(|p, _| paths.contains(&p));
         self.motion.read.retain(|p, _| paths.contains(&p));
     }
