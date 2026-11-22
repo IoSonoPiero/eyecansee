@@ -310,6 +310,8 @@ impl App {
                 // Gone already (deleted by another program, and the watcher did not tell, #207):
                 // said with its name, and its folder read again, which takes it from the grid.
                 if crate::fault::gone(&detail) {
+                    // Not marked any more: Delete again would ask for it first, and stop there.
+                    self.marked.remove(&path);
                     self.error = Some(self.i18n.fault(crate::fault::Kind::NotFound, Some(source::shown(&path))));
                     self.relist(source::listed_in(&path));
                     return;
@@ -699,12 +701,14 @@ mod tests {
         let sub = format!("{}sub/", h.app.dir);
         std::fs::remove_dir(dir.join("sub")).unwrap();
         let raw = r#"Error during a `trash` operation: Os { code: -2147024894, description: "windows error: Impossibile trovare il file specificato. (0x80070002)" }"#;
-        h.app.tx.send(Msg::Deleted(sub, crate::source::Deletion::SystemTrash, Err(("error-detail", raw.into())))).unwrap();
+        h.app.marked.insert(sub.clone());
+        h.app.tx.send(Msg::Deleted(sub.clone(), crate::source::Deletion::SystemTrash, Err(("error-detail", raw.into())))).unwrap();
         h.frame(Vec::new());
         assert_eq!(h.app.error, Some(h.app.i18n.fault(crate::fault::Kind::NotFound, Some("sub"))));
         // Read again by the message itself: the watcher of Linux waits 0.3 s after its event,
         // and Windows' did not tell (#207).
         assert!(h.app.listing_pending.contains(&h.app.dir), "the folder not read again");
+        assert!(!h.app.marked.contains(&sub), "still marked: Delete would ask for it again");
         h.until(|app| app.listing_dirs() == 0, "the folder gone from the grid");
     }
 }
