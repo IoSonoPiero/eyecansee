@@ -14,6 +14,7 @@ use crate::mipmap::{self, Picture};
 use crate::{App, RETRY_SECS, devices, encode, loader, meta, source, transform, update, version};
 use crate::loader::Msg;
 use crate::source::Listing;
+use crate::listing::Arrival;
 
 impl App {
     pub(crate) fn receive(&mut self, ctx: &egui::Context) {
@@ -188,8 +189,15 @@ impl App {
             self.retry_at = no_storage.then(|| ctx.input(|i| i.time) + RETRY_SECS);
         }
         let r = r.map_err(|(id, detail)| self.i18n.error(id, &detail));
+        let select = if self.editor.is_some() { None } else { self.select_after.as_deref() };
         match r {
-            Ok(l) if takes_place(self.listings.get(&dir)) => self.swap_listing(&dir, l),
+            Ok(l) => match crate::listing::arrival(self.listings.get(&dir), &l, select, self.fresh.is_some()) {
+                Arrival::Swap => self.swap_listing(&dir, l),
+                Arrival::Keep => log!("listing {dir:?} as before"),
+                Arrival::Insert => {
+                    self.listings.insert(dir.clone(), Ok(l));
+                }
+            },
             r => {
                 self.listings.insert(dir.clone(), r);
             }
@@ -617,14 +625,6 @@ impl App {
             }
         }
     }
-}
-
-/// Whether a listing read fine takes the place of the one kept for its folder (`swap_listing`:
-/// the files followed by their path), rather than going in as it is: whenever there is one. It
-/// depended on the mark of a reading again, gone when two readings followed each other, and F5
-/// in the viewer had none (audit 1.3).
-fn takes_place(kept: Option<&Result<Listing, String>>) -> bool {
-    matches!(kept, Some(Ok(_)))
 }
 
 #[cfg(test)]

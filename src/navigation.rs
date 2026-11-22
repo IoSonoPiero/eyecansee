@@ -196,6 +196,13 @@ impl App {
         self.start = None;
         let dir = self.dir.clone();
         self.request_listing(&dir);
+        // A folder read before is shown at once, and read again: its changes made meanwhile were
+        // seen only after F5, as only the open folder is watched (audit 1.7). On this computer
+        // only, where it costs little (choice D4); the new listing takes its place in
+        // `on_listed`, and if it is the same nothing changes.
+        if self.listings.contains_key(&dir) && self.on_this_computer(&dir) {
+            self.relist(dir);
+        }
         self.watch();
     }
 

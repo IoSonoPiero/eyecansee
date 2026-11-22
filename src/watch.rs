@@ -36,16 +36,23 @@ fn shown(path: &std::path::Path) -> bool {
 }
 
 impl App {
+    /// Whether the folder `dir` of the source open is on this computer: not a phone nor a
+    /// server, also through gvfs, whose changes do not reach the watcher and cost seconds to read.
+    pub(crate) fn on_this_computer(&self, dir: &str) -> bool {
+        !self.base.contains("://") && !source::in_gvfs(&self.base, dir)
+    }
+
     /// Watches the open folder if it is on this computer. Phones and servers send nothing (F5);
     /// gvfs mounts neither: changes on the phone do not reach inotify.
     pub(crate) fn watch(&mut self) {
         use notify::Watcher;
+        let here = self.on_this_computer(&self.dir);
         let Some(watcher) = &mut self.watcher else { return };
         if let Some(old) = self.watched.take() {
             let _ = watcher.unwatch(&old);
         }
         self.changed_at = None;
-        if self.base.contains("://") || source::in_gvfs(&self.base, &self.dir) {
+        if !here {
             return;
         }
         let path: std::path::PathBuf =

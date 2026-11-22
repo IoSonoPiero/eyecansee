@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::source::{self, Listing};
+use crate::source::{self, File, Listing};
 use crate::App;
 
 impl App {
@@ -205,6 +205,36 @@ pub(crate) fn follow(old: &Listing, new: &Listing, s: Follow, select: Option<&st
     Followed { state, moved, made: made.is_some(), drop_turn }
 }
 
+/// What a listing read fine does to the one kept for its folder.
+#[derive(Debug, PartialEq)]
+pub(crate) enum Arrival {
+    /// The first one: it goes in as it is.
+    Insert,
+    /// It takes the place of the one kept, the files followed by their path (`swap_listing`):
+    /// whenever there is one. It depended on the mark of a reading again, gone when two readings
+    /// followed each other, and F5 in the viewer had none (audit 1.3).
+    Swap,
+    /// The same as the one kept, with nothing to select in it: nothing changes, neither the
+    /// selection nor the thumbnails on their way (a folder read again going back into it, audit 1.7).
+    Keep,
+}
+
+/// `Arrival` of `new`, `kept` being what its folder has. `select`: an item to select once a
+/// listing has it (`swap_listing`); `fresh`: an image saved, to show (`App::fresh`).
+pub(crate) fn arrival(kept: Option<&Result<Listing, String>>, new: &Listing, select: Option<&str>, fresh: bool) -> Arrival {
+    match kept {
+        Some(Ok(old)) if same(old, new) && !fresh && select.and_then(|p| place(new, p)).is_none() => Arrival::Keep,
+        Some(Ok(_)) => Arrival::Swap,
+        _ => Arrival::Insert,
+    }
+}
+
+/// The same listing, item by item.
+fn same(a: &Listing, b: &Listing) -> bool {
+    let files = |x: &[File], y: &[File]| x.len() == y.len() && x.iter().zip(y).all(|(f, g)| f.path == g.path && f.size == g.size && f.modified == g.modified);
+    a.dirs == b.dirs && files(&a.files, &b.files) && a.trash == b.trash && a.leftovers == b.leftovers && files(&a.trashed, &b.trashed) && a.unseen == b.unseen
+}
+
 /// Where the files of `old` are in `new` (positions among the images): every file still there,
 /// by its path, and those unchanged too (same size and date), whose images are still good.
 fn moves(old: &Listing, new: &Listing) -> (Vec<Option<usize>>, HashMap<usize, usize>) {
@@ -231,7 +261,6 @@ fn place(l: &Listing, path: &str) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::source::File;
 
     /// Folders come before files: a file's item counts the folders first.
     #[test]
@@ -382,5 +411,51 @@ mod tests {
         image::DynamicImage::new_rgb8(8, 6).save(dir.join("sub").join("t.png")).unwrap();
         h.app.set_dir(sub);
         h.until(|app| app.files().len() == 2, "the new photo in the folder seen before");
+    }
+
+    /// Audit 1.7 (choice D4): going back into a folder that has not changed, its listing read
+    /// again changes nothing: the selection stays, and so do the thumbnails on their way (the
+    /// generation is the same).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn folder_unchanged_read_again_changes_nothing() {
+        if crate::audit_family_1::own_folder("listing::tests::folder_unchanged_read_again_changes_nothing") {
+            return;
+        }
+        let dir = sized("unchanged", &[("a.png", 8, 6)]);
+        let sub_dir = sized("unchanged/sub", &[("s.png", 8, 6), ("t.png", 8, 6)]);
+        let mut h = crate::audit_family_1::Harness::new(&dir);
+        let sub = format!("{}sub/", h.app.dir);
+        h.app.set_dir(sub.clone());
+        h.until(|app| app.files().len() == 2 && app.listing_pending.is_empty(), "sub listed");
+        h.app.go_up();
+        h.until(|app| app.listing_pending.is_empty(), "back up");
+        h.app.set_dir(sub.clone());
+        assert!(h.app.listing_pending.contains(&sub), "read again");
+        (h.app.selected, h.app.anchor, h.app.cursor) = (1, 1, true);
+        let generation = h.app.generation;
+        h.until(|app| app.listing_pending.is_empty(), "read again");
+        assert_eq!((h.app.selected, h.app.anchor, h.app.generation), (1, 1, generation), "something changed");
+        assert!(sub_dir.join("t.png").exists());
+    }
+
+    /// Which listings take the place of the one kept, which go in as they are, which change nothing.
+    #[test]
+    fn arrivals() {
+        let file = |p: &str, size| File { path: p.into(), size, modified: "2026-11-22".into() };
+        let l = Listing { files: vec![file("p/a.jpg", 1), file("p/b.jpg", 2)], ..Default::default() };
+        let kept: Result<Listing, String> = Ok(l.clone());
+        assert_eq!(arrival(None, &l, None, false), Arrival::Insert);
+        assert_eq!(arrival(Some(&Err("gone".into())), &l, None, false), Arrival::Insert);
+        assert_eq!(arrival(Some(&kept), &l, None, false), Arrival::Keep);
+        // A file saved over b.jpg: a new size.
+        let saved = Listing { files: vec![file("p/a.jpg", 1), file("p/b.jpg", 3)], ..Default::default() };
+        assert_eq!(arrival(Some(&kept), &saved, None, false), Arrival::Swap);
+        let fewer = Listing { files: vec![file("p/b.jpg", 2)], ..Default::default() };
+        assert_eq!(arrival(Some(&kept), &fewer, None, false), Arrival::Swap);
+        // The same, but with something to select or show in it.
+        assert_eq!(arrival(Some(&kept), &l, Some("p/b.jpg"), false), Arrival::Swap);
+        assert_eq!(arrival(Some(&kept), &l, Some("p/new/"), false), Arrival::Keep);
+        assert_eq!(arrival(Some(&kept), &l, None, true), Arrival::Swap);
     }
 }
