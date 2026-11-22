@@ -135,6 +135,19 @@ pub(crate) async fn replace(op: &crate::source::Store, path: &str, quarters: u8,
 mod tests {
     use super::*;
 
+    /// #190 (audit 4.15 b): the temporary files of a turned video carried its name, which may not
+    /// be made on Windows (`:` or `?` from a Linux server). Only its extension.
+    #[test]
+    fn temporary_names_hold_only_the_extension() {
+        for what in ["in", "out"] {
+            let file = temp(what, "a:b?c.mov");
+            let name = file.file_name().unwrap().to_string_lossy().into_owned();
+            println!("{name}");
+            let _ = std::fs::remove_file(&file);
+            assert!(name.starts_with(&format!("{}-turn-{what}-", crate::test_copy::NAME)) && name.ends_with(".mov") && !name.contains("a:b?c"), "{name}");
+        }
+    }
+
     #[test]
     fn rotations() {
         assert_eq!(rotation_of("    Side data:\n      displaymatrix: rotation of -90.00 degrees\n"), -90.0);

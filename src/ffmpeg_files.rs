@@ -202,6 +202,68 @@ mod tests {
         });
     }
 
+    /// The temporary file `what` for `name`.
+    fn temp_file(what: &str, name: &str) -> PathBuf {
+        temp(what, name)
+    }
+
+    /// #190 (audit 4.15 b): the temporary files carried the original's name, and a name from a
+    /// Linux server with `:` or `?` cannot be made on Windows: the conversion failed. Nothing of
+    /// the original but its extension; one that is not letters and digits is left out too.
+    #[test]
+    fn temporary_names_hold_only_the_extension() {
+        for what in ["in", "out"] {
+            let (file, odd) = (temp_file(what, "a:b?c.MP4"), temp_file(what, "clip.m:p4"));
+            let names = [&file, &odd].map(|f| f.file_name().unwrap().to_string_lossy().into_owned());
+            println!("{names:?}");
+            let _ = (std::fs::remove_file(&file), std::fs::remove_file(&odd));
+            assert!(names.iter().all(|n| n.starts_with(&format!("{}-{what}-", crate::test_copy::NAME))), "{names:?}");
+            assert!(names.iter().all(|n| !n.contains("a:b?c") && !n.contains("clip") && !n.contains(':')), "{names:?}");
+            assert!(names[0].ends_with(".MP4"), "{names:?}");
+        }
+    }
+
+    /// #190: the copy of a video of a phone or a server was made with the permissions of any new
+    /// file (readable by every user of the computer), under a name that can be worked out (the
+    /// process number and the original's name), through a link already there.
+    #[test]
+    #[cfg(unix)]
+    fn copy_is_private_and_follows_no_link() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = std::env::temp_dir();
+        let ours = tmp.join(format!("eyecansee-ffmpeg-ours-{}", std::process::id()));
+        std::fs::write(&ours, b"ours").unwrap();
+        let link = tmp.join(format!("eyecansee-in-{}-linked.mp4", std::process::id()));
+        std::os::unix::fs::symlink(&ours, &link).unwrap();
+        let op = remote();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (mode, after) = rt.block_on(async {
+            put(&op, "linked.mp4", b"the video").await;
+            let input = Input::fetch(&op, "linked.mp4", (&op, ""), &progress()).await.unwrap();
+            let mode = std::fs::metadata(&input.file).unwrap().permissions().mode() & 0o777;
+            println!("{}: permissions {mode:o}", input.file.display());
+            (mode, std::fs::read(&ours).unwrap())
+        });
+        println!("our file now holds {:?}", String::from_utf8_lossy(&after));
+        let _ = (std::fs::remove_file(&link), std::fs::remove_file(&ours));
+        assert_eq!(after, b"ours", "the copy was written through a link, over another file");
+        assert_eq!(mode & 0o077, 0, "permissions {mode:o}");
+    }
+
+    /// #190: the temporary file FFmpeg writes a new file into (it opens one there with `-y`)
+    /// must be readable by its owner only.
+    #[test]
+    #[cfg(unix)]
+    fn new_file_is_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let output = Output::new(&remote(), "new.mkv".into(), "new.mkv");
+        std::fs::File::create(&output.file).unwrap();
+        let mode = std::fs::metadata(&output.file).unwrap().permissions().mode() & 0o777;
+        println!("{}: permissions {mode:o}", output.file.display());
+        let _ = std::fs::remove_file(&output.file);
+        assert_eq!(mode & 0o077, 0, "permissions {mode:o}");
+    }
+
     #[test]
     fn errors_and_cancel_leave_nothing() {
         let (op, out) = (remote(), remote());

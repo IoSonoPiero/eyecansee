@@ -98,4 +98,26 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
         assert!(gone && kept);
     }
+
+    /// #190 (audit 4.15 b): FFmpeg's temporary files (the copy of an original, a new file, a
+    /// turned video, the clip of the card's probe) left by a run closed by force were never
+    /// removed. They go at start too, and nothing else.
+    #[test]
+    fn ffmpeg_files_removed_at_start() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-temp-ffmpeg-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let name = crate::test_copy::NAME;
+        let old = ["in-12-ab.mp4", "out-12-ab.mkv", "turn-in-12-ab.mov", "turn-out-12-ab.mov", "card-12-h264_qsv.mkv"].map(|n| dir.join(format!("{name}-{n}")));
+        let others = [dir.join(format!("{name}-inside.mp4")), dir.join("in-12-ab.mp4"), dir.join("clip-out-1.mkv")];
+        for f in others.iter().chain(&old) {
+            std::fs::write(f, b"x").unwrap();
+        }
+        remove_old_in(&dir);
+        let left: Vec<_> = old.iter().filter(|f| f.exists()).map(|f| f.file_name().unwrap().to_owned()).collect();
+        let kept = others.iter().all(|f| f.exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(left.is_empty(), "left at start: {left:?}");
+        assert!(kept);
+    }
 }
