@@ -464,8 +464,8 @@ mod tests {
         // doubling (5 times the text; it was 19). The model then copies the points twice more, as
         // for a .wrl (10 times; it was 19 too).
         assert!(scene_peak <= 5 * text + (64 << 10) && peak <= 11 * text, "{scene_peak} and {peak} bytes for {text} of text");
-        assert!(parse(&wrz, &Unpacked::new(text as u64 / 2)).is_err_and(|e| e.contains("unpacks")));
+        assert!(parse(&wrz, &Unpacked::new(text as u64 / 2)).is_err_and(|e| e.starts_with(crate::model_limit::UNPACKED)));
         // Its text packs some 300 times: past what any file may unpack (64 KB here), refused.
-        assert!(parse(&wrz, &Unpacked::with(wrz.len(), crate::model_3mf::MAX_UNPACKED, 64 << 10)).is_err_and(|e| e.contains("times its size")));
+        assert!(parse(&wrz, &Unpacked::with(wrz.len(), crate::model_3mf::MAX_UNPACKED, 64 << 10)).is_err_and(|e| e.starts_with(crate::model_limit::UNPACKED_TIMES)));
     }
 }

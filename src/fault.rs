@@ -317,7 +317,7 @@ impl I18n {
     pub(crate) fn error_md(&self, id: &str, detail: &str) -> String {
         match recognise(detail) {
             Some(_) => md(&self.error(id, detail)),
-            None if detail.contains('\u{1}') || id == crate::model_gltf::CUT_SIZES || crate::model_limit::is_error(id) => md(&self.error(id, detail)),
+            None if detail.contains('\u{1}') || id == crate::model_gltf::CUT_SIZES || crate::model_limit::is_said(id) => md(&self.error(id, detail)),
             None => self.t_args(id, &[("detail", &md(detail))]),
         }
     }

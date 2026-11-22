@@ -79,9 +79,9 @@ impl Unpacked {
         }
         self.over.set(true);
         if self.made.get().saturating_add(n) > self.limit {
-            Err(format!("the file unpacks to more than {} MB", self.limit >> 20))
+            Err(crate::model_limit::too_many(crate::model_limit::UNPACKED, self.limit >> 20))
         } else {
-            Err(format!("the file unpacks to more than {MAX_RATIO} times its size"))
+            Err(crate::model_limit::too_many(crate::model_limit::UNPACKED_TIMES, MAX_RATIO))
         }
     }
 
@@ -465,7 +465,7 @@ mod tests {
         let limit = 512 << 10;
         assert_eq!(read(&parts(&paths(4), &"A".repeat(64 << 10)), &Unpacked::new(limit)).unwrap().tris.len(), 4);
         let r = read(&parts(&paths(12), &"A".repeat(64 << 10)), &Unpacked::new(limit));
-        assert!(r.as_ref().is_err_and(|e| e.contains("unpacks")), "{:?}", r.map(|m| m.tris.len()));
+        assert!(r.as_ref().is_err_and(|e| e.starts_with(crate::model_limit::UNPACKED)), "{:?}", r.map(|m| m.tris.len()));
     }
 
     /// One model file named in four spellings (`/3D/a.model`, `//3D/a.model`...) is one file of
@@ -487,7 +487,7 @@ mod tests {
         let paths: Vec<String> = (0..4).map(|k| format!("/3D/part{k}.model")).collect();
         let ratio = |bytes: &[u8]| Unpacked::with(bytes.len(), MAX_UNPACKED, 64 << 10);
         let packed = parts(&paths, &"A".repeat(64 << 10));
-        assert!(read(&packed, &ratio(&packed)).is_err_and(|e| e.contains("times its size")));
+        assert!(read(&packed, &ratio(&packed)).is_err_and(|e| e.starts_with(crate::model_limit::UNPACKED_TIMES)));
         let mut seed = 1u32;
         let numbers: String = (0..8000)
             .map(|_| {

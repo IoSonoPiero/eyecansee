@@ -50,7 +50,7 @@ impl Walk<'_, '_> {
     fn node(&mut self, n: &SceneNode, m: &Mat4, inline: u32) -> Result<(), String> {
         self.visits += 1;
         if self.visits > MAX_VISITS {
-            return Err("too many nodes in the scene".into());
+            return Err(crate::model_limit::too_many(crate::model_limit::PLACED, MAX_VISITS));
         }
         match n.kind.as_str() {
             "Transform" => {
@@ -88,7 +88,7 @@ impl Walk<'_, '_> {
                 };
                 let bytes = urls.iter().filter(|u| !u.contains("://")).find_map(&mut read);
                 if self.reads > MAX_INLINE_READS {
-                    return Err(format!("more than {MAX_INLINE_READS} inlined files"));
+                    return Err(crate::model_limit::too_many(crate::model_limit::INLINED, MAX_INLINE_READS));
                 }
                 // An inlined file counts in what the model's file may unpack.
                 bytes.iter().for_each(|b| self.unpacked.read_too(b.len()));
@@ -552,6 +552,6 @@ mod tests {
         let one = "#VRML V2.0 utf8\nInline { url \"a.wrz\" }";
         assert!(read(one.as_bytes(), &next, &Unpacked::new(96 << 10)).is_ok());
         let two = "#VRML V2.0 utf8\nInline { url \"a.wrz\" } Inline { url \"b.wrz\" }";
-        assert!(read(two.as_bytes(), &next, &Unpacked::new(96 << 10)).is_err_and(|e| e.contains("unpacks")));
+        assert!(read(two.as_bytes(), &next, &Unpacked::new(96 << 10)).is_err_and(|e| e.starts_with(crate::model_limit::UNPACKED)));
     }
 }

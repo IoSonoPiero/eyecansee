@@ -496,12 +496,12 @@ mod tests {
         let two = super::plain(&meshopt_views(2, 36), &|_| None, &Unpacked::new(limit)).unwrap().unwrap();
         assert_eq!(crate::model::parse(&two, "m.glb").unwrap().tris.len(), 1);
         let r = super::plain(&meshopt_views(8, 36), &|_| None, &Unpacked::new(limit));
-        assert!(r.as_ref().is_err_and(|e| e.contains("unpacks")), "{:?}", r.map(|g| g.map(|g| g.len())));
+        assert!(r.as_ref().is_err_and(|e| e.starts_with(crate::model_limit::UNPACKED)), "{:?}", r.map(|g| g.map(|g| g.len())));
         // And by the ratio, past what any file may unpack (64 KB here instead of `RATIO_FREE`):
         // 128 KB from a GLB of 1 KB.
         let two = meshopt_views(2, 36);
         let r = super::plain(&two, &|_| None, &Unpacked::with(two.len(), crate::model_3mf::MAX_UNPACKED, 64 << 10));
-        assert!(r.as_ref().is_err_and(|e| e.contains("times its size")), "{:?}", r.map(|g| g.map(|g| g.len())));
+        assert!(r.as_ref().is_err_and(|e| e.starts_with(crate::model_limit::UNPACKED_TIMES)), "{:?}", r.map(|g| g.map(|g| g.len())));
     }
 
     /// Offsets and parts that are not what the format says are refused, without a panic: a meshopt

@@ -624,6 +624,22 @@ error-model-too-many-points = La nuvola di punti ha più di { $max } milioni di 
         [ply-binary] i file PLY binari
        *[ply-text] i file PLY in testo
     } con più di { $max } milioni di punti, perché la lettura non riempia la memoria del computer.
+# The rarer refusals of a model or a drawing too large: { $max } in millions (1, 1.25, 200) where the sentence says "million", else as it is (1000 files, 2048 MB, 100 times).
+error-model-too-many-offered = Il modello ha più di { $max } milioni di punti e triangoli, troppi per aprirlo.
+error-model-too-many-lines = Il modello ha più di { $max } milioni di linee e punti, troppi per aprirlo.
+error-model-too-many-placed = Il modello colloca le sue parti più di { $max } { $max ->
+        [one] milione
+       *[other] milioni
+    } di volte, troppe per aprirlo.
+error-model-too-many-inlined = Il modello include altri file più di { $max } volte, troppe per aprirlo.
+error-model-unpacks-too-large = Decompresso, il file occuperebbe più di { $max } MB, troppo per aprirlo.
+error-model-unpacks-too-many-times = Decompresso, il file sarebbe più di { $max } volte la sua dimensione, troppo per aprirlo.
+error-drawing-too-many-points = Il disegno ha più di { $max } milioni di punti, troppi per aprirlo.
+error-drawing-too-many-entities = Il disegno ha più di { $max } milioni di elementi, troppi per aprirlo.
+error-drawing-too-many-placed = Il disegno colloca i suoi blocchi più di { $max } { $max ->
+        [one] milione
+       *[other] milioni
+    } di volte, troppe per aprirlo.
 # A few words after a file's name in the list of a message ("a.gltf: manca il file a.bin"): no capital, no full stop.
 error-gltf-bin-missing-brief = manca il file { $detail }
 error-gltf-bin-outside-brief = i dati sono fuori dalla cartella del modello ({ $detail })
@@ -633,6 +649,21 @@ error-glb-cut-brief = il file è incompleto
 error-glb-cut-sizes-brief = il file è incompleto
 error-model-too-many-triangles-brief = più di { $max } milioni di triangoli
 error-model-too-many-points-brief = più di { $max } milioni di punti
+error-model-too-many-offered-brief = più di { $max } milioni di punti e triangoli
+error-model-too-many-lines-brief = più di { $max } milioni di linee e punti
+error-model-too-many-placed-brief = parti collocate più di { $max } { $max ->
+        [one] milione
+       *[other] milioni
+    } di volte
+error-model-too-many-inlined-brief = altri file inclusi più di { $max } volte
+error-model-unpacks-too-large-brief = decompresso, più di { $max } MB
+error-model-unpacks-too-many-times-brief = decompresso, più di { $max } volte la sua dimensione
+error-drawing-too-many-points-brief = più di { $max } milioni di punti
+error-drawing-too-many-entities-brief = più di { $max } milioni di elementi
+error-drawing-too-many-placed-brief = blocchi collocati più di { $max } { $max ->
+        [one] milione
+       *[other] milioni
+    } di volte
 # The keys of the viewer, under the status bar.
 hint-cad = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | Ctrl + L: livelli | M: misura | N, Maiusc + N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: successivo | ←, Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | Ctrl + Maiusc + S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
 hint-cad-layouts = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | L, Maiusc + L: layout successivo, precedente | Ctrl + L: livelli | M: misura | N, Maiusc + N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: file successivo | ←, Backspace, Pag↑: file precedente | Inizio, Fine: primo, ultimo file | Ctrl + Maiusc + S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro

@@ -253,7 +253,7 @@ impl Scan {
         let colour = rgb_of(&e.props);
         // As `Builder` would refuse them, before their memory is asked for.
         if e.count > PLY_BINARY.offered() {
-            return Err(format!("more than {} points and triangles", PLY_BINARY.offered()));
+            return Err(crate::model_limit::too_many(crate::model_limit::OFFERED, PLY_BINARY.offered()));
         }
         let rows = e.count.min(d.left() / row_size(e));
         self.pos.reserve_exact(rows);

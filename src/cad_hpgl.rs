@@ -127,7 +127,7 @@ impl Plotter {
     fn add(&mut self, pts: Vec<P>, fill: Option<f32>) -> Result<(), String> {
         self.out.points += pts.len();
         if self.out.points > MAX_POINTS {
-            return Err(format!("more than {MAX_POINTS} points"));
+            return Err(crate::model_limit::too_many(crate::model_limit::DRAWING_POINTS, MAX_POINTS));
         }
         // Scaled or worked out beyond what an `f64` holds: left out, as the drawings do (`cad::line`).
         let pts: Vec<P> = pts.into_iter().filter(|p| p[0].is_finite() && p[1].is_finite()).collect();

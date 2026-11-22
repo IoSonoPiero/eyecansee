@@ -33,6 +33,29 @@ pub const TOO_MANY: &str = "error-model-too-many-triangles";
 /// `id\u{1}format points` (Piero, 22/11/2026: a message that speaks of points).
 pub const TOO_MANY_POINTS: &str = "error-model-too-many-points";
 
+/// The rarer refusals of a model or a drawing too large, sent as `id\u{1}max` (`too_many`): what
+/// was counted went beyond `max`. Points and triangles brought by the parts (`Limit::offered`),
+/// lines and points (`model_lines::fits`), parts placed (`Builder::visit`, X3D's nodes), files
+/// inlined (X3D), what a zip or a compressed file unpacks to (`model_3mf::Unpacked`, in MB and
+/// in times its size), and a drawing's points, elements and blocks placed (`cad`).
+pub(crate) const OFFERED: &str = "error-model-too-many-offered";
+pub(crate) const LINES: &str = "error-model-too-many-lines";
+pub(crate) const PLACED: &str = "error-model-too-many-placed";
+pub(crate) const INLINED: &str = "error-model-too-many-inlined";
+pub(crate) const UNPACKED: &str = "error-model-unpacks-too-large";
+pub(crate) const UNPACKED_TIMES: &str = "error-model-unpacks-too-many-times";
+pub(crate) const DRAWING_POINTS: &str = "error-drawing-too-many-points";
+pub(crate) const DRAWING_ENTITIES: &str = "error-drawing-too-many-entities";
+pub(crate) const DRAWING_PLACED: &str = "error-drawing-too-many-placed";
+/// The rarer refusals said in millions (`said`); the others as their number is.
+const IN_MILLIONS: [&str; 6] = [OFFERED, LINES, PLACED, DRAWING_POINTS, DRAWING_ENTITIES, DRAWING_PLACED];
+const AS_IT_IS: [&str; 3] = [INLINED, UNPACKED, UNPACKED_TIMES];
+
+/// The error `id` of a rarer refusal, beyond `max` (`OFFERED` and the others).
+pub(crate) fn too_many(id: &str, max: impl std::fmt::Display) -> String {
+    format!("{id}\u{1}{max}")
+}
+
 /// What the early count of a PLY in text gives: the triangles of its faces, or the points of a
 /// cloud (`ply_text_count`).
 #[derive(Debug, PartialEq)]
@@ -85,23 +108,35 @@ impl Limit {
     }
 }
 
-/// The sentence of the error `id` with its `detail` (`Limit::error`), or its few words for the
-/// lists (`brief`); `None` for another error.
+/// The sentence of the error `id` with its `detail` (`Limit::error`, `too_many`), or its few
+/// words for the lists (`brief`); `None` for another error.
 pub(crate) fn said(i18n: &crate::i18n::I18n, id: &str, detail: &str, brief: bool) -> Option<String> {
-    if !is_error(id) {
-        return None;
-    }
-    let (format, max) = detail.split_once(' ')?;
+    let (format, max) = match id {
+        _ if is_error(id) => detail.split_once(' ')?,
+        _ if IN_MILLIONS.contains(&id) || AS_IT_IS.contains(&id) => ("", detail),
+        _ => return None,
+    };
     let max = max.parse::<usize>().ok()?;
-    // Millions, with a tenth when there is one: 10, 2.5 (2,5 in Italian).
-    let millions = if max.is_multiple_of(1_000_000) { (max / 1_000_000).to_string() } else { format!("{:.1}", max as f64 / 1e6).replace('.', &i18n.t("decimal-separator")) };
+    let max = if AS_IT_IS.contains(&id) { max.to_string() } else { millions(i18n, max) };
     let id = if brief { format!("{id}-brief") } else { id.to_string() };
-    Some(i18n.t_args(&id, &[("format", format), ("max", &millions)]))
+    Some(i18n.t_args(&id, &[("format", format), ("max", &max)]))
 }
 
-/// Whether `id` is one of the errors of a cap (`said`).
+/// `n` in millions, with up to two decimals when there are some: 10, 2.5, 1.25 (2,5 and 1,25 in
+/// Italian); a whole number stays a number, so that the message can say "1 milione".
+fn millions(i18n: &crate::i18n::I18n, n: usize) -> String {
+    let text = format!("{:.2}", n as f64 / 1e6);
+    text.trim_end_matches('0').trim_end_matches('.').replace('.', &i18n.t("decimal-separator"))
+}
+
+/// Whether `id` is one of the errors of a cap of the triangles or the points (`said`).
 pub(crate) fn is_error(id: &str) -> bool {
     id == TOO_MANY || id == TOO_MANY_POINTS
+}
+
+/// Whether `id` is one of the errors `said` says: a cap, or a rarer refusal (`too_many`).
+pub(crate) fn is_said(id: &str) -> bool {
+    is_error(id) || IN_MILLIONS.contains(&id) || AS_IT_IS.contains(&id)
 }
 
 /// The lines of a file in text, as `BufRead::lines` gives them (tobj, stl_io), split into words.

@@ -154,7 +154,7 @@ impl Builder {
         let offered = self.limit.offered();
         self.offered = self.offered.saturating_add(pos.len());
         if self.offered > offered {
-            return Err(format!("more than {offered} points and triangles"));
+            return Err(crate::model_limit::too_many(crate::model_limit::OFFERED, offered));
         }
         let base = self.pos.len() as u32;
         let n = pos.len() as u32;
@@ -175,7 +175,7 @@ impl Builder {
             self.offered += 1;
             self.limit.check(self.tris.len())?;
             if self.offered > offered {
-                return Err(format!("more than {offered} points and triangles"));
+                return Err(crate::model_limit::too_many(crate::model_limit::OFFERED, offered));
             }
         }
         self.pos.extend(pos);
@@ -186,7 +186,7 @@ impl Builder {
     pub(crate) fn visit(&mut self) -> Result<(), String> {
         self.visits += 1;
         if self.visits > MAX_VISITS {
-            return Err(format!("more than {MAX_VISITS} parts placed"));
+            return Err(crate::model_limit::too_many(crate::model_limit::PLACED, MAX_VISITS));
         }
         Ok(())
     }
