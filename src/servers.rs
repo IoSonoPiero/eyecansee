@@ -77,14 +77,28 @@ fn vault_path() -> Option<PathBuf> {
 /// The key of the master password, once given: until the program closes.
 static KEY: Mutex<Option<vault::Key>> = Mutex::new(None);
 
+/// The saved servers' two files and the key of the master password: those of the configuration
+/// (`Files::config`), or a test's own.
+struct Files<'a> {
+    plain: Option<PathBuf>,
+    vault: Option<PathBuf>,
+    key: &'a Mutex<Option<vault::Key>>,
+}
+
+impl Files<'static> {
+    fn config() -> Self {
+        Files { plain: path(), vault: vault_path(), key: &KEY }
+    }
+}
+
 /// Is there a master password (the servers are in the encrypted file)?
 pub(crate) fn encrypted() -> bool {
-    vault_path().is_some_and(|p| p.exists())
+    Files::config().encrypted()
 }
 
 /// Encrypted and not unlocked yet in this session: the servers cannot be read.
 pub(crate) fn locked() -> bool {
-    encrypted() && KEY.lock().unwrap().is_none()
+    Files::config().locked()
 }
 
 /// The master password, to read the encrypted file. `Err(None)`: wrong password.
@@ -98,59 +112,85 @@ pub(crate) fn unlock(password: &str) -> Result<(), Option<String>> {
 /// Missing file, or encrypted and locked: no servers. Unreadable plain file: set aside as `.bad`,
 /// as for the settings.
 pub(crate) fn load() -> Vec<Saved> {
-    if encrypted() {
-        let key = KEY.lock().unwrap().clone();
-        let plain = key.zip(vault_path().and_then(|p| std::fs::read(p).ok())).and_then(|(k, data)| vault::open_with(&k, &data));
-        return plain.and_then(|p| serde_json::from_slice(&p).ok()).unwrap_or_default();
-    }
-    let Some(path) = path() else { return Vec::new() };
-    let Ok(text) = std::fs::read_to_string(&path) else { return Vec::new() };
-    serde_json::from_str(text.trim_start_matches('\u{feff}')).unwrap_or_else(|_| {
-        let _ = std::fs::rename(&path, path.with_extension("json.bad"));
-        Vec::new()
-    })
+    Files::config().load()
 }
 
 /// Every change, at once: encrypted with the master password's key when there is one,
 /// otherwise in plain text.
 pub(crate) fn save(servers: &[Saved]) -> std::io::Result<()> {
-    let text = serde_json::to_vec_pretty(servers)?;
-    let key = KEY.lock().unwrap().clone();
-    match key {
-        Some(key) => write_vault(&key, &text),
-        None if encrypted() => Err(std::io::Error::other("the servers are locked")),
-        None => write_safely(&path().ok_or(std::io::ErrorKind::NotFound)?, &text, |_| true),
-    }
+    Files::config().save(servers)
 }
 
 /// A new master password (also in place of the old one, or to encrypt the plain file): the
 /// servers written encrypted, then the plain file removed.
 pub(crate) fn set_password(password: &str) -> std::io::Result<()> {
-    let servers = load();
-    let key = vault::new_key(password).map_err(std::io::Error::other)?;
-    write_vault(&key, &serde_json::to_vec_pretty(&servers)?)?;
-    *KEY.lock().unwrap() = Some(key);
-    Ok(())
+    Files::config().set_password(password)
 }
 
 /// No master password any more: the servers written in plain text, then the encrypted file removed.
 pub(crate) fn remove_password() -> std::io::Result<()> {
-    let servers = load();
-    write_safely(&path().ok_or(std::io::ErrorKind::NotFound)?, &serde_json::to_vec_pretty(&servers)?, |_| true)?;
-    std::fs::remove_file(vault_path().ok_or(std::io::ErrorKind::NotFound)?)?;
-    *KEY.lock().unwrap() = None;
-    Ok(())
+    Files::config().remove_password()
 }
 
-/// The encrypted file, checked by opening it again before it replaces the old one; a plain file
-/// left over (a switch interrupted halfway) goes after it.
-fn write_vault(key: &vault::Key, text: &[u8]) -> std::io::Result<()> {
-    let data = vault::seal(key, text).map_err(std::io::Error::other)?;
-    write_safely(&vault_path().ok_or(std::io::ErrorKind::NotFound)?, &data, |d| vault::open_with(key, d).as_deref() == Some(text))?;
-    if let Some(plain) = path().filter(|p| p.exists()) {
-        std::fs::remove_file(plain)?;
+impl Files<'_> {
+    fn encrypted(&self) -> bool {
+        self.vault.as_ref().is_some_and(|p| p.exists())
     }
-    Ok(())
+
+    fn locked(&self) -> bool {
+        self.encrypted() && self.key.lock().unwrap().is_none()
+    }
+
+    fn load(&self) -> Vec<Saved> {
+        if self.encrypted() {
+            let key = self.key.lock().unwrap().clone();
+            let plain = key.zip(self.vault.as_ref().and_then(|p| std::fs::read(p).ok())).and_then(|(k, data)| vault::open_with(&k, &data));
+            return plain.and_then(|p| serde_json::from_slice(&p).ok()).unwrap_or_default();
+        }
+        let Some(path) = &self.plain else { return Vec::new() };
+        let Ok(text) = std::fs::read_to_string(path) else { return Vec::new() };
+        serde_json::from_str(text.trim_start_matches('\u{feff}')).unwrap_or_else(|_| {
+            let _ = std::fs::rename(path, path.with_extension("json.bad"));
+            Vec::new()
+        })
+    }
+
+    fn save(&self, servers: &[Saved]) -> std::io::Result<()> {
+        let text = serde_json::to_vec_pretty(servers)?;
+        let key = self.key.lock().unwrap().clone();
+        match key {
+            Some(key) => self.write_vault(&key, &text),
+            None if self.encrypted() => Err(std::io::Error::other("the servers are locked")),
+            None => write_safely(self.plain.as_ref().ok_or(std::io::ErrorKind::NotFound)?, &text, |_| true),
+        }
+    }
+
+    fn set_password(&self, password: &str) -> std::io::Result<()> {
+        let servers = self.load();
+        let key = vault::new_key(password).map_err(std::io::Error::other)?;
+        self.write_vault(&key, &serde_json::to_vec_pretty(&servers)?)?;
+        *self.key.lock().unwrap() = Some(key);
+        Ok(())
+    }
+
+    fn remove_password(&self) -> std::io::Result<()> {
+        let servers = self.load();
+        write_safely(self.plain.as_ref().ok_or(std::io::ErrorKind::NotFound)?, &serde_json::to_vec_pretty(&servers)?, |_| true)?;
+        std::fs::remove_file(self.vault.as_ref().ok_or(std::io::ErrorKind::NotFound)?)?;
+        *self.key.lock().unwrap() = None;
+        Ok(())
+    }
+
+    /// The encrypted file, checked by opening it again before it replaces the old one; a plain file
+    /// left over (a switch interrupted halfway) goes after it.
+    fn write_vault(&self, key: &vault::Key, text: &[u8]) -> std::io::Result<()> {
+        let data = vault::seal(key, text).map_err(std::io::Error::other)?;
+        write_safely(self.vault.as_ref().ok_or(std::io::ErrorKind::NotFound)?, &data, |d| vault::open_with(key, d).as_deref() == Some(text))?;
+        if let Some(plain) = self.plain.as_ref().filter(|p| p.exists()) {
+            std::fs::remove_file(plain)?;
+        }
+        Ok(())
+    }
 }
 
 /// Written to a temporary file (only the user can read it on Linux), flushed to the disk, read
