@@ -718,6 +718,9 @@ mod tests {
         let mut h = Harness::new(&dir);
         h.until(|app| app.listing_dirs() == 1, "the subfolder listed");
         let sub = format!("{}sub/", h.app.dir);
+        // Without the watcher: on Linux it would read the folder again 0.3 s after the removal, and
+        // under load that came before the message, so the reading asked by the message was not seen.
+        h.app.watcher = None;
         std::fs::remove_dir(dir.join("sub")).unwrap();
         let raw = r#"Error during a `trash` operation: Os { code: -2147024894, description: "windows error: Impossibile trovare il file specificato. (0x80070002)" }"#;
         h.app.marked.insert(sub.clone());
