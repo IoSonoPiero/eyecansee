@@ -21,6 +21,8 @@ pub struct SceneNode {
 #[derive(Debug)]
 pub enum Value {
     Nums(Vec<f32>),
+    /// The numbers of an index field (`is_index`), as integers: an `f32` rounds those beyond 2^24.
+    Ints(Vec<i32>),
     Strs(Vec<String>),
     Bool(bool),
     Nodes(Vec<Rc<SceneNode>>),
@@ -35,6 +37,15 @@ impl SceneNode {
         match self.field(name) {
             Some(Value::Nums(v)) => v,
             _ => &[],
+        }
+    }
+
+    /// An index field (`coordIndex`, `index`…), as integers.
+    pub fn ints(&self, name: &str) -> Vec<i64> {
+        match self.field(name) {
+            Some(Value::Ints(v)) => v.iter().map(|&i| i64::from(i)).collect(),
+            Some(Value::Nums(v)) => v.iter().map(|&f| f as i64).collect(),
+            _ => Vec::new(),
         }
     }
 
@@ -119,6 +130,22 @@ fn token(text: &str, mut i: usize) -> (Option<&str>, usize) {
         }
     }
     (None, i)
+}
+
+/// The fields whose numbers are indices, read as integers (`Value::Ints`).
+fn is_index(name: &str) -> bool {
+    name == "index" || name.ends_with("Index")
+}
+
+/// A number of an index field: an integer, or one written as a decimal or in hex. Beyond the range
+/// of an `i32` it saturates: too large points nowhere, below 0 ends a face, as -1 does.
+fn integer(t: &str) -> Option<i32> {
+    if !t.starts_with(|c: char| c.is_ascii_digit() || matches!(c, '-' | '+' | '.')) {
+        return None;
+    }
+    let wide = t.parse::<i64>().ok().or_else(|| i64::from_str_radix(t.strip_prefix("0x").or_else(|| t.strip_prefix("0X"))?, 16).ok());
+    let wide = wide.or_else(|| t.parse::<f64>().ok().filter(|v| !v.is_nan()).map(|v| v as i64))?;
+    Some(wide.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32)
 }
 
 fn number(t: &str) -> Option<f32> {
@@ -245,12 +272,12 @@ impl<'t> Classic<'t> {
                         }
                         "field" | "exposedField" | "initializeOnly" | "inputOutput" => {
                             self.skip(2);
-                            self.value(depth)?;
+                            self.value(depth, false)?;
                             continue;
                         }
                         _ => {}
                     }
-                    let value = self.value(depth)?;
+                    let value = self.value(depth, is_index(name))?;
                     node.fields.push((name.to_string(), value));
                 }
                 self.next();
@@ -259,29 +286,43 @@ impl<'t> Classic<'t> {
         }
     }
 
-    fn value(&mut self, depth: u32) -> Result<Value, String> {
+    /// The value of a field; `ints` for an index field (`is_index`).
+    fn value(&mut self, depth: u32, ints: bool) -> Result<Value, String> {
         if depth > MAX_DEPTH {
             return Err("nodes nested too deep".into());
         }
         let t = self.peek().ok_or("unexpected end of file")?;
         if t == "[" {
             self.next();
-            let (mut nums, mut strs, mut nodes) = (Vec::new(), Vec::new(), Vec::new());
+            let (mut nums, mut ints_of, mut strs, mut nodes) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
             while self.peek() != Some("]") {
                 if self.peek().is_none() {
                     return Err("unexpected end of file".into());
                 }
-                match self.value(depth + 1)? {
+                match self.value(depth + 1, ints)? {
                     // The numbers of a list come as one run: taken, not copied.
                     Value::Nums(n) if nums.is_empty() => nums = n,
                     Value::Nums(n) => nums.extend(n),
+                    Value::Ints(n) if ints_of.is_empty() => ints_of = n,
+                    Value::Ints(n) => ints_of.extend(n),
                     Value::Strs(s) => strs.extend(s),
                     Value::Nodes(n) => nodes.extend(n),
                     Value::Bool(_) => {}
                 }
             }
             self.next();
+            if ints && strs.is_empty() && nodes.is_empty() {
+                return Ok(Value::Ints(ints_of));
+            }
             return Ok(join(nums, strs, nodes));
+        }
+        if ints && integer(t).is_some() {
+            let mut v = Vec::new();
+            while let Some(n) = self.peek().and_then(integer) {
+                v.push(n);
+                self.next();
+            }
+            return Ok(Value::Ints(v));
         }
         if number(t).is_some() {
             let mut v = Vec::new();
@@ -337,7 +378,7 @@ fn xml_children(e: roxmltree::Node, defs: &mut HashMap<String, Rc<SceneNode>>, d
             out.extend(defs.get(used).cloned());
             continue;
         }
-        let mut fields: Vec<(String, Value)> = c.attributes().filter(|a| !matches!(a.name(), "DEF" | "USE" | "containerField")).map(|a| (a.name().to_string(), attribute(a.value()))).collect();
+        let mut fields: Vec<(String, Value)> = c.attributes().filter(|a| !matches!(a.name(), "DEF" | "USE" | "containerField")).map(|a| (a.name().to_string(), attribute(a.value(), is_index(a.name())))).collect();
         fields.push((String::new(), Value::Nodes(xml_children(c, defs, depth + 1)?)));
         let node = Rc::new(SceneNode { kind: c.tag_name().name().to_string(), fields });
         if let Some(def) = c.attribute("DEF") {
@@ -349,10 +390,13 @@ fn xml_children(e: roxmltree::Node, defs: &mut HashMap<String, Rc<SceneNode>>, d
 }
 
 /// An X3D attribute: numbers, a boolean or strings (`"a" "b"`, or the text as it is).
-fn attribute(v: &str) -> Value {
+fn attribute(v: &str, ints: bool) -> Value {
     // The words one at a time, not in a list: 16 bytes each.
-    let words = v.split(|c: char| c.is_whitespace() || c == ',').filter(|w| !w.is_empty());
-    if let Some(nums) = words.map(number).collect::<Option<Vec<f32>>>() {
+    let words = || v.split(|c: char| c.is_whitespace() || c == ',').filter(|w| !w.is_empty());
+    if ints && let Some(ints) = words().map(integer).collect::<Option<Vec<i32>>>() {
+        return Value::Ints(ints);
+    }
+    if let Some(nums) = words().map(number).collect::<Option<Vec<f32>>>() {
         return Value::Nums(nums);
     }
     match v.trim() {

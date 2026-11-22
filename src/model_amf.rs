@@ -51,9 +51,10 @@ fn number(n: Node, tag: &str) -> f32 {
     child(n, tag).and_then(|c| c.text()).and_then(|t| t.trim().parse().ok()).unwrap_or(0.0)
 }
 
-/// A triangle's corner: the number of its vertex.
+/// A triangle's corner: the number of its vertex, as an integer (an `f32` rounds those beyond
+/// 2^24); one that is not a whole number from 0 points nowhere, and its triangle is dropped.
 fn index(n: Node, tag: &str) -> u32 {
-    number(n, tag) as u32
+    child(n, tag).and_then(|c| c.text()).and_then(|t| t.trim().parse().ok()).unwrap_or(u32::MAX)
 }
 
 fn color(n: Node) -> Option<[u8; 3]> {

@@ -98,7 +98,11 @@ pub fn read(bytes: &[u8]) -> Result<Drawing, String> {
             p.encoded(&bytes[i..end])?;
         } else {
             let args: Vec<f64> = String::from_utf8_lossy(&bytes[i..end]).split(|c: char| c == ',' || c.is_whitespace()).filter_map(|s| s.parse().ok()).collect();
-            p.command(name, &args)?;
+            // A number of hundreds of digits, `inf` or `nan`: the command is left out, so that the
+            // pen stays on the last point that is one.
+            if args.iter().all(|v: &f64| v.is_finite()) {
+                p.command(name, &args)?;
+            }
         }
         commands += 1;
         i = end;
@@ -125,6 +129,8 @@ impl Plotter {
         if self.out.points > MAX_POINTS {
             return Err(format!("more than {MAX_POINTS} points"));
         }
+        // Scaled or worked out beyond what an `f64` holds: left out, as the drawings do (`cad::line`).
+        let pts: Vec<P> = pts.into_iter().filter(|p| p[0].is_finite() && p[1].is_finite()).collect();
         if pts.len() >= 2 && self.pen > 0 {
             let weight = self.widths.get(self.pen.wrapping_sub(1)).copied().unwrap_or(0.0);
             self.out.items.push(Item::Line { pts, color: self.color(), fill, stroke: Stroke { dash: self.dash.clone(), weight } });
@@ -134,6 +140,10 @@ impl Plotter {
 
     /// A move to `to`, drawing if the pen is down.
     fn go(&mut self, to: P) -> Result<(), String> {
+        // Scaled beyond what an `f64` holds: the pen stays where it is.
+        if !(to[0].is_finite() && to[1].is_finite()) {
+            return Ok(());
+        }
         if self.down {
             if self.path.is_empty() {
                 self.path.push(self.at);
@@ -286,7 +296,8 @@ impl Plotter {
 
     fn label(&mut self, text: &str) {
         let text = text.replace("\r\n", "\n").replace('\r', "\n");
-        if !text.trim().is_empty() && self.pen > 0 {
+        let finite = self.at.iter().all(|v| v.is_finite()) && self.label_height.is_finite();
+        if !text.trim().is_empty() && self.pen > 0 && finite {
             self.out.items.push(Item::Text { at: self.at, height: self.label_height, angle: self.label_angle, text, color: self.color(), anchor: (Anchor::Start, Baseline::Alphabetic) });
         }
     }
@@ -366,7 +377,8 @@ mod tests {
         let b = d.bounds().unwrap();
         assert!(b.iter().all(|v| v.is_finite()), "{b:?}");
         assert_eq!([b[0], b[1]], [0.0, 0.0]);
-        assert!((b[2] - 110.0).abs() < 1e-9 && b[3] >= 110.0 && b[3] < 1e6, "{b:?}");
+        // The label after them widens the box a little, at the last good point.
+        assert!((110.0..1e6).contains(&b[2]) && (110.0..1e6).contains(&b[3]), "{b:?}");
         assert!(d.items.iter().any(|i| matches!(i, Item::Text { at: [110.0, 110.0], .. })));
     }
 

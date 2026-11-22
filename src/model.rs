@@ -20,6 +20,8 @@ const MAX_OFFERED: usize = 4 * MAX_TRIANGLES;
 /// a few KB can ask for 10^32 placements. A million is far more than a scene places (a 3MF plate
 /// places hundreds); an AMF reaches it in 3 s in a debug build.
 pub(crate) const MAX_VISITS: usize = 1_000_000;
+/// The error of a model whose points are too far apart to be drawn (`Builder::finish`).
+const TOO_FAR: &str = "points too far apart to be drawn";
 /// Normals are worked out (`model_smooth`) up to this many triangles: 36 bytes each.
 const SMOOTH_MAX: usize = 20_000_000;
 
@@ -36,6 +38,9 @@ fn ext(name: &str) -> Option<String> {
 #[derive(Debug)]
 pub struct Mesh {
     pub pos: Vec<[f32; 3]>,
+    /// Every index is within `pos` and on a finite point: `Builder` drops the other triangles
+    /// (`add_shiny`, `finish`), and a `Mesh` is made only there, so the renderers, the exports and
+    /// the measures index `pos` without checking (audit 4.15 e, `triangles_point_inside`).
     pub tris: Vec<[u32; 3]>,
     /// One per triangle, or empty: all in the default colour.
     pub colors: Vec<[u8; 3]>,
@@ -245,6 +250,10 @@ impl Builder {
         let center = [0, 1, 2].map(|k| (lo[k] + hi[k]) / 2.0);
         let half = [0, 1, 2].map(|k| (hi[k] - lo[k]) / 2.0);
         let radius = ((0..3).map(|k| (hi[k] - lo[k]).powi(2)).sum::<f32>().sqrt() / 2.0).max(f32::MIN_POSITIVE);
+        // Points so far apart (beyond about 10^19) that the box is endless: nothing could be drawn.
+        if !(radius.is_finite() && center.iter().chain(&half).all(|v| v.is_finite())) {
+            return Err(TOO_FAR.into());
+        }
         let colors = if colors.iter().any(Option::is_some) { tris.iter().map(|&(i, _)| colors[i].unwrap_or(DEFAULT)).collect() } else { Vec::new() };
         let textured = uv.iter().any(Option::is_some);
         let (uv, tex) = if textured { tris.iter().map(|&(i, _)| uv[i].unwrap_or(([[0.0; 2]; 3], 0))).unzip() } else { (Vec::new(), Vec::new()) };
@@ -556,7 +565,7 @@ fn point_cloud(pos: Vec<[f32; 3]>, rgb: &[[f32; 3]]) -> Result<Mesh, String> {
     let colors: Vec<Option<[u8; 3]>> = pos.iter().map(|(_, c)| *c).collect();
     let points = pos.iter().flat_map(|(p, _)| corners.map(|c| std::array::from_fn(|k| p[k] + c[k] * s))).collect();
     b.add(points, tris, |i| colors[i / 4])?;
-    b.finish(false).map_err(|_| "no points in the file".to_string())
+    b.finish(false).map_err(|e| if e == TOO_FAR { e } else { "no points in the file".to_string() })
 }
 
 /// A vertex colour on 0-255, from bytes or from 0-1 floats.
@@ -718,6 +727,27 @@ mod tests {
         assert!(parse(b"", "x.stl").is_err());
         assert!(parse(b"{}", "x.gltf").is_err());
         assert!(is_model("a.GLB") && is_model("b.3mf") && !is_model("c.png"));
+    }
+
+    /// Audit 4.15 (e): the renderers (`render_gpu`, `render3d`), the exports and the measures index
+    /// `Mesh::pos` with the triangles' numbers as they are. Each reader, given triangles that point
+    /// outside its points (or at a point that is not a number), gives only triangles inside.
+    #[test]
+    fn triangles_point_inside() {
+        let files: [(&str, &[u8]); 7] = [
+            ("x.obj", b"v 0 0 0\nv 1 0 0\nv 0 1 0\nv nan 0 0\nf 1 2 3\nf 1 2 4\n"),
+            ("x.ply", b"ply\nformat ascii 1.0\nelement vertex 3\nproperty float x\nproperty float y\nproperty float z\nelement face 2\nproperty list uchar int vertex_indices\nend_header\n0 0 0\n1 0 0\n0 1 0\n3 0 1 2\n3 0 1 9\n"),
+            ("x.off", b"OFF\n3 2 0\n0 0 0\n1 0 0\n0 1 0\n3 0 1 2\n3 0 1 9\n"),
+            ("x.amf", b"<amf><object id='1'><mesh><vertices><vertex><coordinates><x>0</x><y>0</y><z>0</z></coordinates></vertex><vertex><coordinates><x>1</x><y>0</y><z>0</z></coordinates></vertex><vertex><coordinates><x>0</x><y>1</y><z>0</z></coordinates></vertex></vertices><volume><triangle><v1>0</v1><v2>1</v2><v3>2</v3></triangle><triangle><v1>0</v1><v2>1</v2><v3>9</v3></triangle></volume></mesh></object></amf>"),
+            ("x.x3d", b"<X3D><Scene><Shape><IndexedFaceSet coordIndex='0 1 2 -1 0 1 9 -1 0 1 16777217 -1'><Coordinate point='0 0 0 1 0 0 0 1 0'/></IndexedFaceSet></Shape></Scene></X3D>"),
+            ("x.wrl", b"#VRML V2.0 utf8\nShape { geometry IndexedTriangleSet { index [ 0 1 2 0 1 9 ] coord Coordinate { point [ 0 0 0, 1 0 0, 0 1 0 ] } } }"),
+            ("x.dae", b"<COLLADA><library_geometries><geometry id='g'><mesh><source id='p'><float_array id='pa' count='9'>0 0 0 1 0 0 0 1 0</float_array><technique_common><accessor source='#pa' count='3' stride='3'/></technique_common></source><vertices id='v'><input semantic='POSITION' source='#p'/></vertices><triangles count='2'><input semantic='VERTEX' source='#v' offset='0'/><p>0 1 2 0 1 9</p></triangles></mesh></geometry></library_geometries><library_visual_scenes><visual_scene id='s'><node><instance_geometry url='#g'/></node></visual_scene></library_visual_scenes><scene><instance_visual_scene url='#s'/></scene></COLLADA>"),
+        ];
+        for (name, bytes) in files {
+            let m = parse(bytes, name).unwrap_or_else(|e| panic!("{name}: {e}"));
+            assert_eq!(m.tris.len(), 1, "{name}");
+            assert!(m.tris.iter().flatten().all(|&v| (v as usize) < m.pos.len() && m.pos[v as usize].iter().all(|c| c.is_finite())), "{name}");
+        }
     }
 
     /// Every model under `EYECANSEE_MODELS` read and drawn into `EYECANSEE_MODELS_OUT` (PNG), with times.

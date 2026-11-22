@@ -326,7 +326,7 @@ impl<'a> Walk<'a> {
         let at = t.apply(l.at);
         let height = l.height * t.length_scale();
         let outside = self.clip.is_some_and(|b| at[0] < b[0] || at[0] > b[2] || at[1] < b[1] || at[1] > b[3]);
-        if text.is_empty() || height.is_nan() || height <= 0.0 || !at[0].is_finite() || !at[1].is_finite() || outside {
+        if text.is_empty() || !height.is_finite() || height <= 0.0 || !at[0].is_finite() || !at[1].is_finite() || outside {
             return;
         }
         // The text's direction after the transform; a mirrored text stays readable.

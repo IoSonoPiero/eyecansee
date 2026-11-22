@@ -130,7 +130,7 @@ impl Walk<'_, '_> {
     fn line_set(&mut self, g: &SceneNode, m: &Mat4, color: Option<[u8; 3]>) {
         let pos = points(g);
         let polylines: Vec<Vec<(i64, usize)>> = match g.kind.as_str() {
-            "IndexedLineSet" => runs(&g.nums("coordIndex").iter().map(|&v| v as i64).collect::<Vec<_>>()),
+            "IndexedLineSet" => runs(&g.ints("coordIndex")),
             "LineSet" => {
                 // Each run only over the points that are there: the counts are the file's word.
                 let mut at = 0usize;
@@ -197,7 +197,7 @@ struct Tri {
 
 fn geometry(g: &Rc<SceneNode>) -> Option<Result<Part, String>> {
     let n = g.as_ref();
-    let idx = |name: &str| n.nums(name).iter().map(|&v| v as i64).collect::<Vec<i64>>();
+    let idx = |name: &str| n.ints(name);
     let tris: Vec<Tri> = match n.kind.as_str() {
         "IndexedFaceSet" => runs(&idx("coordIndex")).into_iter().enumerate().flat_map(|(f, r)| fan(&r, f)).collect(),
         "IndexedTriangleFanSet" => runs(&idx("index")).into_iter().enumerate().flat_map(|(f, r)| fan(&r, f)).collect(),
@@ -226,7 +226,7 @@ fn colors(n: &SceneNode, tris: &[Tri]) -> Vec<Option<[u8; 3]>> {
     let stride = if c.kind == "ColorRGBA" { 4 } else { 3 };
     let list = c.nums("color");
     let get = |i: i64| list.get(i as usize * stride..i as usize * stride + 3).filter(|_| i >= 0);
-    let index: Vec<i64> = n.nums("colorIndex").iter().map(|&v| v as i64).collect();
+    let index = n.ints("colorIndex");
     let per_vertex = n.bool("colorPerVertex", true);
     tris.iter()
         .map(|t| {
@@ -248,7 +248,7 @@ fn texture_coords(n: &SceneNode, tris: &[Tri]) -> Vec<Option<[[f32; 2]; 3]>> {
     let pts = tc.nums("point");
     // T upwards, as rows go down: turned.
     let get = |i: i64| pts.get(i as usize * 2..i as usize * 2 + 2).filter(|_| i >= 0).map(|p| [p[0], 1.0 - p[1]]);
-    let index: Vec<i64> = n.nums("texCoordIndex").iter().map(|&v| v as i64).collect();
+    let index = n.ints("texCoordIndex");
     tris.iter()
         .map(|t| {
             let c = [0, 1, 2].map(|k| if index.is_empty() { Some(t.v[k] as i64) } else { index.get(t.at[k]).copied() }.and_then(get));
