@@ -140,6 +140,7 @@ mod mpv_load;
 mod mtp;
 mod navigation;
 mod occt;
+mod options_tabs;
 mod new_folder;
 mod new_image;
 mod off;

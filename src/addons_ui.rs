@@ -286,7 +286,7 @@ pub(crate) mod tests {
         assert!(!started(&None));
     }
 
-    fn frame(ctx: &egui::Context, events: Vec<egui::Event>, mut draw: impl FnMut(&mut egui::Ui)) {
+    pub(crate) fn frame(ctx: &egui::Context, events: Vec<egui::Event>, mut draw: impl FnMut(&mut egui::Ui)) {
         let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))), events, ..Default::default() };
         let mut out = ctx.run_ui(input, |ui| draw(ui));
         out.textures_delta.clear();

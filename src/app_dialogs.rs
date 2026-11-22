@@ -7,26 +7,19 @@ use crate::i18n::I18n;
 use crate::loader::Msg;
 use crate::settings::{AfterSave, Graphics, RemoteDelete, Settings, SmoothFilter, ThemeChoice, WindowStart};
 
+/// The Options window: the width of a tab's page (the rows of Resize are the widest: name, kind,
+/// two sizes) and the space between the column of tabs and the page.
+const PAGE: f32 = 572.0;
+const GAP: f32 = 14.0;
+/// Its height, the longest tab's (General), the same for every tab: changing tab does not resize
+/// the window.
+pub(crate) const OPTIONS_HEIGHT: f32 = 330.0;
+
 impl App {
     /// Every change is saved immediately.
     pub(crate) fn options_window(&mut self, ctx: &egui::Context) {
         let mut open = self.options;
         let before = self.settings.clone();
-        let t = |id| self.i18n.t(id);
-        // General first, upkeep (the thumbnail cache) last; between them the order of a visit:
-        // look, watch, edit, delete (Microsoft's guidelines for options windows).
-        let tab_names = [
-            (OptTab::General, t("opt-tab-general")),
-            (OptTab::Look, t("opt-tab-look")),
-            (OptTab::Viewer, t("opt-tab-viewer")),
-            (OptTab::Slideshow, t("opt-tab-slideshow")),
-            (OptTab::Video, t("opt-tab-video")),
-            (OptTab::Editor, t("opt-tab-editor")),
-            (OptTab::Resize, t("opt-tab-resize")),
-            (OptTab::Deleting, t("opt-tab-deleting")),
-            (OptTab::Thumbnails, t("opt-tab-thumbnails")),
-            (OptTab::Addons, t("opt-tab-addons")),
-        ];
         let mut purged = false;
         let (i18n, languages) = (&self.i18n, &self.languages);
         let tab = &mut self.options_tab;
@@ -36,28 +29,20 @@ impl App {
         let mut download = None;
         // Fixed id: changing language changes the title, and the window must not move.
         // One tab per subject, in a column on the left (eight or more tabs do not fit in a row in
-        // every language). Fixed size and in the middle, so changing tab does not make it jump.
+        // every language; `options_tabs.rs`). Fixed size and in the middle, so changing tab does
+        // not make it jump.
         egui::Window::new(i18n.t("options-title"))
             .id(egui::Id::unique("options"))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            // Wide enough for the rows of Resize (name, kind, two sizes) beside the column of tabs.
-            .fixed_size([720.0, 330.0])
+            .fixed_size([crate::options_tabs::WIDTH + GAP + PAGE, OPTIONS_HEIGHT])
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
-                // As tall as the longest tab (General), so changing tab does not resize the window.
-                ui.set_min_height(330.0);
+                ui.set_min_height(OPTIONS_HEIGHT);
                 ui.horizontal_top(|ui| {
-                    ui.vertical(|ui| {
-                        ui.set_width(130.0);
-                        for (value, name) in tab_names {
-                            if ui.add_sized([130.0, 24.0], egui::Button::selectable(*tab == value, name)).clicked() {
-                                *tab = value;
-                            }
-                        }
-                    });
-                    ui.separator();
+                    crate::options_tabs::column(ui, tab, i18n, OPTIONS_HEIGHT);
+                    ui.add_space(GAP - ui.spacing().item_spacing.x);
                     ui.vertical(|ui| match tab {
                         OptTab::Slideshow => crate::slideshow::options_ui(ui, s, i18n),
                         OptTab::Video => crate::engine::options_ui(ui, s, i18n),

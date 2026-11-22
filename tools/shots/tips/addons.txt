@@ -2,6 +2,6 @@
 open /home/demo/Pictures/Holiday
 width 1000
 3 act options
-3.5 click 312 508
-5 shot addons 234 206 732 388
+3.5 click 292 541
+5 shot addons 226 206 748 388
 5.5 end

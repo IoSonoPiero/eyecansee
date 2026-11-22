@@ -214,6 +214,9 @@ pub enum Line {
     /// The star lit: the place is a bookmark, a click takes it away.
     StarFilled,
     Bookmark,
+    /// The tabs Look and Add-ons of the Options window.
+    Palette,
+    Puzzle,
     /// Back and forward in the guide's history (Lucide's arrow-left and arrow-right).
     Back,
     Forward,
@@ -302,6 +305,7 @@ pub(crate) fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::Star => lucide!("star").into(),
         Line::StarFilled => lucide!("star").replacen("fill=\"none\"", "fill=\"currentColor\"", 1).into(),
         Line::Bookmark => lucide!("bookmark").into(),
+        Line::Palette | Line::Puzzle => tab_svg(icon).into(),
         Line::Back | Line::Forward | Line::ToFront | Line::ToBack => own(arrow(icon)),
         Line::HeadFilled => format!(r#"{LINE}<path d="M3 12h11"/><path d="M13 7l8 5-8 5z" fill="currentColor"/></svg>"#).into(),
         Line::HeadOpen => own("M3 12h17M15 7l5 5-5 5"),
@@ -312,6 +316,11 @@ pub(crate) fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         // Dots wider than the line, or they look like specks.
         Line::Dotted => format!("{}<path d=\"M4.5 12h.01M9.5 12h.01M14.5 12h.01M19.5 12h.01\"/></svg>", LINE.replace("stroke-width=\"2\"", "stroke-width=\"3.5\"")).into(),
     }
+}
+
+/// The icons that only the tabs of the Options window have (Look, Add-ons), Lucide's.
+fn tab_svg(icon: Line) -> &'static str {
+    if icon == Line::Palette { lucide!("palette") } else { lucide!("puzzle") }
 }
 
 /// The path of an arrow: back and forward (Lucide's arrow-left and arrow-right), to the front and
