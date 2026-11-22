@@ -135,6 +135,11 @@ impl App {
         if !self.asking() || (fields && ctx.egui_wants_keyboard_input()) {
             return false;
         }
+        // The tip's first frame: egui keeps what is under a modal from the mouse only from the frame
+        // after it is drawn, so a click now would reach the grid, the tree or the toolbar behind it.
+        if self.tip.is_some() && ctx.memory(|m| m.top_modal_layer()).is_none() {
+            raw_input.events.retain(|e| !matches!(e, egui::Event::PointerButton { .. }));
+        }
         let (answer, typing) = (&mut self.key_answer, self.help.in_field());
         // The tip of the day (audit 1.13, D6): ← and → turn it, unless the guide is over it. A key
         // held down from before it came (Enter on Done of the first-start window) does not close it.
