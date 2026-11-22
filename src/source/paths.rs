@@ -167,6 +167,34 @@ mod tests {
         }
     }
 
+    /// Audit 2.29 (a): only a gvfs mount is one, not any folder called "gvfs" (Save was refused
+    /// there, and Replace missing when pasting).
+    #[test]
+    fn audit_2_29_a_folder_called_gvfs() {
+        assert!(in_gvfs("/", "run/user/1000/gvfs/smb-share:server=nas,share=foto/a.jpg"));
+        for ordinary in [("/", "home/me/src/gvfs/foto.jpg"), ("/home/me", "gvfs/a.jpg"), ("/", "run/user/1000/x/gvfs/a.jpg"), ("/", "mnt/gvfs/a.jpg")] {
+            assert!(!in_gvfs(ordinary.0, ordinary.1), "{ordinary:?}");
+        }
+    }
+
+    /// Audit 2.29 (b): a folder whose name ends like an image ("trip.png/") opens as a folder, from
+    /// this computer (asked to the disk) and from a server's address (by its final "/").
+    #[test]
+    fn audit_2_29_b_folder_with_an_image_name() {
+        assert_eq!(split("/trip.png/"), ("trip.png/".into(), None));
+        assert_eq!(split("/trip.png"), ("".into(), Some("trip.png".into())));
+        let dir = std::env::temp_dir().join(format!("eyecansee-folder-png-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("trip.png")).unwrap();
+        std::fs::write(dir.join("trip.png/a.jpg"), b"x").unwrap();
+        let opened = open(&dir.join("trip.png").to_string_lossy());
+        let file = open(&dir.join("trip.png/a.jpg").to_string_lossy());
+        std::fs::remove_dir_all(&dir).unwrap();
+        let opened = opened.unwrap();
+        assert!(opened.dir.ends_with("trip.png/") && opened.start.is_none(), "{:?} {:?}", opened.dir, opened.start);
+        assert!(file.unwrap().start.is_some_and(|s| s.ends_with("trip.png/a.jpg")));
+    }
+
     /// Names a phone or a server may send: only one item of a path is kept (audit 2.3).
     #[test]
     fn safe_names() {

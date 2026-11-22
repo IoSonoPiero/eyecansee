@@ -534,4 +534,32 @@ pub(super) mod tests {
         assert!(over.is_empty(), "more than 1 GiB held by several files at once (MiB, files): {over:?}");
         assert!(most.is_some_and(|n| n >= 2), "never two at once: {held:?}");
     }
+
+    /// Audit 2.29 (c): the thumbnails of files in Android's trash (in `listing.trashed`, not in
+    /// `files`) are kept by the upkeep of the cache, as those of the folder.
+    #[test]
+    fn audit_2_29_c_thumbnails_of_android_trash_kept() {
+        let dir = std::env::temp_dir().join(format!("thumb-trashed-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("d")).unwrap();
+        std::fs::write(dir.join("d/b.jpg"), b"b").unwrap();
+        std::fs::write(dir.join("d/.trashed-1794410026-a.jpg"), b"a").unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let base = "test-audit-2-29-c://";
+        let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+        let listing = rt.block_on(op.list("d/")).unwrap();
+        assert_eq!(listing.trashed.len(), 1);
+        let img = image::DynamicImage::new_rgb8(4, 4);
+        for f in listing.files.iter().chain(&listing.trashed) {
+            thumbcache::save(base, f, &img);
+        }
+        rt.block_on(maintain(&op, base));
+        let mut kept: Vec<String> = thumbcache::entries(base).into_iter().map(|f| f.path).collect();
+        kept.sort();
+        for f in listing.files.iter().chain(&listing.trashed) {
+            thumbcache::delete(base, &f.path);
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(kept, ["d/.trashed-1794410026-a.jpg", "d/b.jpg"]);
+    }
 }

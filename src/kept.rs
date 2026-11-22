@@ -323,6 +323,23 @@ pub(crate) mod tests {
         }
     }
 
+    /// Audit 2.29 (g): the copy of an image being sent is made also for a name Windows keeps for a
+    /// device ("aux.jpg"), one with a final dot, and one too long for a folder "name-<hash>" (255
+    /// bytes at most): before, it was not made, and the save went on without it.
+    #[test]
+    fn audit_2_29_g_kept_with_any_name() {
+        let root = std::env::temp_dir().join(format!("eyecansee-kept-names-{}", std::process::id())).join("edits");
+        let long = format!("{}.jpg", "é".repeat(120));
+        for name in ["aux.jpg", "CON", "a.jpg.", "b ", "lpt1.png"] {
+            let local = local_name(&format!("DCIM/{name}"));
+            assert!(source::windows_name(&local) && source::safe_name(&local), "{name:?} kept as {local:?}");
+        }
+        let kept = keep_in(&root, "mtp://phone/", &format!("DCIM/{long}"), b"long");
+        let _ = std::fs::remove_dir_all(root.parent().unwrap());
+        let file = kept.unwrap();
+        assert!(file.file_name().unwrap().to_string_lossy().ends_with(".jpg"), "{file:?}");
+    }
+
     /// A kept image: in its own folder under the data folder, with where it was going; the same
     /// image gets the same folder, another image another; `forget` removes it, and nothing outside.
     #[test]
