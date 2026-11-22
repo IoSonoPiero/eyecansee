@@ -28,7 +28,7 @@ Each file is written with the up axis other programs expect: Z for STL and PLY, 
 
 ## Units
 
-glTF counts in metres. A model whose file says its unit (STEP and IGES in millimetres, 3MF and AMF as they say) is converted to metres when it is exported as glTF, so it keeps its size: a part of 100 mm becomes 0.1 m. STL, OBJ and PLY have no place for the unit: the numbers stay as they are, and the unit is written at the top of the file as a comment, which other programs do not read.
+glTF counts in metres. A model whose file says its unit (STEP and IGES in millimetres, 3MF and AMF as they say) is converted to metres when it is exported as glTF, so it keeps its size: a part of 100 mm becomes 0.1 m. STL, OBJ and PLY have no place for the unit: the numbers stay as they are, and the unit is written at the top of the file only as a comment, which other programs do not read, and neither does EyeCanSee: opened again, those files have measures without a unit.
 
 ## Good to know
 
