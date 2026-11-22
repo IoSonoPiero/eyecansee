@@ -419,6 +419,53 @@ mod tests {
         assert_eq!(back, s);
     }
 
+    /// A folder of its own for a test's settings.json, empty.
+    fn test_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("eyecansee-settings-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// A settings.json that cannot be read as text (UTF-16, as PowerShell and Notepad may save it)
+    /// is set aside as `.bad`: the save at exit does not overwrite what the user wrote (audit 1.11).
+    #[test]
+    fn unreadable_file_set_aside_not_overwritten() {
+        let dir = test_dir("utf16");
+        let path = dir.join("settings.json");
+        let text = r#"{"bookmarks": [], "thumb_cache_mb": 50}"#;
+        let utf16: Vec<u8> = [0xFF, 0xFE].into_iter().chain(text.encode_utf16().flat_map(u16::to_le_bytes)).collect();
+        std::fs::write(&path, &utf16).unwrap();
+        assert_eq!(Settings::load_from(&path), Settings::default());
+        Settings::default().save_to(&path);
+        assert_eq!(std::fs::read(path.with_extension("json.bad")).ok(), Some(utf16), "the file is set aside as it was");
+        // An error other than "not found" (here a folder where the file should be): set aside too.
+        std::fs::remove_file(&path).unwrap();
+        std::fs::create_dir(&path).unwrap();
+        assert_eq!(Settings::load_from(&path), Settings::default());
+        assert!(path.with_extension("json.bad").is_dir() && !path.exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A value this version does not know (a file written by a newer one) loses only its key: the
+    /// others are kept, and the file is copied aside as `.bad` (audit 1.11).
+    #[test]
+    fn unknown_value_loses_only_its_key() {
+        let dir = test_dir("unknown");
+        let path = dir.join("settings.json");
+        let text = r#"{"theme": "sepia", "thumb_cache_mb": 50, "sort_by": "date", "max_zoom": "much"}"#;
+        std::fs::write(&path, text).unwrap();
+        let s = Settings::load_from(&path);
+        assert_eq!(s, Settings { thumb_cache_mb: 50, sort_by: SortBy::Date, edit_multiply: true, ..Settings::default() });
+        assert_eq!(std::fs::read_to_string(path.with_extension("json.bad")).ok().as_deref(), Some(text));
+        assert_eq!(std::fs::read_to_string(&path).ok().as_deref(), Some(text), "the file stays until the next save");
+        // Not JSON at all: set aside, the defaults.
+        std::fs::write(&path, "{ not json").unwrap();
+        assert_eq!(Settings::load_from(&path), Settings::default());
+        assert!(!path.exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
     /// A settings file from before #151 has no `smooth`: the pictures are smoothed.
     #[test]
     fn smooth_is_on_in_an_old_file() {
