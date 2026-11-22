@@ -69,14 +69,18 @@ pub(crate) fn system_root() -> Result<PathBuf, String> {
     std::env::var_os("SystemRoot").map(PathBuf::from).ok_or_else(|| "SystemRoot is not set".into())
 }
 
-/// The shortcuts on the user's desktop and on the public one. One that cannot be read is left out.
+/// The shortcuts on the user's desktop and on the public one. One that cannot be read counts as
+/// working (`Target::Unread`): its name is never taken over.
 pub(crate) fn links() -> Result<Vec<Link>, String> {
     let mut all = Vec::new();
     for public in [false, true] {
         let Ok(folder) = desktop(public) else { continue };
         let Ok(entries) = std::fs::read_dir(&folder) else { continue };
         for path in entries.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x.eq_ignore_ascii_case("lnk"))) {
-            let Ok(target) = read(&path) else { continue };
+            let target = read(&path).unwrap_or_else(|e| {
+                log!("desktop icon: {} not read: {e}", path.display());
+                Target::Unread
+            });
             let name = path.file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
             all.push(Link { name, works: works(&target, Path::exists), target, public });
         }
@@ -126,7 +130,7 @@ pub(crate) fn write(path: &Path, spec: &Spec) -> Result<(), String> {
     unsafe {
         match &spec.target {
             Target::Exe(program) => link.SetPath(PCWSTR(w(program.as_os_str()).as_ptr())).map_err(err)?,
-            Target::Script(_) => return Err("a script is written as PowerShell with its arguments".into()),
+            Target::Script(_) | Target::Unread => return Err("a script is written as PowerShell with its arguments".into()),
             // [Unverified] The shell item of the app, as the icon dragged from Start has it; the
             // fallback, if the VM says no: `explorer.exe shell:AppsFolder\<AUMID>` with our icon.
             Target::App(aumid) => {

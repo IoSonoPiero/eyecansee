@@ -61,6 +61,9 @@ pub(crate) enum Target {
     Script(PathBuf),
     /// The app of a package, by its AppUserModelID (an icon dragged from Start).
     App(String),
+    /// A shortcut that could not be read: it counts as working, so it is never replaced.
+    #[cfg_attr(not(any(windows, test)), expect(dead_code, reason = "made by desktop_icon_win.rs"))]
+    Unread,
 }
 
 /// What this copy is, to compare the shortcuts with.
@@ -107,6 +110,7 @@ pub(crate) fn starts_me(t: &Target, me: &Me) -> bool {
         Target::Exe(path) => same_path(path, &me.exe),
         Target::App(id) => me.aumid.as_deref() == Some(id.as_str()),
         Target::Script(script) => me.copy == Copy::Test && me.exe.parent().is_some_and(|dir| same_path(script, &dir.join("avvia.ps1"))),
+        Target::Unread => false,
     }
 }
 
@@ -158,7 +162,7 @@ pub(crate) struct Link {
 pub(crate) fn works(t: &Target, exists: impl Fn(&Path) -> bool) -> bool {
     match t {
         Target::Exe(path) | Target::Script(path) => exists(path),
-        Target::App(_) => true,
+        Target::App(_) | Target::Unread => true,
     }
 }
 
@@ -386,6 +390,8 @@ mod tests {
         assert_eq!(decide(&me, &[link("eyecansee", other.clone(), true, false)]), Outcome::Write(Place::New("EyeCanSee (2)".into())), "names without regard to case");
         // A broken one on the public desktop needs an administrator: its name is skipped.
         assert_eq!(decide(&me, &[link("EyeCanSee", other.clone(), false, true)]), Outcome::Write(Place::New("EyeCanSee (2)".into())));
+        // One that could not be read (an icon dragged from Start read wrongly) is never replaced.
+        assert_eq!(decide(&me, &[link("EyeCanSee", Target::Unread, works(&Target::Unread, |_| false), false)]), Outcome::Write(Place::New("EyeCanSee (2)".into())));
         let both = [link("EyeCanSee", other.clone(), false, false), link("EyeCanSee", other, true, true)];
         assert_eq!(decide(&me, &both), Outcome::Write(Place::New("EyeCanSee (2)".into())));
     }

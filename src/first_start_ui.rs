@@ -76,7 +76,16 @@ impl Open {
         // Debug only, for the screenshots of the second page: `EYECANSEE_FIRST_START_PAGE=2`.
         let page = std::env::var("EYECANSEE_FIRST_START_PAGE").ok().filter(|_| cfg!(debug_assertions)).and_then(|p| p.parse::<usize>().ok());
         let page = page.map_or(0, |p| p.saturating_sub(1).min(plan.pages.len() - 1));
-        Open { plan, page, rows, running: Vec::new(), asking: false, closing: None, desktop: desktop.then_some(Desktop::Ask) }
+        // Debug only, for the screenshots of the rows after an answer:
+        // `EYECANSEE_DESKTOP_QUESTION=made|no|failed` (any other value: the question).
+        let shown = std::env::var("EYECANSEE_DESKTOP_QUESTION").ok().filter(|_| cfg!(debug_assertions));
+        let state = match shown.as_deref() {
+            Some("made") => Desktop::Made,
+            Some("no") => Desktop::No,
+            Some("failed") => Desktop::Failed("debug".into()),
+            _ => Desktop::Ask,
+        };
+        Open { plan, page, rows, running: Vec::new(), asking: false, closing: None, desktop: desktop.then_some(state) }
     }
 
     /// The question on closing is open: Enter and Esc are its own (`App::asking`).
