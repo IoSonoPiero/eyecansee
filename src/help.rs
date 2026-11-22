@@ -63,6 +63,16 @@ images![
     "viewer",
 ];
 
+/// A picture built into the program: its language, its name and its bytes. "en" is also the
+/// language of the pictures without words, the same for everyone.
+pub(crate) type Picture = (&'static str, &'static str, &'static [u8]);
+
+/// The picture `name` for a language: its own if it has one, otherwise the English one.
+pub(crate) fn picture(pictures: &[Picture], lang: &str, name: &str) -> Option<&'static [u8]> {
+    let of = |lang: &str| pictures.iter().find(|p| p.0 == lang && p.1 == name).map(|p| p.2);
+    of(lang).or_else(|| of("en"))
+}
+
 /// The address of a picture as the pages write it (`../img/<name>.webp`) with the prefix the
 /// viewer gives to addresses without a scheme.
 pub(crate) fn image_uri(name: &str) -> String {
@@ -657,6 +667,18 @@ mod tests {
         assert_eq!(help_search::title(page_text("it", "editor-crop")), "Ritagliare e ruotare");
         assert_eq!(image_uri("grid"), "bytes://help/../img/grid.webp");
         assert!(searched("en").iter().all(|p| p.0 != "index"));
+    }
+
+    /// A picture in the language asked if it has its own, the English one otherwise, none for a
+    /// name that is not there.
+    #[test]
+    fn picture_of_a_language_or_the_english_one() {
+        let pictures: &[Picture] = &[("en", "menu", b"menu"), ("en", "photo", b"photo"), ("it", "menu", b"menu it")];
+        assert_eq!(picture(pictures, "it", "menu"), Some(&b"menu it"[..]));
+        assert_eq!(picture(pictures, "it", "photo"), Some(&b"photo"[..]), "no words in it: the same for every language");
+        assert_eq!(picture(pictures, "en", "menu"), Some(&b"menu"[..]));
+        assert_eq!(picture(pictures, "de", "menu"), Some(&b"menu"[..]), "a language without its own pictures");
+        assert_eq!(picture(pictures, "it", "other"), None);
     }
 
     /// Back and Forward as in a browser: a new page empties Forward.
