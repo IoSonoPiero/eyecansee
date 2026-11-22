@@ -16,6 +16,11 @@ const COST: Cost = (64 * 1024, 3, 1);
 /// Argon2id's memory in KiB, passes and lanes.
 type Cost = (u32, u32, u32);
 
+/// The largest cost a vault may ask for, far above `COST` (16 times its memory, 1 GiB): beyond it
+/// the header is damaged, and deriving the key with it would block or close the program when the
+/// master password is typed (audit 2.20).
+const MAX_COST: Cost = (1 << 20, 64, 64);
+
 /// A key derived from the master password, kept in memory while the program runs.
 #[derive(Clone)]
 pub struct Key {
@@ -83,8 +88,12 @@ fn read_header(data: &[u8]) -> Option<([u8; 16], Cost, [u8; 12])> {
         return None;
     }
     let n = |i: usize| u32::from_le_bytes(data[MAGIC.len() + 4 * i..MAGIC.len() + 4 * i + 4].try_into().unwrap());
+    let cost = (n(0), n(1), n(2));
+    if cost.0 > MAX_COST.0 || cost.1 > MAX_COST.1 || cost.2 > MAX_COST.2 {
+        return None;
+    }
     let at = MAGIC.len() + 12;
-    Some((data[at..at + 16].try_into().ok()?, (n(0), n(1), n(2)), data[at + 16..HEADER].try_into().ok()?))
+    Some((data[at..at + 16].try_into().ok()?, cost, data[at + 16..HEADER].try_into().ok()?))
 }
 
 /// The contents of a vault, with the key it was sealed with; `None`: wrong key or a damaged file.
@@ -102,7 +111,8 @@ pub fn open_with(key: &Key, data: &[u8]) -> Option<Vec<u8>> {
 /// The contents of a vault and the key, from the master password. `Err(None)`: wrong password
 /// or damaged file; `Err(Some(_))`: not a vault, or its cost cannot be used.
 pub fn open(password: &str, data: &[u8]) -> Result<(Key, Vec<u8>), Option<String>> {
-    let (salt, cost, _) = read_header(data).ok_or(Some("not a vault".to_string()))?;
+    let damaged = || Some(if is_vault(data) { "a damaged header" } else { "not a vault" }.to_string());
+    let (salt, cost, _) = read_header(data).ok_or_else(damaged)?;
     let key = derive(password, salt, cost).map_err(Some)?;
     let plain = open_with(&key, data).ok_or(None)?;
     Ok((key, plain))

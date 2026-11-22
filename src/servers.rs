@@ -160,12 +160,17 @@ impl Files<'_> {
         let key = self.key.lock().unwrap().clone();
         match key {
             Some(key) => self.write_vault(&key, &text),
-            None if self.encrypted() => Err(std::io::Error::other("the servers are locked")),
+            None if self.encrypted() => Err(locked_error()),
             None => write_safely(self.plain.as_ref().ok_or(std::io::ErrorKind::NotFound)?, &text, |_| true),
         }
     }
 
+    /// Locked, the list read is empty: written, it would take the place of the servers (audit
+    /// 2.20). Refused, as `save` does.
     fn set_password(&self, password: &str) -> std::io::Result<()> {
+        if self.locked() {
+            return Err(locked_error());
+        }
         let servers = self.load();
         let key = vault::new_key(password).map_err(std::io::Error::other)?;
         self.write_vault(&key, &serde_json::to_vec_pretty(&servers)?)?;
@@ -174,6 +179,9 @@ impl Files<'_> {
     }
 
     fn remove_password(&self) -> std::io::Result<()> {
+        if self.locked() {
+            return Err(locked_error());
+        }
         let servers = self.load();
         write_safely(self.plain.as_ref().ok_or(std::io::ErrorKind::NotFound)?, &serde_json::to_vec_pretty(&servers)?, |_| true)?;
         std::fs::remove_file(self.vault.as_ref().ok_or(std::io::ErrorKind::NotFound)?)?;
@@ -191,6 +199,10 @@ impl Files<'_> {
         }
         Ok(())
     }
+}
+
+fn locked_error() -> std::io::Error {
+    std::io::Error::other("the servers are locked")
 }
 
 /// Written to a temporary file (only the user can read it on Linux), flushed to the disk, read
