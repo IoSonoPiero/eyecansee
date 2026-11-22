@@ -509,7 +509,8 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, (sound, turn): ((&mut u32, &mut bool
             let bar = egui::ProgressBar::new(share).text(text).desired_width(360.0);
             ui.put(Rect::from_center_size(area.center(), vec2(360.0, 24.0)), bar);
         } else if !player.stalled() {
-            ui.put(Rect::from_center_size(area.center(), vec2(32.0, 32.0)), egui::Spinner::new());
+            // Light on the viewer's dark ground in both themes, as the spinner of a picture (Piero, 22/11).
+            ui.put(Rect::from_center_size(area.center(), vec2(32.0, 32.0)), egui::Spinner::new().color(Color32::from_gray(220)));
         }
     }
     if player.stalled() {

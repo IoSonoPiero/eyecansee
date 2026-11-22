@@ -311,7 +311,7 @@ impl App {
         let tex = match &sheet {
             Some(t) => t,
             None if self.cad_sheet_waiting(current) => {
-                egui::Spinner::new().paint_at(ui, egui::Rect::from_center_size(rect.center(), egui::vec2(32.0, 32.0)));
+                egui::Spinner::new().color(egui::Color32::from_gray(220)).paint_at(ui, egui::Rect::from_center_size(rect.center(), egui::vec2(32.0, 32.0)));
                 ui.ctx().request_repaint();
                 return;
             }
