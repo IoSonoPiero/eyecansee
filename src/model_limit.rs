@@ -435,6 +435,21 @@ mod tests {
         assert_eq!(line(&en, "three-ds", 20_000_000), "EyeCanSee does not open 3DS files with more than 20 million triangles, so that reading them does not fill the computer's memory.");
     }
 
+    /// An AMF of one triangle more than 5 million (Piero, 22/11/2026) is refused by the count
+    /// before its XML is parsed; the triangles are bare, 11 bytes each.
+    #[test]
+    fn amf_over_its_cap_t3() {
+        let n = 5_000_001;
+        let mut amf = String::with_capacity(11 * n + 100);
+        amf.push_str(r#"<amf><object id="0"><mesh><vertices/><volume>"#);
+        for _ in 0..n {
+            amf.push_str("<triangle/>");
+        }
+        amf.push_str("</volume></mesh></object></amf>");
+        let e = refused(crate::model::parse(amf.as_bytes(), "a.amf")).unwrap();
+        assert_eq!(e, "error-model-too-many-triangles\u{1}amf 5000000");
+    }
+
     /// The error said in the viewer, in the lists of Export and Convert (a few words, and the
     /// whole sentence), and in a message window, in English and in Italian.
     #[test]
