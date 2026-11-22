@@ -465,6 +465,18 @@ impl Shared {
     }
 }
 
+/// Why a video cannot be played (`Player::error`, #209).
+#[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)] // until #209 is fixed
+pub enum Failure {
+    /// mpv does not recognise the file: not a video, or damaged at its start.
+    NotVideo,
+    /// It opens, but it reached its end without a frame decoded.
+    NoPicture,
+    /// The phone or the server failed to give the bytes: their error (`id\u{1}detail`).
+    Read(String),
+}
+
 /// A video playing (with sound), its frames drawn by a thread of its own at the size the
 /// window asks (`set_size`).
 pub struct Player {
@@ -520,6 +532,12 @@ impl Player {
 
     pub fn paused(&self) -> bool {
         self.mpv.property::<c_int>("pause", FORMAT_FLAG).unwrap_or(0) != 0
+    }
+
+    /// Why the video cannot be played, once mpv has decided it cannot (#209).
+    #[allow(dead_code)] // until #209 is fixed
+    pub fn error(&self) -> Option<Failure> {
+        None
     }
 
     /// Played to the end (the last frame stays, see keep-open).
@@ -675,7 +693,7 @@ pub fn clock(seconds: f64) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     /// A file read through `Reader`, as a phone would be.
@@ -691,6 +709,119 @@ mod tests {
     }
 
     struct Slow(Bytes, bool);
+
+    /// The bytes of `Bytes`, failing from `from` on, as a phone unplugged while it plays.
+    struct Failing(Bytes, u64);
+
+    impl Reader for Failing {
+        fn size(&self) -> u64 {
+            self.0.size()
+        }
+        fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>, String> {
+            if offset + len > self.1 { Err("error-device-gone\u{1}USB 3-2".into()) } else { self.0.read(offset, len) }
+        }
+    }
+
+    /// `n` bytes that look random, always the same.
+    pub(crate) fn noise(n: usize) -> Vec<u8> {
+        let mut x = 0x2545_f491_4f6c_dd1du64;
+        (0..n)
+            .map(|_| {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                x as u8
+            })
+            .collect()
+    }
+
+    /// A real MP4 with its index at the start (`moov` before `mdat`): its boxes up to the data
+    /// kept, the data replaced with noise. Its length and size are read, no frame decodes.
+    pub(crate) fn header_and_noise() -> Vec<u8> {
+        let mut v = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/site/img/mtp-open.mp4")).unwrap();
+        let mut at = 0;
+        while let Some((kind, size)) = crate::mp4::box_header(&v[at..]) {
+            if &kind == b"mdat" {
+                break;
+            }
+            at += size as usize;
+        }
+        let keep = at + 16;
+        let len = v.len();
+        v.truncate(keep);
+        v.extend(noise(len - keep));
+        v
+    }
+
+    /// Half a second of silence, as a WAV: a file with sound and no picture.
+    fn silence() -> Vec<u8> {
+        let (rate, data) = (8000u32, 4000u32);
+        let mut v = b"RIFF".to_vec();
+        v.extend((36 + data).to_le_bytes());
+        v.extend(b"WAVEfmt ");
+        v.extend(16u32.to_le_bytes());
+        v.extend(1u16.to_le_bytes()); // PCM
+        v.extend(1u16.to_le_bytes()); // mono
+        v.extend(rate.to_le_bytes());
+        v.extend(rate.to_le_bytes()); // bytes a second, 8 bits
+        v.extend(1u16.to_le_bytes());
+        v.extend(8u16.to_le_bytes());
+        v.extend(b"data");
+        v.extend(data.to_le_bytes());
+        v.extend(std::iter::repeat_n(128u8, data as usize));
+        v
+    }
+
+    /// What `Player::error` says within `secs`; `None` if nothing in that time.
+    fn error_within(player: &Player, secs: u64) -> Option<Failure> {
+        let t = Instant::now();
+        while t.elapsed() < Duration::from_secs(secs) {
+            if let Some(e) = player.error() {
+                return Some(e);
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        None
+    }
+
+    fn stream(bytes: Vec<u8>) -> Input {
+        Input::Stream(Arc::new(Bytes(bytes)))
+    }
+
+    /// #209: a file mpv cannot play says why instead of a spinner forever: one it does not
+    /// recognise (noise, as a file and as a stream), one that opens but has no frame that decodes,
+    /// one whose stream fails (its own error); a file with sound only is not an error. Skipped
+    /// without libmpv (the CI).
+    #[test]
+    fn broken_videos_say_why() {
+        if !available() {
+            println!("skipped: no libmpv");
+            return;
+        }
+        let open = |input| Player::open(input, 0, true, || {}).unwrap();
+        let dir = std::env::temp_dir().join(format!("eyecansee-209-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("broken.mp4");
+        std::fs::write(&file, noise(20_000)).unwrap();
+        let found = [
+            ("noise, file", error_within(&open(Input::File(file)), 10)),
+            ("noise, stream", error_within(&open(stream(noise(20_000))), 10)),
+            ("header and noise", error_within(&open(stream(header_and_noise())), 10)),
+        ];
+        let _ = std::fs::remove_dir_all(&dir);
+        let good = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/site/img/mtp-open.mp4")).unwrap();
+        let cut = open(Input::Stream(Arc::new(Failing(Bytes(good), 10_000))));
+        let read = error_within(&cut, 10);
+        let audio = open(stream(silence()));
+        let t = Instant::now();
+        while !audio.ended() && t.elapsed() < Duration::from_secs(10) {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        println!("{found:?}, read {read:?}, audio ended {} with {:?}", audio.ended(), audio.error());
+        assert_eq!(found.clone().map(|f| f.1), [Some(Failure::NotVideo), Some(Failure::NotVideo), Some(Failure::NoPicture)], "{found:?}");
+        assert_eq!(read, Some(Failure::Read("error-device-gone\u{1}USB 3-2".into())));
+        assert!(audio.ended() && audio.error().is_none(), "sound only: ended {}, {:?}", audio.ended(), audio.error());
+    }
 
     impl Reader for Slow {
         fn size(&self) -> u64 {

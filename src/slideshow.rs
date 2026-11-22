@@ -508,6 +508,48 @@ pub fn options_ui(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
 
 #[cfg(test)]
 mod tests {
+
+    /// #209: in the slideshow a video that cannot be opened is passed over as a picture that
+    /// cannot be opened (Piero, 20/11): its name said small in the corner, and when no file of
+    /// the slideshow opens it stops with the message in the bar. Skipped without libmpv (the CI).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn broken_video_skipped_as_a_picture() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if !crate::mpv::available() {
+            println!("skipped: no libmpv");
+            return;
+        }
+        if own_folder("slideshow::tests::broken_video_skipped_as_a_picture") {
+            return;
+        }
+        let dir = folder("show-broken-video", &["a.png", "c.png"]);
+        std::fs::write(dir.join("b.mp4"), crate::mpv::tests::noise(20_000)).unwrap();
+        let mut h = Harness::new(&dir);
+        h.app.settings.video_mute = true;
+        let path = |h: &Harness, name: &str| h.app.files().iter().find(|f| f.path.ends_with(name)).unwrap().path.clone();
+        let (b, c) = (path(&h, "b.mp4"), path(&h, "c.png"));
+        let ctx = h.ctx.clone();
+        h.app.start_show(&ctx, Some(b));
+        h.until(|a| a.show.as_ref().is_some_and(|s| s.skipped.as_ref().is_some_and(|k| k.0 == "b.mp4")), "b.mp4 passed over");
+        let s = h.app.show.as_ref().unwrap();
+        assert_eq!(s.paths[s.at], c);
+        assert_eq!(h.app.i18n.t_args("show-skipped", &[("name", "b.mp4")]), "File skipped: b.mp4 (it cannot be opened)");
+
+        let dir = folder("show-only-broken-videos", &[]);
+        std::fs::write(dir.join("x.mp4"), crate::mpv::tests::noise(20_000)).unwrap();
+        std::fs::write(dir.join("y.mp4"), crate::mpv::tests::header_and_noise()).unwrap();
+        let mut h = Harness::new(&dir);
+        h.app.settings.video_mute = true;
+        let ctx = h.ctx.clone();
+        h.app.start_show(&ctx, None);
+        assert!(h.app.show.is_some(), "a video whose still failed may still play: the slideshow starts");
+        h.until(|a| a.show.is_none(), "the slideshow stopped");
+        assert_eq!(h.app.error.as_deref(), Some("Slideshow stopped: none of its files can be opened."));
+        let it = crate::i18n::I18n::new("it");
+        assert_eq!(it.t_args("show-skipped", &[("name", "b.mp4")]), "File saltato: b.mp4 (non si apre)");
+        assert_eq!(it.t("show-none-readable"), "Presentazione fermata: nessuno dei suoi file si apre.");
+    }
     use super::*;
 
     /// A picture is never shown larger than its pixels; the still of a video fills the screen as

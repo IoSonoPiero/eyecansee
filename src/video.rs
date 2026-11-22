@@ -627,6 +627,36 @@ fn sound_controls(ui: &mut egui::Ui, player: &mpv::Player, (volume, mute): (&mut
 #[cfg(test)]
 mod tests {
 
+    /// #209: in the viewer a video mpv cannot play says why, as a picture that cannot be opened
+    /// (the start in the middle, the whole message in the bar), instead of a spinner forever: one
+    /// it does not recognise, one with no frame that decodes. Skipped without libmpv (the CI).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn broken_video_said_in_the_viewer() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if !crate::mpv::available() {
+            println!("skipped: no libmpv");
+            return;
+        }
+        if own_folder("video::tests::broken_video_said_in_the_viewer") {
+            return;
+        }
+        let dir = folder("broken-video", &[]);
+        std::fs::write(dir.join("noise.mp4"), crate::mpv::tests::noise(20_000)).unwrap();
+        std::fs::write(dir.join("no-frame.mp4"), crate::mpv::tests::header_and_noise()).unwrap();
+        let mut h = Harness::new(&dir);
+        h.app.settings.video_mute = true;
+        for (name, said) in [("noise.mp4", "The file is not a video, or it is damaged."), ("no-frame.mp4", "No frame can be shown: the video is damaged.")] {
+            let i = h.app.files().iter().position(|f| f.path.ends_with(name)).unwrap();
+            h.app.viewing = Some(i);
+            h.until(|a| a.viewer_error().is_some(), name);
+            assert_eq!(h.app.viewer_error().as_deref(), Some(format!("Cannot open {name}\n{said}").as_str()));
+        }
+        let it = crate::i18n::I18n::new("it");
+        assert_eq!(it.cannot_load("a.mp4", "video-not-video\u{1}"), "Impossibile aprire a.mp4\nIl file non è un video, o è rovinato.");
+        assert_eq!(it.cannot_load("a.mp4", "video-no-frame\u{1}"), "Impossibile aprire a.mp4\nNessun fotogramma si può mostrare: il video è rovinato.");
+    }
+
     #[test]
     fn at_the_end_the_time_and_the_bar_reach_the_length() {
         use super::shown_position;
