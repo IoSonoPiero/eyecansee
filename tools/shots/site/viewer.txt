@@ -1,0 +1,11 @@
+# The viewer on a phone: IMG_0009.jpg (the orchid) of the phone folder of grid.txt, fitted to the
+# window. Coordinates for a 1200 x 800 window.
+phone-folders DCIM Documents Download Movies Music Pictures Camera EyeCanSee-demo RAW
+3 click 100 163
+6.5 open storage
+9.5 open DCIM
+12.5 open EyeCanSee-demo
+16 open IMG_0009.jpg
+21 move 1199 400
+22 shot
+22.5 end

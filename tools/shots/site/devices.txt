@@ -1,0 +1,12 @@
+# Devices, servers and folders side by side: the folder Photos of the made-up "Home NAS" open (a
+# real FTP server on the same computer, `ftp-server`), the real phone listed in the Devices block,
+# not opened. Coordinates for a 1200 x 800 window.
+phone-folders DCIM
+ftp-server
+open ftp://demo@nas.example.com/Photos/
+# The grid scrolled to the end: its last row of names whole, the cut on the pictures of the first.
+4 move 700 400
+4.2 wheel -300
+8 move 1199 400
+9 shot
+9.5 end

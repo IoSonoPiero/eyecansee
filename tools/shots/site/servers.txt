@@ -1,6 +1,9 @@
 # File > Server manager: a master password set (typed twice and saved), then the second of the two
 # made-up servers chosen and a password typed in it. Coordinates for a 1200 x 800 window.
 open /home/demo/Pictures/Holiday
+# The grid scrolled to the end: its last row of names whole, the cut on the pictures of the first.
+2 move 700 400
+2.2 wheel -300
 3 act servers
 4 click 341 298
 5.5 click 527 229

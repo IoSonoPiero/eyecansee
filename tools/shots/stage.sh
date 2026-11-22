@@ -45,9 +45,22 @@ cp "$FILES/formati/RAW/Google - Pixel 6 Pro - 16bit (4-3).dng" "$H/Lake Garda.dn
 mkdir -p "$D/Pictures/Panoramas"
 cp "$FILES/panorami/drone-den-bosch-1-360.jpg" "$D/Pictures/Panoramas/Lake panorama.jpg"
 cp "$FILES/panorami/drone-den-bosch-360.jpg" "$D/Pictures/Panoramas/Drone sphere.jpg"
+# The folder of the FTP server of the scenes with `ftp-server` (tools/shots.sh): the 13 photos.
+mkdir -p "$WORK/ftp/Photos"
+cp "$P"/*.jpg "$WORK/ftp/Photos/"
 # One date for all, as if copied from the camera after a holiday (the copies a day later).
-find "$D" "$WORK/disks" -type f -exec touch -d "2025-07-14 18:30" {} +
+find "$D" "$WORK/disks" "$WORK/ftp" -type f -exec touch -d "2025-07-14 18:30" {} +
 find "$D/Pictures/Phone backup" -type f -exec touch -d "2025-07-15 09:12" {} +
+# Nine photos and three videos (site/video-convert), dated one minute apart in this order, so that
+# sorted by date the videos come in the last columns of the grid, beside Convert.
+T="$D/Desktop/Trip"
+mkdir -p "$T"
+m=10
+for f in "Lake Sherburne.jpg" "Grand Canyon.jpg" Iceberg.jpg Sunset.jpg "Bees on flowers.webm" \
+        "Earth from space.webm" "Quebec City.jpg" Moth.jpg Denali.jpg "Apple blossoms.jpg" Orchid.jpg \
+        Flowers.webm; do
+    cp "$P/$f" "$T/" && touch -d "2025-07-14 19:$m" "$T/$f"; m=$((m + 1))
+done
 cat > "$WORK/settings.json" <<'JSON'
 {"check_updates": false, "tips": false, "theme": "dark", "remember_location": false, "window_start": "normal", "meta_collapsed": true,
  "bookmarks": [{"name": "Holiday", "address": "/home/demo/Pictures/Holiday"},

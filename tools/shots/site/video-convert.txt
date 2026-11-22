@@ -1,0 +1,14 @@
+# Convert for the three videos of a folder of nine photos and three videos, sorted by
+# date (the videos in the last columns, beside the window), the real phone listed in the Devices
+# block. The encoders offered, in green those of the graphics card, depend on the computer.
+phone-folders DCIM
+set window_start "remember"
+set window_size [1600, 800]
+set sort_by "date"
+open /home/demo/Desktop/Trip
+3 mark Bees on flowers.webm
+3 mark Earth from space.webm
+3 mark Flowers.webm
+4 act batch
+9 shot
+9.5 end

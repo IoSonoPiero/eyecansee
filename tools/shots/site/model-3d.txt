@@ -1,0 +1,7 @@
+# The README's and the site's 3D model: the avocado (tools/shots/model-3d.txt, that of the guide),
+# turned a little with the mouse, as in the earlier picture taken by hand. Coordinates for a 1200 x 800 window.
+open /home/demo/Documents/3D models
+2 open Avocado.glb
+5 drag 600 420 585 415 1.0
+8 shot
+8.5 end
