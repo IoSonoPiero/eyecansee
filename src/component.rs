@@ -260,10 +260,16 @@ pub struct Download {
 
 /// `install` in a thread of its own; `repaint` when it ends.
 pub fn start(c: Component, repaint: impl Fn() + Send + 'static) -> std::sync::Arc<Download> {
+    begin(c.kind, move |done| install(&c, done), repaint)
+}
+
+/// `work` (the download of the component `kind`) in a thread of its own, counting into `done`;
+/// `repaint` when it ends.
+fn begin(_kind: &'static str, work: impl FnOnce(&AtomicU64) -> Result<(), String> + Send + 'static, repaint: impl Fn() + Send + 'static) -> std::sync::Arc<Download> {
     let d = std::sync::Arc::new(Download::default());
     let d2 = d.clone();
     crate::logging::spawn_named("component-download", move || {
-        let r = install(&c, &d2.done);
+        let r = work(&d2.done);
         *d2.result.lock().unwrap() = Some(r);
         repaint();
     });

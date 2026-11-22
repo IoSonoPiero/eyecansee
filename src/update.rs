@@ -228,14 +228,9 @@ pub fn check(kind: Kind, current: &str) -> Result<Option<Ready>, String> {
         Kind::AppImage(path) => path.with_extension("AppImage.new"),
         _ => std::env::temp_dir().join(name),
     };
-    // Downloaded at an earlier start and never installed: no need to fetch it again, but it is
-    // checked like a new download.
-    let cached = std::fs::File::open(&file).ok().and_then(|mut f| sha256_of(&mut f).ok());
     // The size GitHub gives for the file, if any, and never beyond `MAX_UPDATE`.
     let max = asset["size"].as_u64().unwrap_or(MAX_UPDATE).min(MAX_UPDATE);
-    if cached.as_deref() != Some(sha) || signed(&file).is_err() {
-        download(&agent, url, &file, sha, max, signed)?;
-    }
+    fetch(&agent, url, &file, sha, max, signed)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -330,6 +325,16 @@ pub(crate) fn read_error(e: std::io::Error) -> String {
 /// The error of a download (update or component) as the windows show it: a stall in words.
 pub(crate) fn error_detail(i18n: &crate::i18n::I18n, e: &str) -> String {
     if e == STALLED { i18n.t(STALLED) } else { e.to_string() }
+}
+
+/// `file`, downloaded unless it is there already from an earlier start and never installed: no
+/// need to fetch it again, but it is checked like a new download.
+fn fetch(agent: &ureq::Agent, url: &str, file: &Path, sha: &str, max: u64, signed: impl Fn(&Path) -> Result<(), String>) -> Result<(), String> {
+    let cached = std::fs::File::open(file).ok().and_then(|mut f| sha256_of(&mut f).ok());
+    if cached.as_deref() != Some(sha) || signed(file).is_err() {
+        download(agent, url, file, sha, max, &signed)?;
+    }
+    Ok(())
 }
 
 /// Into a temporary name, renamed only once its SHA-256 matches and `signed` accepts it: a broken
