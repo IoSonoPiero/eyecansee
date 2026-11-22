@@ -747,6 +747,7 @@ desktop-icon-choose = Scegli Sì o No.
 desktop-icon-done = L'icona è sul desktop.
 desktop-icon-later = Con Strumenti > Crea icona sul desktop puoi crearla quando vuoi.
 desktop-icon-failed = Non è stato possibile creare l'icona.
+desktop-icon-not-removed = Non è stato possibile togliere l'icona.
 desktop-icon-made = L'icona **{ $name }** è sul desktop.
 desktop-icon-there = Sul desktop c'è già un'icona che avvia EyeCanSee.
 convert-file-size = { $size } su disco

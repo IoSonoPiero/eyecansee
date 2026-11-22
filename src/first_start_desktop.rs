@@ -35,8 +35,8 @@ enum Line<'a> {
     /// Faint, as the last line of the other pages.
     Weak(&'static str),
     Plain(&'static str),
-    /// With the triangle, never red; the system's reason on hover.
-    Failed(&'a str),
+    /// With the triangle, never red: the Fluent id, and the system's reason on hover.
+    Failed(&'static str, &'a str),
 }
 
 /// What the page shows for where the question is.
@@ -47,7 +47,7 @@ struct Look<'a> {
     name: &'a str,
     /// The choice marked, if any: Yes (true) or No.
     marked: Option<bool>,
-    /// The choices can still be clicked: not once the icon is on the desktop.
+    /// The choices can still be clicked: not when an icon of this copy was there already.
     open: bool,
     line: Line<'a>,
 }
@@ -58,21 +58,23 @@ fn look<'a>(d: &'a Desktop, base: &'a str) -> Look<'a> {
     match d {
         Desktop::Ask => Look { icon: Icon::Offered, name: base, marked: None, open: true, line: later },
         Desktop::No => Look { icon: Icon::Gone, name: base, marked: Some(false), open: true, line: later },
-        Desktop::Made(name) => Look { icon: Icon::Here, name, marked: Some(true), open: false, line: Line::Plain("desktop-icon-done") },
+        // No stays open: it takes away the icon Yes made (Piero, 22/11).
+        Desktop::Made(name) => Look { icon: Icon::Here, name, marked: Some(true), open: true, line: Line::Plain("desktop-icon-done") },
+        Desktop::Kept(name, why) => Look { icon: Icon::Here, name, marked: Some(true), open: true, line: Line::Failed("desktop-icon-not-removed", why) },
         Desktop::There => Look { icon: Icon::Here, name: base, marked: Some(true), open: false, line: Line::Plain("desktop-icon-there") },
         // Nothing marked: the icon is not there, and Yes can be pressed again.
-        Desktop::Failed(why) => Look { icon: Icon::Offered, name: base, marked: None, open: true, line: Line::Failed(why) },
+        Desktop::Failed(why) => Look { icon: Icon::Offered, name: base, marked: None, open: true, line: Line::Failed("desktop-icon-failed", why) },
     }
 }
 
 /// The page: title and question, the picture, Yes and No side by side, and the line about what
 /// was answered in the middle of what is left. `logo`: the app's icon, 96 pixels.
 pub(crate) fn page(ui: &mut egui::Ui, logo: egui::TextureId, d: &mut Desktop, i18n: &I18n) {
-    page_with(ui, logo, d, i18n, crate::desktop_icon::create);
+    page_with(ui, logo, d, i18n, crate::desktop_icon::create, crate::desktop_icon::remove);
 }
 
-/// `page`, with what Yes does given: the tests make no icon.
-fn page_with(ui: &mut egui::Ui, logo: egui::TextureId, d: &mut Desktop, i18n: &I18n, create: impl FnOnce() -> Result<crate::desktop_icon::Made, String>) {
+/// `page`, with what Yes and No do given: the tests make and take away no icon.
+fn page_with(ui: &mut egui::Ui, logo: egui::TextureId, d: &mut Desktop, i18n: &I18n, create: impl FnOnce() -> Result<crate::desktop_icon::Made, String>, remove: impl FnOnce(&str) -> Result<(), String>) {
     ui.vertical_centered(|ui| {
         ui.add_space(24.0);
         ui.label(crate::first_start_ui::title(i18n.t("desktop-icon-title")));
@@ -97,7 +99,7 @@ fn page_with(ui: &mut egui::Ui, logo: egui::TextureId, d: &mut Desktop, i18n: &I
     });
     line(ui, shown.line, i18n);
     if let Some(yes) = pressed {
-        *d = crate::first_start::chosen(std::mem::replace(d, Desktop::Ask), yes, create);
+        *d = crate::first_start::chosen(std::mem::replace(d, Desktop::Ask), yes, create, remove);
         log!("first start: desktop icon {}: {d:?}", if yes { "Yes" } else { "No" });
     }
 }
@@ -143,7 +145,7 @@ fn line(ui: &mut egui::Ui, line: Line, i18n: &I18n) {
         Line::Plain(id) => {
             ui.centered_and_justified(|ui| ui.label(i18n.t(id)));
         }
-        Line::Failed(why) => {
+        Line::Failed(id_text, why) => {
             // `error_bar::inline` starts at the left: its width, known after it is drawn, puts it
             // in the middle from the next frame; the first one draws it unseen.
             let id = egui::Id::unique("first-start-desktop-failed");
@@ -155,7 +157,7 @@ fn line(ui: &mut egui::Ui, line: Line, i18n: &I18n) {
                     ui.set_invisible();
                 }
                 ui.add_space(((room.x - known.unwrap_or(0.0)) / 2.0).max(0.0));
-                let width = crate::error_bar::inline(ui, &i18n.t("desktop-icon-failed")).on_hover_text(why).rect.width();
+                let width = crate::error_bar::inline(ui, &i18n.t(id_text)).on_hover_text(why).rect.width();
                 if known != Some(width) {
                     ui.data_mut(|data| data.insert_temp(id, width));
                     ui.ctx().request_repaint();
@@ -271,18 +273,20 @@ mod tests {
     use crate::addons_ui::tests::{click, headless};
 
     /// What each answer shows: nothing marked and the icon only offered before an answer and after
-    /// a failure; the icon there, with the name it was made with, and the choices closed after
-    /// Yes; the desktop without it after No, which Yes can still change.
+    /// a failure; the icon there, with the name it was made with, after Yes, with No still open
+    /// to take it away; the desktop without it after No, which Yes can still change.
     #[test]
     fn what_the_page_shows() {
         let later = Line::Weak("desktop-icon-later");
         assert_eq!(look(&Desktop::Ask, "EyeCanSee"), Look { icon: Icon::Offered, name: "EyeCanSee", marked: None, open: true, line: later });
         assert_eq!(look(&Desktop::No, "EyeCanSee"), Look { icon: Icon::Gone, name: "EyeCanSee", marked: Some(false), open: true, line: later });
         let made = Desktop::Made("EyeCanSee (2)".into());
-        assert_eq!(look(&made, "EyeCanSee"), Look { icon: Icon::Here, name: "EyeCanSee (2)", marked: Some(true), open: false, line: Line::Plain("desktop-icon-done") });
+        assert_eq!(look(&made, "EyeCanSee"), Look { icon: Icon::Here, name: "EyeCanSee (2)", marked: Some(true), open: true, line: Line::Plain("desktop-icon-done") });
+        let kept = Desktop::Kept("EyeCanSee (2)".into(), "in use".into());
+        assert_eq!(look(&kept, "EyeCanSee"), Look { icon: Icon::Here, name: "EyeCanSee (2)", marked: Some(true), open: true, line: Line::Failed("desktop-icon-not-removed", "in use") });
         assert_eq!(look(&Desktop::There, "EyeCanSee prova"), Look { icon: Icon::Here, name: "EyeCanSee prova", marked: Some(true), open: false, line: Line::Plain("desktop-icon-there") });
         let failed = Desktop::Failed("access denied".into());
-        assert_eq!(look(&failed, "EyeCanSee"), Look { icon: Icon::Offered, name: "EyeCanSee", marked: None, open: true, line: Line::Failed("access denied") });
+        assert_eq!(look(&failed, "EyeCanSee"), Look { icon: Icon::Offered, name: "EyeCanSee", marked: None, open: true, line: Line::Failed("desktop-icon-failed", "access denied") });
     }
 
     /// The whole card is the choice: a click on it answers; closed (the icon is on the desktop) a
@@ -307,14 +311,14 @@ mod tests {
         let (ctx, area) = headless();
         let logo = egui::TextureId::default();
         let body = egui::vec2(512.0, crate::first_start_ui::BODY);
-        let states = [Desktop::Ask, Desktop::No, Desktop::Made("EyeCanSee".into()), Desktop::There, Desktop::Failed("x".into())];
+        let states = [Desktop::Ask, Desktop::No, Desktop::Made("EyeCanSee".into()), Desktop::There, Desktop::Failed("x".into()), Desktop::Kept("EyeCanSee".into(), "x".into())];
         for lang in ["en", "it"] {
             let i18n = I18n::new(lang);
             for state in &states {
                 let mut used = egui::Rect::NOTHING;
                 for _ in 0..2 {
                     crate::addons_ui::tests::frame(&ctx, Vec::new(), |ui| {
-                        used = ui.allocate_ui(body, |ui| page_with(ui, logo, &mut state.clone(), &i18n, || unreachable!())).response.rect;
+                        used = ui.allocate_ui(body, |ui| page_with(ui, logo, &mut state.clone(), &i18n, || unreachable!(), |_| unreachable!())).response.rect;
                     });
                 }
                 assert!(used.height() <= body.y && used.width() <= body.x, "{lang} {state:?}: {:?}", used.size());
@@ -326,7 +330,7 @@ mod tests {
         let answer_at = |x: f32, d: &mut Desktop| {
             let before = d.clone();
             for y in (0..body.y as usize).step_by(20) {
-                click(&ctx, area.min + egui::vec2(x, y as f32), |ui| drop(ui.allocate_ui(body, |ui| page_with(ui, logo, d, &i18n, || Err("no desktop here".into())))));
+                click(&ctx, area.min + egui::vec2(x, y as f32), |ui| drop(ui.allocate_ui(body, |ui| page_with(ui, logo, d, &i18n, || Err("no desktop here".into()), |_| unreachable!()))));
                 if *d != before {
                     break;
                 }

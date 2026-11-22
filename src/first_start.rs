@@ -78,15 +78,23 @@ pub(crate) enum Desktop {
     No,
     /// Yes could not make it: the system's reason, on hover and in the log.
     Failed(String),
+    /// No, after Yes made the icon with this name, could not take it away: the reason, on hover.
+    Kept(String, String),
 }
 
 /// A choice of the desktop icon page: Yes makes the icon at once (`create`), also after No or a
-/// failure; No makes none. Once the icon is on the desktop the answer stays: No would not take
-/// it away, and the page would say what is not true.
-pub(crate) fn chosen(now: Desktop, yes: bool, create: impl FnOnce() -> Result<crate::desktop_icon::Made, String>) -> Desktop {
+/// failure; No makes none, and after Yes takes away the icon Yes made (`remove`, that one only:
+/// Piero, 22/11, to change one's mind while on the page). An icon that was there already
+/// (`There`) is never touched: the answer stays.
+pub(crate) fn chosen(now: Desktop, yes: bool, create: impl FnOnce() -> Result<crate::desktop_icon::Made, String>, remove: impl FnOnce(&str) -> Result<(), String>) -> Desktop {
     use crate::desktop_icon::Made;
     match (now, yes) {
-        (here @ (Desktop::Made(_) | Desktop::There), _) => here,
+        (Desktop::There, _) => Desktop::There,
+        (Desktop::Made(name) | Desktop::Kept(name, _), true) => Desktop::Made(name),
+        (Desktop::Made(name) | Desktop::Kept(name, _), false) => match remove(&name) {
+            Ok(()) => Desktop::No,
+            Err(why) => Desktop::Kept(name, why),
+        },
         (_, false) => Desktop::No,
         (_, true) => match create() {
             Ok(Made::Made(name)) => Desktop::Made(name),
@@ -248,24 +256,42 @@ mod tests {
     }
 
     /// Yes makes the icon at once and says what happened; No makes none; after No or a failure
-    /// Yes still makes it; once the icon is there neither answer changes it or makes another.
+    /// Yes still makes it; No after Yes takes away the icon Yes made, and only that one; an icon
+    /// that was there already stays whatever is answered.
     #[test]
     fn desktop_answers() {
         use crate::desktop_icon::Made;
         let made = || Ok(Made::Made("EyeCanSee (2)".into()));
         let never = || -> Result<Made, String> { panic!("nothing to make") };
-        assert_eq!(chosen(Desktop::Ask, true, made), Desktop::Made("EyeCanSee (2)".into()));
-        assert_eq!(chosen(Desktop::Ask, true, || Ok(Made::There)), Desktop::There);
-        assert_eq!(chosen(Desktop::Ask, true, || Err("access denied".into())), Desktop::Failed("access denied".into()));
-        assert_eq!(chosen(Desktop::Ask, false, never), Desktop::No);
-        assert_eq!(chosen(Desktop::No, true, made), Desktop::Made("EyeCanSee (2)".into()));
-        assert_eq!(chosen(Desktop::No, false, never), Desktop::No);
-        assert_eq!(chosen(Desktop::Failed("x".into()), true, made), Desktop::Made("EyeCanSee (2)".into()), "Yes again tries again");
-        assert_eq!(chosen(Desktop::Failed("x".into()), false, never), Desktop::No);
-        for here in [Desktop::Made("EyeCanSee".into()), Desktop::There] {
-            assert_eq!(chosen(here.clone(), false, never), here, "No does not take the icon away");
-            assert_eq!(chosen(here.clone(), true, never), here, "Yes makes no second one");
-        }
+        let keep = |_: &str| -> Result<(), String> { panic!("nothing to take away") };
+        let chosen = |now, yes, create: &dyn Fn() -> Result<Made, String>| chosen(now, yes, create, keep);
+        assert_eq!(chosen(Desktop::Ask, true, &made), Desktop::Made("EyeCanSee (2)".into()));
+        assert_eq!(chosen(Desktop::Ask, true, &|| Ok(Made::There)), Desktop::There);
+        assert_eq!(chosen(Desktop::Ask, true, &|| Err("access denied".into())), Desktop::Failed("access denied".into()));
+        assert_eq!(chosen(Desktop::Ask, false, &never), Desktop::No);
+        assert_eq!(chosen(Desktop::No, true, &made), Desktop::Made("EyeCanSee (2)".into()));
+        assert_eq!(chosen(Desktop::No, false, &never), Desktop::No);
+        assert_eq!(chosen(Desktop::Failed("x".into()), true, &made), Desktop::Made("EyeCanSee (2)".into()), "Yes again tries again");
+        assert_eq!(chosen(Desktop::Failed("x".into()), false, &never), Desktop::No);
+        assert_eq!(chosen(Desktop::There, false, &never), Desktop::There, "an icon there before is never taken away");
+        assert_eq!(chosen(Desktop::There, true, &never), Desktop::There);
+        assert_eq!(chosen(Desktop::Made("EyeCanSee".into()), true, &never), Desktop::Made("EyeCanSee".into()), "Yes makes no second one");
+    }
+
+    /// No after Yes takes away the icon Yes made, by its name; when that fails the icon stays and
+    /// the page says so; Yes then keeps it, No tries again.
+    #[test]
+    fn no_after_yes_takes_the_icon_away() {
+        use crate::desktop_icon::Made;
+        let never = || -> Result<Made, String> { panic!("nothing to make") };
+        let gone = std::cell::RefCell::new(Vec::new());
+        let removed = |name: &str| -> Result<(), String> { gone.borrow_mut().push(name.to_string()); Ok(()) };
+        assert_eq!(chosen(Desktop::Made("EyeCanSee (2)".into()), false, never, removed), Desktop::No);
+        assert_eq!(*gone.borrow(), ["EyeCanSee (2)"], "that icon, by its name");
+        let stuck = Desktop::Kept("EyeCanSee".into(), "in use".into());
+        assert_eq!(chosen(Desktop::Made("EyeCanSee".into()), false, never, |_| Err("in use".into())), stuck);
+        assert_eq!(chosen(stuck.clone(), true, never, |_| unreachable!()), Desktop::Made("EyeCanSee".into()));
+        assert_eq!(chosen(stuck, false, never, |_| Ok(())), Desktop::No);
     }
 
     /// The first start: both pages, every add-on (also one already on the system, which says so),

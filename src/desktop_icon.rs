@@ -269,6 +269,23 @@ pub(crate) fn create() -> Result<Made, String> {
     })
 }
 
+/// Takes away the icon `name` (without ".lnk") from the user's desktop, made a moment ago by
+/// `create` (No after Yes in the first-start window): only while it still starts this copy, so
+/// a shortcut put there meanwhile by something else is never deleted.
+pub(crate) fn remove(name: &str) -> Result<(), String> {
+    let me = me().ok_or("not a copy with a desktop icon")?;
+    let name = name.to_string();
+    shell::com(move || {
+        let path = shell::desktop(false)?.join(format!("{name}.lnk"));
+        if !starts_me(&shell::read(&path)?, me) {
+            return Err(format!("{} no longer starts this copy", path.display()));
+        }
+        std::fs::remove_file(&path).map_err(|e| e.to_string())?;
+        log!("desktop icon: {} taken away", path.display());
+        Ok(())
+    })
+}
+
 /// Off Windows nothing has a desktop icon (`me` is `None`): these are never reached.
 #[cfg(not(windows))]
 mod shell {
@@ -291,6 +308,9 @@ mod shell {
         Err("Windows only".into())
     }
     pub(super) fn write(_path: &Path, _spec: &Spec) -> Result<(), String> {
+        Err("Windows only".into())
+    }
+    pub(super) fn read(_path: &Path) -> Result<super::Target, String> {
         Err("Windows only".into())
     }
 }
