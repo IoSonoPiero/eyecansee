@@ -264,6 +264,7 @@ EyeCanSee collects no data. It connects only to GitHub (optional components and,
 ## Elsewhere
 
 <a href="https://alternativeto.net/software/eyecansee/about/?utm_source=badge&amp;utm_medium=referral"><img src="site/img/alternativeto-badge.svg" width="244" height="83" alt="EyeCanSee | AlternativeTo"></a>
+<a href="https://appimage.github.io/EyeCanSee/"><img src="site/img/appimage-badge.svg" width="244" height="83" alt="EyeCanSee | AppImage catalog"></a>
 
 ## License
 
