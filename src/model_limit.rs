@@ -348,6 +348,42 @@ mod tests {
         assert_eq!(en.load_error(&GLB.error()).lines().nth(1), Some("EyeCanSee does not open GLB files with more than 20 million triangles, so that reading them does not fill the computer's memory."));
     }
 
+    /// The rarer refusals of a model or a drawing too large are said in the language of the
+    /// program, as the caps of the triangles: in the viewer and, in a few words, in the lists.
+    #[test]
+    fn rare_refusals_translated_d1() {
+        let (en, it) = (I18n::new("en"), I18n::new("it"));
+        let both = |e: &str| (en.load_error(e), it.load_error(e), en.brief_load(e), it.brief_load(e));
+        let lines = crate::model_lines::fits(usize::MAX, OBJ).unwrap_err();
+        assert_eq!(both(&lines).0, "The model has more than 1.25 million lines and points, too many to open.");
+        assert_eq!(both(&lines).1, "Il modello ha più di 1,25 milioni di linee e punti, troppi per aprirlo.");
+        assert_eq!(both(&lines).2.as_deref(), Some("more than 1.25 million lines and points"));
+        assert_eq!(both(&lines).3.as_deref(), Some("più di 1,25 milioni di linee e punti"));
+        let mut b = crate::model::Builder::default();
+        let placed = (0..=crate::model::MAX_VISITS).find_map(|_| b.visit().err()).unwrap();
+        assert_eq!(both(&placed).0, "The model places its parts more than 1 million times, too many to open.");
+        assert_eq!(both(&placed).1, "Il modello colloca le sue parti più di 1 milione di volte, troppe per aprirlo.");
+        assert_eq!(both(&placed).3.as_deref(), Some("parti collocate più di 1 milione di volte"));
+        // A binary PLY that names more points than it may bring, refused before they are read.
+        let ply = b"ply\nformat binary_little_endian 1.0\nelement vertex 200000001\nproperty float x\nproperty float y\nproperty float z\nend_header\n";
+        let offered = refused(crate::model::parse(ply, "a.ply")).unwrap();
+        assert_eq!(both(&offered).0, "The model has more than 200 million points and triangles, too many to open.");
+        assert_eq!(both(&offered).1, "Il modello ha più di 200 milioni di punti e triangoli, troppi per aprirlo.");
+        let big = crate::model_3mf::Unpacked::with(0, crate::model_3mf::MAX_UNPACKED, u64::MAX).spend(u64::MAX).unwrap_err();
+        assert_eq!(both(&big).0, "Unpacked, the file would take more than 2048 MB, too much to open.");
+        assert_eq!(both(&big).1, "Decompresso, il file occuperebbe più di 2048 MB, troppo per aprirlo.");
+        let ratio = crate::model_3mf::Unpacked::with(1000, crate::model_3mf::MAX_UNPACKED, 0).spend(1 << 20).unwrap_err();
+        assert_eq!(both(&ratio).0, "Unpacked, the file would be more than 100 times its size, too much to open.");
+        assert_eq!(both(&ratio).3.as_deref(), Some("decompresso, più di 100 volte la sua dimensione"));
+        // One INSERT of a block in 1001 rows and columns: more than a million placed.
+        let block = "0\nSECTION\n2\nBLOCKS\n0\nBLOCK\n8\n0\n2\nK\n70\n0\n10\n0\n20\n0\n30\n0\n3\nK\n0\nTEXT\n8\n0\n10\n0\n20\n0\n30\n0\n40\n1\n1\nA\n0\nENDBLK\n8\n0\n0\nENDSEC\n";
+        let dxf = format!("{block}0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\n0\n2\nK\n10\n0\n20\n0\n30\n0\n70\n1001\n71\n1001\n44\n2\n45\n2\n0\nENDSEC\n0\nEOF\n");
+        let blocks = crate::cad::read(dxf.as_bytes(), "a.dxf").map(|_| ()).unwrap_err();
+        assert_eq!(both(&blocks).0, "The drawing places its blocks more than 1 million times, too many to open.");
+        assert_eq!(both(&blocks).1, "Il disegno colloca i suoi blocchi più di 1 milione di volte, troppe per aprirlo.");
+        assert_eq!(both(&blocks).2.as_deref(), Some("blocks placed more than 1 million times"));
+    }
+
     /// The early counts give what the readers give, on small files of every kind they count.
     #[test]
     fn counted_as_read_d1() {
