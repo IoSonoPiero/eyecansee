@@ -3,7 +3,7 @@
 //! Windows: `%APPDATA%\eyecansee\settings.json`.
 //! Kept apart from the thumbnail cache, which can be deleted, and from the future edit catalogue.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -317,11 +317,15 @@ impl Settings {
     /// Missing file: default values. Unreadable file: set aside as `.bad`, so a wrong manual
     /// edit is not silently overwritten.
     pub fn load() -> Self {
-        let Some(path) = path() else { return Self::default() };
-        let Ok(text) = std::fs::read_to_string(&path) else { return Self::default() };
+        path().map_or_else(Self::default, |p| Self::load_from(&p))
+    }
+
+    /// `load` from a given file.
+    pub(crate) fn load_from(path: &Path) -> Self {
+        let Ok(text) = std::fs::read_to_string(path) else { return Self::default() };
         // A BOM (written by PowerShell and some editors) is not JSON: without this the file was set aside.
         serde_json::from_str(text.trim_start_matches('\u{feff}')).map(Self::upgraded).unwrap_or_else(|_| {
-            let _ = std::fs::rename(&path, path.with_extension("json.bad"));
+            let _ = std::fs::rename(path, path.with_extension("json.bad"));
             Self::default()
         })
     }
@@ -342,12 +346,18 @@ impl Settings {
 
     /// Written to a temporary file and renamed: never a half-written file. Errors are ignored.
     pub fn save(&self) {
-        let Some(path) = path() else { return };
+        if let Some(path) = path() {
+            self.save_to(&path);
+        }
+    }
+
+    /// `save` to a given file.
+    pub(crate) fn save_to(&self, path: &Path) {
         let Some(dir) = path.parent() else { return };
         let Ok(text) = serde_json::to_string_pretty(self) else { return };
         let tmp = path.with_extension(format!("json.{}.tmp", std::process::id()));
         if std::fs::create_dir_all(dir).is_ok() && std::fs::write(&tmp, text).is_ok() {
-            let _ = std::fs::rename(&tmp, &path);
+            let _ = std::fs::rename(&tmp, path);
         }
     }
 }
