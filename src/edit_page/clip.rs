@@ -127,13 +127,8 @@ impl App {
                 (crate::edit::doc::Area { centre: Pt::new(a.centre.x + step, a.centre.y + step), ..*a }, p.clone())
             }
             (None, Some(img)) => {
-                let rgba: Vec<u8> = img.pixels.iter().flat_map(|c| c.to_srgba_unmultiplied()).collect();
-                let Some(image) = image::RgbaImage::from_raw(img.size[0] as u32, img.size[1] as u32, rgba) else { return };
-                let c = w.doc.crop;
-                let k = (0.8 * c.w / image.width() as f32).min(0.8 * c.h / image.height() as f32).min(1.0);
-                // Upright on the screen, in the middle of what is shown.
-                let centre = crate::edit::geom::turned(Pt::new(c.cx, c.cy), -w.doc.angle);
-                (crate::edit::doc::Area { centre, w: image.width() as f32 * k, h: image.height() as f32 * k, rot: -w.doc.angle }, crate::edit::doc::Pixels::new(image))
+                let Some(patch) = clipboard_patch(w, &img) else { return };
+                patch
             }
             (None, None) => {
                 w.note = Some((self.i18n.t("edit-paste-none"), ctx.input(|i| i.time) + 4.0));
@@ -152,6 +147,18 @@ impl App {
         ctx.copy_image(img);
         w.note = Some((self.i18n.t("edit-copied"), ctx.input(|i| i.time) + 4.0));
     }
+}
+
+/// An image from the clipboard of another program as a patch: in the middle of the result, at
+/// most 80% of it.
+fn clipboard_patch(w: &super::Window, img: &ColorImage) -> Option<(crate::edit::doc::Area, crate::edit::doc::Pixels)> {
+    let rgba: Vec<u8> = img.pixels.iter().flat_map(|c| c.to_srgba_unmultiplied()).collect();
+    let image = image::RgbaImage::from_raw(img.size[0] as u32, img.size[1] as u32, rgba)?;
+    let c = w.doc.crop;
+    let k = (0.8 * c.w / image.width() as f32).min(0.8 * c.h / image.height() as f32).min(1.0);
+    // Upright on the screen, in the middle of what is shown.
+    let centre = crate::edit::geom::turned(Pt::new(c.cx, c.cy), -w.doc.angle);
+    Some((crate::edit::doc::Area { centre, w: image.width() as f32 * k, h: image.height() as f32 * k, rot: -w.doc.angle }, crate::edit::doc::Pixels::new(image)))
 }
 
 /// On X11, where other programs get at most about 16 MB of a copy (`clip_limit`), where to send its
