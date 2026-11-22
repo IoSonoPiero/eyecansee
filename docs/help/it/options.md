@@ -8,6 +8,8 @@ Scegli **Strumenti > Opzioni…** (![Opzioni…](icon://settings)). La finestra 
 
 Ogni modifica viene salvata subito in `settings.json`: in `~/.config/eyecansee` su Linux e in `%APPDATA%\eyecansee` su Windows. È un file di testo che puoi anche modificare a mano.
 
+Su Windows **Strumenti > Crea icona sul desktop**, appena sopra **Opzioni…**, mette un'icona di EyeCanSee sul desktop. Se c'è già un'icona che avvia questa copia, lo dice e non ne crea un'altra. La copia del Microsoft Store riceve un'icona come quella trascinata da Start; la disinstallazione della copia dell'installer toglie anche l'icona creata da questa voce.
+
 ![Opzioni](../img/options.webp)
 
 ## Generale

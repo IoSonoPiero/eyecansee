@@ -148,3 +148,39 @@ Type: filesandordirs; Name: "{localappdata}\EyeCanSee\components"
 
 [Run]
 Filename: "{app}\eyecansee.exe"; Description: "{cm:LaunchProgram,EyeCanSee}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+// #210: the desktop icons made by Tools > Create desktop icon ("EyeCanSee", "EyeCanSee (2)"...)
+// go with the program when they start the eyecansee.exe being removed. [UninstallDelete] deletes
+// by name only, so the target of each shortcut is read first: one to another copy stays.
+// [Unverified] Not built or run yet: to be tried in the Windows VM.
+procedure RemoveOwnIcons(Dir: String);
+var
+  Find: TFindRec;
+  Shell, Link: Variant;
+  Exe: String;
+begin
+  Exe := Lowercase(ExpandConstant('{app}\eyecansee.exe'));
+  if FindFirst(Dir + '\EyeCanSee*.lnk', Find) then
+  try
+    Shell := CreateOleObject('WScript.Shell');
+    repeat
+      Link := Shell.CreateShortcut(Dir + '\' + Find.Name);
+      if Lowercase(Link.TargetPath) = Exe then
+        DeleteFile(Dir + '\' + Find.Name);
+    until not FindNext(Find);
+  finally
+    FindClose(Find);
+  end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    RemoveOwnIcons(ExpandConstant('{userdesktop}'));
+    // The public desktop only when installed for all users: it needs the rights it had.
+    if IsAdminInstallMode then
+      RemoveOwnIcons(ExpandConstant('{commondesktop}'));
+  end;
+end;

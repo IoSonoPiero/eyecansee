@@ -8,6 +8,8 @@ Choose **Tools > Options…** (![Options…](icon://settings)). The window is di
 
 Every change is saved at once in `settings.json`: in `~/.config/eyecansee` on Linux and in `%APPDATA%\eyecansee` on Windows. It is a text file you can also edit by hand.
 
+On Windows, **Tools > Create desktop icon**, just above **Options…**, puts an EyeCanSee icon on the desktop. If an icon that starts this copy is already there, it says so and makes no other. The Microsoft Store copy gets an icon like the one dragged from Start; uninstalling the installer copy also removes the icon this entry made.
+
 ![Options](../img/options.webp)
 
 ## General

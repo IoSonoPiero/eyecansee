@@ -46,6 +46,19 @@ pub(crate) struct Open {
     /// Download and close was answered: these downloads run on the add-ons page, and the window
     /// closes by itself once they have all arrived (`first_start::ended`).
     closing: Option<Vec<&'static str>>,
+    /// The desktop icon question of page 1 (Windows, #210); `None` where it is not asked.
+    desktop: Option<Desktop>,
+}
+
+/// Where the desktop icon question is. Yes makes the icon at once; no answer makes none, and
+/// the question does not come back (`welcome_seen`): Tools > Create desktop icon stays.
+#[derive(Clone, PartialEq, Debug)]
+enum Desktop {
+    Ask,
+    Made,
+    No,
+    /// The system's reason, on hover and in the log.
+    Failed(String),
 }
 
 /// What a button at the bottom does.
@@ -58,12 +71,12 @@ enum Press {
 }
 
 impl Open {
-    fn new(plan: Plan) -> Self {
+    fn new(plan: Plan, desktop: bool) -> Self {
         let rows = crate::addons_ui::list().into_iter().filter(|(a, _)| plan.addons.contains(&a.component.kind)).map(|(a, h)| (a, h, false)).collect();
         // Debug only, for the screenshots of the second page: `EYECANSEE_FIRST_START_PAGE=2`.
         let page = std::env::var("EYECANSEE_FIRST_START_PAGE").ok().filter(|_| cfg!(debug_assertions)).and_then(|p| p.parse::<usize>().ok());
         let page = page.map_or(0, |p| p.saturating_sub(1).min(plan.pages.len() - 1));
-        Open { plan, page, rows, running: Vec::new(), asking: false, closing: None }
+        Open { plan, page, rows, running: Vec::new(), asking: false, closing: None, desktop: desktop.then_some(Desktop::Ask) }
     }
 
     /// The question on closing is open: Enter and Esc are its own (`App::asking`).
@@ -99,8 +112,9 @@ impl App {
             self.settings.save();
         }
         let Some(plan) = plan else { return false };
-        log!("first start: pages {:?}, add-ons {:?}", plan.pages, plan.addons);
-        self.first_start = Some(Open::new(plan));
+        let desktop = plan.pages.contains(&Page::Welcome) && crate::desktop_icon::ask_at_start();
+        log!("first start: pages {:?}, add-ons {:?}, desktop icon question {desktop}", plan.pages, plan.addons);
+        self.first_start = Some(Open::new(plan, desktop));
         true
     }
 
@@ -257,7 +271,7 @@ impl App {
                     ui.set_height(BODY);
                 }
                 match page {
-                    Page::Welcome => welcome(ui, logo, s, i18n, languages),
+                    Page::Welcome => welcome(ui, logo, s, i18n, languages, &mut open.desktop),
                     Page::Addons => addons(ui, &mut open.rows, downloads, i18n, paged),
                 }
             });
@@ -272,10 +286,11 @@ fn title(text: String) -> egui::RichText {
     egui::RichText::new(text).font(egui::FontId::new(22.0, egui::FontFamily::Name(crate::BOLD.into())))
 }
 
-/// Logo and welcome, then language and colors in two cards side by side.
-fn welcome(ui: &mut egui::Ui, logo: egui::TextureId, s: &mut crate::settings::Settings, i18n: &crate::i18n::I18n, languages: &[(&'static str, String)]) {
+/// Logo and welcome, then language and colors in two cards side by side, and on Windows the
+/// desktop icon question under them.
+fn welcome(ui: &mut egui::Ui, logo: egui::TextureId, s: &mut crate::settings::Settings, i18n: &crate::i18n::I18n, languages: &[(&'static str, String)], desktop: &mut Option<Desktop>) {
     ui.vertical_centered(|ui| {
-        ui.add_space(20.0 + DESKTOP / 2.0);
+        ui.add_space(if desktop.is_some() { 20.0 } else { 20.0 + DESKTOP / 2.0 });
         ui.image((logo, egui::vec2(LOGO, LOGO)));
         ui.add_space(16.0);
         ui.label(title(i18n.t("first-start-welcome")));
@@ -302,9 +317,55 @@ fn welcome(ui: &mut egui::Ui, logo: egui::TextureId, s: &mut crate::settings::Se
             }
         });
     });
-    // The desktop icon question (#210) goes here, in the room of `DESKTOP`.
+    if let Some(d) = desktop {
+        desktop_row(ui, d, i18n);
+    }
     // The last line in the middle of what is left.
     ui.centered_and_justified(|ui| ui.label(egui::RichText::new(i18n.t("first-start-welcome-later")).weak()));
+}
+
+/// The desktop icon question (#210), in the room of `DESKTOP`: the question in line with the
+/// cards' names, Yes and No on the right (plain buttons: Next stays the only blue one); after the
+/// answer one line in the middle, of the same height, so the line under it does not move
+/// (Fable, 22/11).
+fn desktop_row(ui: &mut egui::Ui, d: &mut Desktop, i18n: &crate::i18n::I18n) {
+    ui.add_space(DESKTOP - CHOICE);
+    let size = egui::vec2(ui.available_width(), CHOICE);
+    let inset = 12.0;
+    ui.allocate_ui_with_layout(size, egui::Layout::left_to_right(egui::Align::Center), |ui| {
+        ui.set_min_size(size);
+        let weak = |ui: &mut egui::Ui, id| ui.centered_and_justified(|ui| ui.label(egui::RichText::new(i18n.t(id)).weak()));
+        match d {
+            Desktop::Ask => {
+                ui.add_space(inset);
+                ui.label(i18n.t("desktop-icon-question"));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add_space(inset);
+                    let button = |ui: &mut egui::Ui, id| ui.add(egui::Button::new(i18n.t(id)).min_size(egui::vec2(64.0, 26.0))).clicked();
+                    // Right to left: No first, so that Yes is on its left.
+                    if button(ui, "desktop-icon-no") {
+                        log!("first start: desktop icon No");
+                        *d = Desktop::No;
+                    }
+                    if button(ui, "desktop-icon-yes") {
+                        let made = crate::desktop_icon::create();
+                        log!("first start: desktop icon Yes: {made:?}");
+                        *d = made.map_or_else(Desktop::Failed, |_| Desktop::Made);
+                    }
+                });
+            }
+            Desktop::Made => {
+                weak(ui, "desktop-icon-done");
+            }
+            Desktop::No => {
+                weak(ui, "desktop-icon-later");
+            }
+            Desktop::Failed(why) => {
+                ui.add_space(inset);
+                crate::error_bar::inline(ui, &i18n.t("desktop-icon-failed")).on_hover_text(why.as_str());
+            }
+        }
+    });
 }
 
 /// A card of the welcome page, `width` wide: its name in bold and its choices, which scroll when
@@ -633,7 +694,7 @@ mod tests {
         let rows: Vec<_> = crate::component::addons().into_iter().map(|a| (a, Have::Missing, false)).collect();
         let Some(kind) = rows.first().map(|r| r.0.component.kind) else { return };
         let plan = Plan { pages: vec![Page::Welcome, Page::Addons], addons: rows.iter().map(|r| r.0.component.kind).collect() };
-        let mut open = Open { plan, page: 1, rows, running: Vec::new(), asking: false, closing: None };
+        let mut open = Open { plan, page: 1, rows, running: Vec::new(), asking: false, closing: None, desktop: None };
         let mut downloads = Downloads::default();
         assert!(open.leave(&downloads), "nothing ticked");
         open.rows[0].2 = true;

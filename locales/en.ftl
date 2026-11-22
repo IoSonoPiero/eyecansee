@@ -738,6 +738,17 @@ first-start-leave = { $n ->
 }
 first-start-leave-download = Download and close
 first-start-leave-close = Close without downloading
+
+# The desktop icon on Windows (#210): Tools menu, first-start window, messages.
+menu-desktop-icon = Create desktop icon
+desktop-icon-question = Do you want an EyeCanSee icon on the desktop?
+desktop-icon-yes = Yes
+desktop-icon-no = No
+desktop-icon-done = The icon is on the desktop.
+desktop-icon-later = With Tools > Create desktop icon you can make one at any time.
+desktop-icon-failed = The icon could not be created.
+desktop-icon-made = The icon **{ $name }** is on the desktop.
+desktop-icon-there = An icon that starts EyeCanSee is already on the desktop.
 convert-file-size = { $size } on disk
 convert-ratio = { $percent }% of the original
 convert-format = Format

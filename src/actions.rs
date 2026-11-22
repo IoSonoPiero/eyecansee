@@ -27,6 +27,8 @@ pub(crate) enum Act {
     /// Bookmarks > Configure….
     Bookmarks,
     Options,
+    /// Tools > Create desktop icon (Windows, #210).
+    DesktopIcon,
     /// Ctrl+A in the grid.
     SelectAll,
     /// Save as… of Rotate and crop, from the message saying it cannot save over the original.
@@ -305,6 +307,7 @@ impl App {
             Act::Servers if crate::servers::locked() => self.ask_master(crate::vault_page::Then::Manager),
             Act::Servers => self.server_manager = Some(AddressForm::manager()),
             Act::Options => self.options = true,
+            Act::DesktopIcon => self.desktop_icon(),
             Act::Bookmark(_) | Act::AddBookmark(_) | Act::RemoveBookmark(_) | Act::Bookmarks => self.bookmark_act(ctx, act),
             Act::SelectAll => self.select_all(),
             Act::RotateSaveAs => {
@@ -400,5 +403,19 @@ impl App {
             crate::update::not_updated_note()
         };
         self.update_note = Some(self.i18n.t(id));
+    }
+
+    /// Tools > Create desktop icon (#210): made, already there, or why not, in a message.
+    fn desktop_icon(&mut self) {
+        use crate::desktop_icon::Made;
+        let made = crate::desktop_icon::create();
+        log!("desktop icon: {made:?}");
+        let (text, warning) = match &made {
+            Ok(Made::Made(name)) => (self.i18n.t_args("desktop-icon-made", &[("name", name)]), false),
+            Ok(Made::There) => (self.i18n.t("desktop-icon-there"), false),
+            Err(e) => (format!("{}\n\n{e}", self.i18n.t("desktop-icon-failed")), true),
+        };
+        let notice = crate::save_dialogs::Notice::new(self.i18n.t("menu-desktop-icon"), text);
+        self.notice = Some(crate::save_dialogs::Notice { warning, help: Some("help:options"), ..notice });
     }
 }

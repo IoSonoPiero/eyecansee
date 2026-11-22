@@ -198,6 +198,10 @@ impl App {
         entry(ui, act, self.duplicates_off(), item(t("menu-duplicates"), t("key-duplicates")), Act::Duplicates(None));
         partial_note(ui, partial.get(), &self.i18n);
         ui.separator();
+        // Windows only, in the copies that can have one (#210).
+        if crate::desktop_icon::me().is_some() {
+            entry(ui, act, None, item(t("menu-desktop-icon"), String::new()), Act::DesktopIcon);
+        }
         entry(ui, act, None, item(t("menu-options"), String::new()), Act::Options);
     }
 

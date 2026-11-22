@@ -1,11 +1,13 @@
 //! The desktop icon on Windows (#210): which copy is running, whether the first-start window asks
-//! for an icon, whether a shortcut already starts this copy, and the name a new one takes. The
-//! rules only, without the system: writing and reading the shortcuts (COM) is Windows' part.
-// The first-start window's question and the Windows shortcuts come next and use these rules;
-// until then they are only tested.
-#![cfg_attr(not(test), expect(dead_code, reason = "used by the #210 question and the Windows shortcuts, not written yet"))]
+//! for an icon, whether a shortcut already starts this copy, the name a new one takes and what it
+//! starts. The rules are here, without the system; reading and writing the shortcuts (COM) is
+//! `desktop_icon_win.rs`, on a thread of its own.
 
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+
+#[cfg(windows)]
+use crate::desktop_icon_win as shell;
 
 /// A copy that can have a desktop icon.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -55,6 +57,7 @@ pub(crate) enum Target {
     /// A program, by its path.
     Exe(PathBuf),
     /// PowerShell running a script (`-File "<path>"`): how the test copy's icon starts it.
+    #[cfg_attr(not(any(windows, test)), expect(dead_code, reason = "read by desktop_icon_win.rs"))]
     Script(PathBuf),
     /// The app of a package, by its AppUserModelID (an icon dragged from Start).
     App(String),
@@ -69,6 +72,7 @@ pub(crate) struct Me {
 }
 
 /// A shortcut to PowerShell is read by its arguments: the script it runs.
+#[cfg_attr(not(any(windows, test)), expect(dead_code, reason = "read by desktop_icon_win.rs"))]
 pub(crate) fn target_of(path: &Path, args: &str) -> Target {
     // The last part after either separator: a Windows path read on any system (the tests).
     let program = path.to_string_lossy().rsplit(['\\', '/']).next().map(str::to_lowercase);
@@ -79,6 +83,7 @@ pub(crate) fn target_of(path: &Path, args: &str) -> Target {
 }
 
 /// The path after `-File`, with or without quotes.
+#[cfg_attr(not(any(windows, test)), expect(dead_code, reason = "read by desktop_icon_win.rs"))]
 fn script_of(args: &str) -> Option<PathBuf> {
     let at = args.to_lowercase().find("-file")? + "-file".len();
     let rest = args[at..].trim_start();
@@ -133,6 +138,157 @@ pub(crate) fn place(base: &str, found: impl Fn(&str) -> Option<Found>) -> Place 
         }
     }
     unreachable!("names run out")
+}
+
+/// A shortcut found on a desktop, by its name without ".lnk".
+#[derive(Clone, Debug)]
+pub(crate) struct Link {
+    pub(crate) name: String,
+    pub(crate) target: Target,
+    /// What it starts is there (`works`).
+    pub(crate) works: bool,
+    /// On the public desktop (an installer run for all users): never replaced, it needs the rights
+    /// of an administrator.
+    pub(crate) public: bool,
+}
+
+/// Whether what a shortcut starts is there. A shortcut to a Store app counts as working: there
+/// is no cheap way to tell that its package is gone.
+#[cfg_attr(not(any(windows, test)), expect(dead_code, reason = "read by desktop_icon_win.rs"))]
+pub(crate) fn works(t: &Target, exists: impl Fn(&Path) -> bool) -> bool {
+    match t {
+        Target::Exe(path) | Target::Script(path) => exists(path),
+        Target::App(_) => true,
+    }
+}
+
+/// What the desktop calls for.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub(crate) enum Outcome {
+    /// A shortcut on either desktop already starts this copy: nothing to ask, nothing to make.
+    There,
+    Write(Place),
+}
+
+/// What to do for this copy with these shortcuts on the two desktops. A name taken on the public
+/// desktop, or by a working shortcut, is skipped; one taken only by broken shortcuts of the
+/// user's desktop is reused.
+pub(crate) fn decide(me: &Me, links: &[Link]) -> Outcome {
+    if links.iter().any(|l| starts_me(&l.target, me)) {
+        return Outcome::There;
+    }
+    Outcome::Write(place(base_name(me.copy), |name| {
+        let mut same = links.iter().filter(|l| l.name.eq_ignore_ascii_case(name)).peekable();
+        same.peek()?;
+        Some(if same.all(|l| !l.works && !l.public) { Found::Broken } else { Found::Works })
+    }))
+}
+
+/// A shortcut to write: what it starts (a program by its path, or the app of a package), its
+/// arguments, the folder it starts in and the file of its icon (the exe's first icon).
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub(crate) struct Spec {
+    pub(crate) target: Target,
+    pub(crate) args: String,
+    pub(crate) dir: PathBuf,
+    pub(crate) icon: PathBuf,
+}
+
+/// The shortcut of this copy: the Store copy its app (its icon comes with it); zip and installer
+/// the exe; the test copy PowerShell on the `avvia.ps1` next to the exe, as its install script
+/// makes it (`tools/test-copy/install-windows.ps1`), which keeps the log always on. `None` for
+/// the Store copy when its AUMID could not be read.
+pub(crate) fn spec(me: &Me, system_root: &Path) -> Option<Spec> {
+    let dir = me.exe.parent()?.to_path_buf();
+    let icon = me.exe.clone();
+    Some(match me.copy {
+        Copy::Store => Spec { target: Target::App(me.aumid.clone()?), args: String::new(), dir, icon },
+        Copy::Zip | Copy::Installer => Spec { target: Target::Exe(me.exe.clone()), args: String::new(), dir, icon },
+        Copy::Test => {
+            let powershell = system_root.join("System32").join("WindowsPowerShell").join("v1.0").join("powershell.exe");
+            let args = format!(r#"-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{}""#, dir.join("avvia.ps1").display());
+            Spec { target: Target::Exe(powershell), args, dir, icon }
+        }
+    })
+}
+
+/// This copy, when it can have a desktop icon (`copy_kind`): read once.
+pub(crate) fn me() -> Option<&'static Me> {
+    static ME: OnceLock<Option<Me>> = OnceLock::new();
+    ME.get_or_init(|| {
+        let exe = std::env::current_exe().ok()?;
+        let copy = copy_kind(cfg!(windows), crate::update::packaged(), cfg!(feature = "test-copy"), &exe, Path::exists)?;
+        let aumid = if copy == Copy::Store { shell::aumid() } else { None };
+        Some(Me { copy, exe, aumid })
+    })
+    .as_ref()
+}
+
+/// Whether the first-start window asks (`asks`): this copy can have an icon and none starts it.
+/// A desktop that cannot be read counts as without one: Yes then says why it failed.
+pub(crate) fn ask_at_start() -> bool {
+    // Debug only, for the screenshots of the question on Linux: `EYECANSEE_DESKTOP_QUESTION=1`.
+    if cfg!(debug_assertions) && std::env::var_os("EYECANSEE_DESKTOP_QUESTION").is_some() {
+        return true;
+    }
+    let Some(me) = me() else { return false };
+    let present = shell::com(shell::links).is_ok_and(|links| decide(me, &links) == Outcome::There);
+    asks(Some(me.copy), present)
+}
+
+/// What Yes of the question and Tools > Create desktop icon did.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub(crate) enum Made {
+    /// The icon with this name is on the user's desktop.
+    Made(String),
+    /// One that starts this copy was there already.
+    There,
+}
+
+/// Makes the icon of this copy on the user's desktop, unless one starts it already. The error is
+/// the system's, for the message.
+pub(crate) fn create() -> Result<Made, String> {
+    let me = me().ok_or("not a copy with a desktop icon")?;
+    shell::com(|| {
+        let place = match decide(me, &shell::links()?) {
+            Outcome::There => return Ok(Made::There),
+            Outcome::Write(place) => place,
+        };
+        let name = match &place {
+            Place::New(n) | Place::Replace(n) => n.clone(),
+        };
+        let spec = spec(me, &shell::system_root()?).ok_or("the app of the package could not be read")?;
+        let folder = shell::desktop(false)?;
+        log!("desktop icon: {place:?} in {} -> {spec:?}", folder.display());
+        shell::write(&folder.join(format!("{name}.lnk")), &spec)?;
+        Ok(Made::Made(name))
+    })
+}
+
+/// Off Windows nothing has a desktop icon (`me` is `None`): these are never reached.
+#[cfg(not(windows))]
+mod shell {
+    use super::{Link, Spec};
+    use std::path::{Path, PathBuf};
+
+    pub(super) fn com<T>(f: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
+        f()
+    }
+    pub(super) fn aumid() -> Option<String> {
+        None
+    }
+    pub(super) fn links() -> Result<Vec<Link>, String> {
+        Ok(Vec::new())
+    }
+    pub(super) fn system_root() -> Result<PathBuf, String> {
+        Err("Windows only".into())
+    }
+    pub(super) fn desktop(_public: bool) -> Result<PathBuf, String> {
+        Err("Windows only".into())
+    }
+    pub(super) fn write(_path: &Path, _spec: &Spec) -> Result<(), String> {
+        Err("Windows only".into())
+    }
 }
 
 #[cfg(test)]
@@ -212,5 +368,62 @@ mod tests {
             _ => None,
         };
         assert_eq!(place("EyeCanSee", broken_two), Place::Replace("EyeCanSee (2)".into()));
+    }
+    fn link(name: &str, target: Target, works: bool, public: bool) -> Link {
+        Link { name: name.into(), target, works, public }
+    }
+
+    /// A shortcut that starts this copy, on either desktop, means nothing to ask or make; the
+    /// others decide the name.
+    #[test]
+    fn what_the_desktop_calls_for() {
+        let me = Me { copy: Copy::Zip, exe: "C:/Tools/EyeCanSee/eyecansee.exe".into(), aumid: None };
+        let mine = Target::Exe("c:/tools/eyecansee/eyecansee.exe".into());
+        let other = Target::Exe("C:/Other/eyecansee.exe".into());
+        assert_eq!(decide(&me, &[]), Outcome::Write(Place::New("EyeCanSee".into())));
+        assert_eq!(decide(&me, &[link("Photos", mine.clone(), true, true)]), Outcome::There, "on the public desktop, any name");
+        assert_eq!(decide(&me, &[link("EyeCanSee", other.clone(), false, false)]), Outcome::Write(Place::Replace("EyeCanSee".into())));
+        assert_eq!(decide(&me, &[link("eyecansee", other.clone(), true, false)]), Outcome::Write(Place::New("EyeCanSee (2)".into())), "names without regard to case");
+        // A broken one on the public desktop needs an administrator: its name is skipped.
+        assert_eq!(decide(&me, &[link("EyeCanSee", other.clone(), false, true)]), Outcome::Write(Place::New("EyeCanSee (2)".into())));
+        let both = [link("EyeCanSee", other.clone(), false, false), link("EyeCanSee", other, true, true)];
+        assert_eq!(decide(&me, &both), Outcome::Write(Place::New("EyeCanSee (2)".into())));
+    }
+
+    #[test]
+    fn what_works() {
+        let here = |p: &Path| p.ends_with("eyecansee.exe");
+        assert!(works(&Target::Exe("C:/A/eyecansee.exe".into()), here));
+        assert!(!works(&Target::Exe("C:/Gone/other.exe".into()), here));
+        assert!(!works(&Target::Script("C:/Gone/avvia.ps1".into()), here));
+        assert!(works(&Target::App("Maker.App_abc!App".into()), |_| false));
+    }
+
+    /// Each copy's shortcut, and read back it starts that copy.
+    #[test]
+    fn the_shortcut_of_each_copy() {
+        let root = Path::new("C:/Windows");
+        let zip = Me { copy: Copy::Zip, exe: "C:/Tools/EyeCanSee/eyecansee.exe".into(), aumid: None };
+        let s = spec(&zip, root).unwrap();
+        assert_eq!((s.target.clone(), s.args.as_str(), s.dir.as_path(), s.icon.as_path()), (Target::Exe(zip.exe.clone()), "", Path::new("C:/Tools/EyeCanSee"), zip.exe.as_path()));
+        let installer = Me { copy: Copy::Installer, ..Me { copy: Copy::Zip, exe: zip.exe.clone(), aumid: None } };
+        assert_eq!(spec(&installer, root).unwrap(), s);
+        let store = Me { copy: Copy::Store, exe: "C:/Program Files/WindowsApps/x/eyecansee.exe".into(), aumid: Some("Maker.App_abc!App".into()) };
+        assert_eq!(spec(&store, root).unwrap().target, Target::App("Maker.App_abc!App".into()));
+        assert_eq!(spec(&Me { aumid: None, ..store }, root), None);
+        let test = Me { copy: Copy::Test, exe: "C:/P/EyeCanSee-prova/eyecansee.exe".into(), aumid: None };
+        let t = spec(&test, root).unwrap();
+        assert!(matches!(&t.target, Target::Exe(p) if p.ends_with("powershell.exe")));
+        assert_eq!(t.icon, test.exe, "the red icon of the test copy's exe");
+        let Target::Exe(ps) = &t.target else { unreachable!() };
+        for me in [&zip, &test] {
+            let written = spec(me, root).unwrap();
+            let program = match &written.target {
+                Target::Exe(p) => p.clone(),
+                _ => unreachable!(),
+            };
+            assert!(starts_me(&target_of(&program, &written.args), me), "{:?}", me.copy);
+        }
+        assert!(!starts_me(&target_of(ps, &t.args), &zip));
     }
 }

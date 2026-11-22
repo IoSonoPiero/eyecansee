@@ -55,6 +55,8 @@ mod convert;
 mod debug_shot;
 mod decode;
 mod desktop_icon;
+#[cfg(windows)]
+mod desktop_icon_win;
 mod devices;
 mod dup_page;
 mod duplicates;
