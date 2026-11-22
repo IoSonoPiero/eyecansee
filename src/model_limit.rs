@@ -458,6 +458,17 @@ mod tests {
         assert_eq!(both(&blocks).0, "The drawing places its blocks more than 1 million times, too many to open.");
         assert_eq!(both(&blocks).1, "Il disegno colloca i suoi blocchi più di 1 milione di volte, troppe per aprirlo.");
         assert_eq!(both(&blocks).2.as_deref(), Some("blocks placed more than 1 million times"));
+        // Every one of them has its sentence and its few words in both languages.
+        for id in IN_MILLIONS.iter().chain(&AS_IT_IS) {
+            let (full_en, full_it, brief_en, brief_it) = both(&too_many(id, 20_000_000));
+            for text in [full_en, full_it, brief_en.unwrap(), brief_it.unwrap()] {
+                assert!(text.contains("20") && !text.contains("error-") && !text.contains('{'), "{id}: {text}");
+            }
+        }
+        let inlined = both(&too_many(INLINED, 1000));
+        assert_eq!((inlined.0.as_str(), inlined.1.as_str()), ("The model includes other files more than 1000 times, too many to open.", "Il modello include altri file più di 1000 volte, troppe per aprirlo."));
+        assert_eq!(both(&too_many(DRAWING_POINTS, crate::cad::MAX_POINTS)).1, "Il disegno ha più di 20 milioni di punti, troppi per aprirlo.");
+        assert_eq!(both(&too_many(DRAWING_ENTITIES, crate::cad::MAX_POINTS)).0, "The drawing has more than 20 million elements, too many to open.");
     }
 
     /// The early counts give what the readers give, on small files of every kind they count.
@@ -524,7 +535,12 @@ mod tests {
         let name = path.file_name().unwrap().to_string_lossy().to_string();
         let sibling = |n: &str| std::fs::read(dir.join(n)).ok();
         let t = std::time::Instant::now();
-        let r = crate::model::parse_with(&bytes, &name, &sibling).map(|m| m.tris.len());
+        // `EYECANSEE_PROBE_COUNT=1`: only the early count of the triangles of an XML (AMF).
+        let r = if std::env::var("EYECANSEE_PROBE_COUNT").is_ok() {
+            Ok(xml_triangles(&crate::model_3mf::text(&bytes)))
+        } else {
+            crate::model::parse_with(&bytes, &name, &sibling).map(|m| m.tris.len())
+        };
         let took = t.elapsed();
         let status = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
         let kb = status.lines().find(|l| l.starts_with("VmHWM:")).and_then(|l| l.split_whitespace().nth(1)?.parse::<u64>().ok()).unwrap_or(0);
