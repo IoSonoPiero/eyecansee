@@ -8,7 +8,7 @@ use eframe::egui;
 use crate::App;
 use crate::component::{Addon, Have};
 use crate::downloads::Downloads;
-use crate::first_start::{Answer, Card, Page, Plan};
+use crate::first_start::{After, Answer, Card, Page, Plan};
 use crate::settings::ThemeChoice;
 
 /// Width of the window.
@@ -41,9 +41,11 @@ pub(crate) struct Open {
     rows: Vec<(Addon, Have, bool)>,
     /// The kinds downloading at the last frame: when one ends, where they are is read again.
     running: Vec<&'static str>,
-    /// Closing was asked on the add-ons page with ticked cards not downloaded: the question is
-    /// open over the window.
+    /// Closing was asked with ticked cards not downloaded: the question is open over the window.
     asking: bool,
+    /// Download and close was answered: these downloads run on the add-ons page, and the window
+    /// closes by itself once they have all arrived (`first_start::ended`).
+    closing: Option<Vec<&'static str>>,
 }
 
 /// What a button at the bottom does.
@@ -61,7 +63,7 @@ impl Open {
         // Debug only, for the screenshots of the second page: `EYECANSEE_FIRST_START_PAGE=2`.
         let page = std::env::var("EYECANSEE_FIRST_START_PAGE").ok().filter(|_| cfg!(debug_assertions)).and_then(|p| p.parse::<usize>().ok());
         let page = page.map_or(0, |p| p.saturating_sub(1).min(plan.pages.len() - 1));
-        Open { plan, page, rows, running: Vec::new(), asking: false }
+        Open { plan, page, rows, running: Vec::new(), asking: false, closing: None }
     }
 
     /// The question on closing is open: Enter and Esc are its own (`App::asking`).
@@ -143,14 +145,44 @@ impl App {
         let Some(answer) = ask(ctx, &question).or(keys) else { return };
         open.asking = false;
         log!("first start: {answer:?} answered");
-        let Some(start) = crate::first_start::answered(&mut self.settings, &open.plan, waiting, answer) else { return };
-        for (a, ..) in open.rows.iter().filter(|r| start.contains(&r.0.component.kind)) {
-            if self.downloads.start(a.component, ctx) {
-                log!("first start: downloading {}", a.component.kind);
+        match crate::first_start::answered(&mut self.settings, &open.plan, waiting, answer) {
+            After::Stay => {}
+            After::Closed => {
+                self.settings.save();
+                self.first_start = None;
+            }
+            // The window stays, on the add-ons page with their bars, and closes once they arrive.
+            After::Downloading(kinds) => {
+                open.page = open.plan.pages.iter().position(|p| *p == Page::Addons).unwrap_or(open.page);
+                for (a, ..) in open.rows.iter().filter(|r| kinds.contains(&r.0.component.kind)) {
+                    if self.downloads.start(a.component, ctx) {
+                        log!("first start: downloading {} before closing", a.component.kind);
+                    }
+                }
+                open.closing = Some(kinds);
             }
         }
-        self.settings.save();
-        self.first_start = None;
+    }
+
+    /// After Download and close: all arrived, the window closes by itself as Done closes it; one
+    /// failed, it stays open with the error, and Done closes it.
+    fn first_start_closing(&mut self) {
+        let Some(open) = &mut self.first_start else { return };
+        let Some(kinds) = &open.closing else { return };
+        let states: Vec<_> = kinds.iter().map(|k| crate::addons_ui::download(self.downloads.get(k))).collect();
+        match crate::first_start::ended(&states) {
+            None => {}
+            Some(false) => {
+                log!("first start: a download failed, the window stays");
+                open.closing = None;
+            }
+            Some(true) => {
+                log!("first start: downloads arrived, closed");
+                crate::first_start::closed(&mut self.settings, &open.plan);
+                self.settings.save();
+                self.first_start = None;
+            }
+        }
     }
 
     /// The window, while open.
@@ -171,6 +203,7 @@ impl App {
             None => {}
         }
         self.first_start_ask(ctx);
+        self.first_start_closing();
     }
 
     fn first_start_turn(&mut self, by: isize) {
@@ -183,8 +216,8 @@ impl App {
     /// would start them; the parts of EyeCanSee waiting for one see it arrive as they do today.
     fn first_start_download(&mut self, ctx: &egui::Context) {
         let Some(open) = &mut self.first_start else { return };
-        for (a, _, ticked) in open.rows.iter_mut().filter(|r| r.2) {
-            *ticked = false;
+        // The ticks stay: a download that fails leaves its card ticked, for Download again.
+        for (a, ..) in open.rows.iter().filter(|r| r.2) {
             if self.downloads.start(a.component, ctx) {
                 log!("first start: downloading {}", a.component.kind);
             }
@@ -600,7 +633,7 @@ mod tests {
         let rows: Vec<_> = crate::component::addons().into_iter().map(|a| (a, Have::Missing, false)).collect();
         let Some(kind) = rows.first().map(|r| r.0.component.kind) else { return };
         let plan = Plan { pages: vec![Page::Welcome, Page::Addons], addons: rows.iter().map(|r| r.0.component.kind).collect() };
-        let mut open = Open { plan, page: 1, rows, running: Vec::new(), asking: false };
+        let mut open = Open { plan, page: 1, rows, running: Vec::new(), asking: false, closing: None };
         let mut downloads = Downloads::default();
         assert!(open.leave(&downloads), "nothing ticked");
         open.rows[0].2 = true;
@@ -621,7 +654,7 @@ mod tests {
         *download.result.lock().unwrap() = Some(Ok(()));
         assert!(open.leave(&downloads), "its download has arrived");
         *download.result.lock().unwrap() = Some(Err("x".into()));
-        assert!(!open.leave(&downloads), "its download failed: ticked again, it waits");
+        assert!(open.leave(&downloads), "its download failed: the card stays ticked and Done closes (Piero, 22/11)");
     }
 
     /// Skip and Next on the first page; Back, Download and Done on the last, without Back when

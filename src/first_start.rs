@@ -86,17 +86,50 @@ pub(crate) enum Answer {
     Back,
 }
 
-/// What an answer does. Back: nothing, the window stays open (`None`). The other two close it as
-/// Done does (`closed`) and give the add-ons whose download starts now: the waiting ones for
-/// Download, none for Close.
-pub(crate) fn answered(s: &mut Settings, plan: &Plan, waiting: Vec<&'static str>, answer: Answer) -> Option<Vec<&'static str>> {
-    let start = match answer {
-        Answer::Back => return None,
-        Answer::Download => waiting,
-        Answer::Close => Vec::new(),
-    };
-    closed(s, plan);
-    Some(start)
+/// What follows an answer.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub(crate) enum After {
+    /// Back: the window stays open as it was.
+    Stay,
+    /// Close without downloading: closed as Done closes it.
+    Closed,
+    /// Download and close: the window stays open on the add-ons page, these downloads start
+    /// there with their bars, and it closes by itself once they have all arrived (`ended`).
+    Downloading(Vec<&'static str>),
+}
+
+/// What an answer does (Piero, 22/11, after trying the copy: Download and close does not close
+/// at once and download behind the program, it downloads in the window and then closes).
+pub(crate) fn answered(s: &mut Settings, plan: &Plan, waiting: Vec<&'static str>, answer: Answer) -> After {
+    match answer {
+        Answer::Back => After::Stay,
+        Answer::Download => After::Downloading(waiting),
+        Answer::Close => {
+            closed(s, plan);
+            After::Closed
+        }
+    }
+}
+
+/// Where a download started by Download and close is.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Download {
+    Running,
+    Arrived,
+    Failed,
+}
+
+/// The downloads of Download and close: `Some(true)` all arrived, the window closes by itself;
+/// `Some(false)` one failed, the window stays open with its error and closes with Done, as after
+/// Download; `None` still under way.
+pub(crate) fn ended(downloads: &[Download]) -> Option<bool> {
+    if downloads.contains(&Download::Failed) {
+        Some(false)
+    } else if downloads.contains(&Download::Running) {
+        None
+    } else {
+        Some(true)
+    }
 }
 
 fn offered(s: &Settings, kind: &str) -> bool {
@@ -219,15 +252,27 @@ mod tests {
         assert_eq!(waiting(&cards[..1]), ["libmpv"]);
     }
 
-    /// Download and close: the waiting ones start, and the window is closed as Done closes it.
+    /// Download and close: the waiting ones start and the window stays open, nothing remembered
+    /// yet; it closes by itself, as Done, once they have all arrived.
     #[test]
     fn download_and_close_starts_the_waiting_ones() {
         let mut s = Settings::default();
         let plan = at_start(&mut s, ALL, false, DAY).unwrap();
-        assert_eq!(answered(&mut s, &plan, vec!["libmpv", "occt"], Answer::Download), Some(vec!["libmpv", "occt"]));
-        assert!(s.welcome_seen);
-        assert_eq!(s.addons_offered, ["libmpv", "ffmpeg", "occt"]);
-        assert_eq!(at_start(&mut s, ALL, false, DAY + 1), None);
+        assert_eq!(answered(&mut s, &plan, vec!["libmpv", "occt"], Answer::Download), After::Downloading(vec!["libmpv", "occt"]));
+        assert!(!s.welcome_seen && s.addons_offered.is_empty(), "still open");
+    }
+
+    /// All arrived: closes by itself. One failed: stays open, whatever the others do. One under
+    /// way and none failed: waits.
+    #[test]
+    fn closes_by_itself_only_when_all_arrived() {
+        use Download::{Arrived, Failed, Running};
+        assert_eq!(ended(&[Arrived, Arrived]), Some(true));
+        assert_eq!(ended(&[Arrived]), Some(true));
+        assert_eq!(ended(&[Arrived, Failed]), Some(false));
+        assert_eq!(ended(&[Running, Failed]), Some(false), "a failure ends the wait at once");
+        assert_eq!(ended(&[Arrived, Running]), None);
+        assert_eq!(ended(&[Running]), None);
     }
 
     /// Close without downloading: nothing starts, and it counts as closing, exactly as Done.
@@ -237,27 +282,27 @@ mod tests {
         let plan = at_start(&mut s, ALL, false, DAY).unwrap();
         at_start(&mut done, ALL, false, DAY);
         closed(&mut done, &plan);
-        assert_eq!(answered(&mut s, &plan, vec!["libmpv", "occt"], Answer::Close), Some(vec![]));
+        assert_eq!(answered(&mut s, &plan, vec!["libmpv", "occt"], Answer::Close), After::Closed);
         assert_eq!(s, done, "the same settings as after Done");
         assert!(s.welcome_seen);
         assert_eq!(s.addons_offered, ["libmpv", "ffmpeg", "occt"]);
     }
 
     /// Back: the window stays open, nothing starts and nothing is remembered; the add-ons page
-    /// shown alone (a new add-on) the same, and its two closing answers do not touch the welcome.
+    /// shown alone (a new add-on) the same, and closing it does not touch the welcome.
     #[test]
     fn back_keeps_the_window_open() {
         let mut s = Settings::default();
         let plan = at_start(&mut s, ALL, false, DAY).unwrap();
-        assert_eq!(answered(&mut s, &plan, vec!["libmpv"], Answer::Back), None);
+        assert_eq!(answered(&mut s, &plan, vec!["libmpv"], Answer::Back), After::Stay);
         assert!(!s.welcome_seen && s.addons_offered.is_empty());
         assert!(at_start(&mut s, ALL, false, DAY).is_some(), "not closed: it comes back");
 
         let mut s = Settings { addons_offered: vec!["libmpv".into()], ..Settings::default() };
         let alone = Plan { pages: vec![Page::Addons], addons: vec!["pdf"] };
-        assert_eq!(answered(&mut s, &alone, vec!["pdf"], Answer::Back), None);
+        assert_eq!(answered(&mut s, &alone, vec!["pdf"], Answer::Back), After::Stay);
         assert_eq!(s.addons_offered, ["libmpv"]);
-        assert_eq!(answered(&mut s, &alone, vec!["pdf"], Answer::Download), Some(vec!["pdf"]));
+        assert_eq!(answered(&mut s, &alone, vec!["pdf"], Answer::Close), After::Closed);
         assert_eq!(s.addons_offered, ["libmpv", "pdf"]);
         assert!(!s.welcome_seen, "the add-ons page alone does not show the welcome");
     }

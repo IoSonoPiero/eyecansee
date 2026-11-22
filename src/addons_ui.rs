@@ -50,9 +50,21 @@ impl State {
     }
 }
 
-/// The download of a row is under way or has arrived: its card has no box to tick any more.
+/// A download of the row was started: under way, arrived, or failed (Piero, 22/11: after a
+/// failure the card stays ticked and Done closes without asking; Download tries again).
 pub(crate) fn started(dl: &Slot) -> bool {
-    !state(dl).idle()
+    dl.is_some()
+}
+
+/// Where a download of Download and close is (`first_start::ended`). A slot emptied counts as
+/// arrived: the video and CAD engines empty theirs only once theirs has arrived and is in use.
+pub(crate) fn download(dl: &Slot) -> crate::first_start::Download {
+    use crate::first_start::Download;
+    match state(dl) {
+        State::Running(_) => Download::Running,
+        State::Failed(_) => Download::Failed,
+        State::Done | State::Idle => Download::Arrived,
+    }
 }
 
 fn state(dl: &Slot) -> State {
@@ -126,7 +138,9 @@ pub(crate) fn row(ui: &mut egui::Ui, (a, have): (&Addon, &Have), dl: &Slot, i18n
             tick(ui, at(egui::Vec2::splat(MARK)), ticked);
             *value = ticked != response.clicked();
         }
-        (_, Control::Tick(value)) => *value = false,
+        // Here (downloaded or on the system): nothing to tick. Under way the tick stays, so that a
+        // download that fails leaves its card ticked, ready for Download again.
+        (Right::Here, Control::Tick(value)) => *value = false,
         _ => {}
     }
     match (right, button) {
@@ -197,8 +211,12 @@ fn status_line(ui: &mut egui::Ui, have: &Have, state: &State, total: u64, i18n: 
             // One line, so the card stays as tall as the others; the whole error under the pointer
             // (a long one, with the address, pushed the next card out of sight).
             let text = i18n.t_args("batch-video-download-failed", &[("detail", &crate::update::error_detail(i18n, e))]);
-            let line = egui::RichText::new(&text).color(ui.visuals().error_fg_color);
-            ui.add(egui::Label::new(line).truncate()).on_hover_text(text);
+            // As every message inside a window: the bar's small triangle and the theme's text, never
+            // red (Piero, 20/11).
+            ui.horizontal(|ui| {
+                crate::theme::warning_icon(ui, 14.0);
+                ui.add(egui::Label::new(&text).truncate()).on_hover_text(&text);
+            });
             return;
         }
         (State::Done, _) | (State::Idle, Have::Downloaded) => i18n.t("addon-downloaded"),
@@ -248,6 +266,25 @@ impl Tab {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
+    /// Where a download of Download and close is, from its slot: under way, failed, arrived; a slot
+    /// emptied (the engines empty theirs once theirs is in use) counts as arrived. Any slot means
+    /// a download was started, a failed one too (Done then closes without asking).
+    #[test]
+    fn download_state_from_its_slot() {
+        use crate::first_start::Download;
+        let d = std::sync::Arc::new(crate::component::Download::default());
+        let slot: Slot = Some(d.clone());
+        assert_eq!(download(&slot), Download::Running);
+        assert!(started(&slot));
+        *d.result.lock().unwrap() = Some(Err("x".into()));
+        assert_eq!(download(&slot), Download::Failed);
+        assert!(started(&slot), "a failed download was started");
+        *d.result.lock().unwrap() = Some(Ok(()));
+        assert_eq!(download(&slot), Download::Arrived);
+        assert_eq!(download(&None), Download::Arrived);
+        assert!(!started(&None));
+    }
 
     fn frame(ctx: &egui::Context, events: Vec<egui::Event>, mut draw: impl FnMut(&mut egui::Ui)) {
         let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))), events, ..Default::default() };
