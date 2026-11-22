@@ -300,6 +300,22 @@ mod tests {
         assert_eq!(I18n::new("it").brief_load(&e).as_deref(), Some("più di 2,5 milioni di punti"));
     }
 
+    /// An STL in text of one facet more than 10 million, the cap of the formats in text (Piero,
+    /// 22/11/2026), is refused by its early count, said as a text STL file; the facets are bare,
+    /// about 6 bytes each, as the count reads only the first word of each line.
+    #[test]
+    fn stl_text_over_its_cap_d1() {
+        let mut stl = String::with_capacity(6 * (TEXT_CAP + 2));
+        stl.push_str("solid a\n");
+        for _ in 0..=TEXT_CAP {
+            stl.push_str("facet\n");
+        }
+        let e = refused(crate::model::parse(stl.as_bytes(), "a.stl")).unwrap();
+        assert_eq!(e, "error-model-too-many-triangles\u{1}stl-text 10000000");
+        assert_eq!(I18n::new("en").load_error(&e).lines().nth(1), Some("EyeCanSee does not open text STL files with more than 10 million triangles, so that reading them does not fill the computer's memory."));
+        assert_eq!(I18n::new("it").load_error(&e).lines().nth(1), Some("EyeCanSee non apre i file STL in testo con più di 10 milioni di triangoli, perché la lettura non riempia la memoria del computer."));
+    }
+
     /// The error said in the viewer, in the lists of Export and Convert (a few words, and the
     /// whole sentence), and in a message window, in English and in Italian.
     #[test]
