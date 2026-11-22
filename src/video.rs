@@ -455,6 +455,13 @@ impl App {
     }
 }
 
+/// The place kept for `path` before Save (#211): used for that path only, and once (the caller
+/// takes it out whatever the path).
+#[allow(dead_code)] // until #211 is fixed
+fn kept_for(_kept: Option<(String, mpv::Place)>, _path: &str) -> Option<mpv::Place> {
+    None
+}
+
 /// Why a video does not play, as `I18n::cannot_load` says it: a Fluent id with no detail (`id\u{1}`),
 /// or the phone's or the server's own error, already so.
 fn said(failure: &mpv::Failure) -> String {
@@ -679,6 +686,53 @@ fn sound_controls(ui: &mut egui::Ui, player: &mpv::Player, (volume, mute): (&mut
 
 #[cfg(test)]
 mod tests {
+
+    /// #211: a place kept before Save is for that video only.
+    #[test]
+    fn place_kept_for_its_video() {
+        let place = crate::mpv::Place { time: 3.0, paused: true, at_end: false };
+        let kept = || Some(("a/clip.mp4".to_string(), place));
+        assert_eq!(super::kept_for(kept(), "a/clip.mp4"), Some(place));
+        assert_eq!(super::kept_for(kept(), "a/other.mp4"), None);
+        assert_eq!(super::kept_for(None, "a/clip.mp4"), None);
+    }
+
+    /// #211: after Save of a turned video the viewer opens it again (its new rotation) where it
+    /// was, paused as it was, not from 0:00 playing. Skipped without libmpv (the CI).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn saved_video_stays_where_it_was() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if !crate::mpv::available() {
+            println!("skipped: no libmpv");
+            return;
+        }
+        if own_folder("video::tests::saved_video_stays_where_it_was") {
+            return;
+        }
+        let dir = folder("saved-place", &[]);
+        std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/site/img/mtp-open.mp4"), dir.join("clip.mp4")).unwrap();
+        let mut h = Harness::new(&dir);
+        h.app.settings.video_mute = true;
+        let path = h.app.files()[0].path.clone();
+        h.app.viewing = Some(0);
+        h.until(|a| a.player_of(&path).is_some(), "the video open");
+        let p = h.app.player_of(&path).unwrap();
+        p.pause();
+        p.seek(4.5, true);
+        h.until(|a| a.player_of(&path).is_some_and(|p| p.paused() && (p.position() - 4.5).abs() < 0.05), "paused at 4.5 s");
+        // As after Save: the file replaced, opened again.
+        let ctx = h.ctx.clone();
+        h.app.on_replaced(&ctx, path.clone(), Ok(()));
+        assert!(h.app.video.is_none(), "the old player stays");
+        h.until(|a| a.player_of(&path).is_some(), "the video open again");
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        h.frame(Vec::new());
+        let p = h.app.player_of(&path).unwrap();
+        let (time, paused) = (p.position(), p.paused());
+        println!("after Save: {time:.3} s, paused {paused}");
+        assert!(paused && (time - 4.5).abs() < 0.05, "after Save: {time:.3} s, paused {paused}");
+    }
 
     /// #209: in the viewer a video mpv cannot play says why, as a picture that cannot be opened
     /// (the start in the middle, the whole message in the bar), instead of a spinner forever: one

@@ -16,7 +16,7 @@ use crate::mpv_load::{Api, api};
 pub use crate::mpv_load::{available, status};
 pub(crate) use crate::mpv_stream::OpenFn;
 pub use crate::mpv_stream::Reader;
-pub use crate::mpv_player::{Failure, Player, wait_closed};
+pub use crate::mpv_player::{Failure, Place, Player, wait_closed};
 use crate::mpv_stream::{Stream, stream_open};
 
 // From mpv's client.h and render.h (API 2.x).

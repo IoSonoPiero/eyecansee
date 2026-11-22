@@ -80,6 +80,21 @@ fn judge(failed: bool, read: Option<String>, showed: Option<Picture>) -> Option<
     }
 }
 
+/// Where a video was (`Player::place`), for it to start there again (#211).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Place {
+    pub time: f64,
+    pub paused: bool,
+    pub at_end: bool,
+}
+
+/// mpv's options that open a video at `at`: its own `start` and `pause`, so that the first frame
+/// shown is already that one (not a seek after loading).
+#[allow(dead_code)] // until #211 is fixed
+fn start_options(_at: Option<Place>) -> Vec<(&'static str, String)> {
+    Vec::new()
+}
+
 /// A video playing (with sound), its frames drawn by a thread of its own at the size the
 /// window asks (`set_size`).
 pub struct Player {
@@ -92,6 +107,11 @@ impl Player {
     /// `repaint` is called at every new frame, from the player's thread. `volume` (0-100) and
     /// `mute` are set before the first frame plays.
     pub fn open(input: Input, volume: u32, mute: bool, repaint: impl Fn() + Send + 'static) -> Result<Player, String> {
+        Player::open_at(input, volume, mute, None, repaint)
+    }
+
+    /// As `open`, from `at` (the place of the video before Save, #211).
+    pub fn open_at(input: Input, volume: u32, mute: bool, _at: Option<Place>, repaint: impl Fn() + Send + 'static) -> Result<Player, String> {
         let shared = Arc::new(Shared::default());
         let s = shared.clone();
         // keep-open: at the end the last frame stays, as in a player.
@@ -107,6 +127,12 @@ impl Player {
         let (m, s) = (mpv.clone(), shared.clone());
         let thread = crate::logging::spawn_named("mpv-draw", move || draw_loop(&m, &s, repaint));
         Ok(Player { mpv, shared, thread: Some(thread) })
+    }
+
+    /// Where the video is: its time, paused or not, at its end or not (#211).
+    #[allow(dead_code)] // until #211 is fixed
+    pub fn place(&self) -> Place {
+        Place { time: self.position(), paused: self.paused(), at_end: self.ended() }
     }
 
     /// The frame drawn since the last call, if any.
@@ -429,6 +455,47 @@ mod tests {
         println!("stalled at 19 s: {at_19}; said stalled after {said_at:?}; after the answer: size {:?} in {:?}, stalled {}, error {:?}", player.video_size(), r.elapsed(), player.stalled(), player.error());
         assert!(!at_19 && said_at >= Duration::from_secs(20) && said_at < Duration::from_secs(21));
         assert!(player.video_size().is_some() && !player.stalled() && player.error().is_none());
+    }
+
+    /// #211: the options that open a video where it was: the time and pause; at the end, the end
+    /// played to (the last frame kept, as after playing it); none for no place.
+    #[test]
+    fn opened_where_it_was() {
+        let at = |time, paused, at_end| Some(Place { time, paused, at_end });
+        let owned = |v: &[(&'static str, &str)]| v.iter().map(|(k, v)| (*k, v.to_string())).collect::<Vec<_>>();
+        assert_eq!(start_options(None), owned(&[]));
+        assert_eq!(start_options(at(62.345678, true, false)), owned(&[("start", "62.346"), ("pause", "yes")]));
+        assert_eq!(start_options(at(4.5, false, false)), owned(&[("start", "4.500"), ("pause", "no")]));
+        assert_eq!(start_options(at(9.958, true, true)), owned(&[("start", "100%"), ("pause", "no")]));
+    }
+
+    /// #211 with the real player: opened at a time, it is there, paused when asked, playing when
+    /// not; at the end, at its end with its last frame. Skipped without libmpv (the CI).
+    #[test]
+    fn player_opened_at_a_place() {
+        if !crate::mpv::available() {
+            println!("skipped: no libmpv");
+            return;
+        }
+        let file = || Input::File(concat!(env!("CARGO_MANIFEST_DIR"), "/site/img/mtp-open.mp4").into());
+        let settled = |p: &Player| {
+            let t = Instant::now();
+            while p.video_size().is_none() && t.elapsed() < Duration::from_secs(5) {
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            std::thread::sleep(Duration::from_millis(300));
+            p.place()
+        };
+        let paused = settled(&Player::open_at(file(), 0, true, Some(Place { time: 4.5, paused: true, at_end: false }), || {}).unwrap());
+        let playing = settled(&Player::open_at(file(), 0, true, Some(Place { time: 4.5, paused: false, at_end: false }), || {}).unwrap());
+        let end = settled(&Player::open_at(file(), 0, true, Some(Place { time: 9.958, paused: true, at_end: true }), || {}).unwrap());
+        let end_player = Player::open_at(file(), 0, true, Some(Place { time: 9.958, paused: true, at_end: true }), || {}).unwrap();
+        settled(&end_player);
+        println!("paused {paused:?}, playing {playing:?}, end {end:?}, end error {:?}", end_player.error());
+        assert!(paused.paused && (paused.time - 4.5).abs() < 0.05, "{paused:?}");
+        assert!(!playing.paused && playing.time > 4.5 && playing.time < 5.5, "{playing:?}");
+        assert!(end.at_end && end.time > 9.9, "{end:?}");
+        assert_eq!(end_player.error(), None, "at the end with its last frame: not a damaged video");
     }
 
     /// #276: a video closed while its stream waits 5 s on a slow phone or server: the window's
