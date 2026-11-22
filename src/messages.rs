@@ -19,7 +19,7 @@ impl App {
     pub(crate) fn receive(&mut self, ctx: &egui::Context) {
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
-                Msg::Listed(dir, r) => self.on_listed(ctx, dir, r),
+                Msg::Listed(base, dir, r) => self.on_listed(ctx, &base, dir, r),
                 Msg::Loaded { generation, index, thumb, image, halves } if generation == self.generation => self.on_loaded(ctx, index, thumb, image, halves),
                 Msg::Meta { generation, index, meta } if generation == self.generation => self.on_meta(index, meta),
                 Msg::Info { generation, path, info } if generation == self.generation => {
@@ -141,10 +141,11 @@ impl App {
         false
     }
 
-    fn on_listed(&mut self, ctx: &egui::Context, dir: String, r: Result<Listing, source::Error>) {
+    fn on_listed(&mut self, ctx: &egui::Context, base: &str, dir: String, r: Result<Listing, source::Error>) {
+        let base = without_password(base);
         match &r {
-            Ok(l) => log!("listing {dir:?}: {} folders, {} images", l.dirs.len(), l.files.len()),
-            Err(e) => log!("listing {dir:?}: ERROR {e:?}"),
+            Ok(l) => log!("listing {dir:?} of {base:?}: {} folders, {} images", l.dirs.len(), l.files.len()),
+            Err(e) => log!("listing {dir:?} of {base:?}: ERROR {e:?}"),
         }
         self.listing_pending.remove(&dir);
         if self.relist_again.remove(&dir) {
@@ -170,32 +171,8 @@ impl App {
             self.status_note = Some(self.i18n.t("status-taken-from-gvfs"));
             self.note_until = Some(ctx.input(|i| i.time) + crate::watch::NOTE_SECS);
         }
-        if dir == self.dir
-            && let Some(start) = self.start.take()
-        {
-            let found = r.as_ref().ok().and_then(|l| {
-                l.files.iter().position(|f| f.path == start).map(|i| (l.dirs.len(), i))
-            });
-            // After Refresh the image may have changed position or be gone:
-            // images already loaded by position are no longer valid.
-            if self.viewing.is_some() && self.viewing != found.map(|(_, i)| i) {
-                if let Some(loader) = &self.loader {
-                    self.generation = loader.next_generation();
-                }
-                self.full.clear();
-                self.pending.clear();
-                self.thumbs.clear();
-                self.generated.clear();
-                self.thumb_infos.clear();
-                self.info_asked.clear();
-                self.thumb_queue_key = None;
-            }
-            self.viewing = found.map(|(_, i)| i);
-            if let Some((ndirs, i)) = found {
-                self.selected = ndirs + i;
-                self.cursor = true;
-                self.scroll_to_selected = true;
-            }
+        if dir == self.dir {
+            self.start_found(&r);
         }
         if dir == self.dir {
             let no_storage = match &r {
@@ -206,11 +183,38 @@ impl App {
         }
         let r = r.map_err(|(id, detail)| self.i18n.error(id, &detail));
         match r {
-            Ok(l) if self.relisting.remove(&dir) => self.swap_listing(&dir, l),
+            Ok(l) if takes_place(&mut self.relisting, &dir, self.listings.get(&dir)) => self.swap_listing(&dir, l),
             r => {
                 self.relisting.remove(&dir);
                 self.listings.insert(dir, r);
             }
+        }
+    }
+
+    /// The file asked to be shown at the start (`start`: an image opened, or the one in the viewer
+    /// at F5) in the listing of the open folder: the viewer opens on it, and it is selected.
+    fn start_found(&mut self, r: &Result<Listing, source::Error>) {
+        let Some(start) = self.start.take() else { return };
+        let found = r.as_ref().ok().and_then(|l| l.files.iter().position(|f| f.path == start).map(|i| (l.dirs.len(), i)));
+        // After Refresh the image may have changed position or be gone:
+        // images already loaded by position are no longer valid.
+        if self.viewing.is_some() && self.viewing != found.map(|(_, i)| i) {
+            if let Some(loader) = &self.loader {
+                self.generation = loader.next_generation();
+            }
+            self.full.clear();
+            self.pending.clear();
+            self.thumbs.clear();
+            self.generated.clear();
+            self.thumb_infos.clear();
+            self.info_asked.clear();
+            self.thumb_queue_key = None;
+        }
+        self.viewing = found.map(|(_, i)| i);
+        if let Some((ndirs, i)) = found {
+            self.selected = ndirs + i;
+            self.cursor = true;
+            self.scroll_to_selected = true;
         }
     }
 
@@ -606,6 +610,13 @@ impl App {
     }
 }
 
+/// Whether a listing read fine for `dir` takes the place of the one kept (`swap_listing`: the
+/// files followed by their path), rather than going in as it is: when the folder was read again
+/// (`relisting`, whose mark goes with this listing). `kept`: the listing of `dir` already there.
+fn takes_place(relisting: &mut HashSet<String>, dir: &str, _kept: Option<&Result<Listing, String>>) -> bool {
+    relisting.remove(dir)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::audit_family_1::{Harness, folder, own_folder};
@@ -621,8 +632,8 @@ mod tests {
         }
         let dir = folder("key-failed", &["a.jpg"]);
         let mut h = Harness::new(&dir);
-        let (ctx, here) = (h.ctx.clone(), h.app.dir.clone());
-        h.app.on_listed(&ctx, here, Err(("error-key-failed", "nas.local".into())));
+        let (ctx, base, here) = (h.ctx.clone(), h.app.base.clone(), h.app.dir.clone());
+        h.app.on_listed(&ctx, &base, here, Err(("error-key-failed", "nas.local".into())));
         h.frame(Vec::new());
         assert!(h.app.server_manager.is_some(), "the server manager opened");
         let error = h.app.folder_error();

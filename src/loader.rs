@@ -31,7 +31,8 @@ fn with_id((id, detail): crate::source::Error) -> String {
 }
 
 pub enum Msg {
-    Listed(String, Result<Listing, source::Error>),
+    /// A folder read (`Loader::list`): source base, folder and its listing.
+    Listed(String, String, Result<Listing, source::Error>),
     /// The folder a server starts in, once connected (`Loader::home`): source base and folder.
     Home(String, Result<String, source::Error>),
     /// Address handed over by EyeCanSee started again ("" = none): `single::listen`.
@@ -184,7 +185,7 @@ impl Loader {
     }
 
     pub fn list(&self, dir: String) {
-        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        let (op, tx, ctx, base) = (self.op.clone(), self.tx.clone(), self.ctx.clone(), self.base.clone());
         let task = {
             let dir = dir.clone();
             async move { op.list(&dir).await }
@@ -193,7 +194,7 @@ impl Loader {
         self.rt.spawn(async move {
             // Separate task: a panic inside OpenDAL becomes an error shown, not an endless spinner.
             let r = rt.spawn(task).await.unwrap_or_else(|e| Err(("error-detail", e.to_string())));
-            let _ = tx.send(Msg::Listed(dir, r));
+            let _ = tx.send(Msg::Listed(base, dir, r));
             ctx.request_repaint();
         });
     }

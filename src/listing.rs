@@ -1,7 +1,7 @@
 //! Listings changed in place: an item deleted or renamed, a folder read again in the background,
 //! with thumbnails, selection and viewer following their files.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::source::{self, Listing};
 use crate::App;
@@ -16,7 +16,7 @@ impl App {
         let trash = format!("{}{}/", source::parent(path), source::TRASH_DIR);
         let dir = source::listed_in(path);
         self.listings.retain(|k, _| !(path.ends_with('/') && k.starts_with(path)) && !(to_trash && *k == trash));
-        if self.dir.starts_with(path) {
+        if left_inside(&self.dir, path) {
             self.listings.remove(&dir);
             self.set_dir(dir);
             return;
@@ -87,50 +87,42 @@ impl App {
             return;
         }
         let Some(Ok(new)) = self.listings.get(dir) else { return };
-        let (to, moved) = moves(&old, new);
+        // A folder just made, or the file the editor saved last, is selected instead; the
+        // editor's only once it is closed (`select_saved`): until then the viewer stays on the
+        // image being edited, and so does the window's title (issue #98). Kept until a listing
+        // has it: one read before it was written must not drop it (Save as… from the viewer).
+        let select = if self.editor.is_some() { None } else { self.select_after.as_deref() };
+        let state = Follow {
+            selected: self.selected,
+            anchor: self.anchor,
+            cursor: self.cursor,
+            viewing: self.viewing,
+            zoom_of: self.zoom_of,
+            generated: std::mem::take(&mut self.generated),
+        };
+        let f = follow(&old, new, state, select);
         fn remap<T>(map: &mut HashMap<usize, T>, moved: &HashMap<usize, usize>) {
             *map = map.drain().filter_map(|(k, v)| Some((*moved.get(&k)?, v))).collect();
         }
-        remap(&mut self.thumbs, &moved);
-        remap(&mut self.full, &moved);
+        remap(&mut self.thumbs, &f.moved);
+        remap(&mut self.full, &f.moved);
         // An image just saved from Rotate and crop: its new file is what it shows already.
         if let Some((path, tex)) = self.fresh.take()
             && let Some(j) = new.files.iter().position(|f| f.path == path)
         {
             self.full.insert(j, Ok(tex));
         }
-        self.generated = self.generated.iter().filter_map(|k| moved.get(k).copied()).collect();
-        let (ndirs, n) = (new.dirs.len(), new.files.len());
-        let file_at = |i: usize| to.get(i).copied().flatten();
-        let followed = match old.dirs.get(self.selected) {
-            Some(d) => new.dirs.iter().position(|x| x == d),
-            None => file_at(self.selected - old.dirs.len()).map(|j| ndirs + j),
-        };
-        // A folder just made, or the file the editor saved last, is selected instead; the
-        // editor's only once it is closed (`select_saved`): until then the viewer stays on the
-        // image being edited, and so does the window's title (issue #98). Kept until a listing
-        // has it: one read before it was written must not drop it (Save as… from the viewer).
-        let made = if self.editor.is_some() { None } else { self.select_after.as_deref().and_then(|p| place(new, p)) };
-        if made.is_some() {
+        if f.made {
             self.select_after = None;
         }
-        self.selected = made.or(followed).unwrap_or(self.selected).min((ndirs + n).saturating_sub(1));
-        self.cursor = (self.cursor || made.is_some()) && ndirs + n > 0;
-        self.scroll_to_selected |= made.is_some();
-        // The viewer goes to that file: what was just saved is what is shown.
-        let copy = made.and_then(|m| m.checked_sub(ndirs));
-        // A file saved (a copy, or the one shown written again) is shown as it is; the file shown,
-        // renamed and otherwise unchanged (same size and date), keeps its turns.
-        let unchanged = self.viewing.and_then(|v| moved.get(&v).copied());
-        if self.viewing.is_some() && copy.is_some() && copy != unchanged {
+        self.scroll_to_selected |= f.made;
+        if f.drop_turn {
             self.turn = Default::default();
         }
-        self.viewing = self.viewing.filter(|_| n > 0).map(|v| copy.unwrap_or_else(|| file_at(v).unwrap_or(v.min(n - 1))));
-        // The viewer's zoom and turns, and the metadata read, follow their file too: with a new
-        // file before it the image looked like another one, its turns not saved were dropped
-        // and the date taken became the file's.
-        self.zoom_of = self.zoom_of.and_then(file_at);
-        self.meta = self.meta.take().and_then(|(i, m)| Some((*moved.get(&i)?, m)));
+        let s = f.state;
+        (self.selected, self.anchor, self.cursor, self.viewing, self.zoom_of, self.generated) =
+            (s.selected, s.anchor, s.cursor, s.viewing, s.zoom_of, s.generated);
+        self.meta = self.meta.take().and_then(|(i, m)| Some((*f.moved.get(&i)?, m)));
         if let Some(loader) = &self.loader {
             self.generation = loader.next_generation();
         }
@@ -154,6 +146,61 @@ impl App {
     }
 }
 
+/// What follows its item by position when a listing takes the place of another (`swap_listing`):
+/// grid items (folders, then files) for `selected` and `anchor`, files for the others.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct Follow {
+    pub(crate) selected: usize,
+    /// Where a Shift range starts (`mark_range`).
+    pub(crate) anchor: usize,
+    pub(crate) cursor: bool,
+    pub(crate) viewing: Option<usize>,
+    pub(crate) zoom_of: Option<usize>,
+    /// Files whose thumbnail is done.
+    pub(crate) generated: HashSet<usize>,
+}
+
+/// `Follow` once `old` is replaced by `new`, and what else changes with it.
+#[derive(Debug)]
+pub(crate) struct Followed {
+    pub(crate) state: Follow,
+    /// Files unchanged, old position to new: their images are still good.
+    pub(crate) moved: HashMap<usize, usize>,
+    /// `select` was found: selected (and shown by the viewer), to scroll to.
+    pub(crate) made: bool,
+    /// The viewer goes to another file saved: its turns not saved go.
+    pub(crate) drop_turn: bool,
+}
+
+/// Selection and viewer follow their item from `old` to `new`; if it is gone, what took its place.
+/// `select`: an item to select instead (a folder just made, a file saved), if `new` has it.
+pub(crate) fn follow(old: &Listing, new: &Listing, s: Follow, select: Option<&str>) -> Followed {
+    let (to, moved) = moves(old, new);
+    let generated = s.generated.iter().filter_map(|k| moved.get(k).copied()).collect();
+    let (ndirs, n) = (new.dirs.len(), new.files.len());
+    let file_at = |i: usize| to.get(i).copied().flatten();
+    let followed = match old.dirs.get(s.selected) {
+        Some(d) => new.dirs.iter().position(|x| x == d),
+        None => file_at(s.selected - old.dirs.len()).map(|j| ndirs + j),
+    };
+    let made = select.and_then(|p| place(new, p));
+    let selected = made.or(followed).unwrap_or(s.selected).min((ndirs + n).saturating_sub(1));
+    let cursor = (s.cursor || made.is_some()) && ndirs + n > 0;
+    // The viewer goes to that file: what was just saved is what is shown.
+    let copy = made.and_then(|m| m.checked_sub(ndirs));
+    // A file saved (a copy, or the one shown written again) is shown as it is; the file shown,
+    // renamed and otherwise unchanged (same size and date), keeps its turns.
+    let unchanged = s.viewing.and_then(|v| moved.get(&v).copied());
+    let drop_turn = s.viewing.is_some() && copy.is_some() && copy != unchanged;
+    let viewing = s.viewing.filter(|_| n > 0).map(|v| copy.unwrap_or_else(|| file_at(v).unwrap_or(v.min(n - 1))));
+    // The viewer's zoom and turns, and the metadata read, follow their file too: with a new
+    // file before it the image looked like another one, its turns not saved were dropped
+    // and the date taken became the file's.
+    let zoom_of = s.zoom_of.and_then(file_at);
+    let state = Follow { selected, anchor: s.anchor, cursor, viewing, zoom_of, generated };
+    Followed { state, moved, made: made.is_some(), drop_turn }
+}
+
 /// Where the files of `old` are in `new` (positions among the images): every file still there,
 /// by its path, and those unchanged too (same size and date), whose images are still good.
 fn moves(old: &Listing, new: &Listing) -> (Vec<Option<usize>>, HashMap<usize, usize>) {
@@ -163,6 +210,11 @@ fn moves(old: &Listing, new: &Listing) -> (Vec<Option<usize>>, HashMap<usize, us
         .filter_map(|(i, (f, j))| j.filter(|&j| new.files[j].size == f.size && new.files[j].modified == f.modified).map(|j| (i, j)))
         .collect();
     (to, moved)
+}
+
+/// Whether the folder open `dir` goes with the item `path` removed (it was inside it).
+fn left_inside(dir: &str, path: &str) -> bool {
+    dir.starts_with(path)
 }
 
 /// The item of `path` in a listing: folders first, then files.
