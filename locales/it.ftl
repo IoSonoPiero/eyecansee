@@ -272,6 +272,7 @@ phone-stalled-upload =
 phone-stalled-why = Perché succede?
 phone-stalled-url = https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.it.md
 status-copied = { $n } copiati: Ctrl + V per incollare
+device-unplugged = Dispositivo scollegato: { $name }. Ora è aperta la cartella home.
 status-cut = { $n } tagliati: Ctrl + V per spostare
 status-temp-copy = Questo file è una copia temporanea fatta da Windows (per esempio di una foto del telefono), non l'originale: non si può salvarci sopra. Usa Salva come… per tenere le modifiche.
 status-taken-from-gvfs = Il telefono era tenuto dal sistema (lo prende da solo quando colleghi il telefono, o quando lo apri nel file manager): ora lo usa EyeCanSee direttamente, che è più veloce. Per rivederlo nel file manager chiudi EyeCanSee e fai clic sul telefono lì.

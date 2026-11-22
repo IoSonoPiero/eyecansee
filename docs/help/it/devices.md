@@ -25,6 +25,7 @@ Dischi esterni, chiavette USB e schede di memoria compaiono nel pannello a sinis
 
 ## Da sapere
 
+- Se scolleghi un disco, una chiavetta o un telefono mentre una sua cartella è aperta, si apre la cartella home e la barra di stato dice per qualche secondo quale dispositivo è stato scollegato ("Dispositivo scollegato: …"). Un'immagine o un video aperti da lì si chiudono.
 - Le miniature di un dispositivo restano nella cache quando lo scolleghi, così la volta dopo si apre subito.
 - Le cartelle del computer e dei dischi si aggiornano da sole: i file aggiunti, eliminati o rinominati da un altro programma compaiono e spariscono senza F5.
 - Su Linux, in una cartella aperta tramite il collegamento del gestore dei file (gvfs, per esempio una cartella di rete aperta dall'app File) EyeCanSee non salva mai sopra un file: lì sostituire un file può far perdere l'originale. Usa **Salva come…**.

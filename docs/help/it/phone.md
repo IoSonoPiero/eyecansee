@@ -41,6 +41,7 @@ Le foto scattate, eliminate o spostate sul telefono mentre la sua cartella è ap
 
 ## Da sapere
 
+- Scollegando il telefono mentre una sua cartella è aperta si apre la cartella home, e la barra di stato dice quale dispositivo è stato scollegato (vedi [Dischi e chiavette](devices.md)).
 - Eliminare su un telefono sposta il file in una cartella nascosta `.EyeCanSee-trash` accanto a lui, a meno che tu non abbia scelto altro nelle opzioni (vedi [Eliminare e cestino](delete.md)).
 - Un telefono accetta nomi di file lunghi al massimo 254 caratteri (un'emoji conta per due): un nome più lungo viene rifiutato, e non viene copiato niente.
 - Su un telefono i video ricevono la miniatura dopo le foto, perché per farla un video spesso va letto tutto.

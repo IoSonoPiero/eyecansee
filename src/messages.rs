@@ -588,6 +588,7 @@ impl App {
         // The same for a disk, a stick or a mounted phone with one of its folders open: otherwise the
         // grid stayed on the files read before.
         let gone = self.loader.is_some() && devices::gone_under(&self.devices, &d, &self.display(&self.dir));
+        let name = devices::unplugged_name(&self.devices, &d, &self.base, &self.display(&self.dir));
         self.devices = d;
         if unplugged || gone {
             log!("device with the open folder unplugged");
@@ -595,6 +596,12 @@ impl App {
             self.turn = Default::default();
             let home = std::env::home_dir().map_or(".".into(), |h| h.to_string_lossy().into_owned());
             self.open_source(ctx, &home);
+            // Said in the status bar for a while, as a file gone from a phone (opening the home
+            // folder clears the bar first).
+            if let Some(name) = name {
+                self.status_note = Some(self.i18n.t_args("device-unplugged", &[("name", &name)]));
+                self.note_until = Some(ctx.input(|i| i.time) + crate::watch::NOTE_SECS);
+            }
         }
     }
 }

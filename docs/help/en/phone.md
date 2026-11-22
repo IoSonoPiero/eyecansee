@@ -41,6 +41,7 @@ Photos taken, deleted or moved on the phone itself while its folder is open appe
 
 ## Things to know
 
+- Unplugging the phone while one of its folders is open opens the home folder, and the status bar says which device was unplugged (see [Disks and USB sticks](devices.md)).
 - Deleting on a phone moves the file into a hidden `.EyeCanSee-trash` folder next to it, unless you chose otherwise in the options (see [Deleting and the trash](delete.md)).
 - A phone accepts file names of at most 254 characters (an emoji counts as two): a longer name is refused, and nothing is copied.
 - On a phone, videos get their thumbnail after the pictures, since a video is often read whole to make it.

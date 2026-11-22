@@ -189,6 +189,19 @@ pub fn gone_under(old: &[Device], new: &[Device], current: &str) -> bool {
         .any(|d| current.starts_with(&d.path) || current == d.path.trim_end_matches(['/', '\\']))
 }
 
+/// The name of the device the open folder was on, when it is gone (`old` before, `new` after): a
+/// phone connected directly by its serial (`base` is `mtp://<serial>/`), a disk, a stick or a
+/// mounted phone by its path (`current`, the folder open). `None` when the open folder is not on a
+/// device that went.
+pub fn unplugged_name(old: &[Device], new: &[Device], base: &str, current: &str) -> Option<String> {
+    let serial = base.strip_prefix("mtp://").map(|s| s.trim_end_matches('/'));
+    let went = |d: &&Device| match (serial, d.serial.as_deref()) {
+        (Some(s), Some(ds)) if s == ds => !new.iter().any(|n| n.serial.as_deref() == Some(s)),
+        _ => !d.path.is_empty() && !new.iter().any(|n| n.path == d.path) && (current.starts_with(&d.path) || current == d.path.trim_end_matches(['/', '\\'])),
+    };
+    old.iter().find(went).map(|d| d.name.clone())
+}
+
 /// Does the drive of this path have a Recycle Bin? On Windows only fixed disks do: on USB sticks,
 /// cards and network drives "to the Recycle Bin" deletes for good, without a word (the `trash`
 /// crate asks with `FOF_NO_UI`, which also hides Windows' warning; NTFS stick, 2026-10-25).
@@ -543,6 +556,20 @@ mod tests {
         assert!(gone_under(&[disk("D:\\")], &[], "D:\\Photos\\"));
         // Unmounted partitions have no path: never a match.
         assert!(!gone_under(&[disk("")], &[], "/home/u/"));
+    }
+
+    /// The name said when the device of the open folder goes: a phone by its serial, a disk or a
+    /// stick by its path; none when the open folder is elsewhere.
+    #[test]
+    fn unplugged_names() {
+        let disk = |name: &str, path: &str| Device { name: name.into(), path: path.into(), phone: false, serial: None, block: None, internal: false };
+        let phone = Device { name: "Xiaomi POCO X6 Pro 5G".into(), path: "mtp://ABC123/".into(), phone: true, serial: Some("ABC123".into()), block: None, internal: false };
+        let old = [disk("Backup Linux", "/run/media/u/Backup Linux/"), phone.clone()];
+        assert_eq!(unplugged_name(&old, &old[..1], "mtp://ABC123/", "mtp://ABC123/Internal shared storage/DCIM/"), Some("Xiaomi POCO X6 Pro 5G".into()));
+        assert_eq!(unplugged_name(&old, &old[1..], "/", "/run/media/u/Backup Linux/Photos/"), Some("Backup Linux".into()));
+        assert_eq!(unplugged_name(&old, &old[1..], "/", "/home/u/Pictures/"), None, "the open folder is on the computer");
+        assert_eq!(unplugged_name(&old, &old, "mtp://ABC123/", "mtp://ABC123/"), None, "nothing went");
+        assert_eq!(unplugged_name(&old, &old[..1], "/", "/home/u/"), None, "the phone went, but its folder was not open");
     }
 
     /// What it sees now: `cargo test devices_now -- --ignored --nocapture`
