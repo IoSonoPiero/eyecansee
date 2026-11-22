@@ -89,6 +89,56 @@ fn listen_on(socket: &str, tx: Sender<Msg>, ctx: Context) -> std::io::Result<()>
 #[cfg(test)]
 mod tests {
     use std::ffi::OsStr;
+    use std::io::Write;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    use eframe::egui::Context;
+    use interprocess::local_socket::{Stream, prelude::*};
+
+    use crate::loader::Msg;
+
+    /// A name of the test's own, never the user's copy (`socket`).
+    fn test_socket(tag: &str) -> String {
+        format!("eyecansee-test-{}-{tag}.sock", std::process::id())
+    }
+
+    /// The address handed over next, 10 s at most.
+    fn arrived(rx: &mpsc::Receiver<Msg>) -> Option<String> {
+        match rx.recv_timeout(Duration::from_secs(10)) {
+            Ok(Msg::Open(address)) => Some(address),
+            _ => None,
+        }
+    }
+
+    /// Audit 1.10: a connection that sends nothing stopped the listening, and every later start
+    /// handed its address to nobody.
+    #[test]
+    fn a_silent_connection_does_not_stop_the_next() {
+        let socket = test_socket("silent");
+        let (tx, rx) = mpsc::channel();
+        super::listen_on(&socket, tx, Context::default()).unwrap();
+        let _silent = Stream::connect(super::ns_name(&socket).unwrap()).unwrap();
+        assert!(super::hand_over_to(&socket, "/next"));
+        assert_eq!(arrived(&rx).as_deref(), Some("/next"));
+    }
+
+    /// Audit 1.10: a connection was read with no limit; one longer than `LONGEST` is dropped,
+    /// and the next one arrives.
+    #[test]
+    fn a_long_line_is_dropped() {
+        let socket = test_socket("long");
+        let (tx, rx) = mpsc::channel();
+        super::listen_on(&socket, tx, Context::default()).unwrap();
+        let mut long = Stream::connect(super::ns_name(&socket).unwrap()).unwrap();
+        // Dropped after `LONGEST`: the rest of the writing may fail.
+        let _ = long.write_all(&vec![b'a'; 1 << 20]);
+        let _ = long.write_all(b"\n");
+        drop(long);
+        assert!(super::hand_over_to(&socket, "/next"));
+        let first = arrived(&rx);
+        assert_eq!(first.as_deref(), Some("/next"), "{} bytes arrived first", first.as_ref().map_or(0, String::len));
+    }
 
     #[test]
     fn multi_value() {
