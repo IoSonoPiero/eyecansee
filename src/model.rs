@@ -12,7 +12,7 @@ pub(crate) const MAX_TRIANGLES: usize = 50_000_000;
 /// a triangle with its three points, as STL gives them. A part placed again and again counts at
 /// every placement, so that it cannot take forever or fill the memory even when its points are
 /// not used or its triangles are dropped.
-const MAX_OFFERED: usize = 4 * MAX_TRIANGLES;
+pub(crate) const MAX_OFFERED: usize = 4 * MAX_TRIANGLES;
 /// Nodes, instances and blocks placed while reading one model or drawing (`Builder::visit`,
 /// `cad::Walk::block`). A part can be placed by many parents, each placed by many more: a file of
 /// a few KB can ask for 10^32 placements. A million is far more than a scene places (a 3MF plate

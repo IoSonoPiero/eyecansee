@@ -5,7 +5,7 @@ use std::io::Cursor;
 
 use ply_rs_bw::{parser::Parser, ply::DefaultElement, ply::Property};
 
-use crate::model::{Builder, Mesh, TOO_FAR, average};
+use crate::model::{Builder, MAX_OFFERED, MAX_TRIANGLES, Mesh, TOO_FAR, average};
 
 /// The mark of the PLY files `model_export` writes with Z up, as Blender expects them (tried with
 /// Blender 4.5, 2026-11-02); without it a PLY is read with Y up, as the scans have it.
@@ -216,6 +216,11 @@ struct Scan {
     strips: Vec<[u32; 3]>,
 }
 
+/// The bytes of a row of `e` at least (a list its count alone).
+fn row_size(e: &Element) -> usize {
+    e.props.iter().map(|p| p.list.unwrap_or(p.ty).size()).sum::<usize>().max(1)
+}
+
 /// Where the property `name` is, the last one as the parser's tables keep it.
 fn find(props: &[Prop], name: &str) -> Option<usize> {
     props.iter().rposition(|p| p.name == name)
@@ -234,10 +239,14 @@ impl Scan {
         let at = |k: &str| find(&e.props, k).filter(|&i| e.props[i].list.is_none());
         let (x, y, z) = (at("x"), at("y"), at("z"));
         let colour = rgb_of(&e.props);
-        let row = e.props.iter().map(|p| p.list.unwrap_or(p.ty).size()).sum::<usize>().max(1);
-        self.pos.reserve_exact(e.count.min(d.left() / row));
+        // As `Builder` would refuse them, before their memory is asked for.
+        if e.count > MAX_OFFERED {
+            return Err(format!("more than {MAX_OFFERED} points and triangles"));
+        }
+        let rows = e.count.min(d.left() / row_size(e));
+        self.pos.reserve_exact(rows);
         if colour.is_some() {
-            self.rgb.reserve_exact(e.count.min(d.left() / row));
+            self.rgb.reserve_exact(rows);
         }
         let mut v = vec![f64::NAN; e.props.len()];
         for _ in 0..e.count {
@@ -265,9 +274,10 @@ impl Scan {
         // As `list` reads them: indices that are whole numbers, in a list.
         let list = list.filter(|&i| e.props[i].list.is_some() && !e.props[i].ty.float());
         let colour = if strips { None } else { rgb_of(&e.props) };
-        let row = e.props.iter().map(|p| p.list.unwrap_or(p.ty).size()).sum::<usize>().max(1);
-        if !strips && list.is_some() {
-            self.tris.reserve_exact(e.count.min(d.left() / row));
+        // A face with a triangle takes at least its count and three indices.
+        if let Some(p) = list.map(|i| &e.props[i]).filter(|_| !strips) {
+            let least = row_size(e) + 3 * p.ty.size();
+            self.tris.reserve_exact(e.count.min(d.left() / least).min(MAX_TRIANGLES + 1));
         }
         let (mut v, mut corners) = (vec![0.0; e.props.len()], Vec::new());
         for _ in 0..e.count {
@@ -287,6 +297,9 @@ impl Scan {
                     }
                     None => v[k] = d.value(p.ty)?,
                 }
+            }
+            if self.tris.len() + self.strips.len() > MAX_TRIANGLES {
+                return Err(format!("more than {MAX_TRIANGLES} triangles"));
             }
             if strips {
                 for strip in corners.split(|&v| v == u32::MAX) {
@@ -337,6 +350,11 @@ fn binary(bytes: &[u8], z_up: bool) -> Option<Result<Mesh, String>> {
     let mut d = Data { bytes, at: body, big };
     let mut s = Scan::default();
     for e in &elements {
+        // Without properties a row takes no byte: its count cannot be checked against the file,
+        // and there is nothing to read (points of nothing would only fill the memory).
+        if e.props.is_empty() {
+            continue;
+        }
         let read = match e.name.as_str() {
             "vertex" => s.vertices(&mut d, e),
             "face" => s.faces(&mut d, e, false),
@@ -633,18 +651,25 @@ mod tests {
         let file = bytes.len() >> 20;
         let _ = std::fs::write("/proc/self/clear_refs", "5");
         let (start, t) = (status_mb("VmRSS:"), std::time::Instant::now());
-        let m = crate::model::parse(&bytes, &name).unwrap();
+        let m = match crate::model::parse(&bytes, &name) {
+            Ok(m) => m,
+            Err(e) => return println!("RESULT error {name}: {e} (peak {} MB)", status_mb("VmHWM:")),
+        };
         let (took, peak, kept) = (t.elapsed(), status_mb("VmHWM:"), status_mb("VmRSS:"));
         let n = m.tris.len().max(1) as u64;
         println!("RESULT {name}: {} triangles, {} points, file {file} MB, read in {took:.1?}", m.tris.len(), m.pos.len());
         println!("RESULT peak {peak} MB ({} bytes a triangle beyond the file and the start), kept {kept} MB, {} MB of vertices for the graphics card", (peak.saturating_sub(start)) * (1 << 20) / n, (n * 132) >> 20);
-        if std::env::var_os("EYECANSEE_PROBE_BEFORE").is_some() {
+        if std::env::var("EYECANSEE_PROBE_BEFORE").as_deref() == Ok("1") {
             let z_up = m.z_up;
             let _ = std::fs::write("/proc/self/clear_refs", "5");
             let t = std::time::Instant::now();
-            let before = parsed(&bytes, z_up).unwrap();
-            println!("RESULT before: peak {} MB, read in {:.1?}", status_mb("VmHWM:"), t.elapsed());
-            println!("RESULT alike: {:?}", alike(&m, &before));
+            match parsed(&bytes, z_up) {
+                Ok(before) => {
+                    println!("RESULT before: peak {} MB, read in {:.1?}", status_mb("VmHWM:"), t.elapsed());
+                    println!("RESULT alike: {:?}", alike(&m, &before));
+                }
+                Err(e) => println!("RESULT before: error {e}"),
+            }
         }
     }
 
