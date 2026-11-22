@@ -1515,6 +1515,23 @@ mod tests {
         }
     }
 
+    /// Audit 2.6, scenario 2 (#282): a thumbnail asked to the old loader after three changes of
+    /// folder there, and three changes of folder in the loader of the source opened after it: no
+    /// generation of the new one is one of the old one, so a late `Loaded` of the old one never
+    /// lands in a cell of the new folder with the same index.
+    #[test]
+    fn three_changes_of_folder_in_each_loader() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (old, _rx, a) = loader_on(&rt, "three-old");
+        let before: Vec<u64> = (0..3).map(|_| old.next_generation()).collect();
+        let (new, _rx, b) = loader_on(&rt, "three-new");
+        let now: Vec<u64> = (0..3).map(|_| new.next_generation()).collect();
+        for d in [a, b] {
+            std::fs::remove_dir_all(d).unwrap();
+        }
+        assert!(now.iter().all(|g| !before.contains(g)), "old {before:?}, new {now:?}");
+    }
+
     /// Audit 1.2 and 2.6 (choice D1): an image of the viewer asked to the loader before, still
     /// waiting for its turn, is not read once another source is open; it came in the folder open
     /// under the index it was asked with.

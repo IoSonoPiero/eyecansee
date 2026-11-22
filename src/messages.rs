@@ -684,6 +684,25 @@ mod tests {
         assert!(h.app.listing_pending.contains("other/") && !h.app.listings.contains_key("other/"), "the old source's listing ended a reading of the new one");
     }
 
+    /// Audit 2.6, scenario 1 (#282): the error of a listing that comes late from the source left,
+    /// for a folder with the same path as the one open (the root "" of a phone and of a disk),
+    /// does not cover the good listing of the source open.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn error_of_the_source_left_dropped() {
+        if own_folder("messages::tests::error_of_the_source_left_dropped") {
+            return;
+        }
+        let dir = folder("source-left-error", &["a.png"]);
+        let mut h = Harness::new(&dir);
+        let here = h.app.dir.clone();
+        h.app.tx.send(Msg::Listed("mtp://OLDPHONE/".into(), here.clone(), Err(("error-device-busy", "OLDPHONE".into())))).unwrap();
+        h.frame(Vec::new());
+        let names: Vec<_> = h.app.files().iter().map(|f| f.path.clone()).collect();
+        assert_eq!(names, [format!("{here}a.png")], "the old source's error took the place of the open folder's listing");
+        assert_eq!(h.app.folder_error(), None);
+    }
+
     /// #207 (choice D7): a folder deleted by another program, then sent to the trash from the
     /// grid on Windows: the message says that it is not there any more, and the folder is read
     /// again, so the folder goes from the grid. The error of the `trash` crate is made up here:
