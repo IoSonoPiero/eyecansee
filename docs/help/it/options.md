@@ -6,7 +6,7 @@ Le opzioni cambiano come EyeCanSee si avvia, il suo aspetto, come passa da un'im
 
 Scegli **Strumenti > Opzioni…** (![Opzioni…](icon://settings)). La finestra è divisa in schede: **Generale**, **Aspetto**, **Visore**, **Carosello**, **Video**, **Editor**, **Ridimensiona**, **Eliminazione**, **Miniature** e **Componenti aggiuntivi**, in colonna a sinistra. Passando sopra molte opzioni compare una breve spiegazione. **Esc** o la X della finestra la chiudono.
 
-Ogni modifica viene salvata subito in `settings.json`: in `~/.config/eyecansee` su Linux e in `%APPDATA%\eyecansee` su Windows. È un file di testo che puoi anche modificare a mano.
+Ogni modifica viene salvata subito in `settings.json`: in `~/.config/eyecansee` su Linux e in `%APPDATA%\eyecansee` su Windows. È un file di testo che puoi anche modificare a mano. Se EyeCanSee non riesce a leggerlo (per esempio salvato in UTF-16, o non è JSON valido), il file viene messo da parte come `settings.json.bad` ed EyeCanSee parte con le impostazioni iniziali; un valore che non conosce prende il suo valore iniziale e il resto viene tenuto, con una copia in `settings.json.bad`.
 
 Su Windows **Strumenti > Crea icona sul desktop**, appena sopra **Opzioni…**, mette un'icona di EyeCanSee sul desktop. Se c'è già un'icona che avvia questa copia, lo dice e non ne crea un'altra. La copia del Microsoft Store riceve un'icona come quella trascinata da Start; la disinstallazione della copia dell'installer toglie anche l'icona creata da questa voce.
 

@@ -6,7 +6,7 @@ The options change how EyeCanSee starts, looks, moves between images, deletes, s
 
 Choose **Tools > Options…** (![Options…](icon://settings)). The window is divided into tabs: **General**, **Look**, **Viewer**, **Slideshow**, **Video**, **Editor**, **Resize**, **Deleting**, **Thumbnails** and **Add-ons**, in a column on the left. Pointing at many options shows a short explanation. **Esc** or the window's ✕ closes it.
 
-Every change is saved at once in `settings.json`: in `~/.config/eyecansee` on Linux and in `%APPDATA%\eyecansee` on Windows. It is a text file you can also edit by hand.
+Every change is saved at once in `settings.json`: in `~/.config/eyecansee` on Linux and in `%APPDATA%\eyecansee` on Windows. It is a text file you can also edit by hand. If EyeCanSee cannot read it (for example saved as UTF-16, or not valid JSON), the file is set aside as `settings.json.bad` and EyeCanSee starts with the first settings; a value it does not know takes its first value and the rest is kept, with a copy in `settings.json.bad`.
 
 On Windows, **Tools > Create desktop icon**, just above **Options…**, puts an EyeCanSee icon on the desktop. If an icon that starts this copy is already there, it says so and makes no other. The Microsoft Store copy gets an icon like the one dragged from Start; uninstalling the installer copy also removes the icon this entry made.
 
