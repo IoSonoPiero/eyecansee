@@ -5,9 +5,10 @@
 
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use crate::batch::Size;
 use crate::transform::Turn;
@@ -586,8 +587,11 @@ pub fn download_better(downloading: bool) -> bool {
     crate::engine::choice() == crate::settings::EngineChoice::SystemIfRecent && system && (downloading || downloaded().is_none())
 }
 
-/// Ten black frames through `encoder`, written nowhere.
-// ponytail: no time limit; a driver that hangs would keep the list "checking"
+/// The longest wait for the probe of one encoder: a driver that hangs would keep the list
+/// "checking" (#274).
+const PROBE_LIMIT: Duration = Duration::from_secs(10);
+
+/// Ten black frames through `encoder`, written nowhere, within `PROBE_LIMIT`.
 fn try_encoder(program: &Path, encoder: &str) -> bool {
     let mut c = command(program);
     c.args(["-hide_banner", "-loglevel", "error"]);
@@ -601,7 +605,9 @@ fn try_encoder(program: &Path, encoder: &str) -> bool {
     }
     // With the options of a real conversion: vp9_qsv encoded the probe and refused them.
     c.args(["-c:v", encoder]).args(quality_args(encoder, Quality::Medium)).args(["-f", "null", "-"]);
-    c.stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
+    let Ok(mut child) = c.stdout(Stdio::null()).stderr(Stdio::null()).spawn() else { return false };
+    let start = Instant::now();
+    wait_or_stop(&mut child, || start.elapsed() > PROBE_LIMIT).is_ok_and(|s| s.success())
 }
 
 /// Ten black frames put on `encoder`'s card, turned and halved there, then encoded: whether a
@@ -670,16 +676,17 @@ pub fn run(program: &Path, args: &[String], progress: impl Fn(f32), cancel: &Ato
             }
         }
     });
-    for line in lossy_lines(child.stdout.take().expect("piped")) {
-        if cancel.load(Ordering::Relaxed) {
-            let _ = child.kill();
-            break;
+    let out = child.stdout.take().expect("piped");
+    // Cancel is checked apart from the output: FFmpeg may print nothing for long (#274).
+    let status = std::thread::scope(|s| {
+        let waiter = std::thread::Builder::new().name("ffmpeg-wait".into()).spawn_scoped(s, || wait_or_stop(&mut child, || cancel.load(Ordering::Relaxed))).expect("spawn");
+        for line in lossy_lines(out) {
+            if let (Some(us), Some(total)) = (line.strip_prefix("out_time_us=").and_then(|v| v.parse::<f64>().ok()), *length.lock().unwrap()) {
+                progress((us / 1e6 / total).clamp(0.0, 1.0) as f32);
+            }
         }
-        if let (Some(us), Some(total)) = (line.strip_prefix("out_time_us=").and_then(|v| v.parse::<f64>().ok()), *length.lock().unwrap()) {
-            progress((us / 1e6 / total).clamp(0.0, 1.0) as f32);
-        }
-    }
-    let status = child.wait().map_err(|e| e.to_string())?;
+        waiter.join().expect("ffmpeg-wait").map_err(|e| e.to_string())
+    })?;
     progress(1.0);
     let _ = reader.join();
     if cancel.load(Ordering::Relaxed) {
@@ -699,6 +706,20 @@ fn lossy_lines(r: impl std::io::Read) -> impl Iterator<Item = String> {
             Ok(_) => Some(String::from_utf8_lossy(&line).trim_end_matches(['\n', '\r']).to_string()),
         }
     })
+}
+
+/// Waits for `child`, asking `stop` every 100 ms; when it says so the child is killed.
+fn wait_or_stop(child: &mut Child, stop: impl Fn() -> bool) -> std::io::Result<ExitStatus> {
+    loop {
+        if let Some(status) = child.try_wait()? {
+            return Ok(status);
+        }
+        if stop() {
+            let _ = child.kill();
+            return child.wait();
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
 }
 
 /// Seconds of "01:02:03.45".
