@@ -10,7 +10,7 @@ use crate::address::AddressForm;
 use crate::fonts::fonts;
 use crate::i18n::{self, I18n};
 use crate::settings::Settings;
-use crate::{App, Focus, OptTab, devices, help, help_icons, mtp, servers, single, theme, watch};
+use crate::{App, Focus, OptTab, devices, help, help_icons, mtp, servers, theme, watch};
 
 impl App {
     /// `arg`: address from the command line. Without it (e.g. started from the applications menu)
@@ -162,13 +162,13 @@ impl App {
             relisting: HashSet::new(),
             relist_again: HashSet::new(),
             act: None,
+            single: None,
         };
         app.watcher = watch::folder_watcher(app.tx.clone(), ctx.clone());
         let wake = ctx.clone();
         mtp::on_change(move || wake.request_repaint());
         theme::apply(ctx, app.settings.theme);
         devices::watch(app.tx.clone(), ctx.clone());
-        single::listen(app.tx.clone(), ctx.clone());
         if app.settings.check_updates {
             app.check_updates(ctx);
         }

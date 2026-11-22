@@ -39,7 +39,7 @@ fn old(name: &str) -> bool {
     ffmpeg || (name.starts_with(&crate::video_read::temp_prefix()) && name.ends_with(".tmp")) || name.starts_with(&crate::occt::temp_prefix())
 }
 
-/// At start (after `single::hand_over`, so no other copy of the app is using them): the copies a
+/// At start (after `single::start`, so no other copy of the app is using them): the copies a
 /// copy of the app closed by force or crashed left in the temporary folder. Not with
 /// `EYECANSEE_MULTI`: another instance may be using them.
 pub(crate) fn remove_old_copies() {

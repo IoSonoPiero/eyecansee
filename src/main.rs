@@ -558,6 +558,8 @@ struct App {
     relist_again: HashSet<String>,
     /// Item chosen from a right-click menu, run when the frame is drawn (never during the grid).
     act: Option<Act>,
+    /// This copy listens for later starts (`single`), from the start of `main`.
+    single: Option<single::Inbox>,
 }
 
 impl eframe::App for App {
@@ -631,6 +633,11 @@ impl eframe::App for App {
         });
     }
 
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Also with the window hidden: a later start waits for its address to be taken.
+        self.answer_handed(ctx);
+    }
+
     fn on_exit(&mut self) {
         // Always saved, so if "remember" is chosen later there is already a size.
         if self.loader.is_some() {
@@ -673,17 +680,23 @@ fn main() -> eframe::Result {
     // Each start marked, also in a log file shared with an earlier instance.
     log!("EyeCanSee {} started, process {}", version(), std::process::id());
     let arg = std::env::args_os().nth(1).map(|a| argument(&a.to_string_lossy()));
-    // The screenshot of a test run must not end up in the user's window.
-    if std::env::var_os("EYECANSEE_SCREENSHOT").is_none() && single::hand_over(arg.as_deref().unwrap_or("")) {
-        return Ok(());
-    }
-    temp_file::remove_old_copies();
     // Flatpak points XDG_DATA_HOME into the sandbox: files would go to a trash no file manager sees.
     let flatpak_id = std::env::var("FLATPAK_ID").ok();
     if let (Some(_), Some(home)) = (&flatpak_id, std::env::var_os("HOME")) {
-        // SAFETY: no other thread is running yet.
+        // SAFETY: no other thread is running yet (the listening of `single::start` comes next).
         unsafe { std::env::set_var("XDG_DATA_HOME", std::path::Path::new(&home).join(".local/share")) };
     }
+    // The screenshot of a test run must not end up in the user's window.
+    let start = if std::env::var_os("EYECANSEE_SCREENSHOT").is_some() { single::Start::Alone } else { single::start(arg.as_deref().unwrap_or("")) };
+    // Not next to a copy that holds the name: that copy may be playing its video copies.
+    if matches!(start, single::Start::Listening(_) | single::Start::Alone) {
+        temp_file::remove_old_copies();
+    }
+    let inbox = match start {
+        single::Start::HandedOver => return Ok(()),
+        single::Start::Listening(inbox) => Some(inbox),
+        single::Start::Alone | single::Start::NextTo => None,
+    };
     // Read while the window is made, so the first frame already has the desktop's colours.
     #[cfg(any(target_os = "linux", windows))]
     system_theme::start();
@@ -741,7 +754,7 @@ fn main() -> eframe::Result {
             if fit_window {
                 window_place::place(cc);
             }
-            Ok(Box::new(App::new(&cc.egui_ctx, settings, arg).with_gpu(cc)))
+            Ok(Box::new(App::new(&cc.egui_ctx, settings, arg).with_gpu(cc).with_single(&cc.egui_ctx, inbox)))
         }),
     );
     if let Err(e) = &result {
