@@ -390,8 +390,34 @@ mod tests {
         let spine: String = (0..25_001).map(|i| format!("0 {i} 0 ")).collect();
         let x3d = format!(r#"<X3D><Scene><Shape><Extrusion crossSection="{section}" spine="{spine}"/></Shape></Scene></X3D>"#);
         let e = refused(crate::model::parse(x3d.as_bytes(), "a.x3d")).unwrap();
-        assert_eq!(e, "error-model-too-many-triangles\u{1}other 20000000");
-        assert_eq!(I18n::new("en").load_error(&e).lines().nth(1), Some("EyeCanSee does not open 3D models with more than 20 million triangles."));
+        assert_eq!(e, "error-model-too-many-triangles\u{1}x3d 20000000");
+        assert_eq!(I18n::new("en").load_error(&e).lines().nth(1), Some("EyeCanSee does not open X3D files with more than 20 million triangles."));
+    }
+
+    /// The formats read whole before their cap is met name the format, without the why: the
+    /// cap does not keep the reading from filling the memory there (Piero, 22/11/2026); GLB and
+    /// .gltf too, whose primitives are read whole before `Builder` counts their triangles.
+    #[test]
+    fn read_whole_named_without_why_t1() {
+        let (en, it) = (I18n::new("en"), I18n::new("it"));
+        let line = |i18n: &I18n, format: &str, max: usize| i18n.load_error(&format!("{TOO_MANY}\u{1}{format} {max}")).lines().nth(1).unwrap().to_string();
+        for (format, max, english, italian) in [
+            ("off", 20, "OFF files", "i file OFF"),
+            ("collada", 20, "Collada files", "i file Collada"),
+            ("vrml", 20, "VRML files", "i file VRML"),
+            ("x3d", 20, "X3D files", "i file X3D"),
+            ("fbx", 20, "FBX files", "i file FBX"),
+            ("ifc", 5, "IFC files", "i file IFC"),
+            ("glb", 20, "GLB files", "i file GLB"),
+            ("gltf", 20, "glTF files", "i file glTF"),
+        ] {
+            assert_eq!(line(&en, format, max * 1_000_000), format!("EyeCanSee does not open {english} with more than {max} million triangles."));
+            assert_eq!(line(&it, format, max * 1_000_000), format!("EyeCanSee non apre {italian} con più di {max} milioni di triangoli."));
+        }
+        // AMF, counted before it is read (Piero, 22/11/2026), and 3DS, read part by part: the why.
+        assert_eq!(line(&en, "amf", 5_000_000), "EyeCanSee does not open AMF files with more than 5 million triangles, so that reading them does not fill the computer's memory.");
+        assert_eq!(line(&it, "amf", 5_000_000), "EyeCanSee non apre i file AMF con più di 5 milioni di triangoli, perché la lettura non riempia la memoria del computer.");
+        assert_eq!(line(&en, "three-ds", 20_000_000), "EyeCanSee does not open 3DS files with more than 20 million triangles, so that reading them does not fill the computer's memory.");
     }
 
     /// The error said in the viewer, in the lists of Export and Convert (a few words, and the
