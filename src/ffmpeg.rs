@@ -1008,4 +1008,45 @@ mod tests {
         let err = r.unwrap_err();
         assert!(err.contains("caf\u{FFFD}") && err.ends_with("Conversion failed!"), "{err:?}");
     }
+
+    /// #274: Cancel stops an FFmpeg that prints nothing, within a fraction of a second.
+    #[cfg(unix)]
+    #[test]
+    fn cancel_while_silent() {
+        let cancel = AtomicBool::new(false);
+        let (r, _, took) = std::thread::scope(|s| {
+            s.spawn(|| {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                cancel.store(true, Ordering::Relaxed);
+            });
+            fake_run("exec sleep 4", &cancel)
+        });
+        assert_eq!(r, Err("cancelled".into()));
+        assert!(took < std::time::Duration::from_secs(1), "stopped after {took:?}");
+    }
+
+    /// #274: the probe of an encoder that does not answer ends after its limit. The fake FFmpeg
+    /// would end well, after 14 s: without the limit the encoder would work.
+    #[cfg(unix)]
+    #[test]
+    fn probe_limit() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("eyecansee-probe-limit-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let fake = dir.join("ffmpeg");
+        std::fs::write(&fake, "#!/bin/sh\n[ \"$1\" = ready ] && exit 0\nexec sleep 14\n").unwrap();
+        std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+        // A program just written may be "busy" a moment, while other tests start processes.
+        for _ in 0..100 {
+            if Command::new(&fake).arg("ready").status().is_ok() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        let t = std::time::Instant::now();
+        let works = try_encoder(&fake, "libx264");
+        let took = t.elapsed();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(!works && took >= std::time::Duration::from_secs(10) && took < std::time::Duration::from_secs(12), "{works} after {took:?}");
+    }
 }
