@@ -346,6 +346,18 @@ fn start_tracks(mpv: &Mpv, seek: Option<[String; 3]>) {
         let _ = mpv.command(&["set", track, "no"]);
         let _ = mpv.command(&["set", track, "auto"]);
     }
+    // Measured with the system's libmpv 0.41: in case another one chooses nothing this way, the
+    // first video and audio tracks (a file never opened silently without a word).
+    if mpv.property::<i64>("current-tracks/video/id", FORMAT_INT64).is_none() && mpv.property::<i64>("current-tracks/audio/id", FORMAT_INT64).is_none() {
+        let count = mpv.property::<i64>("track-list/count", FORMAT_INT64).unwrap_or(0);
+        let first = |kind: &str| (0..count).find(|i| mpv.string(&format!("track-list/{i}/type")).as_deref() == Some(kind)).and_then(|i| mpv.property::<i64>(&format!("track-list/{i}/id"), FORMAT_INT64));
+        for (track, kind) in [("vid", "video"), ("aid", "audio")] {
+            if let Some(id) = first(kind) {
+                log!("video: mpv chose no track, {track} {id} set");
+                let _ = mpv.command(&["set", track, &id.to_string()]);
+            }
+        }
+    }
     // Where the video was before Save (#211), before the first frame is decoded.
     if let Some(seek) = seek {
         let _ = mpv.command(&seek.each_ref().map(String::as_str));

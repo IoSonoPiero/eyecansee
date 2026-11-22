@@ -566,6 +566,41 @@ pub(crate) mod tests {
         Input::Stream(Arc::new(Bytes(bytes)))
     }
 
+    /// A good video through a stream (a phone, a server, a motion photo): it plays, and after a
+    /// jump to the middle it goes on playing from there, without an error. mpv lets a stream go
+    /// (`cancel_fn`, #276) only when it closes, and the tracks turned on after the rotation
+    /// (#173) keep it. Skipped without libmpv (the CI).
+    #[test]
+    fn stream_plays_and_jumps() {
+        if !available() {
+            println!("skipped: no libmpv");
+            return;
+        }
+        let good = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/site/img/mtp-open.mp4")).unwrap();
+        let player = Player::open(stream(good), 0, true, || {}).unwrap();
+        let frames = |secs: f64| {
+            let (t, mut n) = (Instant::now(), 0);
+            while t.elapsed().as_secs_f64() < secs {
+                if let Some(size) = player.video_size() {
+                    player.set_size(fit(size, 200));
+                }
+                n += usize::from(player.frame().is_some());
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            n
+        };
+        let t = Instant::now();
+        while player.video_size().is_none() && t.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let before = frames(1.0);
+        player.seek(5.0, true);
+        let after = frames(1.0);
+        let at = player.position();
+        println!("{before} frames, then {after} after the jump, at {at:.2} s, error {:?}", player.error());
+        assert!(before > 5 && after > 5 && at > 5.0 && player.error().is_none());
+    }
+
     /// #209: a file mpv cannot play says why instead of a spinner forever: one it does not
     /// recognise (noise, as a file and as a stream), one that opens but has no frame that decodes,
     /// one whose stream fails (its own error); a file with sound only is not an error. Skipped
