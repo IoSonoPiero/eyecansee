@@ -13,8 +13,9 @@ use interprocess::local_socket::{GenericNamespaced, ListenerOptions, Name, Strea
 use crate::loader::Msg;
 
 /// One name per user: abstract sockets and named pipes are visible to every user of the computer.
-fn name() -> Option<Name<'static>> {
-    socket().to_ns_name::<GenericNamespaced>().ok()
+/// `socket`: `socket()`, or a name of a test's own.
+fn ns_name(socket: &str) -> Option<Name<'static>> {
+    socket.to_owned().to_ns_name::<GenericNamespaced>().ok()
 }
 
 /// "eyecansee-<user>.sock" (the test copy's has its own name: `test_copy::NAME`).
@@ -48,7 +49,12 @@ pub fn hand_over(address: &str) -> bool {
         log!("single instance: off (EYECANSEE_MULTI)");
         return false;
     }
-    let Some(mut stream) = name().and_then(|n| Stream::connect(n).ok()) else { return false };
+    hand_over_to(&socket(), address)
+}
+
+/// `hand_over` to the copy listening on `socket`.
+fn hand_over_to(socket: &str, address: &str) -> bool {
+    let Some(mut stream) = ns_name(socket).and_then(|n| Stream::connect(n).ok()) else { return false };
     stream.write_all(format!("{address}\n").as_bytes()).is_ok()
 }
 
@@ -57,14 +63,15 @@ pub fn listen(tx: Sender<Msg>, ctx: Context) {
     if multi() {
         return;
     }
-    let listener = match name().map(|n| ListenerOptions::new().name(n).create_sync()) {
-        Some(Ok(l)) => l,
-        Some(Err(e)) => {
-            log!("single instance: {e}");
-            return;
-        }
-        None => return,
-    };
+    if let Err(e) = listen_on(&socket(), tx, ctx) {
+        log!("single instance: {e}");
+    }
+}
+
+/// `listen` on `socket`.
+fn listen_on(socket: &str, tx: Sender<Msg>, ctx: Context) -> std::io::Result<()> {
+    let name = ns_name(socket).ok_or_else(|| std::io::Error::other("no name"))?;
+    let listener = ListenerOptions::new().name(name).create_sync()?;
     crate::logging::spawn_named("single-listen", move || {
         for conn in listener.incoming().flatten() {
             let mut line = String::new();
@@ -76,6 +83,7 @@ pub fn listen(tx: Sender<Msg>, ctx: Context) {
             }
         }
     });
+    Ok(())
 }
 
 #[cfg(test)]
