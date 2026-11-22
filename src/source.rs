@@ -61,6 +61,15 @@ thread_local! {
     /// Reads (`Store::read`, `Store::read_range`) on this thread: each is a round trip on a phone or
     /// a server.
     pub static READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    /// The largest piece of a file held at once on this thread: a read (`Store::read`,
+    /// `Store::read_range`) or a chunk of `Store::send_chunks`.
+    pub static LARGEST_READ: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// A piece held in memory, for `LARGEST_READ`.
+#[cfg(test)]
+fn held(len: usize) {
+    LARGEST_READ.with(|n| n.set(n.get().max(len as u64)));
 }
 
 /// The bytes of a read, added to `BYTES_READ`.
@@ -69,6 +78,7 @@ fn counted(r: &Result<Vec<u8>, Error>) {
     READS.with(|n| n.set(n.get() + 1));
     if let Ok(bytes) = r {
         BYTES_READ.with(|n| n.set(n.get() + bytes.len() as u64));
+        held(bytes.len());
     }
 }
 
@@ -515,6 +525,8 @@ impl Store {
                 return Err(("error-cancelled", String::new()));
             }
             done.fetch_add(chunk.len() as u64, Ordering::Relaxed);
+            #[cfg(test)]
+            held(chunk.len());
             out.send(Ok(chunk)).await.map_err(|_| ("error-cancelled", String::new()))
         };
         match self {

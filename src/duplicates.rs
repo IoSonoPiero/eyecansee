@@ -277,6 +277,40 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
+    /// Files of the same size, two equal and two that differ only at the end or only at the start:
+    /// the equal ones found, and no file held whole in memory (a video of 8 GB wanted 8 GB); the
+    /// one that differs at the start is read no further than its first bytes (audit 1.12).
+    #[test]
+    fn find_in_pieces() {
+        const SIZE: usize = 6 << 20;
+        let dir = std::env::temp_dir().join(format!("eyecansee-dup-pieces-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let data: Vec<u8> = (0..SIZE).map(|i| (i % 251) as u8).collect();
+        let write = |name: &str, change: Option<usize>| {
+            let mut d = data.clone();
+            if let Some(at) = change {
+                d[at] ^= 1;
+            }
+            std::fs::write(dir.join(name), d).unwrap();
+        };
+        write("a.jpg", None);
+        write("b.jpg", None);
+        write("end.jpg", Some(SIZE - 1));
+        write("start.jpg", Some(0));
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let s = rt.block_on(async { crate::source::open(&dir.to_string_lossy()) }).unwrap();
+        let p = Progress::default();
+        crate::source::LARGEST_READ.with(|n| n.set(0));
+        let groups = rt.block_on(find(&s.op, &s.dir, false, &p));
+        let largest = crate::source::LARGEST_READ.with(std::cell::Cell::get);
+        std::fs::remove_dir_all(&dir).unwrap();
+        let names: Vec<Vec<&str>> = groups.as_ref().unwrap().iter().map(|g| g.files.iter().map(|f| crate::source::name(&f.path)).collect()).collect();
+        assert_eq!(names, [["a.jpg", "b.jpg"]]);
+        assert!(largest > 0 && largest <= 2 << 20, "the largest piece held: {largest} bytes");
+        assert_eq!(p.read.into_inner(), 4 * (64 << 10) + 3 * SIZE as u64, "the first 64 KB of all four, then three whole");
+        assert_eq!(p.examined.into_inner(), 4);
+    }
+
     /// Links to a folder beside, to a folder above and to a file: the same file reached by several
     /// paths is never a copy of itself (deleting the "copy" would delete it), and the search ends
     /// (issue #87). Only a real copy makes a group.
