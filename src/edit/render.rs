@@ -26,7 +26,7 @@ pub struct View {
 /// The objects of `doc` on an image of `size` (upright, before the turns), as `view` shows them.
 /// `options` gives the fonts (`decode::usvg_options`: those of the system).
 pub fn render(doc: &Doc, size: (u32, u32), view: &View, options: &usvg::Options) -> Option<tiny_skia::Pixmap> {
-    let tree = usvg::Tree::from_str(&svg(doc, size, view, options), options).ok()?;
+    let tree = tree(&svg(doc, size, view, options), options)?;
     let mut pixmap = tiny_skia::Pixmap::new(view.w, view.h)?;
     resvg::render(&tree, tiny_skia::Transform::identity(), &mut pixmap.as_mut());
     Some(pixmap)
@@ -48,7 +48,7 @@ pub fn local(objects: &[Obj], a: &Area, (w, h): (u32, u32), options: &usvg::Opti
         object(&mut out, o, options);
     }
     out.push_str("</g></svg>");
-    let tree = usvg::Tree::from_str(&out, options).ok()?;
+    let tree = tree(&out, options)?;
     let mut pixmap = tiny_skia::Pixmap::new(w, h)?;
     resvg::render(&tree, tiny_skia::Transform::identity(), &mut pixmap.as_mut());
     Some(pixmap)
@@ -58,9 +58,25 @@ pub fn local(objects: &[Obj], a: &Area, (w, h): (u32, u32), options: &usvg::Opti
 /// bottom in its pixels; `None` when nothing is drawn.
 pub fn bounds(doc: &Doc, size: (u32, u32), options: &usvg::Options) -> Option<[f32; 4]> {
     let (w, h) = doc.crop.pixels();
-    let tree = usvg::Tree::from_str(&svg(doc, size, &View { x: 0.0, y: 0.0, w, h, scale: 1.0 }, options), options).ok()?;
+    let tree = tree(&svg(doc, size, &View { x: 0.0, y: 0.0, w, h, scale: 1.0 }, options), options)?;
     let r = tree.root().abs_stroke_bounding_box();
     (r.width() > 0.0 && r.height() > 0.0).then(|| [r.left(), r.top(), r.right(), r.bottom()])
+}
+
+/// The SVG of the objects read back; when it cannot be (nothing of it would be drawn), the log
+/// says why, once for each reason.
+fn tree(svg: &str, options: &usvg::Options) -> Option<usvg::Tree> {
+    static LAST: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+    usvg::Tree::from_str(svg, options)
+        .map_err(|e| {
+            let e = e.to_string();
+            let mut last = LAST.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            if *last != e {
+                log!("edit: the objects cannot be drawn: {e}");
+                *last = e;
+            }
+        })
+        .ok()
 }
 
 /// The SVG of the objects. A point of an object (from the centre of the turned image) is turned
@@ -417,8 +433,24 @@ fn text_on(out: &mut String, (a, b, c): (Pt, Pt, Option<Pt>), (text, size): (&st
     write!(out, r##"<defs><path id="{id}" d="{d}"/></defs><text font-family="{family}sans-serif" font-size="{size}" dominant-baseline="central" {fill}><textPath xlink:href="#{id}" startOffset="50%" text-anchor="middle">{words}</textPath></text>"##)
 }
 
+/// `s` for the text of an SVG: without the characters XML does not allow (`xml_char`).
 fn escaped(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+    s.chars().filter(|&c| xml_char(c)).collect::<String>().replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+}
+
+/// A character XML allows: not the control characters but tab, line feed and carriage return
+/// (pasted from Word, a PDF or a terminal), nor U+FFFE and U+FFFF. With one, the whole SVG of the
+/// objects was refused and nothing drawn (audit 5.3).
+fn xml_char(c: char) -> bool {
+    !matches!(c, '\u{0}'..='\u{8}' | '\u{b}' | '\u{c}' | '\u{e}'..='\u{1f}' | '\u{fffe}' | '\u{ffff}')
+}
+
+/// The letters typed or pasted in a text field, without the characters XML does not allow; true
+/// if some were dropped.
+pub fn xml_text(text: &mut String) -> bool {
+    let before = text.len();
+    text.retain(xml_char);
+    text.len() != before
 }
 
 #[cfg(test)]
@@ -602,20 +634,25 @@ pub(crate) mod tests {
     /// A text pasted with a control character (a manual line break from Word, U+000B; a page
     /// break, U+000C; an escape) is drawn as without it, and so are the other objects: XML has no
     /// such characters, so nothing was drawn at all (audit 5.3). The same for a bubble and a text
-    /// on a line.
+    /// on a line; and the field is cleaned of them.
     #[test]
     fn control_characters_dropped() {
         let path = Some((Pt::new(-30.0, 0.0), Pt::new(30.0, 0.0), None));
         let rect = Obj { shape: Shape::Rect(Area { centre: Pt::new(0.0, 20.0), w: 40.0, h: 10.0, rot: 0.0 }), style: style() };
         let text = |s: &str, path| Obj { shape: Shape::Text { at: Pt::new(0.0, 0.0), text: s.into(), size: 20.0, rot: 0.0, font: None, path }, style: style() };
         let bubble = |s: &str| Obj { shape: Shape::Bubble { area: Area { centre: Pt::new(0.0, -10.0), w: 60.0, h: 30.0, rot: 0.0 }, tail: Pt::new(-20.0, 30.0), text: s.into(), font: None }, style: style() };
-        for (bad, good) in [(text("a\u{b}b", None), text("ab", None)), (text("a\u{c}\u{1b}b", path), text("ab", path)), (bubble("a\u{b}b"), bubble("ab"))] {
+        // A bubble breaks its words at U+000B as at a space: the escape there.
+        for (bad, good) in [(text("a\u{b}b", None), text("ab", None)), (text("a\u{c}\u{1b}b", path), text("ab", path)), (bubble("a\u{1b}b"), bubble("ab"))] {
             let drawn = |o: &Obj| render(&doc(vec![o.clone(), rect.clone()]), (W, H), &whole(&doc(vec![])), &options()).map(|p| p.data().to_vec());
             let got = drawn(&bad);
             assert!(got.is_some(), "{:?} drawn", bad.shape);
             assert_eq!(got, drawn(&good), "{:?} as without the character", bad.shape);
             assert!(bounds(&doc(vec![bad]), (W, H), &options()).is_some());
         }
+        let mut typed = String::from("a\u{b}b\tc\nd\u{1b}\u{7}");
+        assert!(xml_text(&mut typed));
+        assert_eq!(typed, "ab\tc\nd");
+        assert!(!xml_text(&mut typed), "nothing more to drop");
     }
 
     /// Accented letters keep their accents, and none is lost: each accented vowel has the ink of

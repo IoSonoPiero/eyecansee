@@ -431,6 +431,9 @@ fn text_field(ui: &mut egui::Ui, w: &mut Window, selected: Option<usize>, i18n: 
     // As wide as the hint, so the empty box shows it on one line.
     let hint = i18n.t("edit-text-hint");
     let r = ui.add(egui::TextEdit::multiline(text).id(egui::Id::unique(super::typing::IN_BAR)).desired_rows(1).desired_width(crate::theme::hint_width(ui, &hint).max(280.0)).hint_text(hint));
+    if r.changed() {
+        crate::edit::render::xml_text(text);
+    }
     // A text typed on the image takes the keys there (`typing`).
     if w.editing.is_none() && std::mem::take(&mut w.focus_text) {
         r.request_focus();

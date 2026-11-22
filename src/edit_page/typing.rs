@@ -86,6 +86,10 @@ pub(super) fn overlay(ui: &mut egui::Ui, w: &mut Window, i: usize, centre: Pos2,
         .desired_width(rect.width())
         .desired_rows(1);
     let response = ui.put(rect, field);
+    // A paste does not go through the printable keys.
+    if response.changed() {
+        crate::edit::render::xml_text(text);
+    }
     if std::mem::take(&mut w.focus_text) {
         response.request_focus();
     }
