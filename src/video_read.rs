@@ -420,12 +420,11 @@ async fn copy_whole(op: &Store, path: &str, size: u64, copied: &AtomicU64) -> Re
 }
 
 async fn copy_now(op: &Store, path: &str, size: u64, copied: &AtomicU64, key: String) -> Result<PathBuf, String> {
-    static N: AtomicU64 = AtomicU64::new(0);
-    let tmp = std::env::temp_dir().join(format!("{}{}-{}.tmp", temp_prefix(), std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
+    // Only the user can read it, under a name nobody can work out, never through a link (#190).
+    let (tmp, mut file) = crate::temp_file::create(&temp_prefix(), "tmp").map_err(|e| e.to_string())?;
     let (tx, mut rx) = tokio::sync::mpsc::channel::<std::io::Result<bytes::Bytes>>(4);
     let never = std::sync::atomic::AtomicBool::new(false);
-    let write = async {
-        let mut file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
+    let write = async move {
         while let Some(chunk) = rx.recv().await {
             std::io::Write::write_all(&mut file, &chunk.map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         }
