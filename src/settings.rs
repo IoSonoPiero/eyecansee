@@ -382,7 +382,12 @@ impl Settings {
     }
 
     /// The window as it is now, for `WindowStart::Remember`: its size only when not maximised.
+    /// At full screen nothing: what is remembered is the window it came from (the desktop may
+    /// not call a full screen maximised).
     pub(crate) fn note_window(&mut self, size: egui::Vec2, viewport: &egui::ViewportInfo) {
+        if viewport.fullscreen == Some(true) {
+            return;
+        }
         self.window_maximized = viewport.maximized.unwrap_or(false);
         if !self.window_maximized {
             self.window_size = Some([size.x, size.y]);
