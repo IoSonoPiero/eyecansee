@@ -356,6 +356,22 @@ mod tests {
         w.finish().unwrap().into_inner()
     }
 
+    /// D1: the triangles counted before the XML is parsed (`model_limit::xml_triangles`) are the
+    /// ones read, with and without the prefix of the namespace; a triangle outside the points is
+    /// counted, as written in the file, and dropped by the reading.
+    #[test]
+    fn counted_before_parsing_d1() {
+        let model = r#"<model xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:m="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><resources>
+            <object id="1"><mesh><vertices><vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/></vertices>
+            <triangles><triangle v1="0" v2="1" v3="2"/><m:triangle v1="0" v2="2" v3="1"/></triangles></mesh></object>
+            </resources><build><item objectid="1"/></build></model>"#;
+        assert_eq!(crate::model_limit::xml_triangles(model), 2);
+        assert_eq!(read(&zip(model), &Unpacked::default()).unwrap().tris.len(), 2);
+        let outside = model.replace(r#"v3="1""#, r#"v3="9""#);
+        assert_eq!(crate::model_limit::xml_triangles(&outside), 2);
+        assert_eq!(read(&zip(&outside), &Unpacked::default()).unwrap().tris.len(), 1);
+    }
+
     #[test]
     fn components_build_transforms_and_colours() {
         let model = r##"<model xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><resources>

@@ -139,43 +139,58 @@ fn word_of(props: &[(&[u8], bool, bool)], name: &[u8]) -> Option<usize> {
     props[..k].iter().all(|p| !p.1).then_some(k)
 }
 
-/// The triangles the parser of a PLY in text gives (`model_ply::parsed`): a fan of each face of
-/// n corners, n - 2; without any, 4 for each point with three finite coordinates (a cloud,
-/// `point_cloud`). Rows it cannot follow (a list before the corners) stop the count there: the
-/// triangle strips are not counted either, so this is never more than what it gives.
+/// The triangles the parser of a PLY in text gives (`model_ply::parsed`) and `Builder` keeps: a
+/// fan of each face, without the triangles with a corner outside the points; without any, 4 for
+/// each point with three finite coordinates (a cloud, `point_cloud`). Rows it cannot follow (a
+/// list before the corners) stop the count there: the triangle strips are not counted either,
+/// so this is never more than what it gives.
 pub(crate) fn ply_text_triangles(bytes: &[u8]) -> usize {
     let Some((elements, body)) = ply_header(bytes) else { return 0 };
     // Two elements of the same name: the parser keeps the last one, not counted.
     if elements.iter().enumerate().any(|(i, e)| elements[..i].iter().any(|o| o.name == e.name)) {
         return 0;
     }
-    let mut rows = lines(&bytes[body..]).map(|w| w.collect::<Vec<_>>());
-    let (mut faces, mut points, mut strips) = (0usize, 0usize, false);
-    for e in &elements {
-        // As the parser takes them: `vertex_indices` when there is one, else `vertex_index`.
+    let points = elements.iter().find(|e| e.name == b"vertex").map_or(0, |e| e.count);
+    // As the parser takes the corners: `vertex_indices` when there is one, else `vertex_index`;
+    // not a list of whole numbers, no triangle (`model_ply::list`).
+    let corners_of = |e: &Element| {
         let name: &[u8] = if e.props.iter().any(|p| p.0 == b"vertex_indices") { b"vertex_indices" } else { b"vertex_index" };
-        // Corners that are not a list of whole numbers give no triangle (`model_ply::list`).
         let listed = e.props.iter().find(|p| p.0 == name).is_some_and(|p| p.1 && p.2);
-        let corners = word_of(&e.props, name);
+        listed.then(|| word_of(&e.props, name))
+    };
+    // A cloud only without faces that could have triangles, nor strips: the points' numbers are
+    // read only then.
+    let cloud = !elements.iter().any(|e| e.count > 0 && (e.name == b"tristrips" || e.name == b"face" && corners_of(e).is_some()));
+    let mut rows = lines(&bytes[body..]).map(|w| w.collect::<Vec<_>>());
+    let (mut faces, mut finite) = (0usize, 0usize);
+    for e in &elements {
+        let corners = corners_of(e);
         let xyz = [b"x" as &[u8], b"y", b"z"].map(|n| word_of(&e.props, n).filter(|&k| !e.props[k].1));
-        strips |= e.name == b"tristrips" && e.count > 0;
         for _ in 0..e.count {
             let Some(row) = rows.next() else { break };
-            match e.name {
-                b"face" if !listed => {}
-                b"face" => match corners.and_then(|k| std::str::from_utf8(row.get(k)?).ok()?.parse::<usize>().ok()) {
-                    Some(n) => faces = faces.saturating_add(n.saturating_sub(2)),
+            match (e.name, corners) {
+                (b"face", Some(Some(k))) => match fan(&row, k, points) {
+                    Some(n) => faces = faces.saturating_add(n),
                     None => return faces,
                 },
-                b"vertex" => {
-                    let finite = |k: Option<usize>| k.and_then(|k| std::str::from_utf8(row.get(k)?).ok()?.parse::<f32>().ok()).is_some_and(f32::is_finite);
-                    points += usize::from(xyz.into_iter().all(finite));
+                (b"face", Some(None)) => return faces,
+                (b"vertex", _) if cloud => {
+                    let number = |k: Option<usize>| k.and_then(|k| std::str::from_utf8(row.get(k)?).ok()?.parse::<f32>().ok()).is_some_and(f32::is_finite);
+                    finite += usize::from(xyz.into_iter().all(number));
                 }
                 _ => {}
             }
         }
     }
-    if faces == 0 && !strips { points.saturating_mul(4) } else { faces }
+    if cloud { finite.saturating_mul(4) } else { faces }
+}
+
+/// The triangles of the fan of a face whose corners' count is the word `k` of `row`, those with
+/// every corner among the `points`; `None` when the row is not one the parser reads.
+fn fan(row: &[&[u8]], k: usize, points: usize) -> Option<usize> {
+    let n: usize = std::str::from_utf8(row.get(k)?).ok()?.parse().ok()?;
+    let inside: Vec<bool> = row.get(k + 1..k + 1 + n)?.iter().map(|w| std::str::from_utf8(w).ok().and_then(|w| w.parse::<i64>().ok()).is_some_and(|v| (0..points as i64).contains(&v))).collect();
+    Some((1..n.saturating_sub(1)).filter(|&i| inside[0] && inside[i] && inside[i + 1]).count())
 }
 
 #[cfg(test)]
@@ -243,6 +258,10 @@ mod tests {
         assert_eq!(en.brief_load(&e).as_deref(), Some("more than 10 million triangles"));
         let (line, _) = crate::batch_summary::item(&en, crate::fault::NOT_OPENED, &format!("a.obj\u{1}{e}"), false);
         assert_eq!(line, crate::save_dialogs::md(&format!("Cannot open a.obj: {}", said.replace('\n', " "))));
+        // Not taken for a picture too large for the memory (`error_bar`), and given back as it is
+        // by the CAD engine's wrapper (`occt::from_file`), as the loader and the thumbnails call it.
+        assert_eq!(crate::view_memory::need_of(&e), None);
+        assert_eq!(crate::occt::from_file(None, || OBJ.check(OBJ.max + 1)), Err(e.clone()));
         let (id, detail) = e.split_once('\u{1}').unwrap();
         assert_eq!(en.error_md(id, detail), crate::save_dialogs::md(said));
         let it = I18n::new("it");
@@ -270,6 +289,10 @@ mod tests {
         let ply = format!("{head}0 0 0\n1 0 0\n1 1 0\n0 1 0\n0 4 0 1 2 3\n0 3 0 1 2\n");
         assert_eq!(ply_text_triangles(ply.as_bytes()), 3);
         assert_eq!(tris(ply.as_bytes(), "a.ply"), Ok(3));
+        // A corner outside the points drops the triangles of the fan that use it, as Builder does.
+        let outside = ply.replace("0 4 0 1 2 3\n", "0 4 0 1 2 9\n");
+        assert_eq!(ply_text_triangles(outside.as_bytes()), 2);
+        assert_eq!(tris(outside.as_bytes(), "a.ply"), Ok(2));
         let floats = ply.replace("list uchar int", "list uchar float");
         assert_eq!(ply_text_triangles(floats.as_bytes()), 4 * 4);
         // A cloud: 4 triangles a point, the point too far to be drawn left out.

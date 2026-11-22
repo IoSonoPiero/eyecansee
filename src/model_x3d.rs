@@ -399,8 +399,8 @@ fn extrusion(n: &SceneNode) -> Result<Part, String> {
         spine = vec![[0.0; 3], [0.0, 1.0, 0.0]];
     }
     // Two triangles per section point at each spine point: a small file can name billions.
-    if (cs.len() as u64).saturating_mul(spine.len() as u64).saturating_mul(2) > crate::model::MAX_TRIANGLES as u64 {
-        return Err(format!("more than {} triangles", crate::model::MAX_TRIANGLES));
+    if (cs.len() as u64).saturating_mul(spine.len() as u64).saturating_mul(2) > crate::model_limit::OTHER.max as u64 {
+        return Err(crate::model_limit::OTHER.error());
     }
     let orient = n.nums("orientation").as_chunks::<4>().0;
     let last = spine.len() - 1;

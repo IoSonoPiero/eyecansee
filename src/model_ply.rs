@@ -74,7 +74,7 @@ fn parsed(bytes: &[u8], z_up: bool) -> Result<Mesh, String> {
 
 /// Whether the PLY is in text (ASCII), as its header's `format` line says.
 fn in_text(bytes: &[u8]) -> bool {
-    let end = bytes.windows(10).position(|w| w == b"end_header").unwrap_or(bytes.len());
+    let Some(end) = bytes.windows(10).position(|w| w == b"end_header") else { return false };
     String::from_utf8_lossy(&bytes[..end]).lines().any(|l| l.split_whitespace().take(2).eq(["format", "ascii"]))
 }
 
