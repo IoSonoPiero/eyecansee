@@ -20,7 +20,7 @@ In the viewer **New image…** is greyed out and **Ctrl + N** does nothing: go b
 - ![Swap width and height](icon://arrow-left-right) swaps width and height, for landscape or portrait.
 - **Resolution**: for sizes in millimetres, centimetres or inches, how many dots per inch. The window shows below how many pixels that makes. It starts at A4 at 300 dpi.
 
-No side can be longer than 20,000 pixels, and an image has at most 200 megapixels (for example 20,000 × 10,000): above that **Create** is off and the window says why.
+No side can be longer than 20,000 pixels, and an image can have at most 200 megapixels (for example 20,000 × 10,000): above that **Create** is off and the window says why.
 
 ## Background
 

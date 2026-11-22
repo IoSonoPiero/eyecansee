@@ -66,7 +66,7 @@ Good to know:
 
 ## Undo and redo
 
-![Undo](icon://undo-2) **Undo** (**Ctrl + Z**) and ![Redo](icon://redo-2) **Redo** (**Ctrl + Y** or **Ctrl + Shift + Z**) go back and forward through every change, rotation and crop included. While you type in a text field, **Ctrl + Z** undoes the typing in that field. The editor keeps the last 1000 changes, fewer when they hold large pasted pieces of image: the oldest go first, and one step back is always there.
+![Undo](icon://undo-2) **Undo** (**Ctrl + Z**) and ![Redo](icon://redo-2) **Redo** (**Ctrl + Y** or **Ctrl + Shift + Z**) go back and forward through every change, rotation and crop included. While you type in a text field, **Ctrl + Z** undoes the typing in that field. The editor keeps the last 1,000 changes, fewer when they include large pasted images: the oldest are dropped first, and you can always go back at least one step.
 
 ## Resizing the image
 

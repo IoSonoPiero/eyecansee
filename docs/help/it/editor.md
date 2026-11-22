@@ -66,7 +66,7 @@ Da sapere:
 
 ## Annullare e ripetere
 
-![Annulla](icon://undo-2) **Annulla** (**Ctrl + Z**) e ![Ripeti](icon://redo-2) **Ripeti** (**Ctrl + Y** o **Ctrl + Maiusc + Z**) vanno avanti e indietro tra tutte le modifiche, rotazione e ritaglio compresi. Mentre scrivi in un campo di testo, **Ctrl + Z** annulla ciò che hai scritto in quel campo. L'editor tiene le ultime 1000 modifiche, meno quando contengono pezzi d'immagine incollati grandi: le più vecchie se ne vanno per prime, e un passo indietro c'è sempre.
+![Annulla](icon://undo-2) **Annulla** (**Ctrl + Z**) e ![Ripeti](icon://redo-2) **Ripeti** (**Ctrl + Y** o **Ctrl + Maiusc + Z**) vanno avanti e indietro tra tutte le modifiche, rotazione e ritaglio compresi. Mentre scrivi in un campo di testo, **Ctrl + Z** annulla ciò che hai scritto in quel campo. L'editor tiene le ultime 1.000 modifiche, meno quando contengono immagini incollate grandi: le più vecchie se ne vanno per prime, e un passo indietro c'è sempre.
 
 ## Ridimensionare l'immagine
 
