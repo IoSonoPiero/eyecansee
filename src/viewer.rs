@@ -340,33 +340,8 @@ impl App {
         let fit = bounds.fit;
         let scale = self.zoom.unwrap_or(fit).clamp(bounds.low, bounds.max);
 
-        let (mut wheel, mut next) = (0.0, 0.0);
-        let mut pinch = 1.0;
-        if response.hovered() {
-            let wheel_zoom = self.settings.wheel_zoom;
-            ui.input(|i| {
-                for e in &i.events {
-                    match e {
-                        egui::Event::MouseWheel { unit, delta, modifiers, .. } => {
-                            let notches = notches(*unit, *delta);
-                            if wheel_zoom || modifiers.command {
-                                wheel += notches;
-                            } else {
-                                next -= notches;
-                            }
-                        }
-                        egui::Event::Zoom(f) => pinch *= f,
-                        _ => {}
-                    }
-                }
-            });
-        }
-        self.wheel_notches += next;
-        while self.wheel_notches.abs() >= 1.0 {
-            let forward = self.wheel_notches > 0.0;
-            self.wheel_notches -= self.wheel_notches.signum();
-            self.go(if forward { Go::Next } else { Go::Prev });
-        }
+        let (wheel, next, pinch) = wheel_input(ui, response, self.settings.wheel_zoom);
+        self.wheel_go(next);
         let asked = self.zoom_bar.ask.take();
         let (zoom_in, zoom_out, fitted, actual) = if ui.ctx().egui_wants_keyboard_input() {
             (false, false, false, false)
@@ -434,6 +409,44 @@ impl App {
         self.zoom_shown = zoom::of_file(self.zoom.unwrap_or(fit), per);
         self.zoom_bar.range = [zoom::of_file(bounds.low, per), zoom::of_file(bounds.max, per)];
     }
+}
+
+impl App {
+    /// Notches of the wheel that change image (`wheel_input`): one image for each whole notch.
+    pub(crate) fn wheel_go(&mut self, next: f32) {
+        self.wheel_notches += next;
+        while self.wheel_notches.abs() >= 1.0 {
+            let forward = self.wheel_notches > 0.0;
+            self.wheel_notches -= self.wheel_notches.signum();
+            self.go(if forward { Go::Next } else { Go::Prev });
+        }
+    }
+}
+
+/// The wheel and the pinch over the viewer: notches that zoom (up positive), notches that change
+/// image (with `wheel_zoom` off and without Ctrl; forward positive), and the pinch's factor.
+pub(crate) fn wheel_input(ui: &egui::Ui, response: &egui::Response, wheel_zoom: bool) -> (f32, f32, f32) {
+    let (mut wheel, mut next, mut pinch) = (0.0, 0.0, 1.0);
+    if !response.hovered() {
+        return (wheel, next, pinch);
+    }
+    ui.input(|i| {
+        for e in &i.events {
+            match e {
+                egui::Event::MouseWheel { unit, delta, modifiers, .. } => {
+                    let notches = notches(*unit, *delta);
+                    if wheel_zoom || modifiers.command {
+                        wheel += notches;
+                    } else {
+                        next -= notches;
+                    }
+                }
+                egui::Event::Zoom(f) => pinch *= f,
+                _ => {}
+            }
+        }
+    });
+    (wheel, next, pinch)
 }
 
 /// Notches of a wheel event, up positive: a mouse gives lines, a touchpad points.
