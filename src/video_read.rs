@@ -273,6 +273,9 @@ struct StoreReader {
     copied: Arc<AtomicU64>,
     /// For playing from a server: the file read ahead from where mpv reads.
     ahead: Option<std::sync::Mutex<Option<Ahead>>>,
+    /// True once the player closes (`cancel`): the read waiting on the phone or the server and
+    /// every later one end at once (#276).
+    closed: tokio::sync::watch::Sender<bool>,
 }
 
 /// A file read in order from `next` on (`sftp::Server::send`, about 4 MiB asked ahead, or one
@@ -297,7 +300,20 @@ impl Drop for Ahead {
 
 impl StoreReader {
     fn new(rt: Handle, op: &Store, path: &str, size: u64, whole: bool) -> Self {
-        StoreReader { rt, op: op.clone(), path: path.to_string(), size, copy: whole.then(std::sync::OnceLock::new), copied: Arc::default(), ahead: None }
+        let closed = tokio::sync::watch::Sender::new(false);
+        StoreReader { rt, op: op.clone(), path: path.to_string(), size, copy: whole.then(std::sync::OnceLock::new), copied: Arc::default(), ahead: None, closed }
+    }
+
+    /// `work`, on the runtime, unless the player closes first: then an error at once (#276).
+    /// From mpv's threads, outside the runtime.
+    fn until_closed<T>(&self, work: impl std::future::Future<Output = Result<T, String>>) -> Result<T, String> {
+        let mut closed = self.closed.subscribe();
+        self.rt.block_on(async {
+            tokio::select! {
+                r = work => r,
+                _ = closed.wait_for(|c| *c) => Err(said(("error-cancelled", String::new()))),
+            }
+        })
     }
 
     /// Reading in order from `from` on a server.
@@ -334,7 +350,8 @@ impl StoreReader {
             }
             let a = ahead.as_mut().expect("just started");
             if a.left.is_empty() {
-                match a.chunks.blocking_recv() {
+                let next = self.until_closed(async { Ok(a.chunks.recv().await) });
+                match next? {
                     Some(Ok(chunk)) => a.left = chunk,
                     end => {
                         *ahead = None;
@@ -428,6 +445,8 @@ async fn copy_whole(op: &Store, path: &str, size: u64, copied: &AtomicU64) -> Re
 async fn copy_now(op: &Store, path: &str, size: u64, copied: &AtomicU64, key: String) -> Result<PathBuf, String> {
     // Only the user can read it, under a name nobody can work out, never through a link (#190).
     let (tmp, mut file) = crate::temp_file::create(&temp_prefix(), "tmp").map_err(|e| e.to_string())?;
+    // Removed unless the copy ends well, also when it is let go half way (the player closed, #276).
+    let mut partial = Partial(Some(tmp.clone()));
     let (tx, mut rx) = tokio::sync::mpsc::channel::<std::io::Result<bytes::Bytes>>(4);
     let never = std::sync::atomic::AtomicBool::new(false);
     let write = async move {
@@ -439,12 +458,21 @@ async fn copy_now(op: &Store, path: &str, size: u64, copied: &AtomicU64, key: St
     let (sent, written) = futures_util::future::join(op.send_chunks(path, size, tx, copied, &never), write).await;
     match sent.map_err(said).and(written) {
         Ok(()) => {
+            partial.0 = None;
             keep_copy(key, tmp.clone());
             Ok(tmp)
         }
-        Err(e) => {
-            let _ = std::fs::remove_file(&tmp);
-            Err(e)
+        Err(e) => Err(e),
+    }
+}
+
+/// A copy being written, removed when dropped unless taken out.
+struct Partial(Option<PathBuf>);
+
+impl Drop for Partial {
+    fn drop(&mut self) {
+        if let Some(tmp) = self.0.take() {
+            let _ = std::fs::remove_file(tmp);
         }
     }
 }
@@ -498,14 +526,18 @@ impl crate::mpv::Reader for StoreReader {
     /// From mpv's threads, outside the runtime: waiting here is allowed.
     fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>, String> {
         match &self.copy {
-            Some(copy) => match copy.get_or_init(|| self.rt.block_on(self.copy_whole())) {
+            Some(copy) => match copy.get_or_init(|| self.until_closed(self.copy_whole())) {
                 Ok((_, file)) => Self::read_copy(file, offset, len),
                 Err(e) => Err(e.clone()),
             },
             None if let Some(ahead) = &self.ahead => self.read_ahead(ahead, offset, len),
             // With the error's id: the log said only the path when the file was gone (2026-10-29).
-            None => self.rt.block_on(self.op.read_range(&self.path, offset, len)).map_err(said),
+            None => self.until_closed(async { self.op.read_range(&self.path, offset, len).await.map_err(said) }),
         }
+    }
+
+    fn cancel(&self) {
+        self.closed.send_replace(true);
     }
 }
 
@@ -736,6 +768,33 @@ mod tests {
         forget_copies();
         assert!(!tmp.exists() || cfg!(windows));
         assert_eq!(again.read(2_999_000, 5_000).unwrap(), data[2_999_000..]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// #276: the player closes while a read waits on a phone or a server that does not answer:
+    /// the read ends at once, and every later one too, with the cancelled error.
+    #[test]
+    fn closing_lets_a_waiting_read_go() {
+        use crate::mpv::Reader;
+        let dir = std::env::temp_dir().join(format!("eyecansee-closing-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("v.mp4"), [1u8; 100]).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let reader = Arc::new(StoreReader::new(rt.handle().clone(), &op, "v.mp4", 100, false));
+        assert_eq!(reader.read(0, 10).unwrap(), [1u8; 10]);
+        let r = reader.clone();
+        let waiting = std::thread::spawn(move || {
+            let t = std::time::Instant::now();
+            (r.until_closed(std::future::pending::<Result<(), String>>()), t.elapsed())
+        });
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        reader.cancel();
+        let (r, took) = waiting.join().unwrap();
+        let cancelled = said(("error-cancelled", String::new()));
+        assert_eq!(r, Err(cancelled.clone()));
+        assert!(took < std::time::Duration::from_millis(600), "{took:?}");
+        assert_eq!(reader.read(0, 10), Err(cancelled));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

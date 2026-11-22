@@ -3,6 +3,7 @@
 //! `mpv_stream_cb_add_ro`). Split from `mpv.rs` on 2026-11-22.
 
 use std::ffi::{c_char, c_int, c_void};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 const ERROR_GENERIC: i64 = -20;
@@ -13,7 +14,6 @@ pub trait Reader: Send + Sync {
     /// `len` bytes from `offset`, inside the file. Called from mpv's threads: it may block.
     fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>, String>;
     /// The player closes: a read under way should return at once, and the next ones too.
-    #[allow(dead_code)] // until #276 is fixed
     fn cancel(&self) {}
 }
 
@@ -41,11 +41,22 @@ pub(crate) struct Stream {
     /// The error of the last read of the `Reader`, until one succeeds again: why a video stopped
     /// or did not open (a phone unplugged, a server gone, #209).
     failed: Mutex<Option<String>>,
+    /// The player closes: every read from now on fails at once (#276).
+    closed: AtomicBool,
 }
 
 impl Stream {
     pub(crate) fn new(reader: Arc<dyn Reader>) -> Stream {
-        Stream { reader, failed: Mutex::new(None) }
+        Stream { reader, failed: Mutex::new(None), closed: AtomicBool::new(false) }
+    }
+
+    /// The player closes: a read under way is let go (`Reader::cancel`), the next ones fail at
+    /// once, so mpv is not kept waiting for a slow phone or server (#276). Called by the player
+    /// and by mpv (`cancel_fn`).
+    pub(crate) fn cancel(&self) {
+        if !self.closed.swap(true, Ordering::Relaxed) {
+            self.reader.cancel();
+        }
     }
 
     pub(crate) fn last_error(&self) -> Option<String> {
@@ -53,6 +64,9 @@ impl Stream {
     }
 
     fn fetch(&self, offset: u64, len: u64) -> Result<Vec<u8>, String> {
+        if self.closed.load(Ordering::Relaxed) {
+            return Err("closed".into());
+        }
         let r = self.reader.read(offset, len).and_then(|d| if d.is_empty() { Err("empty read".into()) } else { Ok(d) });
         *self.failed.lock().unwrap() = r.as_ref().err().cloned();
         r
@@ -106,7 +120,7 @@ pub(crate) unsafe extern "C" fn stream_open(user: *mut c_void, _uri: *mut c_char
             seek: Some(stream_seek),
             size: Some(stream_size),
             close: Some(stream_close),
-            cancel: None,
+            cancel: Some(stream_cancel),
         };
     }
     0
@@ -139,6 +153,12 @@ unsafe extern "C" fn stream_size(cookie: *mut c_void) -> i64 {
     // SAFETY: as `stream_read`.
     let cursor = unsafe { &*(cookie as *const Cursor) };
     cursor.stream.reader.size() as i64
+}
+
+unsafe extern "C" fn stream_cancel(cookie: *mut c_void) {
+    // SAFETY: as `stream_read`; from any thread, only the shared `Stream` is touched.
+    let cursor = unsafe { &*(cookie as *const Cursor) };
+    cursor.stream.cancel();
 }
 
 unsafe extern "C" fn stream_close(cookie: *mut c_void) {

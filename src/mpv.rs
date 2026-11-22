@@ -16,7 +16,7 @@ use crate::mpv_load::{Api, api};
 pub use crate::mpv_load::{available, status};
 pub(crate) use crate::mpv_stream::OpenFn;
 pub use crate::mpv_stream::Reader;
-pub use crate::mpv_player::{Failure, Player};
+pub use crate::mpv_player::{Failure, Player, wait_closed};
 use crate::mpv_stream::{Stream, stream_open};
 
 // From mpv's client.h and render.h (API 2.x).
@@ -144,12 +144,28 @@ impl Mpv {
     }
 
     pub(crate) fn command(&self, args: &[&str]) -> Result<(), String> {
+        self.run(args, false)
+    }
+
+    /// As `command`, without waiting for mpv to run it (mpv may be busy: a slow phone, #276).
+    pub(crate) fn command_async(&self, args: &[&str]) -> Result<(), String> {
+        self.run(args, true)
+    }
+
+    fn run(&self, args: &[&str], no_wait: bool) -> Result<(), String> {
         let args = args.iter().map(|a| cstr(a)).collect::<Result<Vec<_>, _>>()?;
         let mut ptrs: Vec<*const c_char> = args.iter().map(|a| a.as_ptr()).collect();
         ptrs.push(std::ptr::null());
-        // SAFETY: a NULL-terminated array of strings that outlive the call.
-        let r = unsafe { (self.api.command)(self.handle, ptrs.as_ptr()) };
+        // SAFETY: a NULL-terminated array of strings that outlive the call (mpv copies them for
+        // an asynchronous one).
+        let r = unsafe { if no_wait { (self.api.command_async)(self.handle, 0, ptrs.as_ptr()) } else { (self.api.command)(self.handle, ptrs.as_ptr()) } };
         if r < 0 { Err(format!("mpv {}: error {r}", args[0].to_string_lossy())) } else { Ok(()) }
+    }
+
+    /// The thread waiting for mpv's next event gets it at once (`mpv_wakeup`).
+    pub(crate) fn wake(&self) {
+        // SAFETY: thread-safe, as the whole client API.
+        unsafe { (self.api.wakeup)(self.handle) }
     }
 
     pub(crate) fn property<T: Default>(&self, name: &str, format: c_int) -> Option<T> {

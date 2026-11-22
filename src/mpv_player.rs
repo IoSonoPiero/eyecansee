@@ -158,15 +158,15 @@ impl Player {
 
     /// How the playback went, in the log when the video closes (#17): frames drawn and lost on
     /// our side, mpv's own counts, the decoding.
-    fn log_stats(&self) {
-        let st = self.shared.state.lock().unwrap();
+    fn log_stats(mpv: &Mpv, shared: &Shared) {
+        let st = shared.state.lock().unwrap();
         let (drawn, lost, drawing, longest) = (st.drawn, st.lost, st.drawing, st.longest);
         drop(st);
-        let int = |p: &str| self.mpv.property::<i64>(p, FORMAT_INT64).unwrap_or(-1);
-        let text = |p: &str| self.mpv.string(p).unwrap_or_default();
+        let int = |p: &str| mpv.property::<i64>(p, FORMAT_INT64).unwrap_or(-1);
+        let text = |p: &str| mpv.string(p).unwrap_or_default();
         log!(
             "video stats: {drawn} frames drawn up to {:.1} s, {lost} drawn over before shown, a draw {:.1} ms on average with its wait (longest {:.1}), mpv dropped {} (decoder {}), delayed {}, {}x{} {} at {} fps, hwdec {}",
-            self.position(),
+            mpv.property::<f64>("time-pos", FORMAT_DOUBLE).unwrap_or(0.0),
             drawing.as_secs_f64() * 1000.0 / drawn.max(1) as f64,
             longest.as_secs_f64() * 1000.0,
             int("frame-drop-count"),
@@ -224,14 +224,55 @@ impl Player {
 
 }
 
+/// Players being destroyed (`Drop for Player`), waited for at exit (`wait_closed`).
+static CLOSING: Mutex<Vec<JoinHandle<()>>> = Mutex::new(Vec::new());
+
+/// Nothing here waits for mpv, which may be inside a read from a slow phone or server (#276):
+/// the sound stops at once (a command mpv runs when it can), the stream lets its read go, and
+/// the player's thread, the statistics and mpv's destruction (`Drop for Mpv`) are left to a
+/// thread of their own. A new player may open meanwhile: the two are independent cores.
 impl Drop for Player {
     fn drop(&mut self) {
-        self.log_stats();
+        let _ = self.mpv.command_async(&["set", "pause", "yes"]);
+        if let Some(stream) = &self.mpv.stream {
+            stream.cancel();
+        }
         self.shared.change(|st| st.quit = true);
-        if let Some(t) = self.thread.take() {
+        self.mpv.wake();
+        let (mpv, shared, thread) = (self.mpv.clone(), self.shared.clone(), self.thread.take());
+        let closing = crate::logging::spawn_named("mpv-close", move || {
+            if let Some(t) = thread {
+                let _ = t.join();
+            }
+            Player::log_stats(&mpv, &shared);
+            drop(mpv);
+        });
+        let mut all = CLOSING.lock().unwrap();
+        all.retain(|t| !t.is_finished());
+        all.push(closing);
+    }
+}
+
+/// At exit: the players still being destroyed end first, `limit` at most (mpv's threads cut off
+/// by the end of the process could crash it). True if all ended.
+pub fn wait_closed(limit: Duration) -> bool {
+    let start = Instant::now();
+    let all = std::mem::take(&mut *CLOSING.lock().unwrap());
+    let mut left = 0;
+    for t in all {
+        while !t.is_finished() && start.elapsed() < limit {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        if t.is_finished() {
             let _ = t.join();
+        } else {
+            left += 1;
         }
     }
+    if left > 0 {
+        log!("video: {left} players still closing at exit");
+    }
+    left == 0
 }
 
 /// The frames turned by the file's rotation, by a filter. A turn not saved yet (#125) is not
@@ -378,6 +419,8 @@ mod tests {
         println!("closed in {closed:?}, the read returned {read:?} after the close");
         assert!(closed < Duration::from_millis(300), "the window waited {closed:?}");
         assert!(read.is_some_and(|r| r < Duration::from_millis(500)), "the read was let go after {read:?}");
+        let t = Instant::now();
+        assert!(wait_closed(Duration::from_secs(2)), "mpv not destroyed after {:?}", t.elapsed());
     }
 
     /// What the viewer has, with no time limit, from a stream whose first read never returns,

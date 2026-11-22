@@ -654,6 +654,9 @@ impl eframe::App for App {
         }
         self.settings.save();
         mtp::Phone::let_go_all();
+        // The player first, so that mpv lets its files go before the copies are removed.
+        self.video = None;
+        mpv::wait_closed(std::time::Duration::from_secs(2));
         video_read::forget_copies();
     }
 
