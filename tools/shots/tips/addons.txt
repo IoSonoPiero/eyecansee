@@ -1,6 +1,8 @@
-# Tip "Add-ons": Tools > Options… > Add-ons over the grid of the Holiday folder (what is already
-# on the computer depends on it).
+# Tip "Add-ons": Tools > Options… > Add-ons over the grid of the Holiday folder, the three add-ons
+# offered for download: the engines are set to the downloaded ones and the demo home has none, so
+# the picture does not show what the computer it is taken on has.
 open /home/demo/Pictures/Holiday
+set video_engine "downloaded"
 width 640
 3 act options
 3.5 click 292 541
