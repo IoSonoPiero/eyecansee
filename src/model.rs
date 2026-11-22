@@ -405,6 +405,8 @@ fn stl(bytes: &[u8]) -> Result<Mesh, String> {
     if bytes.len() >= 84 && n.checked_mul(50).and_then(|b| b.checked_add(84)) == Some(bytes.len()) {
         return stl_binary(bytes, n);
     }
+    // Counted before stl_io reads it all (`model_limit`).
+    crate::model_limit::STL.check(crate::model_limit::stl_text_triangles(bytes))?;
     // "solid" then a line break or a tab, without a name: stl_io takes it for binary.
     let named;
     let bytes = match bytes.strip_prefix(b"solid") {
@@ -424,6 +426,7 @@ fn stl(bytes: &[u8]) -> Result<Mesh, String> {
 /// Binary STL, with the colours of its triangles: Materialise's ("COLOR=" in the header, red in
 /// the low bits, bit 15 off when the triangle has one) or VisCAM's (bit 15 on, blue in the low bits).
 fn stl_binary(bytes: &[u8], n: usize) -> Result<Mesh, String> {
+    crate::model_limit::STL.check(n)?;
     let materialise = bytes[..80].windows(6).any(|w| w == b"COLOR=");
     let f = |c: &[u8], i: usize| f32::from_le_bytes([c[i], c[i + 1], c[i + 2], c[i + 3]]);
     let five = |v: u16| ((v & 31) as u32 * 255 / 31) as u8;
@@ -482,6 +485,8 @@ pub(crate) fn percent_decoded(s: &str) -> Option<String> {
 /// With the colours of its materials (`Kd` of the `.mtl` files it names) or of its vertices,
 /// their pictures (`map_Kd`) and the rest of the material (`model_mtl`: highlight, glow, normal map).
 fn obj(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
+    // Counted before tobj reads it all (`model_limit`).
+    crate::model_limit::OBJ.check(crate::model_limit::obj_triangles(bytes))?;
     let options = tobj::LoadOptions { triangulate: true, single_index: true, ignore_points: true, ignore_lines: true };
     let mtl = |p: &std::path::Path| match p.to_str().and_then(sibling) {
         Some(data) => tobj::load_mtl_buf(&mut Cursor::new(utf8(&data).as_bytes())),

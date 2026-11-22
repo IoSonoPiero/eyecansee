@@ -602,6 +602,17 @@ error-glb-cut = Il file è incompleto{ $detail }
 # { $expected }, { $actual }: sizes ("12.4 MB"), the one the file's header gives and the file's.
 error-glb-cut-sizes = Il file è incompleto{ $detail }: dovrebbe essere di { $expected } ma è di { $actual }.
     Forse lo scaricamento o la copia si è interrotta: prova a scaricarlo o copiarlo di nuovo.
+# A 3D model with more triangles than EyeCanSee reads in its format: { $max } in millions (10, 20, 50), { $format } the kind of file.
+error-model-too-many-triangles = Il modello ha più di { $max } milioni di triangoli.
+    EyeCanSee non legge { $format ->
+        [obj] i file OBJ
+        [three-mf] i file 3MF
+        [ply-text] i file PLY in testo
+        [ply-binary] i file PLY binari
+        [stl] i file STL
+        [glb] i file GLB
+       *[other] i modelli 3D
+    } con più di { $max } milioni di triangoli, perché la lettura non riempia la memoria del computer.
 # A few words after a file's name in the list of a message ("a.gltf: manca il file a.bin"): no capital, no full stop.
 error-gltf-bin-missing-brief = manca il file { $detail }
 error-gltf-bin-outside-brief = i dati sono fuori dalla cartella del modello ({ $detail })
@@ -609,6 +620,7 @@ error-gltf-data-damaged-brief = i dati scritti dentro il file sono rovinati
 error-glb-incomplete-brief = manca il blocco con i dati
 error-glb-cut-brief = il file è incompleto
 error-glb-cut-sizes-brief = il file è incompleto
+error-model-too-many-triangles-brief = più di { $max } milioni di triangoli
 # The keys of the viewer, under the status bar.
 hint-cad = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | Ctrl + L: livelli | M: misura | N, Maiusc + N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: successivo | ←, Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | Ctrl + Maiusc + S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
 hint-cad-layouts = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | L, Maiusc + L: layout successivo, precedente | Ctrl + L: livelli | M: misura | N, Maiusc + N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: file successivo | ←, Backspace, Pag↑: file precedente | Inizio, Fine: primo, ultimo file | Ctrl + Maiusc + S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro

@@ -1,5 +1,11 @@
-//! The most triangles EyeCanSee reads in one 3D model, by format: what a model may have so that
-//! reading it fits in the memory of the computer (`Builder::up_to`).
+//! The most triangles EyeCanSee reads in one 3D model, by format (D1, Piero 22/11/2026): what a
+//! model may have so that reading it fits in the memory of the computer (`Builder::up_to`).
+//! Reading a format in text takes far more memory than a binary one: at the peak, with the same
+//! model of 7.2 million triangles (Linux, release build), a binary PLY took 155 bytes a triangle,
+//! STL 300, GLB 335, 3MF 657, OBJ 706, a PLY in text 873; the caps keep the peak under about
+//! 8 GB, half of a computer of 16 GB. Where a library reads the whole file before `Builder` sees
+//! a triangle (OBJ, PLY in text, 3MF, STL in text), the triangles are counted first on the bytes
+//! already read (`obj_triangles` and the others), and a file beyond its cap is not read at all.
 
 /// The cap of one format: its triangles, and the format as the message names it.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -12,12 +18,15 @@ pub(crate) struct Limit {
 /// The formats without a cap of their own: glTF with its data apart, FBX, 3DS, OFF, AMF,
 /// Collada, VRML, X3D, IFC and the CAD engine's.
 pub(crate) const OTHER: Limit = Limit { max: crate::model::MAX_TRIANGLES, format: "other" };
-pub(crate) const PLY_BINARY: Limit = Limit { max: crate::model::MAX_TRIANGLES, format: "ply-binary" };
-pub(crate) const STL: Limit = Limit { max: crate::model::MAX_TRIANGLES, format: "stl" };
-pub(crate) const GLB: Limit = Limit { max: crate::model::MAX_TRIANGLES, format: "glb" };
-pub(crate) const OBJ: Limit = Limit { max: crate::model::MAX_TRIANGLES, format: "obj" };
-pub(crate) const PLY_TEXT: Limit = Limit { max: crate::model::MAX_TRIANGLES, format: "ply-text" };
-pub(crate) const THREE_MF: Limit = Limit { max: crate::model::MAX_TRIANGLES, format: "3mf" };
+pub(crate) const PLY_BINARY: Limit = Limit { max: 50_000_000, format: "ply-binary" };
+pub(crate) const STL: Limit = Limit { max: 20_000_000, format: "stl" };
+pub(crate) const GLB: Limit = Limit { max: 20_000_000, format: "glb" };
+pub(crate) const OBJ: Limit = Limit { max: 10_000_000, format: "obj" };
+pub(crate) const PLY_TEXT: Limit = Limit { max: 10_000_000, format: "ply-text" };
+pub(crate) const THREE_MF: Limit = Limit { max: 10_000_000, format: "three-mf" };
+
+/// Fluent id of the error, sent as `id\u{1}format max` (`said`).
+pub const TOO_MANY: &str = "error-model-too-many-triangles";
 
 impl Default for Limit {
     fn default() -> Self {
@@ -32,7 +41,7 @@ impl Limit {
     }
 
     pub(crate) fn error(self) -> String {
-        format!("more than {} triangles", self.max)
+        format!("{TOO_MANY}\u{1}{} {}", self.format, self.max)
     }
 
     /// Points and triangles the parts of one model may bring (`Builder::add_shiny`), kept or
@@ -42,6 +51,131 @@ impl Limit {
     pub(crate) fn offered(self) -> usize {
         4 * self.max
     }
+}
+
+/// The sentence of the error `id` with its `detail` (`Limit::error`), or its few words for the
+/// lists (`brief`); `None` for another error.
+pub(crate) fn said(i18n: &crate::i18n::I18n, id: &str, detail: &str, brief: bool) -> Option<String> {
+    if id != TOO_MANY {
+        return None;
+    }
+    let (format, max) = detail.split_once(' ')?;
+    let millions = (max.parse::<usize>().ok()? / 1_000_000).to_string();
+    let id = if brief { format!("{TOO_MANY}-brief") } else { TOO_MANY.to_string() };
+    Some(i18n.t_args(&id, &[("format", format), ("max", &millions)]))
+}
+
+/// The lines of a file in text, as `BufRead::lines` gives them (tobj, stl_io), split into words.
+fn lines(bytes: &[u8]) -> impl Iterator<Item = impl Iterator<Item = &[u8]>> {
+    bytes.split(|&b| b == b'\n').map(|l| l.split(u8::is_ascii_whitespace).filter(|w| !w.is_empty()))
+}
+
+/// The triangles tobj makes of an OBJ: a fan of each face (`f`, and `l` of three points or more,
+/// as tobj reads it) of n corners, n - 2. A face it cannot read fails the whole file, so this is
+/// never more than what it gives.
+pub(crate) fn obj_triangles(bytes: &[u8]) -> usize {
+    lines(bytes)
+        .map(|mut words| match words.next() {
+            Some(b"f" | b"l") => words.count().saturating_sub(2),
+            _ => 0,
+        })
+        .sum()
+}
+
+/// The triangles of an STL in text: one a facet.
+pub(crate) fn stl_text_triangles(bytes: &[u8]) -> usize {
+    lines(bytes).filter_map(|mut words| words.next()).filter(|w| *w == b"facet").count()
+}
+
+/// The triangles of a 3MF's model in XML: one a `<triangle>` element, with or without the
+/// prefix of its namespace (`<m:triangle`); the `<triangles>` around them are not counted.
+pub(crate) fn xml_triangles(text: &str) -> usize {
+    let b = text.as_bytes();
+    let tag = |&(at, word): &(usize, &str)| b.get(at + word.len()).is_some_and(|c| c.is_ascii_whitespace() || matches!(c, b'/' | b'>')) && opened(&b[..at]);
+    text.match_indices("triangle").filter(tag).count()
+}
+
+/// Whether a tag's name starts after `before`: right after `<`, or after `<prefix:`.
+fn opened(before: &[u8]) -> bool {
+    match before.split_last() {
+        Some((b'<', _)) => true,
+        Some((b':', rest)) => {
+            let prefix = rest.iter().rev().take_while(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-' | b'.')).count();
+            prefix > 0 && rest[..rest.len() - prefix].ends_with(b"<")
+        }
+        _ => false,
+    }
+}
+
+/// An element of a PLY's header: its name, its rows, and its properties (name, list or not,
+/// whole numbers or not).
+struct Element<'a> {
+    name: &'a [u8],
+    count: usize,
+    props: Vec<(&'a [u8], bool, bool)>,
+}
+
+/// The elements of a PLY's header and where its rows start; `None` without `end_header`.
+fn ply_header(bytes: &[u8]) -> Option<(Vec<Element<'_>>, usize)> {
+    let end = bytes.windows(10).position(|w| w == b"end_header")?;
+    let body = bytes[end..].iter().position(|&b| b == b'\n').map_or(bytes.len(), |n| end + n + 1);
+    let whole = |t: &[u8]| !matches!(t, b"float" | b"float32" | b"double" | b"float64");
+    let mut elements: Vec<Element> = Vec::new();
+    for words in lines(&bytes[..end]) {
+        let w: Vec<&[u8]> = words.collect();
+        match w.as_slice() {
+            [b"element", name, count] => elements.push(Element { name, count: std::str::from_utf8(count).ok()?.parse().ok()?, props: Vec::new() }),
+            [b"property", b"list", _, t, name] => elements.last_mut()?.props.push((name, true, whole(t))),
+            [b"property", t, name] => elements.last_mut()?.props.push((name, false, whole(t))),
+            _ => {}
+        }
+    }
+    Some((elements, body))
+}
+
+/// Where the property `name` is in a row: its word, when only single values come before it.
+fn word_of(props: &[(&[u8], bool, bool)], name: &[u8]) -> Option<usize> {
+    let k = props.iter().position(|p| p.0 == name)?;
+    props[..k].iter().all(|p| !p.1).then_some(k)
+}
+
+/// The triangles the parser of a PLY in text gives (`model_ply::parsed`): a fan of each face of
+/// n corners, n - 2; without any, 4 for each point with three finite coordinates (a cloud,
+/// `point_cloud`). Rows it cannot follow (a list before the corners) stop the count there: the
+/// triangle strips are not counted either, so this is never more than what it gives.
+pub(crate) fn ply_text_triangles(bytes: &[u8]) -> usize {
+    let Some((elements, body)) = ply_header(bytes) else { return 0 };
+    // Two elements of the same name: the parser keeps the last one, not counted.
+    if elements.iter().enumerate().any(|(i, e)| elements[..i].iter().any(|o| o.name == e.name)) {
+        return 0;
+    }
+    let mut rows = lines(&bytes[body..]).map(|w| w.collect::<Vec<_>>());
+    let (mut faces, mut points, mut strips) = (0usize, 0usize, false);
+    for e in &elements {
+        // As the parser takes them: `vertex_indices` when there is one, else `vertex_index`.
+        let name: &[u8] = if e.props.iter().any(|p| p.0 == b"vertex_indices") { b"vertex_indices" } else { b"vertex_index" };
+        // Corners that are not a list of whole numbers give no triangle (`model_ply::list`).
+        let listed = e.props.iter().find(|p| p.0 == name).is_some_and(|p| p.1 && p.2);
+        let corners = word_of(&e.props, name);
+        let xyz = [b"x" as &[u8], b"y", b"z"].map(|n| word_of(&e.props, n).filter(|&k| !e.props[k].1));
+        strips |= e.name == b"tristrips" && e.count > 0;
+        for _ in 0..e.count {
+            let Some(row) = rows.next() else { break };
+            match e.name {
+                b"face" if !listed => {}
+                b"face" => match corners.and_then(|k| std::str::from_utf8(row.get(k)?).ok()?.parse::<usize>().ok()) {
+                    Some(n) => faces = faces.saturating_add(n.saturating_sub(2)),
+                    None => return faces,
+                },
+                b"vertex" => {
+                    let finite = |k: Option<usize>| k.and_then(|k| std::str::from_utf8(row.get(k)?).ok()?.parse::<f32>().ok()).is_some_and(f32::is_finite);
+                    points += usize::from(xyz.into_iter().all(finite));
+                }
+                _ => {}
+            }
+        }
+    }
+    if faces == 0 && !strips { points.saturating_mul(4) } else { faces }
 }
 
 #[cfg(test)]
@@ -108,7 +242,7 @@ mod tests {
         assert_eq!(en.cannot_load("a.obj", &e), format!("Cannot open a.obj\n{said}"));
         assert_eq!(en.brief_load(&e).as_deref(), Some("more than 10 million triangles"));
         let (line, _) = crate::batch_summary::item(&en, crate::fault::NOT_OPENED, &format!("a.obj\u{1}{e}"), false);
-        assert_eq!(line, format!("Cannot open a.obj: {}", said.replace('\n', " ")));
+        assert_eq!(line, crate::save_dialogs::md(&format!("Cannot open a.obj: {}", said.replace('\n', " "))));
         let (id, detail) = e.split_once('\u{1}').unwrap();
         assert_eq!(en.error_md(id, detail), crate::save_dialogs::md(said));
         let it = I18n::new("it");
@@ -116,5 +250,69 @@ mod tests {
         assert_eq!(it.load_error(&OTHER.error()), "Il modello ha più di 50 milioni di triangoli.\nEyeCanSee non legge i modelli 3D con più di 50 milioni di triangoli, perché la lettura non riempia la memoria del computer.");
         assert_eq!(it.brief_load(&STL.error()).as_deref(), Some("più di 20 milioni di triangoli"));
         assert_eq!(en.load_error(&GLB.error()).lines().nth(1), Some("EyeCanSee does not read GLB files with more than 20 million triangles, so that reading them does not fill the computer's memory."));
+    }
+
+    /// The early counts give what the readers give, on small files of every kind they count.
+    #[test]
+    fn counted_as_read_d1() {
+        let tris = |bytes: &[u8], name: &str| crate::model::parse(bytes, name).map(|m| m.tris.len());
+        // Triangle, quad, a line of two points (left out), "l" of three (a triangle for tobj), a
+        // pentagon with tabs and CRLF, a comment.
+        let obj = b"v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nv 0 2 0\n# f 1 2 3\nf 1 2 3\nf 1 2 3 4\r\nl 1 2\nl 1 2 3\n  f\t1 2 3 4 5\r\n";
+        assert_eq!(obj_triangles(obj), 7);
+        assert_eq!(tris(obj, "a.obj"), Ok(7));
+        let facet = "facet normal 0 0 1\n outer loop\n  vertex 0 0 0\n  vertex 1 0 0\n  vertex 0 1 0\n endloop\nendfacet\n";
+        let stl = format!("solid a\n{facet}  {facet}endsolid a\n");
+        assert_eq!(stl_text_triangles(stl.as_bytes()), 2);
+        assert_eq!(tris(stl.as_bytes(), "a.stl"), Ok(2));
+        // A quad and a triangle, after a property of the faces; corners as floats are not read.
+        let head = "ply\nformat ascii 1.0\ncomment made by hand\nelement vertex 4\nproperty float x\nproperty float y\nproperty float z\nelement face 2\nproperty uchar flags\nproperty list uchar int vertex_indices\nend_header\n";
+        let ply = format!("{head}0 0 0\n1 0 0\n1 1 0\n0 1 0\n0 4 0 1 2 3\n0 3 0 1 2\n");
+        assert_eq!(ply_text_triangles(ply.as_bytes()), 3);
+        assert_eq!(tris(ply.as_bytes(), "a.ply"), Ok(3));
+        let floats = ply.replace("list uchar int", "list uchar float");
+        assert_eq!(ply_text_triangles(floats.as_bytes()), 4 * 4);
+        // A cloud: 4 triangles a point, the point too far to be drawn left out.
+        let cloud = "ply\nformat ascii 1.0\nelement vertex 3\nproperty float x\nproperty float y\nproperty float z\nend_header\n0 0 0\n1 0 0\n1e39 1 0\n";
+        assert_eq!(ply_text_triangles(cloud.as_bytes()), 8);
+        assert_eq!(tris(cloud.as_bytes(), "a.ply"), Ok(8));
+        let xml = r#"<model xmlns:m="x"><resources><object id="1"><mesh><vertices/><triangles><triangle v1="0" v2="1" v3="2"/><m:triangle v1="0" v2="1" v3="2"></m:triangle>
+            <triangle
+            v1="0" v2="1" v3="2"/></triangles></mesh><trianglesets/></object></resources><!-- a triangle --></model>"#;
+        assert_eq!(xml_triangles(xml), 3);
+    }
+
+    /// Builder refuses one triangle beyond the cap it was given, with that cap's error.
+    #[test]
+    fn builder_up_to_its_cap_d1() {
+        let small = Limit { max: 2, format: "obj" };
+        let mut b = crate::model::Builder::up_to(small);
+        assert_eq!(b.add(vec![[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], [[0, 1, 2]; 2], |_| None), Ok(()));
+        assert_eq!(b.add(vec![[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], [[0, 1, 2]], |_| None), Err(small.error()));
+        assert_eq!(OBJ.check(OBJ.max), Ok(()));
+        assert_eq!(OBJ.check(OBJ.max + 1), Err(OBJ.error()));
+    }
+
+    /// The time of the early count against the whole reading, three rounds each, of the models in
+    /// text named by `EYECANSEE_COUNT_FILES` (paths apart by `:`). In a release build:
+    /// `cargo test --release count_time_live -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn count_time_live() {
+        for path in std::env::var("EYECANSEE_COUNT_FILES").unwrap_or_default().split(':').filter(|p| !p.is_empty()) {
+            let bytes = std::fs::read(path).unwrap();
+            for _ in 0..3 {
+                let t = std::time::Instant::now();
+                let n = match path.rsplit('.').next() {
+                    Some("obj") => obj_triangles(&bytes),
+                    Some("stl") => stl_text_triangles(&bytes),
+                    _ => ply_text_triangles(&bytes),
+                };
+                let count = t.elapsed();
+                let t = std::time::Instant::now();
+                let read = crate::model::parse(&bytes, path).map(|m| m.tris.len());
+                println!("{path}: {} MB, counted {n} in {count:.2?}, read {read:?} in {:.2?}", bytes.len() >> 20, t.elapsed());
+            }
+        }
     }
 }

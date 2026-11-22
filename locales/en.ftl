@@ -604,6 +604,17 @@ error-glb-cut = The file is incomplete{ $detail }
 # { $expected }, { $actual }: sizes ("12.4 MB"), the one the file's header gives and the file's.
 error-glb-cut-sizes = The file is incomplete{ $detail }: it should be { $expected } but it is { $actual }.
     Perhaps the download or the copy stopped: try downloading or copying it again.
+# A 3D model with more triangles than EyeCanSee reads in its format: { $max } in millions (10, 20, 50), { $format } the kind of file.
+error-model-too-many-triangles = The model has more than { $max } million triangles.
+    EyeCanSee does not read { $format ->
+        [obj] OBJ files
+        [three-mf] 3MF files
+        [ply-text] PLY files in text
+        [ply-binary] binary PLY files
+        [stl] STL files
+        [glb] GLB files
+       *[other] 3D models
+    } with more than { $max } million triangles, so that reading them does not fill the computer's memory.
 # A few words after a file's name in the list of a message ("a.gltf: the file a.bin is missing"): no capital, no full stop.
 error-gltf-bin-missing-brief = the file { $detail } is missing
 error-gltf-bin-outside-brief = the data is outside the model's folder ({ $detail })
@@ -611,6 +622,7 @@ error-gltf-data-damaged-brief = the data written inside the file is damaged
 error-glb-incomplete-brief = the block with the data is missing
 error-glb-cut-brief = the file is incomplete
 error-glb-cut-sizes-brief = the file is incomplete
+error-model-too-many-triangles-brief = more than { $max } million triangles
 # The keys of the viewer, under the status bar.
 hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | Ctrl + L: layers | M: measure | N, Shift + N: next, previous change of a comparison | →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Ctrl + Shift + S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
 hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift + L: next, previous layout | Ctrl + L: layers | M: measure | N, Shift + N: next, previous change of a comparison | →, Space, Page Down: next file | ←, Backspace, Page Up: previous file | Home, End: first, last file | Ctrl + Shift + S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back

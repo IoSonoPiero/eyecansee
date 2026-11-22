@@ -133,7 +133,7 @@ pub fn read(bytes: &[u8], unpacked: &Unpacked) -> Result<Mesh, String> {
         .ok()
         .and_then(|d| d.descendants().find(|n| n.attribute("Type").is_some_and(|t| t.ends_with("/3dmodel"))).and_then(|n| n.attribute("Target")).map(str::to_string))
         .unwrap_or_else(|| "/3D/3dmodel.model".into());
-    let mut files = Files { zip, unpacked, texts: HashMap::new(), pictures: HashMap::new() };
+    let mut files = Files { zip, unpacked, texts: HashMap::new(), pictures: HashMap::new(), written: 0 };
     let text = files.text(&main)?;
     let doc = Document::parse(&text).map_err(|e| e.to_string())?;
     let mut b = Builder::up_to(crate::model_limit::THREE_MF);
@@ -156,6 +156,8 @@ struct Files<'b, 'u> {
     /// Texts and pictures by their place in the zip.
     texts: HashMap<usize, Rc<String>>,
     pictures: HashMap<usize, u16>,
+    /// The triangles written in the texts read so far, counted before they are parsed (`model_limit`).
+    written: usize,
 }
 
 impl Files<'_, '_> {
@@ -170,6 +172,8 @@ impl Files<'_, '_> {
             return Ok(t.clone());
         }
         let t = Rc::new(utf8(self.unpacked.read(self.zip.by_index(i).map_err(|e| e.to_string())?)?, path)?);
+        self.written = self.written.saturating_add(crate::model_limit::xml_triangles(&t));
+        crate::model_limit::THREE_MF.check(self.written)?;
         self.texts.insert(i, t.clone());
         Ok(t)
     }

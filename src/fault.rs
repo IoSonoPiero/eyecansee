@@ -203,6 +203,10 @@ impl I18n {
         if let Some(text) = crate::model_gltf::cut_text(self, id, detail) {
             return text;
         }
+        // A model with more triangles than its format's cap, said with the cap (D1).
+        if let Some(text) = crate::model_limit::said(self, id, detail, false) {
+            return text;
+        }
         if let Some((name, raw)) = detail.split_once('\u{1}').filter(|_| id == NOT_OPENED) {
             return self.not_opened(name, raw).0;
         }
@@ -294,6 +298,9 @@ impl I18n {
         if BRIEF.contains(&id) {
             return Some(self.t_args(&format!("{id}-brief"), &[("detail", detail)]));
         }
+        if let Some(text) = crate::model_limit::said(self, id, detail, true) {
+            return Some(text);
+        }
         recognise(detail).map(|(kind, _)| self.t(&format!("{}-brief", kind.id())))
     }
 
@@ -310,7 +317,7 @@ impl I18n {
     pub(crate) fn error_md(&self, id: &str, detail: &str) -> String {
         match recognise(detail) {
             Some(_) => md(&self.error(id, detail)),
-            None if detail.contains('\u{1}') || id == crate::model_gltf::CUT_SIZES => md(&self.error(id, detail)),
+            None if detail.contains('\u{1}') || id == crate::model_gltf::CUT_SIZES || id == crate::model_limit::TOO_MANY => md(&self.error(id, detail)),
             None => self.t_args(id, &[("detail", &md(detail))]),
         }
     }

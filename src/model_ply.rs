@@ -35,6 +35,10 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Mesh, String> {
 /// it is read (#191), so only for ASCII files and the headers `binary` leaves to it.
 fn parsed(bytes: &[u8], z_up: bool) -> Result<Mesh, String> {
     let limit = if in_text(bytes) { PLY_TEXT } else { PLY_BINARY };
+    // Counted before the parser reads it all (`model_limit`).
+    if limit == PLY_TEXT {
+        PLY_TEXT.check(crate::model_limit::ply_text_triangles(bytes))?;
+    }
     let cleaned = ply_header_cleaned(bytes);
     let bytes = cleaned.as_deref().unwrap_or(bytes);
     let ply = Parser::<DefaultElement>::new().read_ply(&mut Cursor::new(bytes)).map_err(|e| e.to_string())?;
