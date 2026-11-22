@@ -255,4 +255,36 @@ mod tests {
         let after = listing(vec![file("p/b.jpg", 1), file("p/q.jpg", 2), file("p/z.jpg", 3), file("p/zeta.jpg", 5)]);
         assert_eq!(moves(&old, &after).0, [Some(0), Some(1), Some(2)]);
     }
+
+    /// Audit 1.15 (a): a file removed whose name starts the open folder's (`a/IMG_1.jpg` and
+    /// `a/IMG_1.jpg.bak/`) is not a folder the open one was inside: the grid stays where it is.
+    #[test]
+    fn file_removed_is_not_the_folder_open() {
+        assert!(!left_inside("a/IMG_1.jpg.bak/", "a/IMG_1.jpg"), "a file is not a folder");
+        assert!(left_inside("a/IMG_1.jpg.bak/", "a/IMG_1.jpg.bak/"));
+        assert!(left_inside("a/b/c/", "a/b/"));
+        assert!(!left_inside("a/bc/", "a/b/"));
+    }
+
+    /// Audit 1.15 (b): the anchor of Shift+click follows its item, as the selection: with a file
+    /// new before it, or one gone, the range marked from it is not shifted by one.
+    #[test]
+    fn anchor_follows_its_item() {
+        let file = |p: &str| File { path: p.into(), size: 1, modified: "2026-11-22".into() };
+        let listing = |files: Vec<File>| Listing { dirs: vec!["p/sub/".into()], files, ..Default::default() };
+        let old = listing(vec![file("p/b.jpg"), file("p/c.jpg"), file("p/d.jpg")]);
+        let added = listing(vec![file("p/a.jpg"), file("p/b.jpg"), file("p/c.jpg"), file("p/d.jpg")]);
+        let state = Follow { selected: 3, anchor: 2, cursor: true, ..Default::default() };
+        let f = follow(&old, &added, state.clone(), None);
+        assert_eq!((f.state.selected, f.state.anchor), (4, 3), "d.jpg selected and the anchor on c.jpg, one on");
+        let removed = listing(vec![file("p/c.jpg"), file("p/d.jpg")]);
+        let f = follow(&old, &removed, state.clone(), None);
+        assert_eq!((f.state.selected, f.state.anchor), (2, 1), "b.jpg gone: both one back");
+        let f = follow(&old, &removed, Follow { anchor: 1, ..state.clone() }, None);
+        assert_eq!(f.state.anchor, 1, "the anchor's b.jpg gone: what took its place");
+        let f = follow(&old, &listing(vec![file("p/b.jpg")]), Follow { anchor: 3, ..state.clone() }, None);
+        assert_eq!(f.state.anchor, 1, "past the end: the last item");
+        let f = follow(&old, &listing(vec![]), Follow { anchor: 0, ..state }, None);
+        assert_eq!(f.state.anchor, 0, "on the folder, still there");
+    }
 }
