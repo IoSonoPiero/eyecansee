@@ -263,17 +263,41 @@ pub fn start(c: Component, repaint: impl Fn() + Send + 'static) -> std::sync::Ar
     begin(c.kind, move |done| install(&c, done), repaint)
 }
 
+/// The downloads started, by component: a second start of one under way gives it back (audit
+/// 2.9: a second `install` removed the folder the first one was unpacking into).
+static UNDER_WAY: std::sync::Mutex<Vec<(&'static str, std::sync::Weak<Download>)>> = std::sync::Mutex::new(Vec::new());
+
 /// `work` (the download of the component `kind`) in a thread of its own, counting into `done`;
-/// `repaint` when it ends.
-fn begin(_kind: &'static str, work: impl FnOnce(&AtomicU64) -> Result<(), String> + Send + 'static, repaint: impl Fn() + Send + 'static) -> std::sync::Arc<Download> {
+/// `repaint` when it ends. The one of `kind` under way, if there is one: its own `repaint` stays.
+fn begin(kind: &'static str, work: impl FnOnce(&AtomicU64) -> Result<(), String> + Send + 'static, repaint: impl Fn() + Send + 'static) -> std::sync::Arc<Download> {
+    let mut under_way = UNDER_WAY.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    under_way.retain(|(_, d)| d.upgrade().is_some_and(|d| d.result.lock().unwrap().is_none()));
+    if let Some(d) = under_way.iter().filter(|(k, _)| *k == kind).find_map(|(_, d)| d.upgrade()) {
+        log!("component {kind}: already downloading, the same download given back");
+        return d;
+    }
     let d = std::sync::Arc::new(Download::default());
-    let d2 = d.clone();
+    under_way.push((kind, std::sync::Arc::downgrade(&d)));
+    let ends = Ends(d.clone());
     crate::logging::spawn_named("component-download", move || {
-        let r = work(&d2.done);
-        *d2.result.lock().unwrap() = Some(r);
+        let r = work(&ends.0.done);
+        *ends.0.result.lock().unwrap() = Some(r);
         repaint();
     });
     d
+}
+
+/// A download that stops without a result (its thread panicked) ends with an error: not under
+/// way for ever, so a new start can try again.
+struct Ends(std::sync::Arc<Download>);
+
+impl Drop for Ends {
+    fn drop(&mut self) {
+        let mut r = self.0.result.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if r.is_none() {
+            *r = Some(Err("the download stopped".into()));
+        }
+    }
 }
 
 /// The download, hashed and counted as it is read.

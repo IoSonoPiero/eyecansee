@@ -327,9 +327,15 @@ pub(crate) fn error_detail(i18n: &crate::i18n::I18n, e: &str) -> String {
     if e == STALLED { i18n.t(STALLED) } else { e.to_string() }
 }
 
+/// One download of an update at a time: the check at start and Help > Check for updates wrote
+/// the same `.part` (audit 2.9).
+static FETCHING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// `file`, downloaded unless it is there already from an earlier start and never installed: no
-/// need to fetch it again, but it is checked like a new download.
+/// need to fetch it again, but it is checked like a new download. A second check while one is
+/// downloading waits for it, then finds its file there.
 fn fetch(agent: &ureq::Agent, url: &str, file: &Path, sha: &str, max: u64, signed: impl Fn(&Path) -> Result<(), String>) -> Result<(), String> {
+    let _one = FETCHING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let cached = std::fs::File::open(file).ok().and_then(|mut f| sha256_of(&mut f).ok());
     if cached.as_deref() != Some(sha) || signed(file).is_err() {
         download(agent, url, file, sha, max, &signed)?;
