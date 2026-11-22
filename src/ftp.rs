@@ -1054,4 +1054,18 @@ mod tests {
             assert_eq!(server.idle.lock().unwrap().len(), 2, "connections thrown away");
         });
     }
+
+    /// Audit 2.23 (a): on a server too, an upload whose chunks bring fewer bytes than the size is
+    /// an error, and the file is deleted.
+    #[test]
+    fn audit_2_23_upload_shorter_than_its_size() {
+        let (target, seen) = fake::start();
+        let op = crate::source::Store::Ftp(super::Server::shared(target));
+        let (tx, rx) = tokio::sync::mpsc::channel(2);
+        tx.try_send(Ok(bytes::Bytes::from_static(b"12345"))).unwrap();
+        drop(tx);
+        let r = tokio::runtime::Runtime::new().unwrap().block_on(op.write_chunks("loop/short.jpg", 10, rx));
+        assert!(r.is_err(), "{r:?}");
+        assert!(seen.stored.lock().unwrap().is_empty(), "{:?}", seen.stored.lock().unwrap().keys());
+    }
 }

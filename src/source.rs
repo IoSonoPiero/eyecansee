@@ -809,5 +809,36 @@ mod tests {
         let dir = std::env::var_os("EYECANSEE_CASELESS_DIR").expect("EYECANSEE_CASELESS_DIR: a folder on a FAT or exFAT disk");
         rename_only_case_in(std::path::Path::new(&dir));
     }
-}
 
+    /// Chunks that bring `got` bytes, then end.
+    fn chunks_of(got: &[u8]) -> tokio::sync::mpsc::Receiver<std::io::Result<Bytes>> {
+        let (tx, rx) = tokio::sync::mpsc::channel(2);
+        tx.try_send(Ok(Bytes::copy_from_slice(got))).unwrap();
+        rx
+    }
+
+    /// Audit 2.23 (a): a file written from chunks that bring fewer or more bytes than its size is
+    /// an error, and nothing of it is left: a move would delete the original after a copy taken
+    /// for whole. On this computer, a new file and one saved over (`replace::write_file`).
+    #[test]
+    fn audit_2_23_bytes_written_checked_against_the_size() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-sized-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        std::fs::write(dir.join("old.jpg"), b"the original").unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let short = rt.block_on(op.write_chunks("short.jpg", 10, chunks_of(b"12345")));
+        let long = rt.block_on(op.write_chunks("long.jpg", 3, chunks_of(b"12345")));
+        let exact = rt.block_on(op.write_chunks("exact.jpg", 5, chunks_of(b"12345")));
+        let over = rt.block_on(crate::replace::write_file(&op, "old.jpg", 10, chunks_of(b"new"), Some(true)));
+        let left = |n: &str| std::fs::read(dir.join(n)).ok();
+        let (short_left, long_left, exact_left, old) = (left("short.jpg"), left("long.jpg"), left("exact.jpg"), left("old.jpg"));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(short.is_err() && short_left.is_none(), "fewer bytes: {short:?}, left {short_left:?}");
+        assert!(long.is_err() && long_left.is_none(), "more bytes: {long:?}, left {long_left:?}");
+        assert_eq!((exact, exact_left.as_deref()), (Ok(()), Some(&b"12345"[..])));
+        assert!(over.is_err(), "saved over with fewer bytes: {over:?}");
+        assert_eq!(old.as_deref(), Some(&b"the original"[..]));
+    }
+}
