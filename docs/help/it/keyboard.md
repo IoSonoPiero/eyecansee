@@ -21,7 +21,7 @@ Tutti i tasti di EyeCanSee, divisi per posto. I menù mostrano il tasto accanto 
 
 Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** le chiudono; in quelle che chiedono una scelta, **Invio** conferma ed **Esc** annulla. Fanno eccezione un'eliminazione che comprende una cartella (lì anche Invio annulla) e la rotazione o il ribaltamento di foto nella griglia (Invio non conferma). Con questa guida aperta sopra la finestra, **Esc** va prima alla guida (due la chiudono, come ovunque), **Invio** non risponde alla finestra, e ciò che scrivi nel campo di ricerca della guida resta lì.
 
-Nel suggerimento all'avvio, → e ← mostrano il suggerimento successivo e quello prima, **Invio** o **Esc** lo chiudono, e gli altri tasti non fanno niente (vedi [Per cominciare](start.md)).
+Nel suggerimento all'avvio, → e ← mostrano il suggerimento successivo e quello precedente, e **Invio** o **Esc** lo chiudono; gli altri tasti non fanno niente, tranne **F1**, che apre questa guida (vedi [Per cominciare](start.md)).
 
 ## Nella griglia
 
