@@ -482,6 +482,29 @@ mod tests {
         assert_eq!(I18n::new("it").load_error(&PLY_BINARY.check_points(12_500_001).unwrap_err()).lines().nth(1), Some("EyeCanSee non apre i file PLY binari con più di 12,5 milioni di punti, perché la lettura non riempia la memoria del computer."));
     }
 
+    /// D1, for the formats without a cap of their own: the model in `EYECANSEE_PROBE` read as the
+    /// viewer reads it, the files next to it from its folder, with the peak of the whole process
+    /// (VmHWM, the file included) and the time. One file a process, in a release build, alone,
+    /// under a ceiling on the memory (`systemd-run --user --scope -p MemoryMax=4G`):
+    /// `EYECANSEE_PROBE=m.dae cargo test --release peak_live_d1 -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    #[cfg(target_os = "linux")]
+    fn peak_live_d1() {
+        let Ok(path) = std::env::var("EYECANSEE_PROBE") else { return };
+        let path = std::path::PathBuf::from(path);
+        let dir = path.parent().unwrap().to_path_buf();
+        let bytes = std::fs::read(&path).unwrap();
+        let name = path.file_name().unwrap().to_string_lossy().to_string();
+        let sibling = |n: &str| std::fs::read(dir.join(n)).ok();
+        let t = std::time::Instant::now();
+        let r = crate::model::parse_with(&bytes, &name, &sibling).map(|m| m.tris.len());
+        let took = t.elapsed();
+        let status = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
+        let kb = status.lines().find(|l| l.starts_with("VmHWM:")).and_then(|l| l.split_whitespace().nth(1)?.parse::<u64>().ok()).unwrap_or(0);
+        println!("RESULT {name} {r:?} file {} MB, peak {} MB, read in {:.2} s", bytes.len() >> 20, kb >> 10, took.as_secs_f64());
+    }
+
     /// The time of the early count against the whole reading, three rounds each, of the models in
     /// text named by `EYECANSEE_COUNT_FILES` (paths apart by `:`). In a release build:
     /// `cargo test --release count_time_live -- --ignored --nocapture`.
