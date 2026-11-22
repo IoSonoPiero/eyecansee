@@ -406,7 +406,7 @@ fn stl(bytes: &[u8]) -> Result<Mesh, String> {
         return stl_binary(bytes, n);
     }
     // Counted before stl_io reads it all (`model_limit`).
-    crate::model_limit::STL_TEXT.check(crate::model_limit::stl_text_triangles(bytes))?;
+    let limit = stl_limit(bytes)?;
     // "solid" then a line break or a tab, without a name: stl_io takes it for binary.
     let named;
     let bytes = match bytes.strip_prefix(b"solid") {
@@ -417,10 +417,19 @@ fn stl(bytes: &[u8]) -> Result<Mesh, String> {
         _ => bytes,
     };
     let m = stl_io::read_stl(&mut Cursor::new(bytes)).map_err(|e| e.to_string())?;
-    let mut b = Builder::up_to(crate::model_limit::STL_TEXT);
+    let mut b = Builder::up_to(limit);
     let tris = m.faces.iter().map(|f| f.vertices.map(|v| v as u32));
     b.add(m.vertices.iter().map(|v| v.0).collect(), tris, |_| None)?;
     b.finish(true)
+}
+
+/// The cap of an STL whose size does not match the count of a binary one: an STL in text, counted
+/// first (`model_limit::STL_TEXT`), unless it has no facet in text: then a binary STL with bytes
+/// after its triangles, which stl_io reads as binary (`model_limit::STL`).
+fn stl_limit(bytes: &[u8]) -> Result<crate::model_limit::Limit, String> {
+    let counted = crate::model_limit::stl_text_triangles(bytes);
+    crate::model_limit::STL_TEXT.check(counted)?;
+    Ok(if counted > 0 { crate::model_limit::STL_TEXT } else { crate::model_limit::STL })
 }
 
 /// Binary STL, with the colours of its triangles: Materialise's ("COLOR=" in the header, red in
@@ -569,6 +578,22 @@ pub(crate) fn rotation(axis: [f32; 3], angle: f32) -> Mat4 {
 
 #[cfg(test)]
 mod tests {
+    /// D1: a binary STL with a byte after its triangles is read by stl_io as binary, at the cap
+    /// of binary STL, not at the one of STL in text.
+    #[test]
+    fn binary_stl_with_bytes_after_d1() {
+        let mut stl = vec![0u8; 84];
+        stl[80] = 1;
+        for v in [[0.0f32; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]] {
+            stl.extend(v.iter().flat_map(|c| c.to_le_bytes()));
+        }
+        stl.extend([0, 0, 0]);
+        assert_eq!(stl_limit(&stl), Ok(crate::model_limit::STL));
+        assert_eq!(parse(&stl, "a.stl").map(|m| m.tris.len()), Ok(1));
+        let text = b"solid a\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid a\n";
+        assert_eq!(stl_limit(text), Ok(crate::model_limit::STL_TEXT));
+    }
+
     use super::*;
 
     /// Every 3D model and CAD extension EyeCanSee reads is in Windows' "Open with" (the installer,
