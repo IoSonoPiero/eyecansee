@@ -72,6 +72,7 @@ h3 { margin-bottom: 4px; }
    on a narrow phone the button grows to two lines instead of letting the text out. */
 .store { display: inline-block; margin: 0 0 8px; }
 .store img { width: auto; height: 48px; }
+#elsewhere p { display: flex; flex-wrap: wrap; gap: 12px; }
 .store picture { display: block; }
 .button {
   display: inline-flex; align-items: center; justify-content: center; margin: 0 0 8px;
