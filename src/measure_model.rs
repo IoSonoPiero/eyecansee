@@ -94,6 +94,7 @@ impl App {
             lines.push((t("measure-surface"), with(n(s.surface), "²")));
             let volume = match s.volume {
                 Some(v) => with(n(v), "³"),
+                None if s.open_edges == 0 && s.flipped > 0 => self.i18n.t_args("measure-flipped", &[("n", &s.flipped.to_string())]),
                 None => self.i18n.t_args("measure-open", &[("n", &s.open_edges.to_string())]),
             };
             lines.push((t("measure-volume"), volume));

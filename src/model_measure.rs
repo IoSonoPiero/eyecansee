@@ -1,43 +1,55 @@
 //! Measures of a 3D model (#141): its overall size along X, Y and Z, its surface and, when it is
-//! closed (every edge shared by two triangles), its volume; and the point of the model under the
-//! pointer, for a distance between two points. In the file's units.
+//! closed (every edge shared by two triangles) and its faces turn the same way, its volume; and
+//! the point of the model under the pointer, for a distance between two points. In the file's units.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 
 use crate::model::Mesh;
 
-/// The sizes of the models seen, each measured once in the background (`get`).
+/// The sizes of the models seen, each measured once in the background (`get`). Kept for the
+/// model read, not for its path: a file saved again under the same name and read again is
+/// measured again (audit 6.8). `Weak` keeps the model's place, not its points: no other model
+/// can take that place while the sizes are kept, and they go when the model has gone.
 #[derive(Default)]
 pub(crate) struct Memo {
-    /// By path: `None` while being measured.
-    by: HashMap<String, Option<Sizes>>,
-    done: Arc<Mutex<Vec<(String, Sizes)>>>,
+    /// By path, with the model they are of: `None` while being measured.
+    by: HashMap<String, (Weak<Mesh>, Option<Sizes>)>,
+    done: Arc<Mutex<Vec<Measured>>>,
 }
+
+/// Sizes measured in the background: the path and the model they are of.
+type Measured = (String, Weak<Mesh>, Sizes);
 
 impl Memo {
     /// The sizes of `mesh`, read from `path`: measured in a thread of their own the first time,
     /// `None` until then; `wake` when they are ready.
     pub(crate) fn get(&mut self, path: &str, mesh: &Arc<Mesh>, wake: impl FnOnce() + Send + 'static) -> Option<Sizes> {
-        for (p, s) in self.done.lock().unwrap().drain(..) {
-            self.by.insert(p, Some(s));
+        for (p, of, s) in self.done.lock().unwrap().drain(..) {
+            // A late result of a model read before under the same path is dropped.
+            if let Some((was, sizes)) = self.by.get_mut(&p)
+                && was.ptr_eq(&of)
+            {
+                *sizes = Some(s);
+            }
         }
-        if let Some(s) = self.by.get(path) {
+        if let Some((_, s)) = self.by.get(path).filter(|(of, _)| std::ptr::eq(of.as_ptr(), Arc::as_ptr(mesh))) {
             return s.clone();
         }
-        self.by.insert(path.to_string(), None);
+        self.by.retain(|_, (of, _)| of.strong_count() > 0);
+        self.by.insert(path.to_string(), (Arc::downgrade(mesh), None));
         let (done, path, mesh) = (self.done.clone(), path.to_string(), mesh.clone());
         crate::logging::spawn_named("model-measure", move || {
             let s = sizes(&mesh);
-            done.lock().unwrap().push((path, s));
+            done.lock().unwrap().push((path, Arc::downgrade(&mesh), s));
             wake();
         });
         None
     }
 
-    /// The sizes of the model read from `path` if they are measured already (`get`).
-    pub(crate) fn known(&self, path: &str) -> Option<Sizes> {
-        self.by.get(path).cloned().flatten()
+    /// The sizes of `mesh`, read from `path`, if they are measured already (`get`).
+    pub(crate) fn known(&self, path: &str, mesh: &Arc<Mesh>) -> Option<Sizes> {
+        self.by.get(path).filter(|(of, _)| std::ptr::eq(of.as_ptr(), Arc::as_ptr(mesh))).and_then(|(_, s)| s.clone())
     }
 }
 
@@ -47,9 +59,12 @@ pub struct Sizes {
     /// Along X, Y and Z of the file.
     pub size: [f64; 3],
     pub surface: f64,
-    /// `None` for a model that is not closed (`open_edges` edges have one triangle only).
+    /// `None` for a model that is not closed (`open_edges` edges have one triangle only), or
+    /// whose faces do not all turn the same way (`flipped` edges between two faces turned
+    /// differently): the sum with its sign would be wrong.
     pub volume: Option<f64>,
     pub open_edges: usize,
+    pub flipped: usize,
 }
 
 /// Points closer than this share a corner, relative to the model's size: files repeat the corners
@@ -59,13 +74,15 @@ const WELD: f64 = 1e-6;
 pub fn sizes(mesh: &Mesh) -> Sizes {
     let mut lo = [f64::MAX; 3];
     let mut hi = [f64::MIN; 3];
-    for p in &mesh.pos {
+    // Only the points of the triangles, as the camera and the section: a file may keep others
+    // (OBJ lines and points, PLY points no face uses).
+    for p in mesh.tris.iter().flatten().map(|&v| mesh.pos[v as usize]) {
         for k in 0..3 {
             lo[k] = lo[k].min(f64::from(p[k]));
             hi[k] = hi[k].max(f64::from(p[k]));
         }
     }
-    let size = if mesh.pos.is_empty() { [0.0; 3] } else { [0, 1, 2].map(|k| hi[k] - lo[k]) };
+    let size = if mesh.tris.is_empty() { [0.0; 3] } else { [0, 1, 2].map(|k| hi[k] - lo[k]) };
     let step = size.iter().copied().fold(0.0, f64::max).max(f64::MIN_POSITIVE) * WELD;
     // Each corner by its welded place.
     let mut ids: HashMap<[i64; 3], u32> = HashMap::new();
@@ -80,7 +97,9 @@ pub fn sizes(mesh: &Mesh) -> Sizes {
         .collect();
     let mut surface = 0.0;
     let mut signed = 0.0;
-    let mut edges: HashMap<(u32, u32), i32> = HashMap::new();
+    // Each edge: how many triangles have it, and which way they go along it (+1 from the lower
+    // corner, −1 back): two faces turned the same way go along it the other way round, 0 in all.
+    let mut edges: HashMap<(u32, u32), (i32, i32)> = HashMap::new();
     for t in &mesh.tris {
         let [a, b, c] = t.map(|i| mesh.pos[i as usize].map(f64::from));
         let (u, v) = (sub(b, a), sub(c, a));
@@ -92,12 +111,15 @@ pub fn sizes(mesh: &Mesh) -> Sizes {
             continue;
         }
         for (x, y) in [(w[0], w[1]), (w[1], w[2]), (w[2], w[0])] {
-            *edges.entry((x.min(y), x.max(y))).or_insert(0) += 1;
+            let e = edges.entry((x.min(y), x.max(y))).or_insert((0, 0));
+            *e = (e.0 + 1, e.1 + if x < y { 1 } else { -1 });
         }
     }
-    let open_edges = edges.values().filter(|&&n| n != 2).count();
-    let volume = (open_edges == 0 && !mesh.tris.is_empty()).then_some(signed.abs());
-    Sizes { size, surface, volume, open_edges }
+    let open_edges = edges.values().filter(|e| e.0 != 2).count();
+    // ponytail: a whole part turned inside out, on its own, still turns one way: not seen here.
+    let flipped = edges.values().filter(|e| e.0 == 2 && e.1 != 0).count();
+    let volume = (open_edges == 0 && flipped == 0 && !mesh.tris.is_empty()).then_some(signed.abs());
+    Sizes { size, surface, volume, open_edges, flipped }
 }
 
 fn sub(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
@@ -225,8 +247,9 @@ mod tests {
             t.swap(1, 2);
         }
         let s = sizes(&m);
-        assert_eq!((s.open_edges, s.volume), (0, None), "{s:?}");
-        assert!(sizes(&cube(false)).volume.is_some());
+        assert_eq!((s.open_edges, s.volume, s.flipped), (0, None, 4), "{s:?}");
+        let whole = sizes(&cube(false));
+        assert_eq!((whole.flipped, whole.volume.is_some()), (0, true));
     }
 
     #[test]
