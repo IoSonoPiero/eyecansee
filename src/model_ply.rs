@@ -114,3 +114,46 @@ fn list(p: &Property) -> Option<Vec<u32>> {
         _ => return None,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A binary PLY of a grid of `n` × `n` points and its triangles, as the scanners write it.
+    pub(crate) fn grid(n: u32, big: bool) -> Vec<u8> {
+        let f = |v: f32| if big { v.to_be_bytes() } else { v.to_le_bytes() };
+        let u = |v: u32| if big { v.to_be_bytes() } else { v.to_le_bytes() };
+        let faces = 2 * (n - 1) * (n - 1);
+        let mut out = format!("ply\nformat binary_{}_endian 1.0\nelement vertex {}\nproperty float x\nproperty float y\nproperty float z\nelement face {faces}\nproperty list uchar uint vertex_indices\nend_header\n", if big { "big" } else { "little" }, n * n).into_bytes();
+        for y in 0..n {
+            for x in 0..n {
+                for c in [x as f32, y as f32, ((x * y) % 7) as f32] {
+                    out.extend(f(c));
+                }
+            }
+        }
+        for y in 0..n - 1 {
+            for x in 0..n - 1 {
+                let i = y * n + x;
+                for t in [[i, i + 1, i + n], [i + 1, i + n + 1, i + n]] {
+                    out.push(3);
+                    t.iter().for_each(|&v| out.extend(u(v)));
+                }
+            }
+        }
+        out
+    }
+
+    /// #191: reading a binary PLY took about 870 bytes per triangle at its peak (Lucy, 28 million
+    /// triangles: 21.9 GB), four times what the model keeps once open. A grid of 200 000
+    /// triangles, read on this thread: the peak per triangle.
+    #[test]
+    fn peak_per_triangle_191() {
+        let bytes = grid(317, false);
+        let (m, peak) = crate::test_alloc::peak(|| crate::model::parse(&bytes, "scan.ply").unwrap());
+        let per = peak / m.tris.len();
+        println!("{} triangles, peak {} MB, {per} bytes a triangle", m.tris.len(), peak >> 20);
+        assert_eq!(m.tris.len(), 2 * 316 * 316);
+        assert!(per < 250, "{per} bytes a triangle at the peak");
+    }
+}
