@@ -21,7 +21,15 @@
 # docs/help/img).
 # The tips at startup (src/tips.rs) have their own pictures, docs/tips/<name>.webp, from the scenes of
 # tools/shots/tips/, also left out when no scene is named: EYECANSEE_SHOTS_TO=docs/tips tools/shots.sh
-# tips/help tips/right-click tips/cover tips/details tips/metadata tips/slideshow tips/addons.
+# tips/welcome tips/help … (all of them: tools/shots/tips/*.txt). Each is 640 x 360, the part of the
+# window the tip is about.
+#
+# Languages: EYECANSEE_SHOTS_LANG=<code> (default en) takes the pictures in that language, into
+# <folder>/<code>/ (docs/help/img/it, docs/tips/it); English ones stay in the folder itself. Only the
+# pictures that show words need it: the others are the same for every language. In a scene a line
+# that starts with `<code>: ` is for that language only (a click where a label is wider); and
+# tools/shots/names.<code>.txt, if there, gives the demo home's folders, disks, bookmarks and servers
+# their names in that language (`English<TAB>translated`), in the home and in the scenes' paths.
 # Each is the whole window, 1200 x 800 (for those of 0.76.0 src/shots.rs wrote a lossless WebP,
 # `encode_lossless()` in place of `encode(QUALITY)`, changed for that run only); then, with
 # ImageMagick, for site/img/<name>.png and .webp and docs/screenshots/<name>.webp:
@@ -43,8 +51,9 @@ if [[ ${1:-} == --inside ]]; then
     # A USB stick and an external disk, made up: a tmpfs mounted from /dev/sdX1, with a
     # /sys/class/block/sdX1 that leads to a path with "/usb" in it, is what the app takes for an
     # external disk (devices.rs, is_external); the name is that of the mount point.
-    for disk in "sdb1:USB STICK" "sdc1:BACKUP"; do
-        dev=${disk%%:*}; label=${disk#*:}
+    devs=(sdb1 sdc1 sdd1 sde1); n=0
+    for dir in "$WORK"/disks/*/; do
+        dev=${devs[n]}; n=$((n + 1)); label=$(basename "$dir")
         mkdir -p "/sys/class/block/devices/usb1/1-1/$dev" "/run/media/demo/$label"
         ln -s "devices/usb1/1-1/$dev" "/sys/class/block/$dev"
         mount -t tmpfs "/dev/$dev" "/run/media/demo/$label"
@@ -73,7 +82,7 @@ if [[ ${1:-} == --inside ]]; then
         open=$(sed -n 's/^open  *//p' "$scene" | head -1)
         echo "$name: ${open:-/home/demo/Pictures}" >&2
         (cd /home/demo && env HOME=/home/demo XDG_CONFIG_HOME=/home/demo/.config XDG_CACHE_HOME=/home/demo/.cache \
-            XDG_DATA_HOME=/home/demo/.local/share EYECANSEE_LANG=en EYECANSEE_LOG="$WORK/log/$name.log" \
+            XDG_DATA_HOME=/home/demo/.local/share EYECANSEE_LANG="$SHOTS_LANG" EYECANSEE_LOG="$WORK/log/$name.log" \
             EYECANSEE_SHOTS_SCENE="$scene" EYECANSEE_SHOTS_OUT="$WORK/out" \
             timeout 180 "$WORK/eyecansee" "${open:-/home/demo/Pictures}") || echo "$name: exit $?" >&2
     done
@@ -81,6 +90,9 @@ if [[ ${1:-} == --inside ]]; then
 fi
 
 FILES=${EYECANSEE_SHOTS_FILES:-$ROOT/notes/test-files}
+LANGUAGE=${EYECANSEE_SHOTS_LANG:-en}
+[[ $LANGUAGE =~ ^[a-z]{2}$ ]] || { echo "EYECANSEE_SHOTS_LANG: a language code, as en or it" >&2; exit 1; }
+NAMES=$ROOT/tools/shots/names.$LANGUAGE.txt
 TARGET=${CARGO_TARGET_DIR:-$ROOT/target}
 SCENES=()
 for n in "${@:-}"; do
@@ -107,20 +119,32 @@ WORK=$(mktemp -d "${TMPDIR:-/tmp}/eyecansee-shots.XXXXXX")
 [[ -n ${EYECANSEE_SHOTS_KEEP:-} ]] && echo "work folder: $WORK" >&2 || trap 'rm -rf "$WORK"' EXIT
 cp "$TARGET/release/eyecansee" "$WORK/"
 mkdir -p "$WORK/scenes" "$WORK/out" "$WORK/log"
+# The scene as this language plays it: its own lines (`it: …`) kept without the mark, those of the
+# other languages dropped, the folders of the demo home in the paths by their names in the language.
+RENAME=()
+if [[ -f $NAMES ]]; then
+    while IFS=$'\t' read -r en own; do
+        if [[ -n $en && -n $own ]]; then RENAME+=(-e "s,/$en(/|\$),/$own\\1,g"); fi
+    done < "$NAMES"
+fi
 PATHS=()
 for n in "${SCENES[@]}"; do
     mkdir -p "$(dirname "$WORK/scenes/$n.txt")"
-    cp "$ROOT/tools/shots/$n.txt" "$WORK/scenes/$n.txt" && PATHS+=("$WORK/scenes/$n.txt")
+    # A scene that names no folder starts in Pictures, by its name in the language.
+    { cat "$ROOT/tools/shots/$n.txt"; grep -q '^open ' "$ROOT/tools/shots/$n.txt" || echo "open /home/demo/Pictures"; } \
+        | sed -E -e "s/^$LANGUAGE: *//" -e '/^[a-z][a-z]: /d' "${RENAME[@]}" > "$WORK/scenes/$n.txt"
+    PATHS+=("$WORK/scenes/$n.txt")
 done
-"$ROOT/tools/shots/stage.sh" "$FILES" "$WORK"
+"$ROOT/tools/shots/stage.sh" "$FILES" "$WORK" "$NAMES"
 
 # Kept on while the pictures are taken: a screen gone dark sends no frames.
 INHIBIT=()
 command -v gnome-session-inhibit >/dev/null && INHIBIT=(gnome-session-inhibit --inhibit idle --reason "EyeCanSee screenshots")
-"${INHIBIT[@]}" env SHOTS_UID="$(id -u)" unshare -r -n -m --propagation private \
+"${INHIBIT[@]}" env SHOTS_UID="$(id -u)" SHOTS_LANG="$LANGUAGE" unshare -r -n -m --propagation private \
     "$0" --inside "$WORK" "${PATHS[@]}"
 
 TO=${EYECANSEE_SHOTS_TO:-$ROOT/docs/help/img}
+[[ $LANGUAGE == en ]] || TO=$TO/$LANGUAGE
 mkdir -p "$TO"
 missing=0
 for n in "${SCENES[@]}"; do

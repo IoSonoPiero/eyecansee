@@ -15,5 +15,5 @@ width 1000
 9.5 open DCIM
 12.5 open EyeCanSee-guida
 16 click 1100 700
-18 shot phone 0 87 1200 763
-18.5 end
+22 shot phone 0 87 1200 763
+22.5 end

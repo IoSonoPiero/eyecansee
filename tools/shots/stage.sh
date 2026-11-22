@@ -2,9 +2,10 @@
 # The demo home of tools/shots.sh: $1 = test files (notes/test-files), $2 = work folder, where it
 # makes home/demo, disks/<name> (the contents of the made-up USB stick and external disk),
 # settings.json and servers.json. Only files free to show (tools/shots/SOURCES.txt); folders with
-# neutral names, servers made up (example.com).
+# neutral names, servers made up (example.com). $3, if that file is there: the names of folders,
+# disks, bookmarks and servers in the language of the pictures (tools/shots/names.<code>.txt).
 set -euo pipefail
-FILES=$1; WORK=$2
+FILES=$1; WORK=$2; NAMES=${3:-}
 D=$WORK/home/demo
 H=$D/Pictures/Holiday
 mkdir -p "$D"/{Desktop,Downloads,Music,Videos,.cache,.local/share} "$H/Mountains" "$H/Flowers" \
@@ -22,11 +23,17 @@ n=1
 for f in Moth Iceberg Sunset; do cp "$P/$f.jpg" "$D/Pictures/Phone backup/IMG_000$n.jpg"; n=$((n + 1)); done
 # The USB stick and the external disk (mounted in the namespace by tools/shots.sh).
 S="$WORK/disks/USB STICK"
-mkdir -p "$S/Photos" "$S/Documents" "$WORK/disks/BACKUP/Pictures" "$WORK/disks/BACKUP/Videos"
+B=$WORK/disks/BACKUP/Pictures
+mkdir -p "$S/Photos" "$S/Documents" "$B" "$WORK/disks/BACKUP/Videos"
 n=101
 for f in "Lake Sherburne" "North Cascades" "Grand Canyon" "Wilder Kaiser" "Apple blossoms" "Quebec City" Iceberg Moth; do
     cp "$P/$f.jpg" "$S/Photos/IMG_0$n.jpg"; n=$((n + 1))
 done
+# On the external disk a folder with EyeCanSee's own trash (as phones and servers have), one photo
+# in it: the strip of the trash shows there without a phone, and nothing is deleted for it.
+for f in Denali "Grand Canyon" Iceberg "Lake Sherburne" Orchid "Quebec City" Sunset Wilderness; do cp "$P/$f.jpg" "$B/"; done
+mkdir -p "$B/.EyeCanSee-trash"
+cp "$P/Moth.jpg" "$B/.EyeCanSee-trash/"
 for m in Avocado Lantern ToyCar; do cp "$FILES/3d/gltf/$m.glb" "$D/Documents/3D models/"; done
 # A flat plan of ours (tools/shots/Flat.dxf); the cad scene saves it as DWG with Export drawing.
 cp "$(dirname "$0")/Flat.dxf" "$D/Documents/Drawings/"
@@ -46,3 +53,12 @@ cat > "$WORK/servers.json" <<'JSON'
 [{"name": "Photo archive", "scheme": "sftp", "host": "photos.example.com", "port": 22, "user": "demo", "folder": "Pictures"},
  {"name": "Home NAS", "scheme": "ftp", "host": "nas.example.com", "user": "demo", "folder": ""}]
 JSON
+# The names in the language of the pictures: folders (the deepest first), then what the settings
+# and the servers call them.
+if [[ -f $NAMES ]]; then
+    while IFS=$'\t' read -r en own; do
+        [[ -n $en && -n $own ]] || continue
+        find "$D" "$WORK/disks" -depth -type d -name "$en" -execdir mv -T {} "$own" \;
+        sed -E -i -e "s,/$en(/|\"),/$own\\1,g" -e "s,\"$en\",\"$own\",g" "$WORK/settings.json" "$WORK/servers.json"
+    done < "$NAMES"
+fi

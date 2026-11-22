@@ -1,0 +1,16 @@
+Desktop	Scrivania
+Downloads	Scaricati
+Music	Musica
+Videos	Video
+Pictures	Immagini
+Documents	Documenti
+Holiday	Vacanze
+Mountains	Montagne
+Flowers	Fiori
+Phone backup	Copia del telefono
+3D models	Modelli 3D
+Drawings	Disegni
+Photos	Foto
+USB STICK	CHIAVETTA USB
+Photo archive	Archivio foto
+Home NAS	NAS di casa
