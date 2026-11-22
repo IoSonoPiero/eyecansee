@@ -379,6 +379,34 @@ fn glb_material(m: &Mesh, tex: u16, surface: u16) -> String {
 mod tests {
     use super::*;
 
+    /// Audit 6.5: glTF counts in metres. A 3MF in millimetres, a triangle 100 mm wide, exported as
+    /// GLB and read back measures 0.1 m; STL, OBJ and PLY, without a place for the unit, keep the
+    /// numbers and say the unit in their header.
+    #[test]
+    fn audit_6_5_unit_kept() {
+        use std::io::Write;
+        let model = r#"<model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><resources>
+            <object id="1"><mesh><vertices><vertex x="0" y="0" z="0"/><vertex x="100" y="0" z="0"/><vertex x="0" y="50" z="0"/></vertices>
+            <triangles><triangle v1="0" v2="1" v3="2"/></triangles></mesh></object></resources><build><item objectid="1"/></build></model>"#;
+        let mut w = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        w.start_file("3D/3dmodel.model", zip::write::SimpleFileOptions::default()).unwrap();
+        w.write_all(model.as_bytes()).unwrap();
+        let m = crate::model::parse(&w.finish().unwrap().into_inner(), "part.3mf").unwrap();
+        assert_eq!(m.unit, Some("mm"));
+        let back = crate::model::parse(&export(&m, Kind::Glb), "part.glb").unwrap();
+        assert_eq!(back.unit, Some("m"));
+        let size = crate::model_measure::sizes(&back).size;
+        let widest = size.iter().copied().fold(0.0, f64::max);
+        assert!((widest - 0.1).abs() < 1e-6, "{size:?}");
+        for kind in [Kind::Stl, Kind::Obj, Kind::Ply] {
+            let out = export(&m, kind);
+            let head = String::from_utf8_lossy(&out[..out.len().min(200)]).to_string();
+            assert!(head.contains("unit: mm"), "{kind:?}: {head:?}");
+            let back = crate::model::parse(&out, &format!("x.{}", kind.ext())).unwrap();
+            assert_eq!(crate::model_measure::sizes(&back).size.iter().copied().fold(0.0, f64::max), 100.0, "{kind:?}");
+        }
+    }
+
     /// Each format read back by EyeCanSee gives the same triangles and colours.
     #[test]
     fn written_and_read_back() {
