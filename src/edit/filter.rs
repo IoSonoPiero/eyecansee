@@ -80,8 +80,28 @@ pub fn apply(img: &DynamicImage, f: Filter, amount: f32, scale: f32) -> DynamicI
             like(DynamicImage::ImageRgba8(rgba), img)
         }
         Filter::Brightness => img.brighten((amount * 2.55).round() as i32),
-        Filter::Contrast => img.adjust_contrast(amount),
+        Filter::Contrast => colours_only(img.adjust_contrast(amount), img),
     }
+}
+
+/// `out` with the alpha of `img` back: `image`'s contrast changes every channel, so a negative
+/// one made its part see-through (audit 5.4). A filter changes the colours only.
+fn colours_only(mut out: DynamicImage, img: &DynamicImage) -> DynamicImage {
+    fn alpha<P: image::Pixel>(out: &mut ImageBuffer<P, Vec<P::Subpixel>>, img: &ImageBuffer<P, Vec<P::Subpixel>>) {
+        let n = usize::from(P::CHANNEL_COUNT);
+        for (o, i) in out.chunks_exact_mut(n).zip(img.chunks_exact(n)) {
+            o[n - 1] = i[n - 1];
+        }
+    }
+    match (&mut out, img) {
+        (DynamicImage::ImageLumaA8(o), DynamicImage::ImageLumaA8(i)) => alpha(o, i),
+        (DynamicImage::ImageLumaA16(o), DynamicImage::ImageLumaA16(i)) => alpha(o, i),
+        (DynamicImage::ImageRgba8(o), DynamicImage::ImageRgba8(i)) => alpha(o, i),
+        (DynamicImage::ImageRgba16(o), DynamicImage::ImageRgba16(i)) => alpha(o, i),
+        (DynamicImage::ImageRgba32F(o), DynamicImage::ImageRgba32F(i)) => alpha(o, i),
+        _ => {}
+    }
+    out
 }
 
 /// Blur, Pixelate and Sharpen mix each pixel with its neighbours. Where some are transparent (the
