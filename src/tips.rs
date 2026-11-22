@@ -1,12 +1,17 @@
 //! Tips at startup (issue #113): at the first start of the day a window shows one tip about what
-//! EyeCanSee does, with a picture of the guide or the steps, Back and Next to see the others, a
-//! link to the guide's page and "Don't show at startup". On by default, also for who updates from
-//! an older version (the key missing from `settings.json`); off from the box or from Options >
-//! General, until turned on there again. The next start shows the tip after the last one seen.
+//! EyeCanSee does, with a picture of it, Back and Next to see the others, a link to the guide's
+//! page and "Don't show at startup". On by default, also for who updates from an older version
+//! (the key missing from `settings.json`); off from the box or from Options > General, until
+//! turned on there again. The next start shows the tip after the last one seen.
 //!
 //! Keep them true: a change to a feature a tip names (a key, a menu, a window, a picture) changes
-//! the tip in the same commit, `locales/*.ftl` and its picture (`tools/shots/tips/`, or the guide's);
-//! a new main feature gets a tip at the end of `TIPS`, one removed loses its tip.
+//! the tip in the same commit, `locales/*.ftl` and its picture (`tools/shots/tips/<key>.txt`, in
+//! every language that has its own); a new main feature gets a tip at the end of `TIPS`, one
+//! removed loses its tip.
+//!
+//! The pictures (issue #279): one for each tip, all of the same shape, the part of the window the
+//! tip is about. Where the picture shows words the text names there is one for each language,
+//! otherwise one without words for all; a language without its own gets the English ones.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -17,21 +22,20 @@ use crate::App;
 use crate::help::{Picture, picture};
 use crate::settings::Settings;
 
-/// One tip: its Fluent ids are `tip-<key>-title` and `tip-<key>-text`; `image` a picture of the
-/// tips (`PICTURES`) or of the guide (`help::IMAGES`), `page` the guide's page that tells more.
+/// One tip: its Fluent ids are `tip-<key>-title` and `tip-<key>-text`, its picture
+/// `docs/tips/<key>.webp` (`PICTURES`); `page` the guide's page that tells more.
 pub(crate) struct Tip {
     pub(crate) key: &'static str,
-    pub(crate) image: Option<&'static str>,
     pub(crate) page: &'static str,
 }
 
-const fn tip(key: &'static str, image: Option<&'static str>, page: &'static str) -> Tip {
-    Tip { key, image, page }
+const fn tip(key: &'static str, page: &'static str) -> Tip {
+    Tip { key, page }
 }
 
-/// Pictures made for the tips only (tools/shots/tips/, dark theme): first those in English or
-/// without words, `docs/tips/<name>.webp`, then for each language its own,
-/// `docs/tips/<language>/<name>.webp`. A language without its own gets the English ones.
+/// The pictures of the tips, each `PICTURE` pixels (tools/shots/tips/, dark theme): first those
+/// in English or without words, `docs/tips/<key>.webp`, then for each language its own,
+/// `docs/tips/<language>/<key>.webp`.
 macro_rules! pictures {
     ([$($name:literal),* $(,)?] $(, $lang:literal: [$($own:literal),* $(,)?])* $(,)?) => {
         const PICTURES: &[Picture] = &[
@@ -41,35 +45,44 @@ macro_rules! pictures {
     };
 }
 
-pictures![["help", "right-click", "cover", "details", "metadata", "slideshow", "addons"]];
+pictures![
+    [
+        "welcome", "help", "right-click", "phone", "servers", "viewer", "video", "editor", "cover", "resize", "convert-video",
+        "bookmarks", "metadata", "models", "duplicates", "trash", "details", "slideshow", "addons",
+    ],
+    "it": [
+        "welcome", "help", "right-click", "phone", "servers", "resize", "convert-video", "bookmarks", "metadata", "duplicates",
+        "trash", "details", "addons",
+    ],
+];
 
-/// The address egui knows a picture by, in a language: the tips' own, otherwise the guide's.
-fn picture_uri(lang: &str, name: &str) -> String {
-    if PICTURES.iter().any(|p| p.1 == name) { format!("bytes://tips/{lang}/{name}.webp") } else { crate::help::image_uri(name) }
+/// The address egui knows the picture of a tip by, in a language (the bytes: `picture`).
+fn picture_uri(lang: &str, key: &str) -> String {
+    format!("bytes://tips/{lang}/{key}.webp")
 }
 
 /// The main features first, then the ones less in sight. New tips go at the end: who has seen
 /// the others finds them next.
 pub(crate) const TIPS: &[Tip] = &[
-    tip("welcome", Some("start"), "start"),
-    tip("help", Some("help"), "start"),
-    tip("right-click", Some("right-click"), "start"),
-    tip("phone", Some("phone"), "phone"),
-    tip("servers", Some("server-manager"), "servers"),
-    tip("viewer", Some("viewer"), "viewer"),
-    tip("video", Some("video"), "video"),
-    tip("editor", Some("editor"), "editor"),
-    tip("cover", Some("cover"), "editor-cover"),
-    tip("resize", Some("convert"), "convert"),
-    tip("convert-video", Some("convert-video"), "convert-video"),
-    tip("bookmarks", Some("bookmarks-menu"), "bookmarks"),
-    tip("metadata", Some("metadata"), "metadata"),
-    tip("models", Some("model-3d"), "model-3d"),
-    tip("duplicates", Some("duplicates"), "duplicates"),
-    tip("trash", Some("trash-strip"), "delete"),
-    tip("details", Some("details"), "options"),
-    tip("slideshow", Some("slideshow"), "slideshow"),
-    tip("addons", Some("addons"), "components"),
+    tip("welcome", "start"),
+    tip("help", "start"),
+    tip("right-click", "start"),
+    tip("phone", "phone"),
+    tip("servers", "servers"),
+    tip("viewer", "viewer"),
+    tip("video", "video"),
+    tip("editor", "editor"),
+    tip("cover", "editor-cover"),
+    tip("resize", "convert"),
+    tip("convert-video", "convert-video"),
+    tip("bookmarks", "bookmarks"),
+    tip("metadata", "metadata"),
+    tip("models", "model-3d"),
+    tip("duplicates", "duplicates"),
+    tip("trash", "delete"),
+    tip("details", "options"),
+    tip("slideshow", "slideshow"),
+    tip("addons", "components"),
 ];
 
 /// Today, as days since 1970 in UTC.
@@ -102,21 +115,53 @@ pub(crate) struct Open {
     since: f64,
     /// The language whose pictures egui was given.
     loaded: Option<&'static str>,
+    /// What the texts measure, for the body's height.
+    fit: Option<Fit>,
 }
 
 impl Open {
     fn new(i: usize) -> Self {
-        Open { i, cache: CommonMarkCache::default(), from: 0.0, since: 0.0, loaded: None }
+        Open { i, cache: CommonMarkCache::default(), from: 0.0, since: 0.0, loaded: None, fit: None }
     }
 }
 
-/// The window's content: as wide as the guide's pictures, as tall as a picture and the longest
-/// text, the same for every tip so the buttons stay where they are.
-const WIDTH: f32 = 480.0;
-const BODY: f32 = 500.0;
+/// The height the text and the link of each tip take, in a language and at a width.
+struct Fit {
+    lang: &'static str,
+    width: f32,
+    below: Vec<f32>,
+}
+
+/// The window's content: as wide as a picture, less only in a window of the program too narrow
+/// for it (`width_in`).
+const WIDTH: f32 = 640.0;
+const MIN_WIDTH: f32 = 320.0;
+/// What the window and its frame take at the sides of the content.
+const EDGES: f32 = 40.0;
+/// The size of every picture, in pixels: one shape for all, so the texts start at the same height.
+const PICTURE: egui::Vec2 = egui::vec2(640.0, 360.0);
+/// Between the picture and the text.
+const GAP: f32 = 6.0;
 /// The slide from the side: how far and how long.
 const SLIDE: f32 = 60.0;
 const SLIDE_SECS: f64 = 0.2;
+
+/// The width of the content in a window of the program that wide.
+fn width_in(window: f32) -> f32 {
+    WIDTH.min(window - EDGES).max(MIN_WIDTH)
+}
+
+/// The height of a picture shown that wide.
+fn picture_height(width: f32) -> f32 {
+    (width * PICTURE.y / PICTURE.x).round()
+}
+
+/// The height of the body: the picture and the tallest text with its link (`below`, one for each
+/// tip). The same for every tip, so Back and Next stay where they are; under the shorter texts
+/// only their difference from the tallest stays empty.
+fn body_height(width: f32, below: &[f32]) -> f32 {
+    picture_height(width) + GAP + below.iter().copied().fold(0.0, f32::max).ceil()
+}
 
 /// What a click in the window asks.
 enum Choice {
@@ -152,27 +197,34 @@ impl App {
     pub(crate) fn tip_window(&mut self, ctx: &egui::Context) {
         let Some(open) = &mut self.tip else { return };
         let (i, lang) = (open.i, self.i18n.code);
-        crate::help::load_images(ctx);
         if open.loaded != Some(lang) {
-            for name in PICTURES.iter().filter(|p| p.0 == "en").map(|p| p.1) {
-                if let Some(bytes) = picture(PICTURES, lang, name) {
-                    ctx.include_bytes(picture_uri(lang, name), bytes);
+            for tip in TIPS {
+                if let Some(bytes) = picture(PICTURES, lang, tip.key) {
+                    ctx.include_bytes(picture_uri(lang, tip.key), bytes);
                 }
             }
             open.loaded = Some(lang);
         }
         let tip = &TIPS[i];
         let t = |id: &str| self.i18n.t(id);
-        let (title, text, link) = (t(&format!("tip-{}-title", tip.key)), t(&format!("tip-{}-text", tip.key)), t("tip-guide"));
+        let text_of = |tip: &Tip| t(&format!("tip-{}-text", tip.key));
+        let (title, text, link) = (t(&format!("tip-{}-title", tip.key)), text_of(tip), t("tip-guide"));
+        let width = width_in(ctx.content_rect().width());
+        // Every text, only when they are to be measured: another language, another width.
+        let fits = open.fit.as_ref().is_some_and(|f| f.lang == lang && f.width == width);
+        let texts: Vec<String> = if fits { Vec::new() } else { TIPS.iter().map(text_of).collect() };
         let count = self.i18n.t_args("tip-count", &[("n", &(i + 1).to_string()), ("of", &TIPS.len().to_string())]);
         let (back, next, close, off_text, off_hint) = (t("tip-back"), t("tip-next"), t("notice-close"), t("tip-off"), t("tip-off-hint"));
         let mut off = !self.settings.tips;
         let mut choice = None;
         egui::Modal::new(egui::Id::unique("tip")).show(ctx, |ui| {
-            ui.set_width(WIDTH);
+            ui.set_width(width);
             crate::save_dialogs::Head::new(&title).show(ui);
             ui.add_space(4.0);
-            if tip_body(ui, open, lang, &text, &link) {
+            if !fits {
+                open.fit = Some(Fit { lang, width, below: measure(ui, width, &texts, &link) });
+            }
+            if tip_body(ui, open, &picture_uri(lang, tip.key), &text, &link) {
                 choice = Some(Choice::Guide);
             }
             ui.separator();
@@ -224,36 +276,71 @@ impl App {
     }
 }
 
-/// Picture, text and link of the tip, in a box of fixed size; after Back or Next it slides in from
-/// that side while it fades in. `true`: the link was clicked.
-fn tip_body(ui: &mut egui::Ui, open: &mut Open, lang: &str, text: &str, link: &str) -> bool {
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(WIDTH, BODY), egui::Sense::hover());
+/// The height the text and the link of each tip take at this width: laid out as `tip_body` does,
+/// not shown.
+fn measure(ui: &mut egui::Ui, width: f32, texts: &[String], link: &str) -> Vec<f32> {
+    let rect = egui::Rect::from_min_size(ui.cursor().min, egui::vec2(width, 0.0));
+    let unseen = || egui::UiBuilder::new().max_rect(rect).layout(egui::Layout::top_down(egui::Align::Min)).invisible();
+    texts
+        .iter()
+        .map(|text| {
+            let mut probe = ui.new_child(unseen());
+            below(&mut probe, text, link);
+            probe.min_rect().height()
+        })
+        .collect()
+}
+
+/// Under the picture: the text and the link to the guide. `true`: the link was clicked.
+fn below(ui: &mut egui::Ui, text: &str, link: &str) -> bool {
+    crate::save_dialogs::notice_text(ui, text);
+    ui.add_space(4.0);
+    ui.link(link).clicked()
+}
+
+/// The picture, as large as `ui`, with a thin border: in the dark theme a dark picture would not
+/// show where it ends. Drawn by the viewer of the guide's pages, which also gives egui the loaders
+/// of the pictures.
+fn picture_box(ui: &mut egui::Ui, cache: &mut CommonMarkCache, uri: &str) {
+    let rect = ui.max_rect();
+    CommonMarkViewer::new().max_image_width(Some(rect.width() as usize)).show(ui, cache, &format!("![]({uri})"));
+    ui.painter().rect_stroke(rect, 0.0, ui.visuals().window_stroke, egui::StrokeKind::Inside);
+}
+
+/// Picture, text and link of the tip, in a box of fixed size (`body_height`); after Back or Next
+/// it slides in from that side while it fades in. `true`: the link was clicked.
+fn tip_body(ui: &mut egui::Ui, open: &mut Open, uri: &str, text: &str, link: &str) -> bool {
+    let width = ui.available_width();
+    let height = body_height(width, open.fit.as_ref().map_or(&[], |f| &f.below));
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
     let done = ((ui.input(|k| k.time) - open.since) / SLIDE_SECS).clamp(0.0, 1.0) as f32;
     if done < 1.0 {
         ui.ctx().request_repaint();
     }
     // Fast at first, slow at the end (ease-out cubic).
     let eased = 1.0 - (1.0 - done).powi(3);
-    let shift = if open.from == 0.0 { 0.0 } else { open.from * SLIDE * (1.0 - eased) };
-    let mut body = ui.new_child(egui::UiBuilder::new().max_rect(rect.translate(egui::vec2(shift, 0.0))).layout(egui::Layout::top_down(egui::Align::Min)));
-    body.set_clip_rect(rect.intersect(ui.clip_rect()));
-    if open.from != 0.0 {
-        body.multiply_opacity(eased);
-    }
-    if let Some(name) = TIPS[open.i].image {
-        body.vertical_centered(|ui| {
-            CommonMarkViewer::new().max_image_width(Some(WIDTH as usize)).show(ui, &mut open.cache, &format!("![]({})", picture_uri(lang, name)));
-        });
-    }
-    body.add_space(6.0);
-    crate::save_dialogs::notice_text(&mut body, text);
-    body.add_space(4.0);
-    body.link(link).clicked()
+    let slides = open.from != 0.0;
+    let moved = rect.translate(egui::vec2(if slides { open.from * SLIDE * (1.0 - eased) } else { 0.0 }, 0.0));
+    // The picture and, under it, the text: each in its own place, whatever the other takes.
+    let (picture, text_place) = moved.split_top_bottom_at_y(moved.top() + picture_height(width));
+    let mut part = |place: egui::Rect| {
+        let mut part = ui.new_child(egui::UiBuilder::new().max_rect(place).layout(egui::Layout::top_down(egui::Align::Min)));
+        part.set_clip_rect(rect.intersect(ui.clip_rect()));
+        if slides {
+            part.multiply_opacity(eased);
+        }
+        part
+    };
+    picture_box(&mut part(picture), &mut open.cache, uri);
+    below(&mut part(text_place.with_min_y(text_place.top() + GAP)), text, link)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The most that stays empty under the shortest text, in points ("about 54" in issue #279).
+    const EMPTY_AT_MOST: f32 = 57.0; // measured: texts from 52 to 109 points, English and Italian
 
     /// On at the very first start, and for who updates from a settings.json without the key.
     #[test]
@@ -289,8 +376,8 @@ mod tests {
         assert_eq!(at_start(&Settings::default(), 20_000, true), None);
     }
 
-    /// Every tip has its texts (the other languages have the same ids: `i18n` checks it), a
-    /// picture of the guide and a page that exist.
+    /// Every tip has its texts (the other languages have the same ids: `i18n` checks it), a page
+    /// that exists and its picture, of the one size, in every language: its own or the English.
     #[test]
     fn every_tip_complete() {
         let en = crate::i18n::I18n::new("en");
@@ -299,12 +386,93 @@ mod tests {
                 let id = format!("tip-{}-{part}", tip.key);
                 assert_ne!(en.t(&id), id, "{id} missing");
             }
-            // In every language: its own picture or the English one, or a picture of the guide.
-            for (lang, _) in crate::i18n::languages() {
-                let known = |n: &str| picture(PICTURES, lang, n).is_some() || crate::help::IMAGES.iter().any(|(name, _)| *name == n);
-                assert!(tip.image.is_none_or(known), "{}: picture for {lang}", tip.key);
-            }
             assert!(crate::help::PAGES.iter().any(|p| p.1 == tip.page), "{}: page", tip.key);
+            for (lang, _) in crate::i18n::languages() {
+                assert!(picture(PICTURES, lang, tip.key).is_some(), "{}: no picture for {lang}", tip.key);
+            }
+        }
+        for (lang, name, bytes) in PICTURES {
+            assert!(TIPS.iter().any(|t| t.key == *name), "{lang}/{name}: a picture of no tip");
+            let size = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().unwrap().into_dimensions().unwrap();
+            assert_eq!(size, (PICTURE.x as u32, PICTURE.y as u32), "{lang}/{name}: every picture has the same size");
+        }
+    }
+
+    /// The names of the pictures of a language.
+    fn names(lang: &str) -> Vec<&'static str> {
+        let mut names: Vec<_> = PICTURES.iter().filter(|p| p.0 == lang).map(|p| p.1).collect();
+        names.sort_unstable();
+        names
+    }
+
+    /// The pictures in `docs/tips` are those built in, and a language with its own pictures has
+    /// all those with words: the same ones as every other such language.
+    #[test]
+    fn pictures_on_disk_and_by_language() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/tips");
+        let listed = |dir: &std::path::Path| {
+            let mut names: Vec<String> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+            names.sort_unstable();
+            names
+        };
+        let own: Vec<&str> = crate::i18n::languages().into_iter().map(|l| l.0).filter(|l| *l != "en" && !names(l).is_empty()).collect();
+        let files = |lang: &str| names(lang).iter().map(|n| format!("{n}.webp")).collect::<Vec<_>>();
+        let mut top = files("en");
+        top.extend(own.iter().map(|l| l.to_string()));
+        top.sort_unstable();
+        assert_eq!(listed(&dir), top, "docs/tips: the English pictures and a folder for each language with its own");
+        for lang in &own {
+            assert_eq!(listed(&dir.join(lang)), files(lang), "docs/tips/{lang}");
+            assert_eq!(names(lang), names(own[0]), "{lang}: the pictures with words are the same in every language");
+            assert!(names(lang).iter().all(|n| names("en").contains(n)), "{lang}: a picture without its English one");
+        }
+        assert!(PICTURES.iter().all(|p| p.0 == "en" || own.contains(&p.0)), "pictures of a language EyeCanSee does not speak");
+    }
+
+    /// The content is as wide as a picture, and narrower only in a narrow window; the body as tall
+    /// as the picture and the tallest text.
+    #[test]
+    fn size_of_the_content() {
+        assert_eq!(width_in(1200.0), 640.0);
+        assert_eq!(width_in(600.0), 560.0);
+        assert_eq!(width_in(200.0), MIN_WIDTH);
+        assert_eq!(picture_height(640.0), 360.0);
+        assert_eq!(picture_height(560.0), 315.0);
+        assert_eq!(body_height(640.0, &[70.0, 104.2, 88.0]), 360.0 + GAP + 105.0);
+    }
+
+    /// Back and Next stay where they are: the window has the same place and size for every tip,
+    /// in every language, and under the shortest text little stays empty (issue #279: 124 points
+    /// on average, 392 at most, when the body was 500 points for pictures of any height).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn window_the_same_for_every_tip() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("tips::tests::window_the_same_for_every_tip") {
+            return;
+        }
+        let mut h = Harness::new(&folder("tip-window", &["a.jpg"]));
+        for (lang, _) in crate::i18n::languages() {
+            h.app.i18n = crate::i18n::I18n::new(lang);
+            h.app.tip = Some(Open::new(0));
+            let mut places = Vec::new();
+            for tip in TIPS {
+                // The slide from the side over, the window settled.
+                for _ in 0..4 {
+                    h.frame(Vec::new());
+                }
+                let place = h.ctx.memory(|m| m.area_rect(egui::Id::unique("tip"))).expect("the tip's window");
+                places.push((tip.key, place));
+                h.key(egui::Key::ArrowRight);
+            }
+            for (key, place) in &places {
+                assert_eq!(*place, places[0].1, "{lang}: the window of {key} is not where that of {} is", places[0].0);
+            }
+            let fit = h.app.tip.as_ref().and_then(|t| t.fit.as_ref()).expect("the texts measured");
+            assert_eq!((fit.lang, fit.width, fit.below.len()), (lang, WIDTH, TIPS.len()));
+            let (short, tall) = fit.below.iter().fold((f32::MAX, 0.0_f32), |(a, b), h| (a.min(*h), b.max(*h)));
+            println!("{lang}: text and link from {short} to {tall} points, body {}", body_height(WIDTH, &fit.below));
+            assert!(tall - short <= EMPTY_AT_MOST, "{lang}: {} points empty under the shortest text", tall - short);
         }
     }
 

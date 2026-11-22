@@ -1,0 +1,9 @@
+# Tip "Deleted by mistake?": a folder of the made-up external disk that has EyeCanSee's own trash
+# (stage.sh puts one photo in it), the strip at the top of the grid with Open the trash. No phone
+# needed, nothing deleted.
+open /run/media/demo/BACKUP/Pictures
+set window_start "remember"
+set window_size [880, 620]
+width 640
+4 shot trash 240 90 640 360
+4.5 end

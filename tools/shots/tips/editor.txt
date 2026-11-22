@@ -1,0 +1,17 @@
+# Tip "Draw on a picture": Wilderness in the editor with two step numbers, a text and an arrow;
+# only the picture, no words (the text is a height).
+open /home/demo/Pictures/Holiday
+width 640
+2 open Wilderness.jpg
+3.5 act edit
+6 key N
+6.2 click 340 470
+6.8 click 960 500
+7.5 key T
+7.7 click 360 160
+8.2 type 2500 m
+10 key Escape
+10.5 key A
+10.7 drag 470 260 740 500 0.6
+12.5 shot editor 270 110 800 450
+13 end

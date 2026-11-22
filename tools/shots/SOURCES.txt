@@ -1,14 +1,18 @@
-What the pictures of the illustrated guide (docs/help/img/*.webp) show. They are taken by
-EyeCanSee itself (tools/shots.sh, the scenes in this folder) in a home folder made for them
-(/home/demo), 1200 x 800 points, dark theme, English. Made up for the pictures: the servers
-(example.com), the USB stick "USB STICK" and the external disk "BACKUP" (folders in memory that
-the app takes for disks). Authors, licences and sources of every file: docs/help/img/CREDITS.md.
+What the pictures of the illustrated guide (docs/help/img) and of the tips at startup (docs/tips)
+show. They are taken by EyeCanSee itself (tools/shots.sh, the scenes in this folder) in a home
+folder made for them (/home/demo), 1200 x 800 points, dark theme, in English and, in the folders
+`it`, in Italian (the same home, its folders by their Italian names: names.it.txt). Made up for the
+pictures: the servers (example.com), the USB stick "USB STICK" and the external disk "BACKUP"
+(folders in memory that the app takes for disks). Authors, licences and sources of every file:
+docs/help/img/CREDITS.md.
 
 Photos and videos (Pictures/Holiday, Videos, the USB stick, Pictures/Phone backup): the 13
 photos and Bees on flowers.webm, Flowers.webm, Earth from space.webm of docs/screenshots/SOURCES.txt,
 public domain or CC0 from Wikimedia Commons. In Pictures/Phone backup IMG_0001-0003.jpg are copies
 of Moth, Iceberg, Sunset; on the USB stick IMG_0101-0108.jpg of Lake Sherburne, North Cascades,
-Grand Canyon, Wilder Kaiser, Apple blossoms, Quebec City, Iceberg, Moth. The phone scenes copy the
+Grand Canyon, Wilder Kaiser, Apple blossoms, Quebec City, Iceberg, Moth; on the external disk, in
+Pictures, Denali, Grand Canyon, Iceberg, Lake Sherburne, Orchid, Quebec City, Sunset, Wilderness, and
+Moth in the folder's trash (.EyeCanSee-trash, for the strip of the trash). The phone scenes copy the
 same photos and Bees on flowers.webm into DCIM/EyeCanSee-guida on the phone. Lake Garda.dng (Pictures/Holiday, the metadata panel, with
 the GPS position the phone wrote): the Google Pixel 6 Pro file of raw.pixls.us, CC0, in the test
 files as formati/RAW/Google - Pixel 6 Pro - 16bit (4-3).dng.

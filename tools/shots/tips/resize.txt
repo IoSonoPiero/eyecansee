@@ -1,0 +1,11 @@
+# Tip "Smaller copies in one click": four photos chosen, their right-click menu with Resize open.
+open /home/demo/Pictures/Holiday
+width 640
+3 mark Moth.jpg
+3 mark Iceberg.jpg
+3 mark Sunset.jpg
+3 mark Wilderness.jpg
+3.5 rclick 525 380
+4.5 move 650 383 0.3
+6.5 shot resize 330 143 844 475
+7 end

@@ -1,10 +1,10 @@
-# Tip "Hide a number plate or an address" (docs/tips/): Wilderness in the editor with a Cover box
-# (still selected, so its options show). Coordinates for a 1200 x 800 window.
+# Tip "Hide a number plate or an address": Wilderness in the editor with a Cover box (still
+# selected); only the picture, no words.
 open /home/demo/Pictures/Holiday
-width 1000
+width 640
 2 open Wilderness.jpg
 3.5 act edit
 6 key B
 6.5 drag 600 330 760 420 0.6
-8.5 shot
+8.5 shot cover 280 150 800 450
 9 end

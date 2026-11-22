@@ -1,0 +1,10 @@
+# Tip "Videos and audio": Bees on flowers in the viewer of a small window, with the player's bar;
+# no words in it.
+open /home/demo/Pictures/Holiday
+set window_start "remember"
+set window_size [800, 540]
+width 640
+2 open Bees on flowers.webm
+6 move 400 300 0.3
+7 shot video 0 65 800 450
+7.5 end

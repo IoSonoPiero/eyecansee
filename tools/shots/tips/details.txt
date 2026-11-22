@@ -1,6 +1,8 @@
-# Tip "More under the thumbnails" (docs/tips/): the grid of the Holiday folder with name,
-# dimensions, size and date under each thumbnail (all on, as at first).
+# Tip "More under the thumbnails": the grid of the Holiday folder, three columns wide, with name,
+# dimensions, size, date and, for the videos, duration under each thumbnail (all on, as at first).
 open /home/demo/Pictures/Holiday
-width 1000
-4 shot details 248 66 944 630
+set window_start "remember"
+set window_size [896, 640]
+width 640
+4 shot details 248 215 640 360
 4.5 end

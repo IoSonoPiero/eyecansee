@@ -1,0 +1,6 @@
+# Tip "Bookmarks": the star (lit: Holiday is a bookmark) and the bookmarks drop-down open.
+open /home/demo/Pictures/Holiday
+width 640
+3 click 532 41
+5 shot bookmarks 300 24 640 360
+5.5 end

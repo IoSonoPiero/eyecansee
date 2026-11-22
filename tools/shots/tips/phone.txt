@@ -1,0 +1,13 @@
+# Tip "Photos on an Android phone": a real phone, as in ../phone.txt (read it first: the phone
+# connected, unlocked, in File transfer, `pkill -x gvfsd-mtp` before, its folder
+# DCIM/EyeCanSee-guida with the free photos). The crop is the Devices block with the phone, its
+# folders and the first thumbnails; the address bar (the phone's serial number) stays out.
+phone-folders DCIM Documents Download Movies Music Pictures EyeCanSee-guida
+3 click 100 163
+6.5 open Internal shared storage
+9.5 open DCIM
+12.5 open EyeCanSee-guida
+16 click 1100 700
+width 640
+22 shot phone 0 87 800 450
+22.5 end

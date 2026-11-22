@@ -1,0 +1,8 @@
+# Tip "Convert videos": Convert for the three videos of Videos, its Videos part (the encoders
+# offered, in green those of the graphics card, depend on the computer).
+open /home/demo/Videos
+width 640
+3 act select-all
+4 act batch
+25 shot convert-video 248 22 704 396
+25.5 end

@@ -1,0 +1,6 @@
+# Tip "A NAS or a server": File > Server manager with the two made-up servers.
+open /home/demo/Pictures/Holiday
+width 640
+3 act servers
+5 shot servers 216 183 768 432
+5.5 end

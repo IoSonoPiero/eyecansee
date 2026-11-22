@@ -1,0 +1,10 @@
+# Tip "Find duplicates": in Pictures and its subfolders (Phone backup has copies of three photos),
+# the whole of a small window (800 x 450).
+open /home/demo/Pictures
+set window_start "remember"
+set window_size [800, 450]
+width 640
+3 act duplicates
+5 key Enter   # Search, in the window that asks where to look
+9 shot
+9.5 end

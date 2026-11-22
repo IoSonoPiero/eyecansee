@@ -1,8 +1,10 @@
-# Tip "Where and when a photo was taken" (docs/tips/): Lake Garda selected, the metadata panel open
-# under the grid, its lower part with the last row of thumbnails.
+# Tip "Where and when a photo was taken": Lake Garda selected, the metadata panel under the grid
+# with the Camera, Shot and Location boxes.
 open /home/demo/Pictures/Holiday
 set meta_collapsed false
-width 1000
+set meta_hidden ["file", "image", "info"]
+set meta_size 0.33
+width 640
 3 select Lake Garda.dng
-9 shot metadata 0 260 1200 540
+9 shot metadata 0 332 832 468
 9.5 end

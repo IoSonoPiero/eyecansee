@@ -1,7 +1,6 @@
-# Tip "Right-click anything" (docs/tips/): the menu of a thumbnail, Iceberg, in the Holiday folder.
-# Coordinates for a 1200 x 800 window.
+# Tip "Right-click anything": the menu of a thumbnail, Iceberg, in the Holiday folder.
 open /home/demo/Pictures/Holiday
-width 1000
+width 640
 3 rclick 525 380
-4.5 shot
+4.5 shot right-click 330 143 844 475
 5 end

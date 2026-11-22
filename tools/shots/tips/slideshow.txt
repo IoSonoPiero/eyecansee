@@ -1,7 +1,9 @@
-# Tip "Slideshow" (docs/tips/): the slideshow of the Holiday folder, from Sunset.
+# Tip "Slideshow": the slideshow of the Holiday folder, from Sunset, at full screen (a 16:9
+# screen), after the line of the keys has gone (4 s); no words.
 open /home/demo/Pictures/Holiday
-width 1000
+set slideshow_secs 20
+width 640
 2 select Sunset.jpg
 3 act slideshow
-6 shot
-6.5 end
+8 shot
+8.5 end

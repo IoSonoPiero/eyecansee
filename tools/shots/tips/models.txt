@@ -1,0 +1,7 @@
+# Tip "3D models and CAD drawings": the avocado in the viewer, turned a little; no words.
+open /home/demo/Documents/3D models
+width 640
+2 open Avocado.glb
+5 drag 600 420 700 400 1.0
+8 shot models 8 68 1184 666
+8.5 end

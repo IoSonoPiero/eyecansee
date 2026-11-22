@@ -1,0 +1,8 @@
+# Tip "Looking at pictures": Quebec City in the viewer, zoomed in; only the picture, no words.
+open /home/demo/Pictures/Holiday
+width 640
+2 open Quebec City.jpg
+4 key Plus
+4.5 key Plus
+6 shot viewer 0 62 1200 675
+6.5 end
