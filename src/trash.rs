@@ -7,7 +7,7 @@ use std::sync::Mutex;
 
 use crate::decode::is_media;
 use crate::settings::RemoteDelete;
-use crate::source::{dal_error, in_gvfs, local_path, name, parent, Error, Store};
+use crate::source::{dal_error, in_gvfs, local_path, name, parent, Error, Store, NOT_FOUND};
 
 /// Hidden folder, next to the image, where images deleted on phones and servers go.
 pub const TRASH_DIR: &str = ".EyeCanSee-trash";
@@ -284,11 +284,27 @@ impl Store {
         }
     }
 
+    /// The names in the trash folder `trash`; none when it is not there. Any other error stops:
+    /// taken for empty, the trash would get an item with the name of one already there, which a
+    /// rename on this computer or an FTP server replaces (audit 2.23). A server may answer for a
+    /// missing folder with another error than "not found": then the folder holding the trash says
+    /// whether there is one.
+    pub async fn trash_names(&self, trash: &str) -> Result<HashSet<String>, Error> {
+        match self.names(trash).await {
+            Err((NOT_FOUND, _)) => Ok(HashSet::new()),
+            Err(e) => match self.names(&parent(trash)).await {
+                Ok(names) if !names.contains(TRASH_DIR) => Ok(HashSet::new()),
+                _ => Err(e),
+            },
+            r => r,
+        }
+    }
+
     /// Moves an item into the trash folder of its folder, named `own`, or "own (2)"… if taken.
     pub async fn to_trash_folder(&self, path: &str, own: &str) -> Result<(), Error> {
         let dir = parent(path);
         let trash = format!("{dir}{TRASH_DIR}/");
-        let mut taken = self.names(&trash).await.unwrap_or_default();
+        let mut taken = self.trash_names(&trash).await?;
         // On a phone the item is renamed before being moved: free in its folder too, apart from itself.
         if let Store::Mtp(_) = self {
             taken.extend(self.names(&dir).await?.into_iter().filter(|n| n != name(path)));

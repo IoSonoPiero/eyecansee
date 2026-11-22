@@ -81,7 +81,7 @@ async fn delete_with(op: &Store, path: &str, how: Deletion, sides: &[String], na
         return Ok(());
     }
     let trash = format!("{}{TRASH_DIR}/", parent(path));
-    let mut taken = op.names(&trash).await.unwrap_or_default();
+    let mut taken = op.trash_names(&trash).await?;
     // On a phone an item is renamed in its folder before it moves (`to_trash_folder`).
     if let Store::Mtp(_) = op {
         taken.extend(names.into_iter().filter(|n| n != own && !side_names.contains(n)));
