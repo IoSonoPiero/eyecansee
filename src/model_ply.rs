@@ -23,8 +23,16 @@ fn ply_header_cleaned(bytes: &[u8]) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// A binary PLY read by EyeCanSee's own reader (`binary`), an ASCII one (or a header it leaves)
+/// by the parser of `ply-rs-bw`.
 pub(crate) fn read(bytes: &[u8]) -> Result<Mesh, String> {
     let z_up = bytes.windows(10).position(|w| w == b"end_header").is_some_and(|end| String::from_utf8_lossy(&bytes[..end]).lines().any(|l| l.trim_end() == PLY_Z_UP));
+    binary(bytes, z_up).unwrap_or_else(|| parsed(bytes, z_up))
+}
+
+/// The file read by the parser of `ply-rs-bw`: about 320 bytes for each point and face while
+/// it is read (#191), so only for ASCII files and the headers `binary` leaves to it.
+fn parsed(bytes: &[u8], z_up: bool) -> Result<Mesh, String> {
     let cleaned = ply_header_cleaned(bytes);
     let bytes = cleaned.as_deref().unwrap_or(bytes);
     let ply = Parser::<DefaultElement>::new().read_ply(&mut Cursor::new(bytes)).map_err(|e| e.to_string())?;
@@ -56,6 +64,310 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Mesh, String> {
     let colors = |i: usize| face_rgb.get(i).copied().flatten().or_else(|| average(&rgb, tris[i])).map(|c| c.map(|v| v as u8));
     b.add(pos, tris.clone(), colors)?;
     b.finish(z_up)
+}
+
+/// The type of a PLY property, and its size in the file.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Ty {
+    I8,
+    U8,
+    I16,
+    U16,
+    I32,
+    U32,
+    F32,
+    F64,
+}
+
+impl Ty {
+    fn of(name: &str) -> Option<Ty> {
+        Some(match name {
+            "char" | "int8" => Ty::I8,
+            "uchar" | "uint8" => Ty::U8,
+            "short" | "int16" => Ty::I16,
+            "ushort" | "uint16" => Ty::U16,
+            "int" | "int32" => Ty::I32,
+            "uint" | "uint32" => Ty::U32,
+            "float" | "float32" => Ty::F32,
+            "double" | "float64" => Ty::F64,
+            _ => return None,
+        })
+    }
+
+    fn size(self) -> usize {
+        match self {
+            Ty::I8 | Ty::U8 => 1,
+            Ty::I16 | Ty::U16 => 2,
+            Ty::I32 | Ty::U32 | Ty::F32 => 4,
+            Ty::F64 => 8,
+        }
+    }
+
+    fn float(self) -> bool {
+        matches!(self, Ty::F32 | Ty::F64)
+    }
+}
+
+/// A property: its name, the type of its count when it is a list, and the type of its values.
+struct Prop {
+    name: String,
+    list: Option<Ty>,
+    ty: Ty,
+}
+
+struct Element {
+    name: String,
+    count: usize,
+    props: Vec<Prop>,
+}
+
+/// The header of a binary PLY: byte order, elements, where the data starts. `None` for an ASCII
+/// file, or a header the parser of `ply-rs-bw` reads in its own way (left to it).
+fn binary_header(bytes: &[u8]) -> Option<(bool, Vec<Element>, usize)> {
+    let end = bytes.windows(10).position(|w| w == b"end_header")?;
+    let body = end + 10 + bytes[end + 10..].iter().position(|&c| c == b'\n')? + 1;
+    let (mut big, mut elements) = (None, Vec::<Element>::new());
+    // The lines the parser knows, as `ply_header_cleaned` keeps them.
+    for l in String::from_utf8_lossy(&bytes[..end]).lines() {
+        match l.split_whitespace().collect::<Vec<_>>().as_slice() {
+            ["format", "binary_little_endian", "1.0"] => big = Some(false),
+            ["format", "binary_big_endian", "1.0"] => big = Some(true),
+            ["format", ..] => return None,
+            ["element", name, count] => elements.push(Element { name: name.to_string(), count: count.parse().ok()?, props: Vec::new() }),
+            ["property", "list", c, t, name] => elements.last_mut()?.props.push(Prop { name: name.to_string(), list: Some(Ty::of(c)?), ty: Ty::of(t)? }),
+            ["property", t, name] => elements.last_mut()?.props.push(Prop { name: name.to_string(), list: None, ty: Ty::of(t)? }),
+            [first, ..] if ["property", "element"].contains(first) => return None,
+            _ => {}
+        }
+    }
+    Some((big?, elements, body))
+}
+
+/// The data of a binary PLY, read one value at a time.
+struct Data<'a> {
+    bytes: &'a [u8],
+    at: usize,
+    big: bool,
+}
+
+const CUT: &str = "the file is cut short";
+
+impl Data<'_> {
+    fn value(&mut self, t: Ty) -> Result<f64, String> {
+        let n = t.size();
+        let b = self.bytes.get(self.at..self.at + n).ok_or(CUT)?;
+        self.at += n;
+        let mut a = [0u8; 8];
+        a[..n].copy_from_slice(b);
+        if self.big {
+            a[..n].reverse();
+        }
+        let [b0, b1, b2, b3, ..] = a;
+        Ok(match t {
+            Ty::I8 => f64::from(b0 as i8),
+            Ty::U8 => f64::from(b0),
+            Ty::I16 => f64::from(i16::from_le_bytes([b0, b1])),
+            Ty::U16 => f64::from(u16::from_le_bytes([b0, b1])),
+            Ty::I32 => f64::from(i32::from_le_bytes([b0, b1, b2, b3])),
+            Ty::U32 => f64::from(u32::from_le_bytes([b0, b1, b2, b3])),
+            Ty::F32 => f64::from(f32::from_le_bytes([b0, b1, b2, b3])),
+            Ty::F64 => f64::from_le_bytes(a),
+        })
+    }
+
+    /// An index of a list: as `list` reads them, below 0 is `u32::MAX` (the strip separator).
+    fn index(&mut self, t: Ty) -> Result<u32, String> {
+        let v = self.value(t)?;
+        Ok(if v < 0.0 { u32::MAX } else { v as u32 })
+    }
+
+    /// The length of a list.
+    fn count(&mut self, t: Ty) -> Result<usize, String> {
+        let n = self.value(t)?;
+        if n < 0.0 || t.float() {
+            return Err("a list of the file has no length".into());
+        }
+        Ok(n as usize)
+    }
+
+    fn skip(&mut self, n: usize, t: Ty) -> Result<(), String> {
+        let end = n.checked_mul(t.size()).and_then(|b| b.checked_add(self.at)).filter(|&e| e <= self.bytes.len()).ok_or(CUT)?;
+        self.at = end;
+        Ok(())
+    }
+
+    fn left(&self) -> usize {
+        self.bytes.len() - self.at
+    }
+}
+
+/// What a binary PLY gives, read straight into the lists `Builder` takes: about 30 bytes a
+/// triangle, where the parser of `ply-rs-bw` keeps every point and face as a table of named
+/// values (about 320 bytes each, #191).
+#[derive(Default)]
+struct Scan {
+    pos: Vec<[f32; 3]>,
+    /// One per point, or empty: the points have no colours.
+    rgb: Vec<[f32; 3]>,
+    /// The triangles of the faces, then those of the strips.
+    tris: Vec<[u32; 3]>,
+    /// One per triangle of a face (MeshLab), or empty.
+    face_rgb: Vec<[f32; 3]>,
+    strips: Vec<[u32; 3]>,
+}
+
+/// Where the property `name` is, the last one as the parser's tables keep it.
+fn find(props: &[Prop], name: &str) -> Option<usize> {
+    props.iter().rposition(|p| p.name == name)
+}
+
+/// Red, green and blue among `props`, as `ply_color` takes them: values, multiplied by 255 when red
+/// is a float.
+fn rgb_of(props: &[Prop]) -> Option<([usize; 3], f64)> {
+    let [r, g, b] = ["red", "green", "blue"].map(|k| find(props, k).filter(|&i| props[i].list.is_none()));
+    let (r, g, b) = (r?, g?, b?);
+    Some(([r, g, b], if props[r].ty.float() { 255.0 } else { 1.0 }))
+}
+
+impl Scan {
+    fn vertices(&mut self, d: &mut Data, e: &Element) -> Result<(), String> {
+        let at = |k: &str| find(&e.props, k).filter(|&i| e.props[i].list.is_none());
+        let (x, y, z) = (at("x"), at("y"), at("z"));
+        let colour = rgb_of(&e.props);
+        let row = e.props.iter().map(|p| p.list.unwrap_or(p.ty).size()).sum::<usize>().max(1);
+        self.pos.reserve_exact(e.count.min(d.left() / row));
+        if colour.is_some() {
+            self.rgb.reserve_exact(e.count.min(d.left() / row));
+        }
+        let mut v = vec![f64::NAN; e.props.len()];
+        for _ in 0..e.count {
+            for (k, p) in e.props.iter().enumerate() {
+                match p.list {
+                    Some(c) => {
+                        let n = d.count(c)?;
+                        d.skip(n, p.ty)?;
+                    }
+                    None => v[k] = d.value(p.ty)?,
+                }
+            }
+            let get = |i: Option<usize>| i.map_or(f32::NAN, |i| v[i] as f32);
+            self.pos.push([get(x), get(y), get(z)]);
+            if let Some(([r, g, b], scale)) = colour {
+                self.rgb.push([r, g, b].map(|i| (v[i] * scale) as f32));
+            }
+        }
+        Ok(())
+    }
+
+    /// Faces (a fan of triangles each, with its colour when the faces have one) or strips.
+    fn faces(&mut self, d: &mut Data, e: &Element, strips: bool) -> Result<(), String> {
+        let list = if strips { find(&e.props, "vertex_indices") } else { find(&e.props, "vertex_indices").or_else(|| find(&e.props, "vertex_index")) };
+        // As `list` reads them: indices that are whole numbers, in a list.
+        let list = list.filter(|&i| e.props[i].list.is_some() && !e.props[i].ty.float());
+        let colour = if strips { None } else { rgb_of(&e.props) };
+        let row = e.props.iter().map(|p| p.list.unwrap_or(p.ty).size()).sum::<usize>().max(1);
+        if !strips && list.is_some() {
+            self.tris.reserve_exact(e.count.min(d.left() / row));
+        }
+        let (mut v, mut corners) = (vec![0.0; e.props.len()], Vec::new());
+        for _ in 0..e.count {
+            corners.clear();
+            for (k, p) in e.props.iter().enumerate() {
+                match p.list {
+                    Some(c) if Some(k) == list => {
+                        let n = d.count(c)?;
+                        corners.reserve(n.min(d.left() / p.ty.size()));
+                        for _ in 0..n {
+                            corners.push(d.index(p.ty)?);
+                        }
+                    }
+                    Some(c) => {
+                        let n = d.count(c)?;
+                        d.skip(n, p.ty)?;
+                    }
+                    None => v[k] = d.value(p.ty)?,
+                }
+            }
+            if strips {
+                for strip in corners.split(|&v| v == u32::MAX) {
+                    self.strips.extend(strip.windows(3).enumerate().map(|(i, w)| if i % 2 == 0 { [w[0], w[1], w[2]] } else { [w[1], w[0], w[2]] }));
+                }
+                continue;
+            }
+            let fan = (1..corners.len().saturating_sub(1)).map(|i| [corners[0], corners[i], corners[i + 1]]);
+            let before = self.tris.len();
+            self.tris.extend(fan);
+            if let Some(([r, g, b], scale)) = colour {
+                let c = [r, g, b].map(|i| (v[i] * scale) as f32);
+                self.face_rgb.extend(std::iter::repeat_n(c, self.tris.len() - before));
+            }
+        }
+        Ok(())
+    }
+
+    /// An element EyeCanSee does not use: gone over.
+    fn skip(d: &mut Data, e: &Element) -> Result<(), String> {
+        for _ in 0..e.count {
+            for p in &e.props {
+                match p.list {
+                    Some(c) => {
+                        let n = d.count(c)?;
+                        d.skip(n, p.ty)?;
+                    }
+                    None => d.skip(1, p.ty)?,
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// A binary PLY read without `ply-rs-bw` (#191); `None` when it is not one (ASCII), or its
+/// header is of a kind left to the parser: then the parser reads it, as before.
+fn binary(bytes: &[u8], z_up: bool) -> Option<Result<Mesh, String>> {
+    let (big, elements, body) = binary_header(bytes)?;
+    // Two elements of the same name: the parser keeps the last one, left to it.
+    let names: Vec<&str> = elements.iter().map(|e| e.name.as_str()).collect();
+    if names.iter().enumerate().any(|(i, n)| names[..i].contains(n)) {
+        return None;
+    }
+    if !names.contains(&"vertex") {
+        return Some(Err("no vertices in the file".into()));
+    }
+    let mut d = Data { bytes, at: body, big };
+    let mut s = Scan::default();
+    for e in &elements {
+        let read = match e.name.as_str() {
+            "vertex" => s.vertices(&mut d, e),
+            "face" => s.faces(&mut d, e, false),
+            "tristrips" => s.faces(&mut d, e, true),
+            _ => Scan::skip(&mut d, e),
+        };
+        if let Err(e) = read {
+            return Some(Err(e));
+        }
+    }
+    Some(s.mesh(z_up))
+}
+
+impl Scan {
+    fn mesh(self, z_up: bool) -> Result<Mesh, String> {
+        let Scan { pos, rgb, mut tris, face_rgb, strips } = self;
+        tris.extend(strips);
+        if tris.is_empty() {
+            return point_cloud(pos, &rgb);
+        }
+        let mut b = Builder::default();
+        if rgb.is_empty() && face_rgb.is_empty() {
+            b.add(pos, tris, |_| None)?;
+        } else {
+            // One colour a triangle (4 bytes), so that the triangles are not copied for them.
+            let colors: Vec<Option<[u8; 3]>> = tris.iter().enumerate().map(|(i, &t)| face_rgb.get(i).copied().or_else(|| average(&rgb, t)).map(|c| c.map(|v| v as u8))).collect();
+            drop((rgb, face_rgb));
+            b.add(pos, tris, |i| colors[i])?;
+        }
+        b.finish(z_up)
+    }
 }
 
 /// Points without faces (3D scans): each one a small tetrahedron, as large as the space between
@@ -142,6 +454,157 @@ mod tests {
             }
         }
         out
+    }
+
+    /// Two meshes alike, bit for bit (NaN points too).
+    fn alike(a: &Mesh, b: &Mesh) -> Result<(), String> {
+        let bits = |m: &Mesh| m.pos.iter().map(|p| p.map(f32::to_bits)).collect::<Vec<_>>();
+        let normals = |m: &Mesh| m.normals.iter().map(|n| n.map(|c| c.map(f32::to_bits))).collect::<Vec<_>>();
+        let checks = [
+            ("points", bits(a) == bits(b)),
+            ("triangles", a.tris == b.tris),
+            ("colours", a.colors == b.colors),
+            ("normals", normals(a) == normals(b)),
+            ("surfaces", a.surface == b.surface && a.surfaces == b.surfaces),
+            ("up", a.z_up == b.z_up),
+            ("box", a.center == b.center && a.radius == b.radius && a.half == b.half),
+        ];
+        match checks.iter().find(|c| !c.1) {
+            Some((what, _)) => Err(format!("{what} differ")),
+            None => Ok(()),
+        }
+    }
+
+    /// The file read by EyeCanSee's own reader as by the parser of before: the same mesh, or an
+    /// error from both. `true` when the reader took it (a binary file).
+    fn same_as_before(bytes: &[u8]) -> Result<bool, String> {
+        let z_up = read(bytes).map(|m| m.z_up).unwrap_or(false);
+        let Some(new) = binary(bytes, z_up) else { return Ok(false) };
+        match (new, parsed(bytes, z_up)) {
+            (Ok(a), Ok(b)) => alike(&a, &b).map(|()| true),
+            (Err(_), Err(_)) => Ok(true),
+            (a, b) => Err(format!("now {:?}, before {:?}", a.map(|m| m.tris.len()), b.map(|m| m.tris.len()))),
+        }
+    }
+
+    /// A PLY with `header` (the lines between "format" and "end_header") and `body`.
+    fn ply(format: &str, header: &str, body: &[u8]) -> Vec<u8> {
+        [format!("ply\nformat {format} 1.0\n{header}end_header\n").as_bytes(), body].concat()
+    }
+
+    fn le(values: &[(f64, &str)]) -> Vec<u8> {
+        values
+            .iter()
+            .flat_map(|&(v, t)| match t {
+                "c" => vec![v as i8 as u8],
+                "u" => vec![v as u8],
+                "s" => (v as i16).to_le_bytes().to_vec(),
+                "i" => (v as i32).to_le_bytes().to_vec(),
+                "I" => (v as u32).to_le_bytes().to_vec(),
+                "f" => (v as f32).to_le_bytes().to_vec(),
+                _ => v.to_le_bytes().to_vec(),
+            })
+            .collect()
+    }
+
+    /// #191: the reader of the binary files gives what the parser gave, on every kind the files
+    /// in the collection have and on files made to break it.
+    #[test]
+    fn binary_as_before_191() {
+        let xyz = "element vertex 4\nproperty float x\nproperty float y\nproperty float z\n";
+        let points: Vec<(f64, &str)> = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 1.0]].iter().flatten().map(|&v| (v, "f")).collect();
+        let quad = |t: &'static str| vec![(4.0, "u"), (0.0, t), (1.0, t), (2.0, t), (3.0, t)];
+        let mut cases: Vec<(&str, Vec<u8>)> = vec![
+            ("grid, little endian", grid(12, false)),
+            ("grid, big endian", grid(12, true)),
+            ("quad", ply("binary_little_endian", &format!("{xyz}element face 1\nproperty list uchar int vertex_indices\n"), &[le(&points), le(&quad("i"))].concat())),
+            ("vertex_index, uint, CRLF and comments", ply("binary_little_endian", &format!("comment made by hand\r\n{xyz}comment among the properties\nobj_info x\nelement face 1\nproperty list uchar uint vertex_index\r\n"), &[le(&points), le(&quad("I"))].concat())),
+            ("both names: vertex_indices wins", ply("binary_little_endian", &format!("{xyz}element face 1\nproperty list uchar int vertex_index\nproperty list uchar int vertex_indices\n"), &[le(&points), le(&[(3.0, "u"), (0.0, "i"), (1.0, "i"), (2.0, "i")]), le(&quad("i"))].concat())),
+            ("float indices: no faces, a cloud", ply("binary_little_endian", &format!("{xyz}element face 1\nproperty list uchar float vertex_indices\n"), &[le(&points), le(&quad("f"))].concat())),
+            ("indices outside and negative", ply("binary_little_endian", &format!("{xyz}element face 2\nproperty list uchar int vertex_indices\n"), &[le(&points), le(&[(3.0, "u"), (0.0, "i"), (1.0, "i"), (9.0, "i"), (3.0, "u"), (0.0, "i"), (-1.0, "i"), (2.0, "i")]), le(&quad("i"))].concat())),
+        ];
+        // Colours of the points as bytes and as floats, of the faces, a list among the points, an
+        // element of its own in between, strips with -1, doubles, a short face.
+        let rgb = "property uchar red\nproperty uchar green\nproperty uchar blue\n";
+        let colored: Vec<(f64, &str)> = points.chunks(3).enumerate().flat_map(|(i, p)| [p.to_vec(), vec![(i as f64 * 60.0, "u"), (255.0, "u"), (7.0, "u")]].concat()).collect();
+        cases.push(("point colours", ply("binary_little_endian", &format!("{xyz}{rgb}element face 1\nproperty list uchar int vertex_indices\n"), &[le(&colored), le(&quad("i"))].concat())));
+        let frgb = "property float red\nproperty float green\nproperty float blue\n";
+        let fcolored: Vec<(f64, &str)> = points.chunks(3).enumerate().flat_map(|(i, p)| [p.to_vec(), vec![(i as f64 / 4.0, "f"), (1.0, "f"), (0.5, "f")]].concat()).collect();
+        cases.push(("float colours", ply("binary_little_endian", &format!("{xyz}{frgb}element face 1\nproperty list uchar int vertex_indices\n"), &[le(&fcolored), le(&quad("i"))].concat())));
+        cases.push(("face colours", ply("binary_little_endian", &format!("{xyz}element face 2\nproperty list uchar int vertex_indices\n{rgb}"), &[le(&points), le(&quad("i")), le(&[(255.0, "u"), (0.0, "u"), (0.0, "u"), (3.0, "u"), (0.0, "i"), (2.0, "i"), (3.0, "i"), (0.0, "u"), (0.0, "u"), (255.0, "u")])].concat())));
+        let listed = "element vertex 2\nproperty float x\nproperty list uchar float extra\nproperty float y\nproperty float z\n";
+        let mut body = le(&[(0.0, "f"), (2.0, "u"), (5.0, "f"), (6.0, "f"), (0.0, "f"), (0.0, "f"), (1.0, "f"), (0.0, "u"), (1.0, "f"), (1.0, "f")]);
+        body.extend(le(&[(2.0, "s"), (9.0, "d"), (1.0, "u"), (8.0, "u"), (0.0, "s"), (3.0, "d"), (0.0, "u")]));
+        cases.push(("lists among the points, an element of its own", ply("binary_little_endian", &format!("{listed}element extra 2\nproperty short a\nproperty double b\nproperty list uchar uchar c\n"), &body)));
+        let strips = format!("{xyz}element tristrips 1\nproperty list int int vertex_indices\n");
+        cases.push(("strips", ply("binary_little_endian", &strips, &[le(&points), le(&[(7.0, "i"), (0.0, "i"), (1.0, "i"), (2.0, "i"), (3.0, "i"), (-1.0, "i"), (1.0, "i"), (2.0, "i")])].concat())));
+        cases.push(("strips before faces", ply("binary_little_endian", &format!("{strips}element face 1\nproperty list uchar int vertex_indices\n"), &[le(&points), le(&[(4.0, "i"), (0.0, "i"), (1.0, "i"), (2.0, "i"), (3.0, "i")]), le(&quad("i"))].concat())));
+        let doubles = "element vertex 3\nproperty double x\nproperty double y\nproperty double z\nelement face 2\nproperty list uchar int vertex_indices\n";
+        cases.push(("doubles, a face of two", ply("binary_big_endian", doubles, &[[0.0f64, 0.0, 0.0, 1.0, 0.0, 0.0, 0.1, 1.0, 1e-30].iter().flat_map(|v| v.to_be_bytes()).collect::<Vec<_>>(), vec![3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 1]].concat())));
+        cases.push(("a cloud with colours", ply("binary_little_endian", &format!("{xyz}{rgb}"), &le(&colored))));
+        cases.push(("Z up", ply("binary_little_endian", &format!("{}\n{xyz}element face 1\nproperty list uchar int vertex_indices\n", PLY_Z_UP), &[le(&points), le(&quad("i"))].concat())));
+        cases.push(("no x", ply("binary_little_endian", "element vertex 3\nproperty float y\nproperty float z\nelement face 1\nproperty list uchar int vertex_indices\n", &[le(&[(0.0, "f"); 6]), le(&[(3.0, "u"), (0.0, "i"), (1.0, "i"), (2.0, "i")])].concat())));
+        cases.push(("no vertex element", ply("binary_little_endian", "element face 1\nproperty list uchar int vertex_indices\n", &le(&quad("i")))));
+        // Cut short, at every length: an error, never a panic.
+        let whole = cases[2].1.clone();
+        for n in (whole.len() - 30..whole.len()).step_by(3) {
+            cases.push(("cut short", whole[..n].to_vec()));
+        }
+        for (what, bytes) in &cases {
+            assert_eq!(same_as_before(bytes), Ok(true), "{what}");
+        }
+        // The files are what they say: colours, strips and points read.
+        let got = |what: &str| read(&cases.iter().find(|c| c.0 == what).unwrap().1);
+        assert_eq!(got("face colours").unwrap().colors, vec![[255, 0, 0], [255, 0, 0], [0, 0, 255]]);
+        assert_eq!(got("point colours").unwrap().colors.len(), 2);
+        assert_eq!(got("strips").unwrap().tris, vec![[0, 1, 2], [2, 1, 3]]);
+        assert_eq!(got("strips before faces").unwrap().tris.len(), 2 + 2);
+        assert_eq!(got("lists among the points, an element of its own").unwrap().tris.len(), 8);
+        assert_eq!(got("both names: vertex_indices wins").unwrap().tris.len(), 2);
+        assert!(got("float colours").unwrap().colors[0][1] == 255 && got("cut short").is_err() && got("no vertex element").is_err());
+        // Counts beyond the file: an error at once, without asking for their memory (the parser
+        // of before is not asked: it would reserve them).
+        for head in ["element vertex 4000000000\nproperty float x\n", "element vertex 1\nproperty float x\nelement face 1\nproperty list uint int vertex_indices\n"] {
+            let bytes = ply("binary_little_endian", head, &le(&[(0.0, "f"), (4e9, "I"), (0.0, "i")]));
+            let (r, peak) = crate::test_alloc::peak(|| read(&bytes));
+            assert!(r.is_err() && peak < 1 << 20, "{head}: {peak} bytes");
+        }
+        // An ASCII file is still read by the parser.
+        assert!(binary(b"ply\nformat ascii 1.0\nelement vertex 0\nend_header\n", false).is_none());
+    }
+
+    /// #191: every binary PLY under `EYECANSEE_PLY` (and its folders) read by EyeCanSee's reader
+    /// as by the parser of before. Files over `EYECANSEE_PLY_MAX` MB (25 if not said) are left
+    /// out: the parser of before takes about 320 bytes a point or face (a 137 MB scan, 6 GB).
+    #[test]
+    #[ignore]
+    fn binary_as_before_live() {
+        let Ok(dir) = std::env::var("EYECANSEE_PLY") else { return };
+        let max: u64 = std::env::var("EYECANSEE_PLY_MAX").ok().and_then(|v| v.parse().ok()).unwrap_or(25) << 20;
+        let mut stack = vec![std::path::PathBuf::from(dir)];
+        let (mut read_by_us, mut failed) = (0, Vec::new());
+        while let Some(d) = stack.pop() {
+            for f in std::fs::read_dir(&d).unwrap().flatten() {
+                let (path, size) = (f.path(), f.metadata().map(|m| m.len()).unwrap_or(0));
+                if path.is_dir() {
+                    stack.push(path);
+                } else if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("ply")) {
+                    if size > max {
+                        println!("{}: left out, {} MB", path.display(), size >> 20);
+                        continue;
+                    }
+                    let r = same_as_before(&std::fs::read(&path).unwrap());
+                    println!("{}: {r:?}", path.display());
+                    match r {
+                        Ok(true) => read_by_us += 1,
+                        Ok(false) => {}
+                        Err(e) => failed.push(format!("{}: {e}", path.display())),
+                    }
+                }
+            }
+        }
+        println!("{read_by_us} binary files alike");
+        assert!(failed.is_empty(), "{failed:#?}");
     }
 
     /// #191: reading a binary PLY took about 870 bytes per triangle at its peak (Lucy, 28 million

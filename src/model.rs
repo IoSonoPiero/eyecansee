@@ -107,13 +107,15 @@ pub(crate) type Shine = (Option<Textured>, u16, Option<[[f32; 3]; 3]>);
 pub(crate) struct Builder {
     pos: Vec<[f32; 3]>,
     tris: Vec<[u32; 3]>,
+    /// Per triangle, from the first triangle that has one; shorter (or empty) when the last ones
+    /// have none: a scan of 28 million triangles does not take 80 bytes for each of them (#191).
     colors: Vec<Option<[u8; 3]>>,
     uv: Vec<Option<Textured>>,
     textures: Vec<std::sync::Arc<image::RgbaImage>>,
     /// Pictures already read by `texture_file`, by the name the model gives them.
     named: std::collections::HashMap<String, u16>,
     surfaces: Vec<Surface>,
-    /// Per triangle: surface and normals (`Shine`).
+    /// Per triangle, as `colors`: surface and normals (`Shine`).
     shine: Vec<(u16, Option<[[f32; 3]; 3]>)>,
     /// Nodes and instances placed so far (`visit`), points and triangles brought (`MAX_OFFERED`).
     visits: usize,
@@ -148,13 +150,19 @@ impl Builder {
         }
         let base = self.pos.len() as u32;
         let n = pos.len() as u32;
-        for (i, t) in tris.into_iter().enumerate() {
+        let tris = tris.into_iter();
+        // As many as given at once (a list), not twice as many by growing.
+        self.tris.reserve(tris.size_hint().0.min(MAX_TRIANGLES + 1));
+        for (i, t) in tris.enumerate() {
             if t.iter().all(|&v| v < n) {
                 self.tris.push(t.map(|v| v + base));
-                self.colors.push(color(i));
                 let (uv, surface, normals) = shine(i);
-                self.uv.push(uv.filter(|(c, k)| (*k > 0 || surface > 0) && c.iter().flatten().all(|v| v.is_finite())));
-                self.shine.push((surface, normals.filter(|n| n.iter().flatten().all(|v| v.is_finite()))));
+                let uv = uv.filter(|(c, k)| (*k > 0 || surface > 0) && c.iter().flatten().all(|v| v.is_finite()));
+                let normals = normals.filter(|n| n.iter().flatten().all(|v| v.is_finite()));
+                let k = self.tris.len() - 1;
+                pad(&mut self.colors, k, color(i));
+                pad(&mut self.uv, k, uv);
+                pad(&mut self.shine, k, (surface, normals));
             }
             self.offered += 1;
             if self.tris.len() > MAX_TRIANGLES {
@@ -252,17 +260,18 @@ impl Builder {
         if !(radius.is_finite() && center.iter().chain(&half).all(|v| v.is_finite())) {
             return Err(TOO_FAR.into());
         }
-        let colors = if colors.iter().any(Option::is_some) { tris.iter().map(|&(i, _)| colors[i].unwrap_or(DEFAULT)).collect() } else { Vec::new() };
+        let colors = if colors.iter().any(Option::is_some) { tris.iter().map(|&(i, _)| colors.get(i).copied().flatten().unwrap_or(DEFAULT)).collect() } else { Vec::new() };
         let textured = uv.iter().any(Option::is_some);
-        let (uv, tex) = if textured { tris.iter().map(|&(i, _)| uv[i].unwrap_or(([[0.0; 2]; 3], 0))).unzip() } else { (Vec::new(), Vec::new()) };
+        let (uv, tex) = if textured { tris.iter().map(|&(i, _)| uv.get(i).copied().flatten().unwrap_or(([[0.0; 2]; 3], 0))).unzip() } else { (Vec::new(), Vec::new()) };
+        let shine_of = |i: usize| shine.get(i).copied().unwrap_or((0, None));
         let textures = if textured { textures } else { Vec::new() };
         // Normals worked out where the file gives none, and those triangles matte (as before, smooth).
         // ponytail: not beyond SMOOTH_MAX triangles, where the normals would take gigabytes
         let mut surfaces = surfaces;
-        let missing = tris.iter().any(|&(i, _)| shine[i].1.is_none());
+        let missing = tris.iter().any(|&(i, _)| shine_of(i).1.is_none());
         let smooth = if missing && tris.len() <= SMOOTH_MAX { crate::model_smooth::normals(&pos, &tris.iter().map(|&(_, t)| t).collect::<Vec<_>>()) } else { Vec::new() };
         let matte = if smooth.is_empty() { 0 } else { surfaces.iter().position(|s| *s == Surface::default()).unwrap_or_else(|| { surfaces.push(Surface::default()); surfaces.len() - 1 }) as u16 + 1 };
-        let pick = |k: usize, i: usize| match shine[i] {
+        let pick = |k: usize, i: usize| match shine_of(i) {
             (s, Some(n)) => (s, n),
             (s, None) => (if s > 0 { s } else { matte }, smooth.get(k).copied().unwrap_or_default()),
         };
@@ -271,6 +280,16 @@ impl Builder {
         let surfaces = if shiny { surfaces } else { Vec::new() };
         Ok(Mesh { pos, tris: tris.into_iter().map(|(_, t)| t).collect(), colors, z_up, center, radius, half, uv, tex, textures, surface, surfaces, normals, unit: None, warnings })
     }
+}
+
+/// Puts `v` at `k` of a list kept per triangle (`Builder`): nothing while the list is empty and
+/// `v` the default, else after the defaults for the triangles before.
+fn pad<T: Default + PartialEq + Clone>(list: &mut Vec<T>, k: usize, v: T) {
+    if list.is_empty() && v == T::default() {
+        return;
+    }
+    list.resize(k, T::default());
+    list.push(v);
 }
 
 /// The Fluent id that says warning `id` (`Mesh::warnings`) of a file made from the model, with its
@@ -302,11 +321,32 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<Mesh, String> {
 
 /// Like `parse`, reading the files next to the model through `sibling`.
 pub fn parse_with(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, String> {
-    let mut mesh = read_as(bytes, name, sibling)?;
+    let mesh = read_as(bytes, name, sibling);
+    if bytes.len() >= GIVE_BACK_BYTES || mesh.as_ref().is_ok_and(|m| m.tris.len() >= GIVE_BACK_TRIANGLES) {
+        give_back();
+    }
+    let mut mesh = mesh?;
     if mesh.unit.is_none() {
         mesh.unit = unit_of(name);
     }
     Ok(mesh)
+}
+
+/// After reading a file this large, or a model of this many triangles, the memory freed is given
+/// back to the system (`give_back`): reading takes several times what the model keeps (#191).
+const GIVE_BACK_BYTES: usize = 32 << 20;
+const GIVE_BACK_TRIANGLES: usize = 1_000_000;
+
+/// The memory freed by the reading given back to the system at once. glibc keeps it for the next
+/// allocations, and a model of 28 million triangles left 6 GB to the process after a reading
+/// of which 0.5 GB were still used (#191, measured on Linux). Elsewhere nothing: other allocators
+/// give memory back by themselves [Unverified on Windows and musl].
+fn give_back() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    // SAFETY: malloc_trim only goes through glibc's free lists; it takes no pointer.
+    unsafe {
+        libc::malloc_trim(0);
+    }
 }
 
 /// The unit a format fixes: glTF, IFC (as `ifc-lite` gives it), X3D and VRML in metres; STEP and
