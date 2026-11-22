@@ -65,9 +65,9 @@ pub const TOO_MANY_POINTS: &str = "error-model-too-many-points";
 
 /// The rarer refusals of a model or a drawing too large, sent as `id\u{1}max` (`too_many`): what
 /// was counted went beyond `max`. Points and triangles brought by the parts (`Limit::offered`),
-/// lines and points (`model_lines::fits`), parts placed (`Builder::visit`, X3D's nodes), files
+/// lines and points (`model_lines::fits`), parts repeated (`Builder::visit`, X3D's nodes), files
 /// inlined (X3D), what a zip or a compressed file unpacks to (`model_3mf::Unpacked`, in MB and
-/// in times its size), and a drawing's points, elements and blocks placed (`cad`).
+/// in times its size), and a drawing's points, elements and blocks repeated (`cad`).
 pub(crate) const OFFERED: &str = "error-model-too-many-offered";
 pub(crate) const LINES: &str = "error-model-too-many-lines";
 pub(crate) const PLACED: &str = "error-model-too-many-placed";
@@ -147,7 +147,13 @@ pub(crate) fn said(i18n: &crate::i18n::I18n, id: &str, detail: &str, brief: bool
         _ => return None,
     };
     let max = max.parse::<usize>().ok()?;
-    let max = if AS_IT_IS.contains(&id) { max.to_string() } else { millions(i18n, max) };
+    let max = match id {
+        // In MB: whole GB said as GB ("2 GB").
+        UNPACKED if max >= 1024 && max.is_multiple_of(1024) => format!("{} GB", max / 1024),
+        UNPACKED => format!("{max} MB"),
+        _ if AS_IT_IS.contains(&id) => max.to_string(),
+        _ => millions(i18n, max),
+    };
     let id = if brief { format!("{id}-brief") } else { id.to_string() };
     Some(i18n.t_args(&id, &[("format", format), ("max", &max)]))
 }

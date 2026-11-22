@@ -643,16 +643,16 @@ error-model-too-many-points = The point cloud has more than { $max } million poi
         [ply-binary] binary PLY files
        *[ply-text] text PLY files
     } with more than { $max } million points, so that reading them does not fill the computer's memory.
-# The rarer refusals of a model or a drawing too large: { $max } in millions (1, 1.25, 200) where the sentence says "million", else as it is (1000 files, 2048 MB, 100 times).
+# The rarer refusals of a model or a drawing too large: { $max } in millions (1, 1.25, 200) where the sentence says "million", else as it is (1000 files, "2 GB" with its unit, 100 times).
 error-model-too-many-offered = The model has more than { $max } million points and triangles, too many to open.
 error-model-too-many-lines = The model has more than { $max } million lines and points, too many to open.
-error-model-too-many-placed = The model places its parts more than { $max } million times, too many to open.
+error-model-too-many-placed = The model repeats its parts more than { $max } million times, too many to open.
 error-model-too-many-inlined = The model includes other files more than { $max } times, too many to open.
-error-model-unpacks-too-large = Unpacked, the file would take more than { $max } MB, too much to open.
-error-model-unpacks-too-many-times = Unpacked, the file would be more than { $max } times its size, too much to open.
+error-model-unpacks-too-large = Unpacked, the file would take more than { $max }, too much to open.
+error-model-unpacks-too-many-times = Unpacked, the file would be more than { $max } times larger, too much to open.
 error-drawing-too-many-points = The drawing has more than { $max } million points, too many to open.
 error-drawing-too-many-entities = The drawing has more than { $max } million elements, too many to open.
-error-drawing-too-many-placed = The drawing places its blocks more than { $max } million times, too many to open.
+error-drawing-too-many-placed = The drawing repeats its blocks more than { $max } million times, too many to open.
 # A few words after a file's name in the list of a message ("a.gltf: the file a.bin is missing"): no capital, no full stop.
 error-gltf-bin-missing-brief = the file { $detail } is missing
 error-gltf-bin-outside-brief = the data is outside the model's folder ({ $detail })
@@ -664,13 +664,13 @@ error-model-too-many-triangles-brief = more than { $max } million triangles
 error-model-too-many-points-brief = more than { $max } million points
 error-model-too-many-offered-brief = more than { $max } million points and triangles
 error-model-too-many-lines-brief = more than { $max } million lines and points
-error-model-too-many-placed-brief = parts placed more than { $max } million times
+error-model-too-many-placed-brief = parts repeated more than { $max } million times
 error-model-too-many-inlined-brief = other files included more than { $max } times
-error-model-unpacks-too-large-brief = unpacked, more than { $max } MB
-error-model-unpacks-too-many-times-brief = unpacked, more than { $max } times its size
+error-model-unpacks-too-large-brief = unpacked, more than { $max }
+error-model-unpacks-too-many-times-brief = unpacked, more than { $max } times larger
 error-drawing-too-many-points-brief = more than { $max } million points
 error-drawing-too-many-entities-brief = more than { $max } million elements
-error-drawing-too-many-placed-brief = blocks placed more than { $max } million times
+error-drawing-too-many-placed-brief = blocks repeated more than { $max } million times
 # The keys of the viewer, under the status bar.
 hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | Ctrl + L: layers | M: measure | N, Shift + N: next, previous change of a comparison | →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Ctrl + Shift + S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
 hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift + L: next, previous layout | Ctrl + L: layers | M: measure | N, Shift + N: next, previous change of a comparison | →, Space, Page Down: next file | ←, Backspace, Page Up: previous file | Home, End: first, last file | Ctrl + Shift + S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
@@ -758,16 +758,16 @@ model-export-beyond = { $n ->
     }
    *[other] { $n } of the models have
 } more than { $max } million triangles: EyeCanSee will not be able to open the new { $format } { $n ->
-    [one] file. You can export it all the same.
-   *[other] files. You can export them all the same.
+    [one] file. You can still export it.
+   *[other] files. You can still export them.
 }
 model-export-beyond-heading = { $n ->
-    [one] 1 model exported into a file that EyeCanSee will not be able to open:
-   *[other] { $n } models exported into files that EyeCanSee will not be able to open:
+    [one] 1 model exported to a file that EyeCanSee will not be able to open:
+   *[other] { $n } models exported to files that EyeCanSee will not be able to open:
 }
 model-export-beyond-why = { $n ->
-    [one] It has more triangles than EyeCanSee opens in its new format.
-   *[other] They have more triangles than EyeCanSee opens in their new format.
+    [one] It has more triangles than EyeCanSee can open in that format.
+   *[other] They have more triangles than EyeCanSee can open in that format.
 }
 hint-model = Arrows or drag: rotate | Shift + drag: move | Wheel, + and −: zoom | 0: starting view | M: measure | S: section | Space, Page Down: next | Backspace, Page Up: previous | Home, End: first, last | Ctrl + Shift + S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
 hint-edit-select = Click: select an object | Drag: move it | Drag a corner or an end: resize (Shift: a box keeps its proportions; a pasted piece keeps them, Shift frees them) | Drag the round handle above the object: rotate it (Shift: 15° at a time) | Double click on a text or bubble: change its letters | Del: delete | Ctrl + C: copy the result | Esc: let go of the object
