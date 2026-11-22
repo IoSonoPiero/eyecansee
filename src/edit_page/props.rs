@@ -60,14 +60,17 @@ pub(super) fn lens(ui: &mut egui::Ui, style: &mut Style, i18n: &I18n) {
 
 /// A text: a line round its letters and a box behind them, each turned on by its button, with
 /// its colour and sizes; in pixels of the image, kept as fractions of the letters' height
-/// (`style.width` for a text), so they grow with them.
+/// (`style.width` for a text), so they grow with them. Written back only when a slider is moved:
+/// `frac * size / size` is not always `frac` in f32, and each Undo made a step of its own (219
+/// with the outline, audit 5.7).
 pub(super) fn text_look(ui: &mut egui::Ui, style: &mut Style, i18n: &I18n) {
     let size = style.width.max(1.0);
     let px = |ui: &mut egui::Ui, (salt, label): (&str, &str), frac: &mut f32, lo: f32, hi: f32| {
         let mut v = *frac * size;
         let range = lo..=hi.max(lo + 1.0);
-        slider(ui, salt, i18n.t(label), egui::Slider::new(&mut v, range.clone()).integer().suffix(" px"), &crate::ticked::Marks::whole(&range));
-        *frac = v / size;
+        if slider(ui, salt, i18n.t(label), egui::Slider::new(&mut v, range.clone()).integer().suffix(" px"), &crate::ticked::Marks::whole(&range)).changed() {
+            *frac = v / size;
+        }
     };
     ui.separator();
     if ui.add(egui::Button::new(i18n.t("edit-outline")).selected(style.outline.is_some())).on_hover_text(i18n.t("edit-outline-hint")).clicked() {
@@ -84,8 +87,9 @@ pub(super) fn text_look(ui: &mut egui::Ui, style: &mut Style, i18n: &I18n) {
     if let Some(back) = &mut style.back {
         colours(ui, &mut back.color, i18n);
         let mut pct = back.opacity * 100.0;
-        slider(ui, "edit-text-back", i18n.t("edit-opacity"), egui::Slider::new(&mut pct, 5.0..=100.0).integer().suffix(" %"), &crate::ticked::Marks::whole(&(5.0..=100.0)));
-        back.opacity = pct / 100.0;
+        if slider(ui, "edit-text-back", i18n.t("edit-opacity"), egui::Slider::new(&mut pct, 5.0..=100.0).integer().suffix(" %"), &crate::ticked::Marks::whole(&(5.0..=100.0))).changed() {
+            back.opacity = pct / 100.0;
+        }
         px(ui, ("edit-margin", "edit-margin"), &mut back.margin, 0.0, size);
         px(ui, ("edit-corners", "edit-corners"), &mut back.radius, 0.0, size);
     }
