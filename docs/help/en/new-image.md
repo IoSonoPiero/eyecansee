@@ -1,17 +1,17 @@
 # New image
 
-**File > New image…** (Ctrl+N) makes an empty image and opens it in the editor, to draw a diagram, a sign or a picture for social media.
+**File > New image…** (**Ctrl + N**) makes an empty image and opens it in the editor, to draw a diagram, a sign or a picture for social media.
 
 ![New image](../img/new-image.webp)
 
 ## Making a new image
 
-1. In the grid, choose **File > New image…** or press Ctrl+N.
+1. In the grid, choose **File > New image…** or press **Ctrl + N**.
 2. Choose a **Size**, or type your own.
 3. Choose the **Background**.
 4. Click **Create** (or press Enter).
 
-In the viewer **New image…** is greyed out and Ctrl+N does nothing: go back to the grid first (Esc).
+In the viewer **New image…** is greyed out and **Ctrl + N** does nothing: go back to the grid first (Esc).
 
 ## Size
 
@@ -28,15 +28,15 @@ No side can be longer than 20,000 pixels.
 
 ## From the clipboard
 
-**File > Open from clipboard** opens in the editor, as a new image, a picture copied in another program: a screenshot, a picture copied from a web page or from another editor. It is named `Pasted image` and is saved as a new image (see below). Ctrl+V in the grid still pastes files.
+**File > Open from clipboard** opens in the editor, as a new image, a picture copied in another program: a screenshot, a picture copied from a web page or from another editor. It is named `Pasted image` and is saved as a new image (see below). **Ctrl + V** in the grid still pastes files.
 
 When the clipboard has no image, a message says so. Like **New image…**, the item is greyed out in the viewer and when no folder is open.
 
-To paste a copied picture onto an image you are already editing, use Ctrl+V in the editor: see [Selecting an area](editor-marquee.md).
+To paste a copied picture onto an image you are already editing, use **Ctrl + V** in the editor: see [Selecting an area](editor-marquee.md).
 
 ## Saving it
 
-The new image has no file yet. In the editor its main button is **Save as…** (also Ctrl+S): it opens [Save as](save-as.md), where you choose the name, the format and the folder. It always proposes a PNG named as the editor calls the image (`New image.png`, or `Pasted image.png` from the clipboard), also after a Save as… in another format; closing it without saving goes back to the editor with the drawing. **Overwrite the original…** is off.
+The new image has no file yet. In the editor its main button is **Save as…** (also **Ctrl + S**): it opens [Save as](save-as.md), where you choose the name, the format and the folder. It always proposes a PNG named as the editor calls the image (`New image.png`, or `Pasted image.png` from the clipboard), also after a Save as… in another format; closing it without saving goes back to the editor with the drawing. **Overwrite the original…** is off.
 
 If you close the editor without drawing anything, nothing is asked and nothing is saved. With a drawing, closing asks first: **Save…** and **Save as…** both open the Save as page, **Don't save** loses the drawing, **Cancel** goes back to it.
 

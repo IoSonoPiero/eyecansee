@@ -21,7 +21,7 @@ EyeCanSee checks the name while you type: it cannot be empty, contain `/` or `\`
 ## New folder
 
 1. Open the folder where the new one should go.
-2. Press **Ctrl+Shift+N**, or click ![New folder…](icon://folder-plus) in the toolbar, or choose **File > New folder…**, or right-click an empty spot of the grid and choose **New folder…**.
+2. Press **Ctrl + Shift + N**, or click ![New folder…](icon://folder-plus) in the toolbar, or choose **File > New folder…**, or right-click an empty spot of the grid and choose **New folder…**.
 3. The name is already written ("New folder", with " (2)" when it is taken) and selected: type the one you want.
 4. Press **Enter** or click **Create**. The new folder is selected in the grid.
 

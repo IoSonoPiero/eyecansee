@@ -40,11 +40,11 @@ Lines, arrows, freehand strokes, rectangles and ellipses can be ![Solid](icon://
 3. Choose **1 px**, **3×3** or **5×5**: one pixel, or the average of the pixels around it.
 4. Click. The colour goes to the style in the bar, its hex code goes to the clipboard, and the status bar shows its codes for a few seconds.
 
-Esc cancels. With a drawing tool, **Alt+click** takes a colour at once and keeps the tool.
+Esc cancels. With a drawing tool, **Alt + click** takes a colour at once and keeps the tool.
 
 ## Colours from anywhere on the screen
 
-- **Linux**: the eyedropper button and **Shift+I** open the system's colour picker, to take a colour from anywhere on the screen. **I** takes it on the image, with the box.
+- **Linux**: the eyedropper button and **Shift + I** open the system's colour picker, to take a colour from anywhere on the screen. **I** takes it on the image, with the box.
 - **Windows**: the eyedropper takes a colour from the image. To take one from elsewhere on the screen, press on the image and let go where the colour is; the box shows the colour under the pointer.
 
 The eyedropper is in the bar only where there is a colour to choose: not with Select and nothing selected, not for a spotlight, a filter or a pasted part, not with Crop and rotate.

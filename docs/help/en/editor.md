@@ -6,9 +6,9 @@ The editor is a page of its own where you draw on one image, cover private detai
 
 ## Opening the editor
 
-- **Image > Edit image…** (Ctrl+E), the ![Edit image](icon://square-pen) button on the toolbar, or **Edit image…** in the right-click menu.
+- **Image > Edit image…** (**Ctrl + E**), the ![Edit image](icon://square-pen) button on the toolbar, or **Edit image…** in the right-click menu.
 - **Image > Rotate and crop…** opens the same page with the crop tool already chosen. See [Crop and rotate](editor-crop.md).
-- **File > New image…** (Ctrl+N) opens an empty image in the editor. See [New image](new-image.md).
+- **File > New image…** (**Ctrl + N**) opens an empty image in the editor. See [New image](new-image.md).
 - **File > Open from clipboard** opens in the editor an image copied in another program. See [New image](new-image.md).
 
 The editor works on one image at a time. With several images selected, these items are off; to turn several images at once use [Rotating and flipping](rotate.md) or [Converting and resizing images](convert.md). They are also off for an animated image or one with several pages, in the grid as in the viewer, because only the first picture would be saved.
@@ -66,11 +66,11 @@ Good to know:
 
 ## Undo and redo
 
-![Undo](icon://undo-2) **Undo** (Ctrl+Z) and ![Redo](icon://redo-2) **Redo** (Ctrl+Y or Ctrl+Shift+Z) go back and forward through every change, rotation and crop included. While you type in a text field, Ctrl+Z undoes the typing in that field.
+![Undo](icon://undo-2) **Undo** (**Ctrl + Z**) and ![Redo](icon://redo-2) **Redo** (**Ctrl + Y** or **Ctrl + Shift + Z**) go back and forward through every change, rotation and crop included. While you type in a text field, **Ctrl + Z** undoes the typing in that field.
 
 ## Resizing the image
 
-![Resize](icon://scaling) **Resize** (Ctrl+Alt+I) changes the size of the image, for example to make a marked-up screenshot smaller for a document.
+![Resize](icon://scaling) **Resize** (**Ctrl + Alt + I**) changes the size of the image, for example to make a marked-up screenshot smaller for a document.
 
 1. Click ![Resize](icon://scaling) **Resize**. The window shows the size of the result now.
 2. Type the new width or height, in **pixels** or in **percent** of the size now. With **Keep the proportions** on (as it starts), the other side follows.
@@ -81,14 +81,14 @@ What you drew follows the image: arrows, boxes, texts and the widths of the line
 
 Good to know:
 
-- **Undo** (Ctrl+Z) takes the image back to the size it had, in one step. Resizing again always starts from the original, so the picture never loses quality twice.
+- **Undo** (**Ctrl + Z**) takes the image back to the size it had, in one step. Resizing again always starts from the original, so the picture never loses quality twice.
 - With the image turned by an angle (see [Crop and rotate](editor-crop.md)) the proportions stay as they are: with others it would come out slanted.
 - The new size goes into the saved file's metadata; the rest of the metadata is kept. An Ultra HDR photo stays HDR.
 - At most 20000 pixels a side. To resize many images at once use [Converting and resizing images](convert.md).
 
 ## Moving around the image
 
-- Mouse wheel (or Ctrl+wheel, or a pinch): zoom around the pointer.
+- Mouse wheel (or **Ctrl + wheel**, or a pinch): zoom around the pointer.
 - **+** and **−**: zoom around the middle. **0** or a double click: everything in view.
 - In the status bar, click the percentage and type another (for example **37** and **Enter**; **Esc** leaves it as it was), or drag the slider beside it, with marks on round zooms (10%, 25%, 50%, 100%, 200%…), as in the [viewer](viewer.md).
 - Drag with the right or middle button to move the view. With Select, dragging on an empty spot moves the view too.
@@ -98,9 +98,9 @@ Good to know:
 
 The **Keys** button in the status bar lists the keys and mouse moves of the tool in use. Point at it to see the list, or click it to keep the list open.
 
-- **Ctrl+C** (or ![Copy](icon://copy) **Copy**) puts the whole result, at full size, on the clipboard, to paste in another program. With Selection it copies only the chosen part.
-- **Ctrl+R** and **Ctrl+Shift+R** turn the image a quarter to the right or left.
-- **Ctrl+Alt+I** opens Resize.
+- **Ctrl + C** (or ![Copy](icon://copy) **Copy**) puts the whole result, at full size, on the clipboard, to paste in another program. With Selection it copies only the chosen part.
+- **Ctrl + R** and **Ctrl + Shift + R** turn the image a quarter to the right or left.
+- **Ctrl + Alt + I** opens Resize.
 - **Esc** does one thing at a time: it stops the eyedropper or a drag, ends the text being typed, lets go of the selected area or object. When there is nothing left to stop, it closes the page.
 
 ## Closing

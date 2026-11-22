@@ -1,17 +1,17 @@
 # Nuova immagine
 
-**File > Nuova immagine…** (Ctrl+N) crea un'immagine vuota e la apre nell'editor, per disegnare uno schema, un cartello o un'immagine per i social.
+**File > Nuova immagine…** (**Ctrl + N**) crea un'immagine vuota e la apre nell'editor, per disegnare uno schema, un cartello o un'immagine per i social.
 
 ![Nuova immagine](../img/new-image.webp)
 
 ## Creare un'immagine nuova
 
-1. Nella griglia scegli **File > Nuova immagine…** o premi Ctrl+N.
+1. Nella griglia scegli **File > Nuova immagine…** o premi **Ctrl + N**.
 2. Scegli una **Misura**, o scrivi la tua.
 3. Scegli lo **Sfondo**.
 4. Fai clic su **Crea** (o premi Invio).
 
-Nel visore **Nuova immagine…** è grigia e Ctrl+N non fa niente: prima torna alla griglia (Esc).
+Nel visore **Nuova immagine…** è grigia e **Ctrl + N** non fa niente: prima torna alla griglia (Esc).
 
 ## Misura
 
@@ -28,15 +28,15 @@ Nessun lato può superare i 20.000 pixel.
 
 ## Dagli appunti
 
-**File > Apri dagli appunti** apre nell'editor, come immagine nuova, un'immagine copiata in un altro programma: una schermata, un'immagine copiata da una pagina web o da un altro editor. Si chiama `Immagine incollata` e si salva come un'immagine nuova (vedi sotto). Ctrl+V nella griglia continua a incollare file.
+**File > Apri dagli appunti** apre nell'editor, come immagine nuova, un'immagine copiata in un altro programma: una schermata, un'immagine copiata da una pagina web o da un altro editor. Si chiama `Immagine incollata` e si salva come un'immagine nuova (vedi sotto). **Ctrl + V** nella griglia continua a incollare file.
 
 Quando negli appunti non c'è un'immagine, un messaggio lo dice. Come **Nuova immagine…**, la voce è grigia nel visore e quando non c'è una cartella aperta.
 
-Per incollare un'immagine copiata su un'immagine che stai già modificando, usa Ctrl+V nell'editor: vedi [Selezionare un'area](editor-marquee.md).
+Per incollare un'immagine copiata su un'immagine che stai già modificando, usa **Ctrl + V** nell'editor: vedi [Selezionare un'area](editor-marquee.md).
 
 ## Salvarla
 
-L'immagine nuova non ha ancora un file. Nell'editor il suo pulsante principale è **Salva come…** (anche Ctrl+S): apre [Salva come](save-as.md), dove scegli nome, formato e cartella. Propone sempre un PNG col nome che l'editor dà all'immagine (`Nuova immagine.png`, o `Immagine incollata.png` dagli appunti), anche dopo un Salva come… in un altro formato; chiudendola senza salvare torni all'editor col disegno. **Sovrascrivi l'originale…** è spento.
+L'immagine nuova non ha ancora un file. Nell'editor il suo pulsante principale è **Salva come…** (anche **Ctrl + S**): apre [Salva come](save-as.md), dove scegli nome, formato e cartella. Propone sempre un PNG col nome che l'editor dà all'immagine (`Nuova immagine.png`, o `Immagine incollata.png` dagli appunti), anche dopo un Salva come… in un altro formato; chiudendola senza salvare torni all'editor col disegno. **Sovrascrivi l'originale…** è spento.
 
 Se chiudi l'editor senza aver disegnato niente, non viene chiesto niente e non viene salvato niente. Con un disegno, alla chiusura viene chiesto prima: **Salva…** e **Salva come…** aprono entrambi la pagina Salva come, **Non salvare** perde il disegno, **Annulla** torna al disegno.
 

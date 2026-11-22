@@ -18,7 +18,7 @@ A new bookmark takes the name of the folder or the picture; for the top of a dis
 
 - Click ![Bookmarks](icon://bookmark) **Bookmarks**, the drop-down just after the star, and choose a bookmark. Pointing at a bookmark shows its address.
 - Or use the **Bookmarks** menu in the menu bar.
-- Or press **Ctrl+Shift+D**: the drop-down opens; the **Down** arrow enters the list and **Enter** opens the bookmark chosen.
+- Or press **Ctrl + Shift + D**: the drop-down opens; the **Down** arrow enters the list and **Enter** opens the bookmark chosen.
 
 A bookmark opens exactly as if you typed its address in the address bar: a server asks for its password or the master password as usual, and a picture you turned and did not save is asked about first.
 

@@ -24,5 +24,5 @@ Una linea o una freccia selezionata ha tre maniglie: i due capi e il punto di me
 
 ## Tasti
 
-- **I**: contagocce. **Alt+clic**: prende un colore e lo strumento resta.
+- **I**: contagocce. **Alt + clic**: prende un colore e lo strumento resta.
 - **Canc**: elimina la linea selezionata. **Esc**: la lascia.

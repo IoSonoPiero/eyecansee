@@ -18,7 +18,7 @@ Un segnalibro nuovo prende il nome della cartella o della foto; per la cima di u
 
 - Fai clic su ![Segnalibri](icon://bookmark) **Segnalibri**, la tendina subito dopo la stella, e scegli un segnalibro. Passando col mouse su un segnalibro compare il suo indirizzo.
 - Oppure usa il menù **Segnalibri** nella barra dei menù.
-- Oppure premi **Ctrl+Maiusc+D**: si apre la tendina; la freccia **Giù** entra nell'elenco e **Invio** apre il segnalibro scelto.
+- Oppure premi **Ctrl + Maiusc + D**: si apre la tendina; la freccia **Giù** entra nell'elenco e **Invio** apre il segnalibro scelto.
 
 Un segnalibro si apre proprio come se avessi scritto il suo indirizzo nella barra degli indirizzi: un server chiede la sua password o la password principale come al solito, e per una foto ruotata e non salvata EyeCanSee chiede prima cosa fare.
 

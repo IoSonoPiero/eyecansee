@@ -21,7 +21,7 @@ EyeCanSee controlla il nome mentre scrivi: non può essere vuoto, contenere `/` 
 ## Nuova cartella
 
 1. Apri la cartella in cui deve andare quella nuova.
-2. Premi **Ctrl+Maiusc+N**, oppure fai clic su ![Nuova cartella…](icon://folder-plus) nella barra strumenti, oppure scegli **File > Nuova cartella…**, oppure fai clic destro su uno spazio vuoto della griglia e scegli **Nuova cartella…**.
+2. Premi **Ctrl + Maiusc + N**, oppure fai clic su ![Nuova cartella…](icon://folder-plus) nella barra strumenti, oppure scegli **File > Nuova cartella…**, oppure fai clic destro su uno spazio vuoto della griglia e scegli **Nuova cartella…**.
 3. Il nome è già scritto ("Nuova cartella", con " (2)" se è preso) e selezionato: scrivi quello che vuoi.
 4. Premi **Invio** o fai clic su **Crea**. La cartella nuova viene selezionata nella griglia.
 

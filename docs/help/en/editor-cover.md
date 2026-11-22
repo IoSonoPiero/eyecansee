@@ -20,9 +20,9 @@ The box covers what you drew before it. What you draw after it stays on top.
 
 The [Filters](editor-filters.md) Blur and Pixelate look like hiding, but they are not enough for private text or numbers: at a low amount they can still be read, or worked back. For those, always use Cover.
 
-A part cut with Ctrl+X in [Selecting an area](editor-marquee.md) is covered the same way.
+A part cut with **Ctrl + X** in [Selecting an area](editor-marquee.md) is covered the same way.
 
 ## Keys
 
-- **I**: eyedropper. **Alt+click**: take a colour and keep the tool.
+- **I**: eyedropper. **Alt + click**: take a colour and keep the tool.
 - **Del**: delete the selected box. **Esc**: let go of it.

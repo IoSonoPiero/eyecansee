@@ -20,9 +20,9 @@ Il riquadro copre ciò che hai disegnato prima. Ciò che disegni dopo gli resta 
 
 I [Filtri](editor-filters.md) Sfoca e Pixel grossi sembrano nascondere, ma non bastano per testi o numeri privati: con poca intensità si leggono ancora, o si possono ricostruire. Per quelli usa sempre Copertura.
 
-Una zona tagliata con Ctrl+X in [Selezionare un'area](editor-marquee.md) viene coperta allo stesso modo.
+Una zona tagliata con **Ctrl + X** in [Selezionare un'area](editor-marquee.md) viene coperta allo stesso modo.
 
 ## Tasti
 
-- **I**: contagocce. **Alt+clic**: prende un colore e lo strumento resta.
+- **I**: contagocce. **Alt + clic**: prende un colore e lo strumento resta.
 - **Canc**: elimina il riquadro selezionato. **Esc**: lo lascia.

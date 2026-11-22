@@ -4,7 +4,7 @@ L'editor non cambia mai l'originale se non lo chiedi. Il pulsante principale, **
 
 ## Salva copia
 
-**Salva copia** (Ctrl+S) fa una copia accanto all'originale:
+**Salva copia** (**Ctrl + S**) fa una copia accanto all'originale:
 
 - Il nome è quello dell'originale con "(modificata)", per esempio `spiaggia (modificata).jpg`; "(modificata 2)" se quel nome è già preso.
 - Il formato è quello dell'originale quando EyeCanSee sa scriverlo (JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI). Altrimenti è un PNG se l'immagine ha trasparenza o viene da un file OpenEXR o Radiance HDR, e un JPEG negli altri casi (per esempio un HEIC, un RAW o un PSD).
@@ -29,16 +29,16 @@ Il pulsante è spento quando non c'è niente di nuovo da salvare.
 
 La freccia ![Altri modi di salvare](icon://chevron-down) accanto a Salva copia ne ha altri due (con Sovrascrivi come pulsante principale, vedi sotto, ha **Salva copia** e **Salva come…**):
 
-- ![Salva come…](icon://file-output) **Salva come…** (Ctrl+Maiusc+S): apre [Salva come](save-as.md) con il risultato, per scegliere nome, formato e cartella. L'editor aspetta sotto: appena il file è salvato, si chiude. Se l'avevi aperto dal visore, il visore passa poi al file nuovo; se hai salvato in un'altra cartella, resta sull'originale, non più segnato come modificato, e un messaggio dice dov'è il file nuovo. Se chiudi Salva come senza salvare (Annulla, Esc o la ✕ della finestra), anche dopo un salvataggio non riuscito, torni all'editor con le modifiche, ancora da salvare.
+- ![Salva come…](icon://file-output) **Salva come…** (**Ctrl + Maiusc + S**): apre [Salva come](save-as.md) con il risultato, per scegliere nome, formato e cartella. L'editor aspetta sotto: appena il file è salvato, si chiude. Se l'avevi aperto dal visore, il visore passa poi al file nuovo; se hai salvato in un'altra cartella, resta sull'originale, non più segnato come modificato, e un messaggio dice dov'è il file nuovo. Se chiudi Salva come senza salvare (Annulla, Esc o la ✕ della finestra), anche dopo un salvataggio non riuscito, torni all'editor con le modifiche, ancora da salvare.
 - ![Sovrascrivi l'originale…](icon://save) **Sovrascrivi l'originale…**: scrive l'immagine modificata sopra l'originale, dopo una domanda; la domanda dice cosa perde il file nuovo, come per la copia (per esempio il video di una foto in movimento). L'originale va nel cestino, anche quando nelle [Opzioni](options.md) è scelta l'eliminazione definitiva. Se non può andare in un cestino, non viene sovrascritto niente. La pagina resta aperta (a meno che nelle Opzioni **Dopo il salvataggio** dica di tornare indietro: allora si chiude, e le miniature lasciano selezionata l'immagine, o il visore la mostra, secondo la scelta); un secondo Sovrascrivi riparte dall'originale com'era all'apertura e sostituisce ciò che era stato scritto prima, così nel cestino c'è solo il vero originale. Vedi [Eliminare e cestino](delete.md).
 
 Sovrascrivi è spento, e passandoci sopra dice perché, per un'immagine nuova, per un formato che EyeCanSee non riscrive (HEIC, RAW…) e nei posti dove EyeCanSee non scrive mai sopra un file (una cartella aperta tramite il collegamento gvfs del file manager, una copia temporanea fatta da Windows).
 
 ## Il pulsante principale di salvataggio
 
-In **Strumenti > Opzioni…**, scheda **Editor**, **Pulsante principale di salvataggio (anche Ctrl+S)** è **Salva copia** (predefinito) o **Sovrascrivi l'originale**. Con Sovrascrivi l'originale:
+In **Strumenti > Opzioni…**, scheda **Editor**, **Pulsante principale di salvataggio (anche Ctrl + S)** è **Salva copia** (predefinito) o **Sovrascrivi l'originale**. Con Sovrascrivi l'originale:
 
-- il pulsante principale è **Sovrascrivi…** (passandoci sopra si vede il nome intero, Sovrascrivi l'originale…), e Ctrl+S sovrascrive, dopo la stessa domanda;
+- il pulsante principale è **Sovrascrivi…** (passandoci sopra si vede il nome intero, Sovrascrivi l'originale…), e **Ctrl + S** sovrascrive, dopo la stessa domanda;
 - **Salva copia** (o **Aggiorna copia**) sta nel menu della freccia, con Salva come…;
 - anche **Salva…** nella domanda alla chiusura sovrascrive.
 
@@ -62,7 +62,7 @@ Chiudi, la ✕ della finestra o Esc chiedono prima cosa fare:
 
 ## Copiare negli appunti
 
-![Copia](icon://copy) **Copia** (Ctrl+C) mette negli appunti tutto il risultato, a piena grandezza, da incollare in un altro programma. Sul disco non viene scritto niente.
+![Copia](icon://copy) **Copia** (**Ctrl + C**) mette negli appunti tutto il risultato, a piena grandezza, da incollare in un altro programma. Sul disco non viene scritto niente.
 
 Su Linux con Plasma o Cinnamon (X11), tieni aperta la finestra di EyeCanSee finché non hai incollato: chiusa la finestra, l'immagine sparisce dagli appunti.
 

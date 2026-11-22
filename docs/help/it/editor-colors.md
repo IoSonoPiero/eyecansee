@@ -40,11 +40,11 @@ Linee, frecce, tratti a mano libera, rettangoli ed ellissi possono essere ![Cont
 3. Scegli **1 px**, **3×3** o **5×5**: un pixel, o la media dei pixel intorno.
 4. Fai clic. Il colore va allo stile nella barra, il suo codice esadecimale va negli appunti, e la barra di stato mostra i codici per qualche secondo.
 
-Esc annulla. Con uno strumento di disegno, **Alt+clic** prende subito un colore e lo strumento resta.
+Esc annulla. Con uno strumento di disegno, **Alt + clic** prende subito un colore e lo strumento resta.
 
 ## Colori da qualsiasi punto dello schermo
 
-- **Linux**: il pulsante del contagocce e **Maiusc+I** aprono il selettore di colore del sistema, per prendere un colore da qualsiasi punto dello schermo. **I** lo prende sull'immagine, con il riquadro.
+- **Linux**: il pulsante del contagocce e **Maiusc + I** aprono il selettore di colore del sistema, per prendere un colore da qualsiasi punto dello schermo. **I** lo prende sull'immagine, con il riquadro.
 - **Windows**: il contagocce prende un colore dall'immagine. Per prenderne uno altrove sullo schermo, premi sull'immagine e lascia dove c'è il colore; il riquadro mostra il colore sotto il puntatore.
 
 Il contagocce è nella barra solo dove c'è un colore da scegliere: non con Seleziona senza niente di selezionato, non per un riflettore, un filtro o una zona incollata, non con Ritaglia e ruota.

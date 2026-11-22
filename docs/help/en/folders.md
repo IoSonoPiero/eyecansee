@@ -41,4 +41,4 @@ In the folder tree:
 
 Among the devices: **Down** and **Up** change device (Down on an open device enters its first folder), **Right** and **Left** open and close it, **Enter** opens it in the grid.
 
-**Tab** goes round the parts of the window: in the grid it goes to the next item, and from the last one to the devices; among the devices to the next one, and from the last one to the tree; in the tree to the next folder, and from the last one back to the grid. **Shift+Tab** goes the other way. The part that receives the keys has a thin frame, and its selection is solid blue; in the other parts the selection is paler.
+**Tab** goes round the parts of the window: in the grid it goes to the next item, and from the last one to the devices; among the devices to the next one, and from the last one to the tree; in the tree to the next folder, and from the last one back to the grid. **Shift + Tab** goes the other way. The part that receives the keys has a thin frame, and its selection is solid blue; in the other parts the selection is paler.

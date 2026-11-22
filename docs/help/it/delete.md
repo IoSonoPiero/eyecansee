@@ -22,7 +22,7 @@ Una cartella viene eliminata con tutto quello che contiene. Quando tra gli eleme
 - **Telefoni e server**: di solito il file va in una cartella nascosta `.EyeCanSee-trash` dentro la sua cartella. In **Strumenti > Opzioni… > Eliminazione** puoi scegliere invece **Elimina definitivamente** (vedi [Opzioni](options.md)).
 - Con l'opzione **Elimina i file del computer definitivamente, senza cestino (pericoloso)**, i file del computer vengono eliminati per sempre.
 
-**Maiusc+Canc**, oppure **File > Elimina definitivamente…**, elimina per sempre quella volta, qualunque cosa dicano le opzioni.
+**Maiusc + Canc**, oppure **File > Elimina definitivamente…**, elimina per sempre quella volta, qualunque cosa dicano le opzioni.
 
 ## Più elementi
 

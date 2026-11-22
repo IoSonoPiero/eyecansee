@@ -5,15 +5,15 @@ Copia o sposta file e cartelle, con tutto quello che contengono, in un'altra car
 ## Copiare o spostare
 
 1. Seleziona i file o le cartelle (vedi [Selezionare i file](selection.md)).
-2. Premi **Ctrl+C** per copiarli, oppure **Ctrl+X** per tagliarli (cioè spostarli). Puoi anche fare clic su ![Copia](icon://copy) o ![Taglia](icon://scissors) nella barra strumenti, o usare il menù **Modifica** o il clic destro.
+2. Premi **Ctrl + C** per copiarli, oppure **Ctrl + X** per tagliarli (cioè spostarli). Puoi anche fare clic su ![Copia](icon://copy) o ![Taglia](icon://scissors) nella barra strumenti, o usare il menù **Modifica** o il clic destro.
 3. Apri la cartella dove devono andare: sul computer, su un disco, su un telefono o su un server (vedi [Cartelle e pannello laterale](folders.md)).
-4. Premi **Ctrl+V**, oppure fai clic su ![Incolla](icon://clipboard-paste), oppure scegli **Modifica > Incolla**.
+4. Premi **Ctrl + V**, oppure fai clic su ![Incolla](icon://clipboard-paste), oppure scegli **Modifica > Incolla**.
 
-Per incollare direttamente in una cartella senza aprirla, fai clic destro su di essa (nella griglia o nell'albero) e scegli **Incolla in questa cartella**. Nel visore **Ctrl+C** e **Ctrl+X** prendono l'immagine mostrata; **Ctrl+V** lì non fa niente, come **Modifica > Incolla**: per incollare si torna alla griglia.
+Per incollare direttamente in una cartella senza aprirla, fai clic destro su di essa (nella griglia o nell'albero) e scegli **Incolla in questa cartella**. Nel visore **Ctrl + C** e **Ctrl + X** prendono l'immagine mostrata; **Ctrl + V** lì non fa niente, come **Modifica > Incolla**: per incollare si torna alla griglia.
 
 ## Che cosa vedi
 
-- Gli elementi copiati hanno un segno blu ![Copiato](icon://color-copied) nell'angolo della loro casella; quelli tagliati uno arancione con le forbici ![Tagliato](icon://color-cut), e diventano più chiari. La barra di stato dice quanti aspettano Ctrl+V.
+- Gli elementi copiati hanno un segno blu ![Copiato](icon://color-copied) nell'angolo della loro casella; quelli tagliati uno arancione con le forbici ![Tagliato](icon://color-cut), e diventano più chiari. La barra di stato dice quanti aspettano **Ctrl + V**.
 - Durante la copia un riquadro in basso a destra mostra il file che sta copiando, la cartella di arrivo, quanti file e quanti dati sono fatti, la percentuale, la velocità degli ultimi secondi e il tempo che manca. Con tante cartelle, prima dice quanti elementi ha trovato guardandoci dentro.
 - La cartella di arrivo si riempie mentre la copia va avanti.
 - A copia finita il riquadro sparisce. Se qualcosa è rimasto fuori, un solo messaggio (**Copia finita** o **Spostamento finito**) dice che cosa: ogni cosa sotto il suo titolo, con quanti sono e i loro nomi in ordine. Se non c'è niente da dire, non si apre nessuna finestra.
@@ -43,7 +43,7 @@ Su Linux, in una cartella aperta tramite il collegamento del gestore dei file (g
 
 - Il file `.xmp` di una foto (il suo "sidecar", vedi [Informazioni sul file](metadata.md)) va con lei, anche da un dispositivo all'altro: con **Tieni entrambi** prende il nome nuovo della foto ("IMG_0001 (2).CR2" con "IMG_0001 (2).CR2.xmp"), con **Sostituisci** sostituisce quello che c'è. Un nome occupato nella destinazione solo da un file `.xmp` conta come un nome che c'è già. Annullando a metà, una foto non resta mai senza il suo file `.xmp` nella cartella da cui partiva.
 - Ogni copia o taglio si incolla una volta sola: per incollare di nuovo, copia di nuovo.
-- Se nel frattempo copi qualcos'altro in un altro programma, Ctrl+V e Incolla non incollano più gli elementi copiati in EyeCanSee.
+- Se nel frattempo copi qualcos'altro in un altro programma, **Ctrl + V** e Incolla non incollano più gli elementi copiati in EyeCanSee.
 - Incollate nella cartella da cui vengono, le copie diventano "nome (2)"; uno spostamento non fa niente. Vale anche quando a quella cartella si arriva da un collegamento, o la si apre come un'altra sorgente: su questo computer, o sullo stesso server SFTP. Dove EyeCanSee non può saperlo (lo stesso server aperto via SFTP e via FTP), uno spostamento con **Sostituisci** o **Unisci** che sostituirebbe un elemento con sé stesso si ferma prima di scrivere o cancellare qualcosa, e lo dice.
 - Una copia che non riesce, per esempio perché il disco è pieno, non lascia niente scritto a metà: il file in corso viene tolto, e un file che stava sostituendo resta com'era. Per questo, mentre un file viene sostituito, sul disco serve spazio per tutte e due le versioni.
 - Su questo computer un file sostituito mantiene permessi, attributi e collegamenti; un file in sola lettura non viene sostituito, e il messaggio lo dice.

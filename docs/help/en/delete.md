@@ -22,7 +22,7 @@ A folder is deleted with everything inside it. When a folder is among the items,
 - **Phones and servers**: by default the file goes into a hidden `.EyeCanSee-trash` folder inside its own folder. In **Tools > Options… > Deleting** you can choose **Delete for good** instead (see [Options](options.md)).
 - With the option **Delete files on this computer for good, without the trash (dangerous)**, files on this computer are deleted forever.
 
-**Shift+Del**, or **File > Delete for good…**, deletes forever that one time, whatever the options say.
+**Shift + Del**, or **File > Delete for good…**, deletes forever that one time, whatever the options say.
 
 ## Several items
 

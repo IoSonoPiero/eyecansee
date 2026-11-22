@@ -5,7 +5,7 @@ Finds identical files in a folder and its subfolders, so you can delete the extr
 ## Searching
 
 1. Open the folder to search, or right-click a folder.
-2. Click ![Find duplicates…](icon://scan-search) in the toolbar, or choose **Tools > Find duplicates…** (**Ctrl+D**), or **Find duplicates…** from the right-click menu of a folder or of an empty spot of the grid.
+2. Click ![Find duplicates…](icon://scan-search) in the toolbar, or choose **Tools > Find duplicates…** (**Ctrl + D**), or **Find duplicates…** from the right-click menu of a folder or of an empty spot of the grid.
 3. Choose whether to look **Also in subfolders** (on at first).
 4. Click **Search** (or press **Enter**; **Esc** cancels).
 

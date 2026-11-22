@@ -6,9 +6,9 @@ L'editor è una pagina a sé dove disegni su un'immagine, copri i dati privati, 
 
 ## Aprire l'editor
 
-- **Immagine > Modifica immagine…** (Ctrl+E), il pulsante ![Modifica immagine](icon://square-pen) nella barra degli strumenti, oppure **Modifica immagine…** nel menù del clic destro.
+- **Immagine > Modifica immagine…** (**Ctrl + E**), il pulsante ![Modifica immagine](icon://square-pen) nella barra degli strumenti, oppure **Modifica immagine…** nel menù del clic destro.
 - **Immagine > Ruota e ritaglia…** apre la stessa pagina con lo strumento del ritaglio già scelto. Vedi [Ritagliare e ruotare](editor-crop.md).
-- **File > Nuova immagine…** (Ctrl+N) apre un'immagine vuota nell'editor. Vedi [Nuova immagine](new-image.md).
+- **File > Nuova immagine…** (**Ctrl + N**) apre un'immagine vuota nell'editor. Vedi [Nuova immagine](new-image.md).
 - **File > Apri dagli appunti** apre nell'editor un'immagine copiata in un altro programma. Vedi [Nuova immagine](new-image.md).
 
 L'editor lavora su un'immagine alla volta. Con più immagini selezionate queste voci sono spente; per girare più immagini insieme usa [Ruotare e riflettere](rotate.md) o [Convertire e ridimensionare le immagini](convert.md). Sono spente anche per un'immagine animata o con più pagine, nella griglia come nel visore, perché si salverebbe solo la prima.
@@ -66,11 +66,11 @@ Da sapere:
 
 ## Annullare e ripetere
 
-![Annulla](icon://undo-2) **Annulla** (Ctrl+Z) e ![Ripeti](icon://redo-2) **Ripeti** (Ctrl+Y o Ctrl+Maiusc+Z) vanno avanti e indietro tra tutte le modifiche, rotazione e ritaglio compresi. Mentre scrivi in un campo di testo, Ctrl+Z annulla ciò che hai scritto in quel campo.
+![Annulla](icon://undo-2) **Annulla** (**Ctrl + Z**) e ![Ripeti](icon://redo-2) **Ripeti** (**Ctrl + Y** o **Ctrl + Maiusc + Z**) vanno avanti e indietro tra tutte le modifiche, rotazione e ritaglio compresi. Mentre scrivi in un campo di testo, **Ctrl + Z** annulla ciò che hai scritto in quel campo.
 
 ## Ridimensionare l'immagine
 
-![Ridimensiona](icon://scaling) **Ridimensiona** (Ctrl+Alt+I) cambia la dimensione dell'immagine, per esempio per rimpicciolire una schermata annotata da mettere in un documento.
+![Ridimensiona](icon://scaling) **Ridimensiona** (**Ctrl + Alt + I**) cambia la dimensione dell'immagine, per esempio per rimpicciolire una schermata annotata da mettere in un documento.
 
 1. Fai clic su ![Ridimensiona](icon://scaling) **Ridimensiona**. La finestra mostra la dimensione attuale del risultato.
 2. Scrivi la nuova larghezza o altezza, in **pixel** o **per cento** della dimensione attuale. Con **Mantieni le proporzioni** acceso (come all'inizio), l'altro lato segue.
@@ -81,14 +81,14 @@ Ciò che hai disegnato segue l'immagine: frecce, riquadri, testi e gli spessori 
 
 Buono a sapersi:
 
-- **Annulla** (Ctrl+Z) riporta l'immagine alla dimensione che aveva, in un passo. Ridimensionare di nuovo riparte sempre dall'originale, così l'immagine non perde qualità due volte.
+- **Annulla** (**Ctrl + Z**) riporta l'immagine alla dimensione che aveva, in un passo. Ridimensionare di nuovo riparte sempre dall'originale, così l'immagine non perde qualità due volte.
 - Con l'immagine ruotata di un angolo (vedi [Ritagliare e ruotare](editor-crop.md)) le proporzioni restano quelle: con altre verrebbe storta.
 - La nuova dimensione va nei metadati del file salvato; il resto dei metadati resta. Una foto Ultra HDR resta HDR.
 - Al massimo 20000 pixel per lato. Per ridimensionare molte immagini insieme usa [Convertire e ridimensionare le immagini](convert.md).
 
 ## Muoversi nell'immagine
 
-- Rotellina del mouse (o Ctrl+rotellina, o il pizzico): ingrandisce intorno al puntatore.
+- Rotellina del mouse (o **Ctrl + rotellina**, o il pizzico): ingrandisce intorno al puntatore.
 - **+** e **−**: ingrandiscono intorno al centro. **0** o un doppio clic: tutto in vista.
 - Nella barra di stato, fai clic sulla percentuale e scrivine un'altra (per esempio **37** e **Invio**; **Esc** la lascia com'era), oppure trascina il cursore accanto, con le tacche su zoom tondi (10%, 25%, 50%, 100%, 200%…), come nel [visore](viewer.md).
 - Trascina col tasto destro o centrale per spostare la vista. Con Seleziona sposta la vista anche trascinare su un punto vuoto.
@@ -98,9 +98,9 @@ Buono a sapersi:
 
 Il pulsante **Tasti** nella barra di stato elenca i tasti e i movimenti del mouse dello strumento in uso. Passaci sopra per vedere l'elenco, o fai clic per tenerlo aperto.
 
-- **Ctrl+C** (o ![Copia](icon://copy) **Copia**) mette negli appunti tutto il risultato, a piena grandezza, da incollare in un altro programma. Con Selezione copia solo la zona scelta.
-- **Ctrl+R** e **Ctrl+Maiusc+R** girano l'immagine di un quarto a destra o a sinistra.
-- **Ctrl+Alt+I** apre Ridimensiona.
+- **Ctrl + C** (o ![Copia](icon://copy) **Copia**) mette negli appunti tutto il risultato, a piena grandezza, da incollare in un altro programma. Con Selezione copia solo la zona scelta.
+- **Ctrl + R** e **Ctrl + Maiusc + R** girano l'immagine di un quarto a destra o a sinistra.
+- **Ctrl + Alt + I** apre Ridimensiona.
 - **Esc** fa una cosa alla volta: ferma il contagocce o un trascinamento, finisce il testo che stai scrivendo, lascia la zona o l'oggetto selezionati. Quando non c'è più niente da fermare, chiude la pagina.
 
 ## Chiudere

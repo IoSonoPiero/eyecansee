@@ -22,7 +22,7 @@ Double-click a model, or select it and press **Enter**.
 | Key or mouse | What it does |
 |---|---|
 | Arrows, or drag | Turn the model (hold an arrow to keep turning) |
-| Shift+drag, or drag with the middle button | Move the model in the window |
+| **Shift + drag**, or drag with the middle button | Move the model in the window |
 | Mouse wheel, + and − | Zoom in and out |
 | 0 | Back to the starting view |
 | M | Measure |
@@ -39,7 +39,7 @@ In the top right corner the axes of the file (X red, Y green, Z blue) turn with 
 
 ## Measuring
 
-**M**, or **View > Measure**, turns on the Measure tool: the status bar shows the overall size of the model along X, Y and Z, its surface and its volume. The volume is given only for a closed model (every edge shared by two triangles, as a model for 3D printing must be); otherwise the status bar says how many edges are open. Click two points on the model for their distance, written next to the pointer and in the status bar; a third click starts again. Measures are in the file's unit when the format or the file says it (glTF, IFC, X3D and VRML in metres, STEP and IGES in millimetres, 3MF and AMF as they say); STL, OBJ, PLY and others have no unit, and the status bar says so. **Copy** in the status bar, or **Ctrl+C**, puts the results on the clipboard; **Esc** clears the points, **Esc** again or **M** closes the tool. Dragging still turns the model.
+**M**, or **View > Measure**, turns on the Measure tool: the status bar shows the overall size of the model along X, Y and Z, its surface and its volume. The volume is given only for a closed model (every edge shared by two triangles, as a model for 3D printing must be); otherwise the status bar says how many edges are open. Click two points on the model for their distance, written next to the pointer and in the status bar; a third click starts again. Measures are in the file's unit when the format or the file says it (glTF, IFC, X3D and VRML in metres, STEP and IGES in millimetres, 3MF and AMF as they say); STL, OBJ, PLY and others have no unit, and the status bar says so. **Copy** in the status bar, or **Ctrl + C**, puts the results on the clipboard; **Esc** clears the points, **Esc** again or **M** closes the tool. Dragging still turns the model.
 
 ## Section
 
@@ -64,7 +64,7 @@ Without a graphics card EyeCanSee can use, the processor draws the model, more s
 
 ## Saving
 
-- **Ctrl+Shift+S**, or **Save as…** in the File menu or in the right-click menu of the viewer, saves the model as it is shown, as a picture, at least 1920 pixels on its long side. See [Save as](save-as.md).
+- **Ctrl + Shift + S**, or **Save as…** in the File menu or in the right-click menu of the viewer, saves the model as it is shown, as a picture, at least 1920 pixels on its long side. See [Save as](save-as.md).
 - **Export as a 3D model…** saves it in another 3D format. See [Exporting 3D models](model-export.md).
 
 Turning and flipping from the Image menu do not apply to models: a model turns with the mouse and the arrows.

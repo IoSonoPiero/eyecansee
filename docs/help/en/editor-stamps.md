@@ -23,6 +23,6 @@ The first seven are on the bar: ![Check](icon://check) Check, ![Cross](icon://x)
 
 - A click on a stamp already placed selects it. Anywhere else on the image, a new stamp is placed; a click outside the image places none.
 - To move a stamp, use ![Select](icon://mouse-pointer-2) **Select** and drag it. With Stamps, dragging moves the view.
-- **I**: eyedropper. **Alt+click**: take a colour and keep the tool. **Del**: delete the selected stamp.
+- **I**: eyedropper. **Alt + click**: take a colour and keep the tool. **Del**: delete the selected stamp.
 
 See also [Colours, lines and the eyedropper](editor-colors.md).

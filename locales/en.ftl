@@ -128,7 +128,7 @@ menu-quit = Quit
 menu-edit = Edit
 menu-tools = Tools
 menu-select-all = Select all
-key-select-all = Ctrl+A
+key-select-all = Ctrl + A
 menu-view = View
 menu-refresh = Refresh
 menu-back-to-grid = Back to the grid
@@ -146,13 +146,13 @@ menu-copy = Copy
 menu-cut = Cut
 menu-paste = Paste
 menu-paste-into = Paste into this folder
-key-copy = Ctrl+C
-key-cut = Ctrl+X
-key-paste = Ctrl+V
-key-undo = Ctrl+Z
-key-redo = Ctrl+Y
+key-copy = Ctrl + C
+key-cut = Ctrl + X
+key-paste = Ctrl + V
+key-undo = Ctrl + Z
+key-redo = Ctrl + Y
 key-pick = I
-key-pick-screen = I, Shift+I
+key-pick-screen = I, Shift + I
 paste-taken = **"{ $name }"** is already in this folder.
 paste-skip = Skip
 paste-all = Do the same for all the other items with a name already there
@@ -268,8 +268,8 @@ phone-stalled-upload =
     { $name } will need copying again.
 phone-stalled-why = Why does this happen?
 phone-stalled-url = https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.en.md
-status-copied = { $n } copied: Ctrl+V to paste
-status-cut = { $n } cut: Ctrl+V to move
+status-copied = { $n } copied: Ctrl + V to paste
+status-cut = { $n } cut: Ctrl + V to move
 status-temp-copy = This file is a temporary copy that Windows made (for example of a photo on a phone), not the original: it cannot be saved over. Use Save as… to keep the changes.
 status-taken-from-gvfs = The phone was held by the system (it takes it by itself when the phone is plugged in, or when it is opened in the file manager): EyeCanSee now uses it directly, which is faster. To see it in the file manager again, close EyeCanSee and click the phone there.
 status-through-mount = Opened through the file manager: slower. Direct access failed: { $detail }
@@ -457,7 +457,7 @@ delete-confirm-dir-folder = Move the folder **"{ $name }"**, with everything ins
 delete-confirm-dir-permanent = Delete the folder **"{ $name }"** and everything inside it **for good**?
 
     { "**" }It cannot be undone.**
-key-shift-delete = Shift+Del
+key-shift-delete = Shift + Del
 delete-confirm-trash = Move **"{ $name }"** ({ $size }) **to the trash**?
 delete-confirm-folder = Move **"{ $name }"** ({ $size }) to **this folder's Trash** (the hidden folder .EyeCanSee-trash)?
 
@@ -565,7 +565,7 @@ update-check-failed = Cannot check for updates: { $detail }
 download-stalled = nothing has arrived from the server for a minute. Try again later.
 menu-redo-thumbs = Redo thumbnails
 menu-redo-all-thumbs = Redo all thumbnails in the folder
-key-shift-f5 = Shift+F5
+key-shift-f5 = Shift + F5
 convert-title = Save as
 convert-original = Original
 convert-result = Converted
@@ -606,12 +606,12 @@ error-glb-incomplete-brief = the block with the data is missing
 error-glb-cut-brief = the file is incomplete
 error-glb-cut-sizes-brief = the file is incomplete
 # The keys of the viewer, under the status bar.
-hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | Ctrl+L: layers | M: measure | N, Shift+N: next, previous change of a comparison | →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Ctrl+Shift+S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
-hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift+L: next, previous layout | Ctrl+L: layers | M: measure | N, Shift+N: next, previous change of a comparison | →, Space, Page Down: next file | ←, Backspace, Page Up: previous file | Home, End: first, last file | Ctrl+Shift+S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
+hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | Ctrl + L: layers | M: measure | N, Shift + N: next, previous change of a comparison | →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Ctrl + Shift + S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
+hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift + L: next, previous layout | Ctrl + L: layers | M: measure | N, Shift + N: next, previous change of a comparison | →, Space, Page Down: next file | ←, Backspace, Page Up: previous file | Home, End: first, last file | Ctrl + Shift + S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
 menu-layers = Layers of the drawing
-key-layers = Ctrl+L
+key-layers = Ctrl + L
 cad-layers-title = Layers
-cad-layers-close = Close the layers panel (Ctrl+L)
+cad-layers-close = Close the layers panel (Ctrl + L)
 cad-layers-off = Only for a DWG or DXF drawing open in the viewer, with something drawn on its layers
 cad-layers-count = { $shown } of { $total } shown
 cad-layers-search = Search
@@ -644,8 +644,8 @@ measure-hint-distance = click two points; they snap to ends, middles, centres an
 measure-hint-area = click the corners; Enter or a double click closes the shape
 measure-hint-angle = click a point, the corner, then a point on the other side
 measure-hint-3d = click two points on the model for their distance
-hint-measure-cad = Click: a point, snapped to ends, middles, centres and crossings | D: distance | A: area | G: angle | Enter, double click: close an area | Backspace: take back the last point | Ctrl+C: copy the results | Esc: clear the points, then close Measure | M: close Measure | Wheel, + and −: zoom | Drag: move
-hint-measure-3d = Click two points: their distance | Backspace: take back the last point | Ctrl+C: copy the results | Esc: clear the points, then close Measure | M: close Measure | Wheel, + and −: zoom | Drag: rotate
+hint-measure-cad = Click: a point, snapped to ends, middles, centres and crossings | D: distance | A: area | G: angle | Enter, double click: close an area | Backspace: take back the last point | Ctrl + C: copy the results | Esc: clear the points, then close Measure | M: close Measure | Wheel, + and −: zoom | Drag: move
+hint-measure-3d = Click two points: their distance | Backspace: take back the last point | Ctrl + C: copy the results | Esc: clear the points, then close Measure | M: close Measure | Wheel, + and −: zoom | Drag: rotate
 measure-measuring = Measuring the model…
 measure-size = Size (X × Y × Z)
 measure-surface = Surface
@@ -655,7 +655,7 @@ measure-no-unit = the file does not say its unit
 measure-copy = Copy
 section-title = Section
 section-flip = Other side
-section-keys = Alt+wheel, comma, full stop: move · X, Y, Z: axis · F: other side · S: off
+section-keys = Alt + wheel, comma, full stop: move · X, Y, Z: axis · F: other side · S: off
 section-open = not filled: the model is not closed
 cad-model = Model
 cad-units = units
@@ -683,27 +683,27 @@ model-export-again-why = { $n ->
     [one] It placed one of its parts more than once in its hierarchy, which glTF does not allow: the new file has it only once.
    *[other] They placed one of their parts more than once in their hierarchy, which glTF does not allow: the new files have it only once.
 }
-hint-model = Arrows or drag: rotate | Shift+drag: move | Wheel, + and −: zoom | 0: starting view | M: measure | S: section | Space, Page Down: next | Backspace, Page Up: previous | Home, End: first, last | Ctrl+Shift+S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
-hint-edit-select = Click: select an object | Drag: move it | Drag a corner or an end: resize (Shift: a box keeps its proportions; a pasted piece keeps them, Shift frees them) | Drag the round handle above the object: rotate it (Shift: 15° at a time) | Double click on a text or bubble: change its letters | Del: delete | Ctrl+C: copy the result | Esc: let go of the object
-hint-edit-marquee = Drag: choose a part | Shift+drag: a square | Ctrl+C: copy the part | Ctrl+X: cut it | Ctrl+V: paste as an object | Click or Esc: let go of the part
-hint-edit-arrow = Drag: draw | Drag the middle point: bend | Drag an end: move it | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
-hint-edit-line = Drag: draw | Drag the middle point: bend | Drag an end: move it | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
-hint-edit-pen = Drag: draw | Drag a corner: stretch | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
-hint-edit-rect = Drag: draw | Shift+drag: a square | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
-hint-edit-ellipse = Drag: draw | Shift+drag: a circle | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
-hint-edit-highlight = Drag: highlight | Shift+drag: a square | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
-hint-edit-spotlight = Drag: light a part | Shift+drag: a square or a circle | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | Del: delete | Esc: let go
-hint-edit-text = Click: put a text, then type it | Enter: new line | Double click on a text: change it | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete (outside the field) | Esc: end the text
+hint-model = Arrows or drag: rotate | Shift + drag: move | Wheel, + and −: zoom | 0: starting view | M: measure | S: section | Space, Page Down: next | Backspace, Page Up: previous | Home, End: first, last | Ctrl + Shift + S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
+hint-edit-select = Click: select an object | Drag: move it | Drag a corner or an end: resize (Shift: a box keeps its proportions; a pasted piece keeps them, Shift frees them) | Drag the round handle above the object: rotate it (Shift: 15° at a time) | Double click on a text or bubble: change its letters | Del: delete | Ctrl + C: copy the result | Esc: let go of the object
+hint-edit-marquee = Drag: choose a part | Shift + drag: a square | Ctrl + C: copy the part | Ctrl + X: cut it | Ctrl + V: paste as an object | Click or Esc: let go of the part
+hint-edit-arrow = Drag: draw | Drag the middle point: bend | Drag an end: move it | I: eyedropper | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go
+hint-edit-line = Drag: draw | Drag the middle point: bend | Drag an end: move it | I: eyedropper | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go
+hint-edit-pen = Drag: draw | Drag a corner: stretch | I: eyedropper | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go
+hint-edit-rect = Drag: draw | Shift + drag: a square | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go
+hint-edit-ellipse = Drag: draw | Shift + drag: a circle | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go
+hint-edit-highlight = Drag: highlight | Shift + drag: a square | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go
+hint-edit-spotlight = Drag: light a part | Shift + drag: a square or a circle | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | Del: delete | Esc: let go
+hint-edit-text = Click: put a text, then type it | Enter: new line | Double click on a text: change it | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt + click: take a colour, the tool stays | Del: delete (outside the field) | Esc: end the text
 hint-edit-bubble = Drag: draw a bubble, then type its text | Enter: new line | Drag the end of the tail: point it | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | Double click: change the text | Del: delete | Esc: end the text
-hint-edit-step = Click: next number | Drag a corner: resize (Shift: same proportions) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
-hint-edit-stamp = Click: put the stamp | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
-hint-edit-lens = Drag: draw a magnifier | Shift+drag: a square or a circle | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | Del: delete | Esc: let go
-hint-edit-cover = Drag: cover | Shift+drag: a square | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
-hint-edit-crop = Drag a side or corner: crop | Drag inside: move the crop | Shift+wheel: rotate by 0.1° | Ctrl+R, Ctrl+Shift+R: rotate right, left | Enter: apply | Esc: close
-hint-image = →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Space on an animation: pause and play | Space on a motion photo: play its video | Page Down, Page Up on a TIFF with pages: next, previous page | Wheel, + and −: zoom | Drag: move a zoomed image | 0: fit the window | 1: 100% | Ctrl+R, Ctrl+Shift+R: rotate right, left | Ctrl+Z, Ctrl+Y: undo, redo an unsaved rotation | Ctrl+E: edit image | Ctrl+S, Ctrl+Shift+S: save, save as | F2: rename | Del: delete | F11: full screen | Esc: back
-hint-grid = Arrows: move | Shift+arrows: extend the selection | Home, End: first, last | Enter: open | Backspace: parent folder | Ctrl+A: select all | Tab, Shift+Tab: next, previous item | Ctrl+C, Ctrl+X, Ctrl+V: copy, cut, paste | F2: rename | Ctrl+Shift+N: new folder | Del: delete | Shift+Del: delete for good | Ctrl+R, Ctrl+Shift+R: rotate right, left | Ctrl+E: edit image | Ctrl+B: convert | Ctrl+D: find duplicates | Ctrl+N: new image | Ctrl+Shift+D: bookmarks | F5: read the folder again | Shift+F5: thumbnails again | F11: full screen | F1: guide
+hint-edit-step = Click: next number | Drag a corner: resize (Shift: same proportions) | I: eyedropper | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go
+hint-edit-stamp = Click: put the stamp | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go
+hint-edit-lens = Drag: draw a magnifier | Shift + drag: a square or a circle | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | Del: delete | Esc: let go
+hint-edit-cover = Drag: cover | Shift + drag: a square | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go
+hint-edit-crop = Drag a side or corner: crop | Drag inside: move the crop | Shift + wheel: rotate by 0.1° | Ctrl + R, Ctrl + Shift + R: rotate right, left | Enter: apply | Esc: close
+hint-image = →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Space on an animation: pause and play | Space on a motion photo: play its video | Page Down, Page Up on a TIFF with pages: next, previous page | Wheel, + and −: zoom | Drag: move a zoomed image | 0: fit the window | 1: 100% | Ctrl + R, Ctrl + Shift + R: rotate right, left | Ctrl + Z, Ctrl + Y: undo, redo an unsaved rotation | Ctrl + E: edit image | Ctrl + S, Ctrl + Shift + S: save, save as | F2: rename | Del: delete | F11: full screen | Esc: back
+hint-grid = Arrows: move | Shift + arrows: extend the selection | Home, End: first, last | Enter: open | Backspace: parent folder | Ctrl + A: select all | Tab, Shift + Tab: next, previous item | Ctrl + C, Ctrl + X, Ctrl + V: copy, cut, paste | F2: rename | Ctrl + Shift + N: new folder | Del: delete | Shift + Del: delete for good | Ctrl + R, Ctrl + Shift + R: rotate right, left | Ctrl + E: edit image | Ctrl + B: convert | Ctrl + D: find duplicates | Ctrl + N: new image | Ctrl + Shift + D: bookmarks | F5: read the folder again | Shift + F5: thumbnails again | F11: full screen | F1: guide
 hint-dup = ↑ ↓: move between the copies | Space: tick or untick the copy | Click on a picture: open it in the viewer (Esc comes back here, with the ticks) | Esc: close (Enter does not delete)
-hint-video = Space: pause and play | Ctrl+← →: 5 seconds back, forward | ↑ ↓, wheel: volume | M: audio off and on | Ctrl+R, Ctrl+Shift+R: rotate right, left | Ctrl+Z, Ctrl+Y: undo, redo an unsaved rotation | →, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | F2: rename | Del: delete | F11: full screen | Esc: back
+hint-video = Space: pause and play | Ctrl + ← →: 5 seconds back, forward | ↑ ↓, wheel: volume | M: audio off and on | Ctrl + R, Ctrl + Shift + R: rotate right, left | Ctrl + Z, Ctrl + Y: undo, redo an unsaved rotation | →, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | F2: rename | Del: delete | F11: full screen | Esc: back
 cad-engine-title = CAD engine
 cad-engine-ask = To open STEP, IGES and BREP models of CAD programs EyeCanSee needs the CAD engine (Open CASCADE), downloaded once: { $size }.
 cad-engine-download = Download the CAD engine
@@ -860,7 +860,7 @@ rc-leave = The changes to **{ $name }** are not saved.
     { "**" }Save as…** makes a new file.
     { "**" }Don't save** loses them.
 menu-edit-image = Edit image…
-key-edit = Ctrl+E
+key-edit = Ctrl + E
 edit-tool-select = Select
 edit-tool-arrow = Arrow
 edit-tool-line = Line
@@ -984,7 +984,7 @@ edit-step-number = Number
 edit-tip-cover = Drag over what must be hidden: nothing of it is left in the saved file.
 edit-tip-crop = Drag sides and corners to crop; Shift + wheel rotates.
 rc-apply = Apply
-rc-apply-hint = Back to the tool before, with the result cropped. Ctrl+Z undoes the crop.
+rc-apply-hint = Back to the tool before, with the result cropped. Ctrl + Z undoes the crop.
 rc-reset-off = The angle is already 0°.
 rc-swap-off = With free or 1:1 proportions there is nothing to swap.
 rc-color-off = Choose Colour first.
@@ -994,7 +994,7 @@ edit-head-double = Head at both ends
 edit-head-dot = Dot
 edit-font-default = Default
 edit-font-hint = Point at a font in the list to see the text in it; click one to choose it.
-edit-pick = Eyedropper: from anywhere on the screen with the system's picker (button, Shift+I); I takes it on the image, what is drawn included, with a box showing the colour
+edit-pick = Eyedropper: from anywhere on the screen with the system's picker (button, Shift + I); I takes it on the image, what is drawn included, with a box showing the colour
 edit-pick-image = Eyedropper: take a colour from the image
 edit-picked = Colour taken: { $codes } (the hex code is on the clipboard)
 edit-pick-size = One pixel, or the average of the pixels around it
@@ -1009,15 +1009,15 @@ edit-border = Border:
 edit-fill = Fill:
 edit-fill-none = No fill
 edit-tool-marquee = Selection
-edit-tip-marquee = Drag on the image to choose a part; Ctrl+C copies it, Ctrl+X cuts it, Ctrl+V pastes it as an object.
+edit-tip-marquee = Drag on the image to choose a part; Ctrl + C copies it, Ctrl + X cuts it, Ctrl + V pastes it as an object.
 edit-copy-part = Copy the part
 edit-cut-part = Cut the part
 edit-paste-part = Paste
 edit-off-no-marquee = Choose a part first, dragging on the image.
 edit-off-no-clip = Nothing to paste: copy or cut a part first.
 edit-paste-none = No image in the clipboard.
-edit-copy-too-large = Too large for other programs: { $size } MB, the limit is 16 MB. Ctrl+V pastes it here.
-edit-part-copied = Part copied: Ctrl+V pastes it as an object, also in another program.
+edit-copy-too-large = Too large for other programs: { $size } MB, the limit is 16 MB. Ctrl + V pastes it here.
+edit-part-copied = Part copied: Ctrl + V pastes it as an object, also in another program.
 edit-filters = Filters
 edit-filters-part = On the part chosen:
 edit-filters-whole = On the whole image (choose a part with Selection first for a piece only):
@@ -1041,7 +1041,7 @@ edit-text-back-hint = A box behind the letters (on a curve: a band along all its
 edit-margin = Margin
 edit-corners = Corners
 menu-new-image = New image…
-key-new-image = Ctrl+N
+key-new-image = Ctrl + N
 menu-open-clipboard = Open from clipboard
 clip-open-name = Pasted image
 clip-open-title = Open from clipboard
@@ -1069,8 +1069,8 @@ edit-new-off = It is a new image: there is no file yet to write over. Use Save a
 edit-undo = Undo
 edit-redo = Redo
 edit-resize = Resize
-edit-resize-hint = Changes the size of the image in pixels; what you drew follows it. Ctrl+Z undoes it.
-key-edit-resize = Ctrl+Alt+I
+edit-resize-hint = Changes the size of the image in pixels; what you drew follows it. Ctrl + Z undoes it.
+key-edit-resize = Ctrl + Alt + I
 resize-title = Resize the image
 resize-now = Now
 resize-size = New size
@@ -1152,13 +1152,13 @@ edit-temp-copy = This image is a temporary copy Windows made of a file of a phon
 edit-remote-phone = The image is edited in a copy on this computer: Save sends the result to the phone.
 edit-remote-server = The image is edited in a copy on this computer: Save sends the result to the server.
 edit-open-later = { $name } opens when you close the editor.
-key-rotate-cw = Ctrl+R
-key-rotate-ccw = Ctrl+Shift+R
+key-rotate-cw = Ctrl + R
+key-rotate-ccw = Ctrl + Shift + R
 menu-save = Save
-key-save = Ctrl+S
+key-save = Ctrl + S
 menu-save-copy = Save as…
 menu-save-frame = Save frame as…
-key-save-copy = Ctrl+Shift+S
+key-save-copy = Ctrl + Shift + S
 save-confirm-trash = Save the changes over **{ $name }**?
 
     The original goes **to the trash**.
@@ -1688,7 +1688,7 @@ opt-edit-after-stay = Stay in the editor
 opt-edit-after-back = Go back to where you were (thumbnails or viewer)
 opt-edit-after-grid = Go back to the thumbnails
 opt-edit-after-hint = After Save copy, Update copy or Overwrite the original…: the editor stays open to go on editing; or it closes once the file is written and you go back to where you opened it (the thumbnails with the saved image selected, or the viewer showing it), or always to the thumbnails with the saved image selected.
-opt-edit-main = Main save button (also Ctrl+S):
+opt-edit-main = Main save button (also Ctrl + S):
 opt-edit-main-overwrite = Overwrite the original
 opt-edit-main-hint = The other one stays in the menu of the arrow next to it. Where the original cannot be overwritten (a new image, HEIC, RAW…) the main button is Save copy.
 opt-engine = Video engine (libmpv) and FFmpeg to use
@@ -1719,10 +1719,10 @@ show-skipped = Skipped: { $name } (it cannot be opened)
 show-none-readable = Slideshow stopped: none of its pictures can be opened.
 menu-new-folder = New folder…
 menu-new-folder-in = New folder inside…
-key-new-folder = Ctrl+Shift+N
-key-batch = Ctrl+B
-key-duplicates = Ctrl+D
-key-bookmarks = Ctrl+Shift+D
+key-new-folder = Ctrl + Shift + N
+key-batch = Ctrl + B
+key-duplicates = Ctrl + D
+key-bookmarks = Ctrl + Shift + D
 menu-bookmarks = Bookmarks
 bm-title = Bookmarks
 bm-empty = No bookmarks yet.
@@ -1913,11 +1913,11 @@ tip-video-title = Videos and audio
 tip-video-text =
     Videos and audio files play in the viewer.
     - **Space** plays and pauses.
-    - **Ctrl+←** and **Ctrl+→** go 5 seconds back and forward.
+    - **Ctrl + ←** and **Ctrl + →** go 5 seconds back and forward.
     - **↑** and **↓** change the volume, **M** turns the audio off and on.
 tip-editor-title = Draw on a picture
 tip-editor-text =
-    { "**" }Image > Edit image…** (**Ctrl+E**) opens the editor: arrows, text, shapes, highlighter, stamps, filters, crop and rotate. Every addition stays movable until you save.
+    { "**" }Image > Edit image…** (**Ctrl + E**) opens the editor: arrows, text, shapes, highlighter, stamps, filters, crop and rotate. Every addition stays movable until you save.
 
     { "**" }Save copy** writes a new file beside the original, which stays as it was.
 tip-cover-title = Hide a number plate or an address
@@ -1929,11 +1929,11 @@ tip-resize-title = Smaller copies in one click
 tip-resize-text =
     Select the photos, right-click them and choose **Resize**: Small, Medium, Large or Half. The copies go beside the originals, with their metadata, the size in their names.
 
-    { "**" }Convert…** (**Ctrl+B**) changes the format of many pictures at once.
+    { "**" }Convert…** (**Ctrl + B**) changes the format of many pictures at once.
 tip-convert-video-title = Convert videos
 tip-convert-video-text = Videos go through the same **Convert…** window as pictures: another format, a smaller size, rotated, or a short clip as a GIF. The right-click menu also has **Copy without audio** and **Save the audio to a file**. The work is done by FFmpeg: if the computer does not have it, the window offers to download it.
 tip-bookmarks-title = Bookmarks
-tip-bookmarks-text = The **star** next to the address bar turns the folder open into a bookmark: a folder of the computer, of a phone or of a server. The **Bookmarks** drop-down beside it, or **Ctrl+Shift+D**, takes you back there with one click.
+tip-bookmarks-text = The **star** next to the address bar turns the folder open into a bookmark: a folder of the computer, of a phone or of a server. The **Bookmarks** drop-down beside it, or **Ctrl + Shift + D**, takes you back there with one click.
 tip-metadata-title = Where and when a photo was taken
 tip-metadata-text =
     Under the grid, the metadata panel shows the camera, the date the photo was taken, the exposure and the place. **Open on the map** shows the place on OpenStreetMap.
@@ -1943,9 +1943,9 @@ tip-models-title = 3D models and CAD drawings
 tip-models-text =
     3D models (STL, OBJ, glTF, FBX, IFC, STEP and more) and CAD drawings (DWG, DXF) appear in the grid with a picture of them, and open in the viewer.
 
-    Drag or use the arrows to rotate a model, the mouse wheel to zoom; a drawing moves with a drag, and **Ctrl+L** turns its layers on and off. **M** measures both.
+    Drag or use the arrows to rotate a model, the mouse wheel to zoom; a drawing moves with a drag, and **Ctrl + L** turns its layers on and off. **M** measures both.
 tip-duplicates-title = Find duplicates
-tip-duplicates-text = **Tools > Find duplicates…** (**Ctrl+D**) finds the files that are exactly the same, also under another name or in another folder, on the computer, a disk, a phone or a server. You choose the copies to delete; one always stays.
+tip-duplicates-text = **Tools > Find duplicates…** (**Ctrl + D**) finds the files that are exactly the same, also under another name or in another folder, on the computer, a disk, a phone or a server. You choose the copies to delete; one always stays.
 tip-trash-title = Deleted by mistake?
 tip-trash-text = Files of this computer go to the system trash. Phones and servers have no trash EyeCanSee can reach, so EyeCanSee keeps one of its own in each folder: a strip at the top of the folder says so, with **Open the trash**, where you can restore them.
 tip-details-title = More under the thumbnails

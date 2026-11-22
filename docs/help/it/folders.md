@@ -41,4 +41,4 @@ Nell'albero delle cartelle:
 
 Tra i dispositivi: **Giù** e **Su** cambiano dispositivo (Giù su un dispositivo aperto entra nella sua prima cartella), **Destra** e **Sinistra** lo aprono e lo chiudono, **Invio** lo apre nella griglia.
 
-**Tab** fa il giro delle parti della finestra: nella griglia passa all'elemento successivo, e dall'ultimo ai dispositivi; tra i dispositivi al successivo, e dall'ultimo all'albero; nell'albero alla cartella successiva, e dall'ultima di nuovo alla griglia. **Maiusc+Tab** fa il giro al contrario. La parte che riceve i tasti ha una cornice sottile, e la sua selezione è blu pieno; nelle altre parti la selezione è più tenue.
+**Tab** fa il giro delle parti della finestra: nella griglia passa all'elemento successivo, e dall'ultimo ai dispositivi; tra i dispositivi al successivo, e dall'ultimo all'albero; nell'albero alla cartella successiva, e dall'ultima di nuovo alla griglia. **Maiusc + Tab** fa il giro al contrario. La parte che riceve i tasti ha una cornice sottile, e la sua selezione è blu pieno; nelle altre parti la selezione è più tenue.

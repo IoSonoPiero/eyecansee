@@ -15,9 +15,9 @@ Tutti i tasti di EyeCanSee, divisi per posto. I menù mostrano il tasto accanto 
 |---|---|
 | F5 | Rilegge le cartelle (nel visore resta sull'immagine aperta) |
 | F11 | Schermo intero e ritorno; nel visore si vede solo l'immagine, senza menù né barre |
-| Ctrl+R, Ctrl+Maiusc+R | Ruota la foto di 90° in senso orario, antiorario: nel visore la vedi prima di salvarla, nella griglia le foto selezionate vengono salvate dopo la conferma (vedi [Ruotare e riflettere](rotate.md)) |
-| Ctrl+Z, Ctrl+Y | Nel visore: annulla, ripete una rotazione o riflessione non salvata |
-| Ctrl+Maiusc+D | Segnalibri: si apre l'elenco; ↓ ci entra, Invio apre il segnalibro scelto (vedi [Segnalibri](bookmarks.md)) |
+| **Ctrl + R**, **Ctrl + Maiusc + R** | Ruota la foto di 90° in senso orario, antiorario: nel visore la vedi prima di salvarla, nella griglia le foto selezionate vengono salvate dopo la conferma (vedi [Ruotare e riflettere](rotate.md)) |
+| **Ctrl + Z**, **Ctrl + Y** | Nel visore: annulla, ripete una rotazione o riflessione non salvata |
+| **Ctrl + Maiusc + D** | Segnalibri: si apre l'elenco; ↓ ci entra, Invio apre il segnalibro scelto (vedi [Segnalibri](bookmarks.md)) |
 
 Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** le chiudono; in quelle che chiedono una scelta, **Invio** conferma ed **Esc** annulla. Fanno eccezione un'eliminazione che comprende una cartella (lì anche Invio annulla) e la rotazione o il ribaltamento di foto nella griglia (Invio non conferma). Con questa guida aperta sopra la finestra, **Esc** va prima alla guida (due la chiudono, come ovunque), **Invio** non risponde alla finestra, e ciò che scrivi nel campo di ricerca della guida resta lì.
 
@@ -26,25 +26,25 @@ Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** le ch
 | Tasto | Azione |
 |---|---|
 | Frecce | Spostano la selezione (la prima pressione seleziona il primo elemento; a sinistra dal primo si va su **..**) |
-| Maiusc+frecce | Allargano la selezione |
+| **Maiusc + frecce** | Allargano la selezione |
 | Inizio, Fine | Primo, ultimo elemento |
 | Invio | Apre la cartella o l'immagine; su **..** sale di un livello |
 | Backspace | Cartella superiore |
-| Ctrl+A | Seleziona tutto nella cartella |
+| **Ctrl + A** | Seleziona tutto nella cartella |
 | Tab | Elemento successivo; dall'ultimo passa ai dispositivi |
-| Maiusc+Tab | Elemento precedente; dal primo passa alla cartella aperta a sinistra |
-| Ctrl+C, Ctrl+X, Ctrl+V | Copia, taglia, incolla (vedi [Copiare e spostare](copy-move.md)) |
+| **Maiusc + Tab** | Elemento precedente; dal primo passa alla cartella aperta a sinistra |
+| **Ctrl + C**, **Ctrl + X**, **Ctrl + V** | Copia, taglia, incolla (vedi [Copiare e spostare](copy-move.md)) |
 | F2 | Rinomina (vedi [Rinominare e nuove cartelle](rename.md)) |
-| Ctrl+Maiusc+N | Nuova cartella |
+| **Ctrl + Maiusc + N** | Nuova cartella |
 | Canc | Elimina (vedi [Eliminare e cestino](delete.md)) |
-| Maiusc+Canc | Elimina definitivamente |
-| Ctrl+N | Nuova immagine (vedi [Nuova immagine](new-image.md)) |
-| Ctrl+E | Modifica immagine (vedi [Modificare un'immagine](editor.md)) |
-| Ctrl+B | Converti… (vedi [Convertire e ridimensionare le immagini](convert.md)) |
-| Ctrl+D | Trova duplicati (vedi [Trovare i duplicati](duplicates.md)) |
-| Maiusc+F5 | Rifà tutte le miniature della cartella |
+| **Maiusc + Canc** | Elimina definitivamente |
+| **Ctrl + N** | Nuova immagine (vedi [Nuova immagine](new-image.md)) |
+| **Ctrl + E** | Modifica immagine (vedi [Modificare un'immagine](editor.md)) |
+| **Ctrl + B** | Converti… (vedi [Convertire e ridimensionare le immagini](convert.md)) |
+| **Ctrl + D** | Trova duplicati (vedi [Trovare i duplicati](duplicates.md)) |
+| **Maiusc + F5** | Rifà tutte le miniature della cartella |
 
-Con il mouse: **Ctrl+clic** aggiunge o toglie un elemento, **Maiusc+clic** seleziona dall'ultimo elemento cliccato fino a questo, e trascinando sulla griglia si disegna un rettangolo che seleziona ciò che tocca (con Ctrl si aggiunge alla selezione). Vedi [Selezionare i file](selection.md).
+Con il mouse: **Ctrl + clic** aggiunge o toglie un elemento, **Maiusc + clic** seleziona dall'ultimo elemento cliccato fino a questo, e trascinando sulla griglia si disegna un rettangolo che seleziona ciò che tocca (con Ctrl si aggiunge alla selezione). Vedi [Selezionare i file](selection.md).
 
 ## Nell'albero delle cartelle e nei dispositivi
 
@@ -55,9 +55,9 @@ Con il mouse: **Ctrl+clic** aggiunge o toglie un elemento, **Maiusc+clic** selez
 | ← | Chiude la cartella; se è già chiusa, va a quella superiore |
 | Backspace | Cartella superiore |
 | Tab | Cartella successiva; dall'ultima passa alla griglia |
-| Maiusc+Tab | Cartella precedente; dalla prima passa all'ultimo dispositivo |
+| **Maiusc + Tab** | Cartella precedente; dalla prima passa all'ultimo dispositivo |
 
-Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositivo aperto entra nella sua prima cartella), → e ← lo aprono e lo chiudono, **Invio** lo apre a destra, **Tab** passa al successivo e dall'ultimo alle cartelle del computer, **Maiusc+Tab** al precedente e dal primo all'ultimo elemento della griglia.
+Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositivo aperto entra nella sua prima cartella), → e ← lo aprono e lo chiudono, **Invio** lo apre a destra, **Tab** passa al successivo e dall'ultimo alle cartelle del computer, **Maiusc + Tab** al precedente e dal primo all'ultimo elemento della griglia.
 
 ## Nel visore: immagini
 
@@ -73,11 +73,11 @@ Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositiv
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce |
 | 0 | Adatta l'immagine alla finestra |
 | 1 | 100%: un pixel dell'immagine per pixel dello schermo |
-| Ctrl+S | Salva l'immagine ruotata sopra l'originale |
-| Ctrl+Maiusc+S | Salva come (vedi [Salva come](save-as.md)) |
-| Ctrl+E | Modifica immagine |
-| Ctrl+C, Ctrl+X | Copia o taglia l'immagine mostrata, per incollarla in una cartella dalla griglia (nel visore Ctrl+V non fa niente) |
-| F2, Canc, Maiusc+Canc | Rinomina ed elimina, come nella griglia |
+| **Ctrl + S** | Salva l'immagine ruotata sopra l'originale |
+| **Ctrl + Maiusc + S** | Salva come (vedi [Salva come](save-as.md)) |
+| **Ctrl + E** | Modifica immagine |
+| **Ctrl + C**, **Ctrl + X** | Copia o taglia l'immagine mostrata, per incollarla in una cartella dalla griglia (nel visore **Ctrl + V** non fa niente) |
+| F2, Canc, **Maiusc + Canc** | Rinomina ed elimina, come nella griglia |
 
 La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della finestra; Ctrl con la rotellina ingrandisce sempre, anche quando la rotellina è impostata per cambiare immagine (vedi [Opzioni](options.md)).
 
@@ -86,12 +86,12 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | Tasto | Azione |
 |---|---|
 | Spazio | Riproduce e mette in pausa |
-| Ctrl+←, Ctrl+→ | 5 secondi indietro, avanti |
-| Ctrl+R, Ctrl+Maiusc+R | Ruota il video a destra, a sinistra (vedi [Ruotare e riflettere](rotate.md)) |
-| Ctrl+Z, Ctrl+Y | Annulla, ripeti una rotazione non salvata |
+| **Ctrl + ←**, **Ctrl + →** | 5 secondi indietro, avanti |
+| **Ctrl + R**, **Ctrl + Maiusc + R** | Ruota il video a destra, a sinistra (vedi [Ruotare e riflettere](rotate.md)) |
+| **Ctrl + Z**, **Ctrl + Y** | Annulla, ripeti una rotazione non salvata |
 | ↑, ↓ (o la rotellina sul video) | Alza, abbassa il volume |
 | M | Toglie e rimette l'audio |
-| Ctrl+Maiusc+S | Mette in pausa e salva come immagine il fotogramma mostrato (vedi [Riprodurre i video](video.md)) |
+| **Ctrl + Maiusc + S** | Mette in pausa e salva come immagine il fotogramma mostrato (vedi [Riprodurre i video](video.md)) |
 | →, Pagina giù | Elemento successivo |
 | ←, Backspace, Pagina su | Elemento precedente |
 | Inizio, Fine | Primo, ultimo elemento |
@@ -106,10 +106,10 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce |
 | 0 | Torna alla vista iniziale |
 | M | Misura: ingombro, superficie, volume e la distanza tra due punti cliccati |
-| S | Sezione: taglia il modello con un piano (X, Y, Z l'asse; Alt+rotellina, virgola e punto lo spostano; F l'altro lato) |
+| S | Sezione: taglia il modello con un piano (X, Y, Z l'asse; **Alt + rotellina**, virgola e punto lo spostano; F l'altro lato) |
 | Pagina giù, Spazio | Elemento successivo |
 | Pagina su, Backspace | Elemento precedente |
-| Ctrl+Maiusc+S | Salva il modello come si vede, come immagine (Ctrl+S, che salva sopra l'originale, su un modello è grigio) |
+| **Ctrl + Maiusc + S** | Salva il modello come si vede, come immagine (**Ctrl + S**, che salva sopra l'originale, su un modello è grigio) |
 | Esc | Torna alla griglia |
 
 ## Nel visore: disegni CAD
@@ -119,11 +119,11 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce; trascina per spostarti |
 | 0 | Tutto il disegno |
 | ←, → | File precedente, successivo |
-| L, Maiusc+L | Layout successivo, precedente |
-| Ctrl+L | Riquadro dei livelli |
+| L, **Maiusc + L** | Layout successivo, precedente |
+| **Ctrl + L** | Riquadro dei livelli |
 | M | Misura (poi D distanza, A area, G angolo; Invio chiude un'area, Backspace toglie l'ultimo punto, Esc cancella) |
-| N, Maiusc+N | Modifica successiva, precedente, confrontando due disegni |
-| Ctrl+Maiusc+S | Salva il disegno come immagine |
+| N, **Maiusc + N** | Modifica successiva, precedente, confrontando due disegni |
+| **Ctrl + Maiusc + S** | Salva il disegno come immagine |
 | Esc | Torna alla griglia |
 
 ## Nel carosello
@@ -148,21 +148,21 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | K, Z, B | Timbri, Lente, Copertura |
 | C | Ritaglia e ruota |
 | I | Contagocce sull'immagine |
-| Maiusc+I | Contagocce in qualsiasi punto dello schermo |
-| Alt+clic | Prende un colore e tiene lo strumento di disegno |
+| **Maiusc + I** | Contagocce in qualsiasi punto dello schermo |
+| **Alt + clic** | Prende un colore e tiene lo strumento di disegno |
 | Maiusc mentre disegni | Un quadrato o un cerchio |
 | Canc | Elimina l'oggetto selezionato |
-| Ctrl+Z | Annulla |
-| Ctrl+Y, Ctrl+Maiusc+Z | Ripeti |
-| Ctrl+C | Copia il risultato (con Selezione, la parte scelta) |
-| Ctrl+X, Ctrl+V | Con Selezione: taglia la parte, la incolla come oggetto |
-| Ctrl+R, Ctrl+Maiusc+R | Ruota a destra, a sinistra |
-| Ctrl+Alt+I | Ridimensiona l'immagine (vedi [Modificare un'immagine](editor.md)) |
-| Maiusc+rotellina | Con Ritaglia e ruota: ruota di 0,1° |
+| **Ctrl + Z** | Annulla |
+| **Ctrl + Y**, **Ctrl + Maiusc + Z** | Ripeti |
+| **Ctrl + C** | Copia il risultato (con Selezione, la parte scelta) |
+| **Ctrl + X**, **Ctrl + V** | Con Selezione: taglia la parte, la incolla come oggetto |
+| **Ctrl + R**, **Ctrl + Maiusc + R** | Ruota a destra, a sinistra |
+| **Ctrl + Alt + I** | Ridimensiona l'immagine (vedi [Modificare un'immagine](editor.md)) |
+| **Maiusc + rotellina** | Con Ritaglia e ruota: ruota di 0,1° |
 | Invio | Con Ritaglia e ruota: applica il ritaglio |
 | + e −, 0 | Ingrandisce e rimpicciolisce, tutto in vista |
-| Ctrl+S | Salva copia, o Sovrascrivi l'originale se scelto nelle Opzioni (vedi [Salvare un'immagine modificata](editor-save.md)) |
-| Ctrl+Maiusc+S | Salva come |
+| **Ctrl + S** | Salva copia, o Sovrascrivi l'originale se scelto nelle Opzioni (vedi [Salvare un'immagine modificata](editor-save.md)) |
+| **Ctrl + Maiusc + S** | Salva come |
 | Esc | Un passo alla volta: ferma ciò che è in corso, chiude il testo, lascia la selezione; poi chiude l'editor |
 
 Vedi [Modificare un'immagine](editor.md).

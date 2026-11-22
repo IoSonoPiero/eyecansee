@@ -14,13 +14,13 @@ A click on the image, or Esc, lets go of the part. Choosing another tool lets go
 
 The properties bar has three buttons, also on the keyboard:
 
-- ![Copy the part](icon://copy) **Copy the part** (Ctrl+C): copies the part as you see it, the photo with what is drawn on it. It also goes to the clipboard, so you can paste it in another program.
-- ![Cut the part](icon://scissors) **Cut the part** (Ctrl+X): copies the part, then covers it with a solid box. The box takes the colour chosen for the empty corners in [Crop and rotate](editor-crop.md), or white when there is none. Like the [Cover](editor-cover.md) box, nothing of what it hides is left in the saved file.
-- ![Paste](icon://clipboard-paste) **Paste** (Ctrl+V): puts the part back as a new object, a little aside of where it was. It is selected, with Select chosen, so you can drag it into place, resize it and rotate it: see below.
+- ![Copy the part](icon://copy) **Copy the part** (**Ctrl + C**): copies the part as you see it, the photo with what is drawn on it. It also goes to the clipboard, so you can paste it in another program.
+- ![Cut the part](icon://scissors) **Cut the part** (**Ctrl + X**): copies the part, then covers it with a solid box. The box takes the colour chosen for the empty corners in [Crop and rotate](editor-crop.md), or white when there is none. Like the [Cover](editor-cover.md) box, nothing of what it hides is left in the saved file.
+- ![Paste](icon://clipboard-paste) **Paste** (**Ctrl + V**): puts the part back as a new object, a little aside of where it was. It is selected, with Select chosen, so you can drag it into place, resize it and rotate it: see below.
 
 ## Pasting from another program
 
-Ctrl+V also pastes an image copied in another program. It goes in the middle of the result, at most four fifths of its size, as an object you can move, resize and rotate. If you copied something in another program after copying a part here, that image is pasted instead. When there is no image to paste, the status bar says so.
+**Ctrl + V** also pastes an image copied in another program. It goes in the middle of the result, at most four fifths of its size, as an object you can move, resize and rotate. If you copied something in another program after copying a part here, that image is pasted instead. When there is no image to paste, the status bar says so.
 
 ## Turning, flipping and sizing a pasted piece
 
@@ -47,6 +47,6 @@ With a part chosen, the ![Filters](icon://wand-sparkles) **Filters** menu applie
 
 ## Good to know
 
-- Without a part chosen, Ctrl+C copies the whole result, and Ctrl+X does nothing.
+- Without a part chosen, **Ctrl + C** copies the whole result, and **Ctrl + X** does nothing.
 - The part copied is a picture: the objects in it can no longer be changed one by one.
 - On Linux with GNOME or X11, other programs get at most 16 MB of a copy (a PNG image), about 12 megapixels of a photo. A larger copy pastes only in the window it comes from, and the status bar says so.

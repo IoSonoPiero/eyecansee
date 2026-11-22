@@ -51,7 +51,7 @@ Under each thumbnail there are its name, its dimensions in pixels and size, and 
 
 EyeCanSee makes the thumbnail of the selected file first, then those visible in the window, then the others of the folder. Thumbnails are saved on disk, so the next time the folder opens at once; a thumbnail is made again when its file changes. Large photos (RAW, HEIC, PSD, TIFF at 16 bits) take much more memory than JPEGs while their thumbnails are made: EyeCanSee makes only as many at once as fit in a quarter of the computer's memory, so their thumbnails come more slowly, and a very large one is made on its own. The thumbnails of smaller photos do not wait behind a large one: they are made first while there is room, and after a few seconds the large one gets its turn. A photo that would need more than half of the computer's memory gets no thumbnail, and of a file larger than 32 MB EyeCanSee reads only the start, when that is enough to tell: in its place there is ![Too large for a thumbnail](icon://color-picture) with the words **Too large for a thumbnail**. The viewer opens it only when you choose **Open anyway** (see [Viewing images](viewer.md)).
 
-If a thumbnail looks wrong, right-click the file (or several selected files) and choose **Redo thumbnails**: it works on every kind of file, also on an audio file, whose thumbnail is its cover. **View > Redo all thumbnails in the folder** (**Shift+F5**) makes them all again. The space the thumbnails take on disk is set in [Options](options.md).
+If a thumbnail looks wrong, right-click the file (or several selected files) and choose **Redo thumbnails**: it works on every kind of file, also on an audio file, whose thumbnail is its cover. **View > Redo all thumbnails in the folder** (**Shift + F5**) makes them all again. The space the thumbnails take on disk is set in [Options](options.md).
 
 ## Refreshing
 
@@ -67,4 +67,4 @@ An entry marked with **\*** works only on some of the files chosen (for example 
 
 ## The status bar
 
-At the bottom of the window: how many folders, images, videos and audio files the folder has, and the name, size and date of the selected file (of a folder, its name). With several items selected it shows how many they are and how much their files weigh. After Copy or Cut it reminds you to press Ctrl+V. On its right, **Keys** lists the keys of the grid while you point at it, or until you click it again (all the keys are in [Keyboard shortcuts](keyboard.md)).
+At the bottom of the window: how many folders, images, videos and audio files the folder has, and the name, size and date of the selected file (of a folder, its name). With several items selected it shows how many they are and how much their files weigh. After Copy or Cut it reminds you to press **Ctrl + V**. On its right, **Keys** lists the keys of the grid while you point at it, or until you click it again (all the keys are in [Keyboard shortcuts](keyboard.md)).

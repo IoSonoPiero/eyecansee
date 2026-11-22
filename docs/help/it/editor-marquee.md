@@ -14,13 +14,13 @@ Un clic sull'immagine, o Esc, lascia la zona. La lascia anche scegliere un altro
 
 La barra delle proprietà ha tre pulsanti, che hanno anche il loro tasto:
 
-- ![Copia la zona](icon://copy) **Copia la zona** (Ctrl+C): copia la zona come la vedi, la foto con ciò che ci hai disegnato sopra. Va anche negli appunti, così puoi incollarla in un altro programma.
-- ![Taglia la zona](icon://scissors) **Taglia la zona** (Ctrl+X): copia la zona, poi la copre con un riquadro pieno. Il riquadro prende il colore scelto per gli angoli vuoti in [Ritagliare e ruotare](editor-crop.md), o il bianco se non ce n'è uno. Come per la [Copertura](editor-cover.md), nel file salvato non resta niente di ciò che nasconde.
-- ![Incolla](icon://clipboard-paste) **Incolla** (Ctrl+V): rimette la zona come oggetto nuovo, un po' spostata rispetto a dov'era. È selezionata, con Seleziona scelto, così la trascini al suo posto, la ridimensioni e la ruoti: vedi sotto.
+- ![Copia la zona](icon://copy) **Copia la zona** (**Ctrl + C**): copia la zona come la vedi, la foto con ciò che ci hai disegnato sopra. Va anche negli appunti, così puoi incollarla in un altro programma.
+- ![Taglia la zona](icon://scissors) **Taglia la zona** (**Ctrl + X**): copia la zona, poi la copre con un riquadro pieno. Il riquadro prende il colore scelto per gli angoli vuoti in [Ritagliare e ruotare](editor-crop.md), o il bianco se non ce n'è uno. Come per la [Copertura](editor-cover.md), nel file salvato non resta niente di ciò che nasconde.
+- ![Incolla](icon://clipboard-paste) **Incolla** (**Ctrl + V**): rimette la zona come oggetto nuovo, un po' spostata rispetto a dov'era. È selezionata, con Seleziona scelto, così la trascini al suo posto, la ridimensioni e la ruoti: vedi sotto.
 
 ## Incollare da un altro programma
 
-Ctrl+V incolla anche un'immagine copiata in un altro programma. Va al centro del risultato, grande al massimo quattro quinti, come oggetto da spostare, ridimensionare e ruotare. Se dopo aver copiato una zona qui hai copiato qualcosa in un altro programma, viene incollata quell'immagine. Se non c'è un'immagine da incollare, lo dice la barra di stato.
+**Ctrl + V** incolla anche un'immagine copiata in un altro programma. Va al centro del risultato, grande al massimo quattro quinti, come oggetto da spostare, ridimensionare e ruotare. Se dopo aver copiato una zona qui hai copiato qualcosa in un altro programma, viene incollata quell'immagine. Se non c'è un'immagine da incollare, lo dice la barra di stato.
 
 ## Ruotare, riflettere e misurare un pezzo incollato
 
@@ -47,6 +47,6 @@ Con una zona scelta, il menù ![Filtri](icon://wand-sparkles) **Filtri** applica
 
 ## Da sapere
 
-- Senza una zona scelta, Ctrl+C copia tutto il risultato e Ctrl+X non fa niente.
+- Senza una zona scelta, **Ctrl + C** copia tutto il risultato e **Ctrl + X** non fa niente.
 - La zona copiata è un'immagine: gli oggetti che contiene non si cambiano più uno per uno.
 - Su Linux con GNOME o X11 gli altri programmi ricevono al massimo 16 MB di una copia (un'immagine PNG), circa 12 megapixel di una foto. Una copia più grande si incolla solo nella finestra da cui viene, e lo dice la barra di stato.

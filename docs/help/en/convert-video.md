@@ -4,7 +4,7 @@ Converts videos into another format or size, turns them, makes them smaller or t
 
 ## Starting
 
-Select the videos in the grid (pictures can be selected too) and choose ![Convert…](icon://scaling) **Convert…** from the toolbar, the **Tools** menu (**Ctrl+B**) or the right-click menu. With videos among the files, the window has a **Videos** part. Rotate and flip, size and destination work as for pictures: see [Converting and resizing images](convert.md).
+Select the videos in the grid (pictures can be selected too) and choose ![Convert…](icon://scaling) **Convert…** from the toolbar, the **Tools** menu (**Ctrl + B**) or the right-click menu. With videos among the files, the window has a **Videos** part. Rotate and flip, size and destination work as for pictures: see [Converting and resizing images](convert.md).
 
 ## FFmpeg
 

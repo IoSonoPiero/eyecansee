@@ -5,7 +5,7 @@ Trova i file identici in una cartella e nelle sue sottocartelle, così puoi elim
 ## Cercare
 
 1. Apri la cartella in cui cercare, oppure fai clic destro su una cartella.
-2. Fai clic su ![Trova duplicati…](icon://scan-search) nella barra strumenti, oppure scegli **Strumenti > Trova duplicati…** (**Ctrl+D**), oppure **Trova duplicati…** dal clic destro su una cartella o su uno spazio vuoto della griglia.
+2. Fai clic su ![Trova duplicati…](icon://scan-search) nella barra strumenti, oppure scegli **Strumenti > Trova duplicati…** (**Ctrl + D**), oppure **Trova duplicati…** dal clic destro su una cartella o su uno spazio vuoto della griglia.
 3. Scegli se cercare **Anche nelle sottocartelle** (acceso all'inizio).
 4. Fai clic su **Cerca** (o premi **Invio**; **Esc** annulla).
 

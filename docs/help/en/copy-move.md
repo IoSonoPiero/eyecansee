@@ -5,15 +5,15 @@ Copies or moves files and folders, with everything inside them, to another folde
 ## Copy or move
 
 1. Select the files or folders (see [Selecting files](selection.md)).
-2. Press **Ctrl+C** to copy them, or **Ctrl+X** to cut them (to move them). You can also click ![Copy](icon://copy) or ![Cut](icon://scissors) in the toolbar, use the **Edit** menu or the right-click menu.
+2. Press **Ctrl + C** to copy them, or **Ctrl + X** to cut them (to move them). You can also click ![Copy](icon://copy) or ![Cut](icon://scissors) in the toolbar, use the **Edit** menu or the right-click menu.
 3. Open the folder where they should go: on this computer, a disk, a phone or a server (see [Folders and the side panel](folders.md)).
-4. Press **Ctrl+V**, or click ![Paste](icon://clipboard-paste), or choose **Edit > Paste**.
+4. Press **Ctrl + V**, or click ![Paste](icon://clipboard-paste), or choose **Edit > Paste**.
 
-To paste straight into a folder without opening it, right-click it (in the grid or in the tree) and choose **Paste into this folder**. In the viewer, **Ctrl+C** and **Ctrl+X** take the image shown; **Ctrl+V** does nothing there, as **Edit > Paste**: go back to the grid to paste.
+To paste straight into a folder without opening it, right-click it (in the grid or in the tree) and choose **Paste into this folder**. In the viewer, **Ctrl + C** and **Ctrl + X** take the image shown; **Ctrl + V** does nothing there, as **Edit > Paste**: go back to the grid to paste.
 
 ## What you see
 
-- Copied items get a blue badge ![Copied](icon://color-copied) in the corner of their cell; cut items an orange one with scissors ![Cut](icon://color-cut), and they fade. The status bar says how many are waiting for Ctrl+V.
+- Copied items get a blue badge ![Copied](icon://color-copied) in the corner of their cell; cut items an orange one with scissors ![Cut](icon://color-cut), and they fade. The status bar says how many are waiting for **Ctrl + V**.
 - During the copy a box at the bottom right shows the file being copied, the destination folder, how many files and how much data are done, the percentage, the speed of the last seconds and the time left. With many folders it first says how many items it found while looking inside them.
 - The destination folder fills while the copy runs.
 - When the copy ends the box goes. If something was left out, one message (**Copy finished** or **Move finished**) says what: each thing under its heading, with how many they are and their names in order. With nothing to say, no window opens.
@@ -43,7 +43,7 @@ On Linux, in a folder opened through the file manager's connection (gvfs, for ex
 
 - A photo's `.xmp` file (its "sidecar", see [Image information](metadata.md)) goes with it, also from one device to another: with **Keep both** it takes the photo's new name ("IMG_0001 (2).CR2" with "IMG_0001 (2).CR2.xmp"), with **Replace** it replaces the one there. A name taken only by an `.xmp` file in the destination counts as a name already there. Cancelled halfway, a photo is never left without its own `.xmp` file in the folder it came from.
 - Each copy or cut is pasted once: to paste again, copy again.
-- After you copy something else in another program, Ctrl+V and Paste no longer paste the items copied in EyeCanSee.
+- After you copy something else in another program, **Ctrl + V** and Paste no longer paste the items copied in EyeCanSee.
 - Pasted into the folder they came from, copies become "name (2)"; a move does nothing. This holds also when that folder is reached through a link, or opened as another source: on this computer, or on the same SFTP server. Where EyeCanSee cannot tell (the same server opened through SFTP and through FTP), a move answered **Replace** or **Merge** that would replace an item with itself stops before writing or deleting anything, and says so.
 - A copy that fails, for example because the disk is full, leaves nothing half-written: the file being copied is removed, and a file it was replacing stays as it was. For this, while a file is replaced, the disk needs room for both versions.
 - On this computer a file that is replaced keeps its permissions, attributes and links; a read-only file is not replaced, and the message says so.

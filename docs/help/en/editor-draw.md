@@ -34,7 +34,7 @@ Drag a corner of the selected shape to resize it; the opposite corner stays wher
 
 ## Keys
 
-- **I**: eyedropper. **Alt+click**: take a colour and keep the tool.
+- **I**: eyedropper. **Alt + click**: take a colour and keep the tool.
 - **Del**: delete the selected shape. **Esc**: let go of it.
 
 See also [Colours, lines and the eyedropper](editor-colors.md).

@@ -9,7 +9,7 @@ For one image with a live preview use [Save as](save-as.md). Videos go through t
 ## Starting
 
 1. In the grid, select the pictures (see [Selecting files](selection.md)). With nothing selected, the image under the cursor is used.
-2. Click ![Convert…](icon://scaling) in the toolbar, or choose **Tools > Convert…** (**Ctrl+B**), or right-click one of the selected files and choose **Convert…**. The window opens on its format, with the size **Unchanged** and no turn or flip; **Resize > Custom…** opens it on its size (see below).
+2. Click ![Convert…](icon://scaling) in the toolbar, or choose **Tools > Convert…** (**Ctrl + B**), or right-click one of the selected files and choose **Convert…**. The window opens on its format, with the size **Unchanged** and no turn or flip; **Resize > Custom…** opens it on its size (see below).
 3. Make your choices in the window and click **Convert**.
 
 The window works on pictures, videos and audio files (see [Converting videos](convert-video.md)). Other files you selected (3D models, CAD drawings) are left out: the window says how many, the summary at the end which ones. It does not work from the viewer, and only one conversion runs at a time.

@@ -53,7 +53,7 @@ A click on an existing step selects it. Anywhere else on the image, even inside 
 
 ## Keys
 
-- **I**: eyedropper. **Alt+click**: take a colour and keep the tool.
+- **I**: eyedropper. **Alt + click**: take a colour and keep the tool.
 - **Del**: delete the selected object (outside the text field).
 - **Esc**: end the text being typed, or let go of the object.
 

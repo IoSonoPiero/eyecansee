@@ -22,7 +22,7 @@ Fai doppio clic su un modello, oppure selezionalo e premi **Invio**.
 | Tasto o mouse | Cosa fa |
 |---|---|
 | Frecce, o trascinare | Girano il modello (tenendo premuta una freccia continua a girare) |
-| Maiusc+trascinare, o trascinare col tasto centrale | Spostano il modello nella finestra |
+| **Maiusc + trascinare**, o trascinare col tasto centrale | Spostano il modello nella finestra |
 | Rotellina, + e − | Ingrandiscono e rimpiccioliscono |
 | 0 | Torna alla vista di partenza |
 | M | Misura |
@@ -39,7 +39,7 @@ In alto a destra gli assi del file (X rosso, Y verde, Z blu) girano col modello,
 
 ## Misurare
 
-**M**, o **Visualizza > Misura**, accende lo strumento Misura: la barra di stato mostra l'ingombro del modello lungo X, Y e Z, la sua superficie e il suo volume. Il volume c'è solo per un modello chiuso (ogni spigolo condiviso da due triangoli, come deve essere un modello per la stampa 3D); altrimenti la barra di stato dice quanti spigoli sono aperti. Fai clic su due punti del modello per la loro distanza, scritta accanto al puntatore e nella barra di stato; un terzo clic ricomincia. Le misure sono nell'unità del file quando il formato o il file la dice (glTF, IFC, X3D e VRML in metri, STEP e IGES in millimetri, 3MF e AMF come dicono); STL, OBJ, PLY e altri non hanno unità, e la barra di stato lo dice. **Copia** nella barra di stato, o **Ctrl+C**, mette i risultati negli appunti; **Esc** cancella i punti, **Esc** di nuovo o **M** chiudono lo strumento. Trascinare gira ancora il modello.
+**M**, o **Visualizza > Misura**, accende lo strumento Misura: la barra di stato mostra l'ingombro del modello lungo X, Y e Z, la sua superficie e il suo volume. Il volume c'è solo per un modello chiuso (ogni spigolo condiviso da due triangoli, come deve essere un modello per la stampa 3D); altrimenti la barra di stato dice quanti spigoli sono aperti. Fai clic su due punti del modello per la loro distanza, scritta accanto al puntatore e nella barra di stato; un terzo clic ricomincia. Le misure sono nell'unità del file quando il formato o il file la dice (glTF, IFC, X3D e VRML in metri, STEP e IGES in millimetri, 3MF e AMF come dicono); STL, OBJ, PLY e altri non hanno unità, e la barra di stato lo dice. **Copia** nella barra di stato, o **Ctrl + C**, mette i risultati negli appunti; **Esc** cancella i punti, **Esc** di nuovo o **M** chiudono lo strumento. Trascinare gira ancora il modello.
 
 ## Sezione
 
@@ -64,7 +64,7 @@ Senza una scheda video che EyeCanSee possa usare, il modello lo disegna il proce
 
 ## Salvare
 
-- **Ctrl+Maiusc+S**, o **Salva come…** nel menù File o nel menù del clic destro del visore, salva il modello come si vede, come immagine, di almeno 1920 pixel sul lato lungo. Vedi [Salva come](save-as.md).
+- **Ctrl + Maiusc + S**, o **Salva come…** nel menù File o nel menù del clic destro del visore, salva il modello come si vede, come immagine, di almeno 1920 pixel sul lato lungo. Vedi [Salva come](save-as.md).
 - **Esporta come modello 3D…** lo salva in un altro formato 3D. Vedi [Esportare i modelli 3D](model-export.md).
 
 Le rotazioni e i ribaltamenti del menù Immagine non valgono per i modelli: un modello si gira col mouse e con le frecce.

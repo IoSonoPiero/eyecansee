@@ -15,9 +15,9 @@ Every key of EyeCanSee, by place. The menus show the key next to each item, and 
 |---|---|
 | F5 | Read the folders again (in the viewer it stays on the open image) |
 | F11 | Full screen and back; in the viewer only the image is shown, without menus or bars |
-| Ctrl+R, Ctrl+Shift+R | Turn the picture 90° clockwise, anticlockwise: in the viewer you see it before saving, in the grid the selected pictures are saved after asking (see [Rotating and flipping](rotate.md)) |
-| Ctrl+Z, Ctrl+Y | In the viewer: undo, redo a turn or flip not saved |
-| Ctrl+Shift+D | Bookmarks: the list opens; ↓ enters it, Enter opens the bookmark chosen (see [Bookmarks](bookmarks.md)) |
+| **Ctrl + R**, **Ctrl + Shift + R** | Turn the picture 90° clockwise, anticlockwise: in the viewer you see it before saving, in the grid the selected pictures are saved after asking (see [Rotating and flipping](rotate.md)) |
+| **Ctrl + Z**, **Ctrl + Y** | In the viewer: undo, redo a turn or flip not saved |
+| **Ctrl + Shift + D** | Bookmarks: the list opens; ↓ enters it, Enter opens the bookmark chosen (see [Bookmarks](bookmarks.md)) |
 
 In the windows that tell how an operation went, **Enter** or **Esc** closes them; in those that ask for a choice, **Enter** confirms and **Esc** cancels. Two exceptions: a deletion that includes a folder (there Enter cancels too) and turning or flipping pictures in the grid (Enter does not confirm). With this guide open over the window, **Esc** goes to the guide first (two close it, as everywhere), **Enter** does not answer the window, and what you type in the search field of the guide stays there.
 
@@ -26,25 +26,25 @@ In the windows that tell how an operation went, **Enter** or **Esc** closes them
 | Key | Action |
 |---|---|
 | Arrows | Move the selection (the first press selects the first item; left from the first item goes to **..**) |
-| Shift+arrows | Extend the selection |
+| **Shift + arrows** | Extend the selection |
 | Home, End | First, last item |
 | Enter | Open the folder or the image; on **..** go up |
 | Backspace | Parent folder |
-| Ctrl+A | Select everything in the folder |
+| **Ctrl + A** | Select everything in the folder |
 | Tab | Next item; from the last one to the devices |
-| Shift+Tab | Previous item; from the first one to the folder open on the left |
-| Ctrl+C, Ctrl+X, Ctrl+V | Copy, cut, paste (see [Copying and moving](copy-move.md)) |
+| **Shift + Tab** | Previous item; from the first one to the folder open on the left |
+| **Ctrl + C**, **Ctrl + X**, **Ctrl + V** | Copy, cut, paste (see [Copying and moving](copy-move.md)) |
 | F2 | Rename (see [Renaming and new folders](rename.md)) |
-| Ctrl+Shift+N | New folder |
+| **Ctrl + Shift + N** | New folder |
 | Del | Delete (see [Deleting and the trash](delete.md)) |
-| Shift+Del | Delete for good |
-| Ctrl+N | New image (see [New image](new-image.md)) |
-| Ctrl+E | Edit image (see [Editing an image](editor.md)) |
-| Ctrl+B | Convert… (see [Converting and resizing images](convert.md)) |
-| Ctrl+D | Find duplicates (see [Finding duplicates](duplicates.md)) |
-| Shift+F5 | Make all the thumbnails of the folder again |
+| **Shift + Del** | Delete for good |
+| **Ctrl + N** | New image (see [New image](new-image.md)) |
+| **Ctrl + E** | Edit image (see [Editing an image](editor.md)) |
+| **Ctrl + B** | Convert… (see [Converting and resizing images](convert.md)) |
+| **Ctrl + D** | Find duplicates (see [Finding duplicates](duplicates.md)) |
+| **Shift + F5** | Make all the thumbnails of the folder again |
 
-With the mouse: **Ctrl+click** adds or removes an item, **Shift+click** selects from the last item clicked to this one, and dragging on the grid draws a rectangle that selects what it touches (with Ctrl it adds to the selection). See [Selecting files](selection.md).
+With the mouse: **Ctrl + click** adds or removes an item, **Shift + click** selects from the last item clicked to this one, and dragging on the grid draws a rectangle that selects what it touches (with Ctrl it adds to the selection). See [Selecting files](selection.md).
 
 ## In the folder tree and the devices
 
@@ -55,9 +55,9 @@ With the mouse: **Ctrl+click** adds or removes an item, **Shift+click** selects 
 | ← | Collapse the folder; if already collapsed, go to its parent |
 | Backspace | Parent folder |
 | Tab | Next folder; from the last one to the grid |
-| Shift+Tab | Previous folder; from the first one to the last device |
+| **Shift + Tab** | Previous folder; from the first one to the last device |
 
-In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device enters its first folder), → and ← expand and collapse it, **Enter** opens it on the right, **Tab** goes to the next one and from the last one to the computer's folders, **Shift+Tab** to the previous one and from the first one to the last item of the grid.
+In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device enters its first folder), → and ← expand and collapse it, **Enter** opens it on the right, **Tab** goes to the next one and from the last one to the computer's folders, **Shift + Tab** to the previous one and from the first one to the last item of the grid.
 
 ## In the viewer: images
 
@@ -73,11 +73,11 @@ In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device e
 | + and − (or the mouse wheel) | Zoom in and out |
 | 0 | Fit the image to the window |
 | 1 | 100%: one image pixel per screen pixel |
-| Ctrl+S | Save the turned image over the original |
-| Ctrl+Shift+S | Save as (see [Save as](save-as.md)) |
-| Ctrl+E | Edit image |
-| Ctrl+C, Ctrl+X | Copy or cut the image shown, to paste it in a folder from the grid (Ctrl+V does nothing in the viewer) |
-| F2, Del, Shift+Del | Rename and delete, as in the grid |
+| **Ctrl + S** | Save the turned image over the original |
+| **Ctrl + Shift + S** | Save as (see [Save as](save-as.md)) |
+| **Ctrl + E** | Edit image |
+| **Ctrl + C**, **Ctrl + X** | Copy or cut the image shown, to paste it in a folder from the grid (**Ctrl + V** does nothing in the viewer) |
+| F2, Del, **Shift + Del** | Rename and delete, as in the grid |
 
 The mouse wheel zooms around the pointer, + and − around the middle of the window; Ctrl and the wheel always zoom, also when the wheel is set to change image (see [Options](options.md)).
 
@@ -86,12 +86,12 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | Key | Action |
 |---|---|
 | Space | Play and pause |
-| Ctrl+←, Ctrl+→ | 5 seconds back, forward |
-| Ctrl+R, Ctrl+Shift+R | Turn the video right, left (see [Rotating and flipping](rotate.md)) |
-| Ctrl+Z, Ctrl+Y | Undo, redo a turn not saved |
+| **Ctrl + ←**, **Ctrl + →** | 5 seconds back, forward |
+| **Ctrl + R**, **Ctrl + Shift + R** | Turn the video right, left (see [Rotating and flipping](rotate.md)) |
+| **Ctrl + Z**, **Ctrl + Y** | Undo, redo a turn not saved |
 | ↑, ↓ (or the mouse wheel on the video) | Volume up, down |
 | M | Audio off and on |
-| Ctrl+Shift+S | Pause and save the frame shown as a picture (see [Playing videos](video.md)) |
+| **Ctrl + Shift + S** | Pause and save the frame shown as a picture (see [Playing videos](video.md)) |
 | →, Page Down | Next item |
 | ←, Backspace, Page Up | Previous item |
 | Home, End | First, last item |
@@ -106,10 +106,10 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | + and − (or the mouse wheel) | Zoom in and out |
 | 0 | Back to the starting view |
 | M | Measure: size, surface, volume, and the distance between two points clicked |
-| S | Section: cut the model with a plane (X, Y, Z its axis; Alt+wheel, comma and full stop move it; F the other side) |
+| S | Section: cut the model with a plane (X, Y, Z its axis; **Alt + wheel**, comma and full stop move it; F the other side) |
 | Page Down, Space | Next item |
 | Page Up, Backspace | Previous item |
-| Ctrl+Shift+S | Save the model as it is shown, as an image (Ctrl+S, which saves over the original, is greyed out on a model) |
+| **Ctrl + Shift + S** | Save the model as it is shown, as an image (**Ctrl + S**, which saves over the original, is greyed out on a model) |
 | Esc | Back to the grid |
 
 ## In the viewer: CAD drawings
@@ -119,11 +119,11 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | + and − (or the mouse wheel) | Zoom in and out; drag to move |
 | 0 | The whole drawing |
 | ←, → | Previous, next file |
-| L, Shift+L | Next, previous layout |
-| Ctrl+L | Layers panel |
+| L, **Shift + L** | Next, previous layout |
+| **Ctrl + L** | Layers panel |
 | M | Measure (then D distance, A area, G angle; Enter closes an area, Backspace takes back a point, Esc clears) |
-| N, Shift+N | Next, previous change, when comparing two drawings |
-| Ctrl+Shift+S | Save the drawing as an image |
+| N, **Shift + N** | Next, previous change, when comparing two drawings |
+| **Ctrl + Shift + S** | Save the drawing as an image |
 | Esc | Back to the grid |
 
 ## In the slideshow
@@ -148,21 +148,21 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | K, Z, B | Stamps, Magnifier, Cover |
 | C | Crop and rotate |
 | I | Eyedropper on the image |
-| Shift+I | Eyedropper anywhere on the screen |
-| Alt+click | Take a colour and keep the drawing tool |
+| **Shift + I** | Eyedropper anywhere on the screen |
+| **Alt + click** | Take a colour and keep the drawing tool |
 | Shift while drawing | A square or a circle |
 | Del | Delete the object selected |
-| Ctrl+Z | Undo |
-| Ctrl+Y, Ctrl+Shift+Z | Redo |
-| Ctrl+C | Copy the result (with Selection, the part chosen) |
-| Ctrl+X, Ctrl+V | With Selection: cut the part, paste it as an object |
-| Ctrl+R, Ctrl+Shift+R | Turn right, left |
-| Ctrl+Alt+I | Resize the image (see [Editing an image](editor.md)) |
-| Shift+wheel | With Crop and rotate: turn by 0.1° |
+| **Ctrl + Z** | Undo |
+| **Ctrl + Y**, **Ctrl + Shift + Z** | Redo |
+| **Ctrl + C** | Copy the result (with Selection, the part chosen) |
+| **Ctrl + X**, **Ctrl + V** | With Selection: cut the part, paste it as an object |
+| **Ctrl + R**, **Ctrl + Shift + R** | Turn right, left |
+| **Ctrl + Alt + I** | Resize the image (see [Editing an image](editor.md)) |
+| **Shift + wheel** | With Crop and rotate: turn by 0.1° |
 | Enter | With Crop and rotate: apply the crop |
 | + and −, 0 | Zoom in and out, everything in view |
-| Ctrl+S | Save copy, or Overwrite the original when chosen in the Options (see [Saving an edited image](editor-save.md)) |
-| Ctrl+Shift+S | Save as |
+| **Ctrl + S** | Save copy, or Overwrite the original when chosen in the Options (see [Saving an edited image](editor-save.md)) |
+| **Ctrl + Shift + S** | Save as |
 | Esc | One step at a time: stops what is under way, ends the text, lets go of the selection; then closes the editor |
 
 See [Editing an image](editor.md).

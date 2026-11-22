@@ -4,7 +4,7 @@ The editor never changes the original unless you ask. The main button, **Save co
 
 ## Save copy
 
-**Save copy** (Ctrl+S) makes a copy next to the original:
+**Save copy** (**Ctrl + S**) makes a copy next to the original:
 
 - Its name is the original's with "(edited)", for example `beach (edited).jpg`; "(edited 2)" when that name is taken.
 - Its format is the original's when EyeCanSee can write that format (JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI). Otherwise it is a PNG when the image has transparency or comes from an OpenEXR or Radiance HDR file, and a JPEG in the other cases (a HEIC, a RAW or a PSD, for example).
@@ -29,16 +29,16 @@ The button is off when there is nothing new to save.
 
 The arrow ![More ways to save](icon://chevron-down) next to Save copy has two more (with Overwrite as the main button, see below, it has **Save copy** and **Save as…**):
 
-- ![Save as…](icon://file-output) **Save as…** (Ctrl+Shift+S): opens [Save as](save-as.md) with the result, to choose the name, the format and the folder. The editor waits under it: once the file is saved, it closes. Opened from the viewer, the viewer then goes to the new file; if you saved into another folder, it stays on the original, no longer marked as modified, and a message says where the new file is. If you close Save as without saving (Cancel, Esc or the window's ✕), also after a save that failed, you are back in the editor with your changes, still to save.
+- ![Save as…](icon://file-output) **Save as…** (**Ctrl + Shift + S**): opens [Save as](save-as.md) with the result, to choose the name, the format and the folder. The editor waits under it: once the file is saved, it closes. Opened from the viewer, the viewer then goes to the new file; if you saved into another folder, it stays on the original, no longer marked as modified, and a message says where the new file is. If you close Save as without saving (Cancel, Esc or the window's ✕), also after a save that failed, you are back in the editor with your changes, still to save.
 - ![Overwrite the original…](icon://save) **Overwrite the original…**: writes the edited image over the original, after asking; the question says what the new file loses, as for the copy (the video of a motion photo, for example). The original goes to the trash, even when deleting for good is chosen in the [Options](options.md). If it cannot go to a trash, nothing is overwritten. The page stays open (unless **After saving** in the Options says to go back: then it closes, and the thumbnails keep the image selected, or the viewer shows it, as chosen there); a second Overwrite starts again from the original as it was opened and replaces what was written before, so only the true original is in the trash. See [Deleting and the trash](delete.md).
 
 Overwrite is off, and pointing at it says why, for a new image, for a format EyeCanSee does not write back (HEIC, RAW…), and in places where EyeCanSee never writes over a file (a folder opened through the file manager's gvfs link, a temporary copy made by Windows).
 
 ## The main save button
 
-In **Tools > Options…**, **Editor** tab, **Main save button (also Ctrl+S)** is **Save copy** (the default) or **Overwrite the original**. With Overwrite the original:
+In **Tools > Options…**, **Editor** tab, **Main save button (also Ctrl + S)** is **Save copy** (the default) or **Overwrite the original**. With Overwrite the original:
 
-- the main button is **Overwrite…** (pointing at it shows the whole name, Overwrite the original…), and Ctrl+S overwrites, after the same question;
+- the main button is **Overwrite…** (pointing at it shows the whole name, Overwrite the original…), and **Ctrl + S** overwrites, after the same question;
 - **Save copy** (or **Update copy**) is in the arrow's menu, with Save as…;
 - **Save…** in the question on closing overwrites too.
 
@@ -62,7 +62,7 @@ Close, the window's ✕ or Esc first ask what to do:
 
 ## Copy to the clipboard
 
-![Copy](icon://copy) **Copy** (Ctrl+C) puts the whole result, at full size, on the clipboard, to paste it into another program. Nothing is written to disk.
+![Copy](icon://copy) **Copy** (**Ctrl + C**) puts the whole result, at full size, on the clipboard, to paste it into another program. Nothing is written to disk.
 
 On Linux with Plasma or Cinnamon (X11), keep the EyeCanSee window open until you have pasted: once it is closed, the image is no longer on the clipboard.
 

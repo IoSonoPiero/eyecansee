@@ -8,10 +8,10 @@ Fai clic su una miniatura o su una cartella, oppure muoviti con le frecce. L'ele
 
 ## Più elementi
 
-- **Ctrl+clic** aggiunge un elemento alla selezione, o lo toglie. Resta selezionato anche l'elemento che lo era prima.
-- **Maiusc+clic** seleziona tutto dall'ultimo elemento su cui hai fatto clic fino a questo.
-- **Maiusc+frecce** allargano la selezione allo stesso modo.
-- **Ctrl+A** (o **Modifica > Seleziona tutto**, anche nel menù del clic destro su uno spazio vuoto) seleziona tutto nella cartella.
+- **Ctrl + clic** aggiunge un elemento alla selezione, o lo toglie. Resta selezionato anche l'elemento che lo era prima.
+- **Maiusc + clic** seleziona tutto dall'ultimo elemento su cui hai fatto clic fino a questo.
+- **Maiusc + frecce** allargano la selezione allo stesso modo.
+- **Ctrl + A** (o **Modifica > Seleziona tutto**, anche nel menù del clic destro su uno spazio vuoto) seleziona tutto nella cartella.
 - **Trascina** col mouse sulla griglia: compare un rettangolo che seleziona le celle che tocca. Tenendo premuto **Ctrl** si aggiungono a quelle già selezionate. Vicino al bordo in alto o in basso la griglia scorre da sola.
 
 Un clic senza tasti, o una freccia senza Maiusc, torna a un solo elemento.

@@ -8,10 +8,10 @@ Click a thumbnail or a folder, or move with the arrows. The selected item has a 
 
 ## Several items
 
-- **Ctrl+click** adds an item to the selection, or takes it away. The item that was selected before is kept too.
-- **Shift+click** selects everything from the last item you clicked to this one.
-- **Shift+arrows** extend the selection in the same way.
-- **Ctrl+A** (or **Edit > Select all**, also in the right-click menu of an empty space) selects everything in the folder.
+- **Ctrl + click** adds an item to the selection, or takes it away. The item that was selected before is kept too.
+- **Shift + click** selects everything from the last item you clicked to this one.
+- **Shift + arrows** extend the selection in the same way.
+- **Ctrl + A** (or **Edit > Select all**, also in the right-click menu of an empty space) selects everything in the folder.
 - **Drag** with the mouse across the grid: a rectangle appears and selects the cells it touches. With **Ctrl** held, they are added to those already selected. Near the top or bottom edge the grid scrolls by itself.
 
 A click without keys, or an arrow without Shift, goes back to a single item.

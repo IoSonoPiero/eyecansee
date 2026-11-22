@@ -53,7 +53,7 @@ Un clic su un numero già messo lo seleziona. Altrove sull'immagine, anche dentr
 
 ## Tasti
 
-- **I**: contagocce. **Alt+clic**: prende un colore e lo strumento resta.
+- **I**: contagocce. **Alt + clic**: prende un colore e lo strumento resta.
 - **Canc**: elimina l'oggetto selezionato (fuori dal campo di testo).
 - **Esc**: finisce il testo che stai scrivendo, o lascia l'oggetto.
 
