@@ -92,6 +92,12 @@ pub fn write(program: &Path, input: &Path, output: &Path, quarters: u8, cancel: 
     r
 }
 
+/// The temporary file `what` ("in" for the copy of a video of a phone or a server, "out" for the
+/// new one) of the video `name`.
+fn temp(what: &str, name: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!("eyecansee-turn-{what}-{}-{name}", std::process::id()))
+}
+
 /// The video `path` of `op` saved over itself turned by `quarters` clockwise quarter turns, the
 /// original going as `how` says (as a photo's Save). A video on a phone or a server is copied
 /// here first; the new one is written into a temporary file, then sent into place.
@@ -101,7 +107,7 @@ pub(crate) async fn replace(op: &crate::source::Store, path: &str, quarters: u8,
         return Err((NO_ROTATION, name));
     }
     let Some(program) = crate::ffmpeg::copier() else { return Err((crate::batch::SKIP_VIDEO, name)) };
-    let temp = |what: &str| std::env::temp_dir().join(format!("eyecansee-turn-{what}-{}-{name}", std::process::id()));
+    let temp = |what: &str| temp(what, &name);
     let input = match op.local_file(path) {
         Some(file) => (file, false),
         None => {
