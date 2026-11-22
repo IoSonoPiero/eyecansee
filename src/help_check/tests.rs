@@ -47,9 +47,9 @@ fn check(docs: &Docs) -> Report {
     check_guide(docs, FAKE, &|name| name != "nope")
 }
 
-/// Some problem contains `needle`.
+/// Some problem contains `needle`, with paths written with `/` (Windows writes `\`).
 fn finds(problems: &[String], needle: &str) {
-    assert!(problems.iter().any(|p| p.contains(needle)), "no problem with {needle:?} in {problems:#?}");
+    assert!(problems.iter().any(|p| p.replace('\\', "/").contains(needle)), "no problem with {needle:?} in {problems:#?}");
 }
 
 #[test]
