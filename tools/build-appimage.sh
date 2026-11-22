@@ -28,7 +28,7 @@ apt-get install -y -qq build-essential cmake nasm curl file jq pkg-config meson 
     libglib2.0-0 libclang-dev libpng-dev libjpeg-turbo8-dev libtiff-dev libwebp-dev libopenjp2-7-dev \
     liblcms2-dev libfreetype-dev libbz2-dev liblzma-dev zlib1g-dev libxkbcommon-x11-0 >/dev/null
 source tools/fetch.sh
-DE265=1.1.3 DAV1D=1.5.4
+DE265=1.1.3 DAV1D=1.5.5
 # SHA-256 of the sources (tools/fetch.sh). To update a version: its new SHA-256 here, checked against
 # what the project publishes. libde265: the tag's archive, as in the Flatpak manifest; GitHub publishes
 # no hash for it, its content is the same as the release's libde265-1.1.3.tar.gz (whose SHA-256 GitHub
@@ -36,7 +36,7 @@ DE265=1.1.3 DAV1D=1.5.4
 DE265_URL=https://github.com/strukturag/libde265/archive/refs/tags/v$DE265.tar.gz
 DE265_SHA256=189baa08fd6d2dd34db099de411bd6b2e6bd5eb88e81236a3d0fa3826b9715c4
 DAV1D_URL=https://downloads.videolan.org/pub/videolan/dav1d/$DAV1D/dav1d-$DAV1D.tar.xz
-DAV1D_SHA256=686616b7c69eb88d44459391ab25cac13b6647a3b288835c5784e71c1514a5c5
+DAV1D_SHA256=ca96b1d0ba3f01f55de7231d775892b64994ba061aaeeaaa4f662a390b3abf9e
 DEPS=/cache/deps-de265-$DE265-dav1d-$DAV1D
 if [[ ! -d $DEPS ]]; then
     B=$(mktemp -d -p /cache)  # not /tmp: meson copies its per-container SELinux label
