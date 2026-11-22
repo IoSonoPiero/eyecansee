@@ -4,7 +4,7 @@
 //! vertices; PLY (binary) and STL (binary, VisCAM colours) a colour per triangle. Where the
 //! format cannot hold a picture, its colours are taken from it. Each is written with the up axis
 //! other programs expect, so that it opens standing (tried with Blender 4.5, 2026-11-02): Z for
-//! STL and PLY (with a mark EyeCanSee reads, `model::PLY_Z_UP`), Y for OBJ and glTF. glTF counts
+//! STL and PLY (with a mark EyeCanSee reads, `model_ply::PLY_Z_UP`), Y for OBJ and glTF. glTF counts
 //! in metres: a model whose unit is known is converted; the others keep their numbers and say the
 //! unit in their header (`unit_line`), which other programs take as a comment.
 
@@ -225,7 +225,7 @@ fn ply(v: &View) -> Vec<u8> {
     let colored = v.colored();
     let mut out = format!(
         "ply\nformat binary_little_endian 1.0\n{}\n{}element vertex {}\nproperty float x\nproperty float y\nproperty float z\nelement face {}\nproperty list uchar uint vertex_indices\n{}end_header\n",
-        crate::model::PLY_Z_UP,
+        crate::model_ply::PLY_Z_UP,
         unit_line(v.mesh, "comment"),
         v.mesh.pos.len(),
         v.mesh.tris.len(),
