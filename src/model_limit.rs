@@ -15,15 +15,23 @@ pub(crate) struct Limit {
     pub(crate) format: &'static str,
 }
 
-/// The formats without a cap of their own: binary FBX, AMF, IFC and the CAD engine's (STEP,
-/// IGES, BREP).
+/// The formats without a cap of their own: the CAD engine's (STEP, IGES, BREP), said as 3D
+/// models.
 pub(crate) const OTHER: Limit = Limit { max: crate::model::MAX_TRIANGLES, format: "other" };
 /// The formats measured after D1 (22/11/2026: under 8 GB at the peak up to 20-55 million
 /// triangles, `peak_live_d1`), at 20 million (Piero, 22/11/2026). Those read whole by their
-/// library or parser before `Builder` sees a triangle (OFF, Collada, VRML, X3D, FBX in text) are
-/// said as 3D models, without the why; 3DS and a .gltf, read as they go, by their name.
-pub(crate) const READ_WHOLE: Limit = Limit { max: 20_000_000, format: "other" };
+/// library or parser before `Builder` sees a triangle (OFF, Collada, VRML, X3D, FBX) are said
+/// without the why (`fluent`'s list in the message); 3DS, read part by part, with it.
+pub(crate) const OFF: Limit = Limit { max: 20_000_000, format: "off" };
+pub(crate) const COLLADA: Limit = Limit { max: 20_000_000, format: "collada" };
+pub(crate) const VRML: Limit = Limit { max: 20_000_000, format: "vrml" };
+pub(crate) const X3D: Limit = Limit { max: 20_000_000, format: "x3d" };
+pub(crate) const FBX_TEXT: Limit = Limit { max: 20_000_000, format: "fbx" };
+/// Binary FBX, measured apart (Piero decides its cap with the numbers, 22/11/2026).
+pub(crate) const FBX_BINARY: Limit = Limit { max: crate::model::MAX_TRIANGLES, format: "fbx" };
 pub(crate) const THREE_DS: Limit = Limit { max: 20_000_000, format: "three-ds" };
+/// A .gltf; as a GLB, each primitive is read whole before `Builder` counts its triangles
+/// (`model_gltf::gltf_mesh`): said without the why.
 pub(crate) const GLTF: Limit = Limit { max: 20_000_000, format: "gltf" };
 pub(crate) const PLY_BINARY: Limit = Limit { max: 50_000_000, format: "ply-binary" };
 pub(crate) const STL: Limit = Limit { max: 20_000_000, format: "stl" };
@@ -299,11 +307,12 @@ mod tests {
     fn caps_by_format_d1() {
         assert_eq!([PLY_BINARY, STL, GLB, OBJ, PLY_TEXT, STL_TEXT, THREE_MF, OTHER].map(|l| l.max), [50_000_000, 20_000_000, 20_000_000, 10_000_000, 10_000_000, 10_000_000, 10_000_000, 50_000_000]);
         // The formats measured after D1 (Piero, 22/11/2026).
-        assert_eq!([READ_WHOLE, THREE_DS, GLTF].map(|l| l.max), [20_000_000; 3]);
+        assert_eq!([OFF, COLLADA, VRML, X3D, FBX_TEXT, THREE_DS, GLTF].map(|l| l.max), [20_000_000; 7]);
+        assert_eq!(FBX_BINARY.max, 50_000_000);
         let (en, it) = (I18n::new("en"), I18n::new("it"));
         assert_eq!(en.load_error(&THREE_DS.error()).lines().nth(1), Some("EyeCanSee does not open 3DS files with more than 20 million triangles, so that reading them does not fill the computer's memory."));
-        assert_eq!(it.load_error(&GLTF.error()).lines().nth(1), Some("EyeCanSee non apre i file glTF con più di 20 milioni di triangoli, perché la lettura non riempia la memoria del computer."));
-        assert_eq!(it.load_error(&READ_WHOLE.error()).lines().nth(1), Some("EyeCanSee non apre i modelli 3D con più di 20 milioni di triangoli."));
+        assert_eq!(it.load_error(&GLTF.error()).lines().nth(1), Some("EyeCanSee non apre i file glTF con più di 20 milioni di triangoli."));
+        assert_eq!(it.load_error(&COLLADA.error()).lines().nth(1), Some("EyeCanSee non apre i file Collada con più di 20 milioni di triangoli."));
     }
 
     /// `n` + 2 corners of one face, `first` to `first` + 2 over and over: `n` triangles in a fan,
@@ -447,7 +456,7 @@ mod tests {
         assert_eq!(en.load_error(&OTHER.error()), "The model has more than 50 million triangles.\nEyeCanSee does not open 3D models with more than 50 million triangles.");
         assert_eq!(en.load_error(&PLY_TEXT.error()).lines().nth(1), Some("EyeCanSee does not open text PLY files with more than 10 million triangles, so that reading them does not fill the computer's memory."));
         assert_eq!(en.brief_load(&OTHER.error()).as_deref(), Some("more than 50 million triangles"));
-        assert_eq!(en.load_error(&GLB.error()).lines().nth(1), Some("EyeCanSee does not open GLB files with more than 20 million triangles, so that reading them does not fill the computer's memory."));
+        assert_eq!(en.load_error(&GLB.error()).lines().nth(1), Some("EyeCanSee does not open GLB files with more than 20 million triangles."));
     }
 
     /// The rarer refusals of a model or a drawing too large are said in the language of the

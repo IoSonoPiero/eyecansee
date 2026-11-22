@@ -603,7 +603,7 @@ error-glb-cut = Il file è incompleto{ $detail }
 error-glb-cut-sizes = Il file è incompleto{ $detail }: dovrebbe essere di { $expected } ma è di { $actual }.
     Forse lo scaricamento o la copia si è interrotta: prova a scaricarlo o copiarlo di nuovo.
 # A 3D model with more triangles than EyeCanSee opens in its format: { $max } in millions (10, 20, 50), { $format } the kind of file.
-# The formats read whole before the cap is met ("other": AMF, Collada, X3D…) do not say why.
+# The formats read whole before the cap is met (GLB, glTF, OFF, Collada, VRML, X3D, FBX, IFC, the CAD engine's) do not say why.
 error-model-too-many-triangles = Il modello ha più di { $max } milioni di triangoli.
     EyeCanSee non apre { $format ->
         [obj] i file OBJ
@@ -615,8 +615,23 @@ error-model-too-many-triangles = Il modello ha più di { $max } milioni di trian
         [glb] i file GLB
         [gltf] i file glTF
         [three-ds] i file 3DS
+        [off] i file OFF
+        [collada] i file Collada
+        [vrml] i file VRML
+        [x3d] i file X3D
+        [fbx] i file FBX
+        [amf] i file AMF
+        [ifc] i file IFC
        *[other] i modelli 3D
     } con più di { $max } milioni di triangoli{ $format ->
+        [glb] .
+        [gltf] .
+        [off] .
+        [collada] .
+        [vrml] .
+        [x3d] .
+        [fbx] .
+        [ifc] .
         [other] .
        *[read] , perché la lettura non riempia la memoria del computer.
     }

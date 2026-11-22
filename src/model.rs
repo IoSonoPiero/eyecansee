@@ -393,7 +393,8 @@ fn read_as(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, String> {
         Some("off") => crate::model_off::read(bytes),
         Some("amf") => crate::model_amf::read(bytes, unpacked),
         Some(e @ ("dae" | "zae")) => crate::model_dae::read(bytes, e == "zae", sibling, unpacked),
-        Some("wrl" | "wrz" | "x3d" | "x3dv" | "x3dz" | "x3dvz") => crate::model_x3d::read(bytes, sibling, unpacked),
+        Some("wrl" | "wrz") => crate::model_x3d::read_as(bytes, sibling, unpacked, crate::model_limit::VRML),
+        Some("x3d" | "x3dv" | "x3dz" | "x3dvz") => crate::model_x3d::read_as(bytes, sibling, unpacked, crate::model_limit::X3D),
         _ if crate::occt::is_occt(name) => crate::occt::read(bytes, name),
         _ => Err("not a 3D model".into()),
     }

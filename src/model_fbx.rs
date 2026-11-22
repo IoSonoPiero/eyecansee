@@ -8,10 +8,9 @@ use crate::model::{Builder, Mesh, Sibling, Surface};
 pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     let opts = ufbx::LoadOpts { target_axes: ufbx::CoordinateAxes::right_handed_y_up(), ignore_animation: true, ..Default::default() };
     let scene = ufbx::load_memory(bytes, opts).map_err(|e| e.description.to_string())?;
-    // FBX in text at the cap of the formats measured (Piero, 22/11/2026); binary FBX, not
-    // measured, as the others.
+    // FBX in text at the cap of the formats measured (Piero, 22/11/2026); binary FBX apart.
     let text = !bytes.starts_with(b"Kaydara FBX Binary");
-    let mut b = Builder::up_to(if text { crate::model_limit::READ_WHOLE } else { crate::model_limit::OTHER });
+    let mut b = Builder::up_to(if text { crate::model_limit::FBX_TEXT } else { crate::model_limit::FBX_BINARY });
     let mut idx = Vec::new();
     // Picture and surface of each material, made once.
     let mut looks: std::collections::HashMap<u32, (u16, u16)> = std::collections::HashMap::new();
