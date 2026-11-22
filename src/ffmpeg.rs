@@ -681,7 +681,8 @@ pub fn run(program: &Path, args: &[String], progress: impl Fn(f32), cancel: &Ato
     let status = std::thread::scope(|s| {
         let waiter = std::thread::Builder::new().name("ffmpeg-wait".into()).spawn_scoped(s, || wait_or_stop(&mut child, || cancel.load(Ordering::Relaxed))).expect("spawn");
         for line in lossy_lines(out) {
-            if let (Some(us), Some(total)) = (line.strip_prefix("out_time_us=").and_then(|v| v.parse::<f64>().ok()), *length.lock().unwrap()) {
+            // No progress from a length of zero ("Duration: 00:00:00.00"), it would be NaN (#275).
+            if let (Some(us), Some(total)) = (line.strip_prefix("out_time_us=").and_then(|v| v.parse::<f64>().ok()), length.lock().unwrap().filter(|t| *t > 0.0)) {
                 progress((us / 1e6 / total).clamp(0.0, 1.0) as f32);
             }
         }
