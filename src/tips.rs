@@ -499,4 +499,54 @@ mod tests {
             assert_eq!(h.app.tip.as_ref().map(|t| t.i), Some(1), "{key:?} in the guide's field turned the tip");
         }
     }
+
+    /// Audit 1.13: with the tip open, the keys also reached the grid behind it: → turned the tip
+    /// and moved the selection, Enter then opened the picture behind the window, Backspace went
+    /// up, Del asked to delete, F2 renamed. Now (D6) ← and → turn the tip, Enter and Esc close it,
+    /// the rest reaches nothing.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn keys_go_to_the_tip_only() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("tips::tests::keys_go_to_the_tip_only") {
+            return;
+        }
+        let mut h = Harness::new(&folder("tip-keys/inner", &["a.png", "b.png", "c.png"]));
+        h.app.tip_show(0);
+        h.frame(Vec::new());
+        let grid = |a: &crate::App| (a.selected, a.cursor, a.up_selected, a.marked.len(), a.dir.clone(), a.viewing, a.delete_confirm.is_some(), a.rename.is_some());
+        let before = grid(&h.app);
+        let tip = |h: &Harness| h.app.tip.as_ref().map(|t| t.i);
+        h.key(egui::Key::ArrowRight);
+        assert_eq!(tip(&h), Some(1), "→ shows the next tip");
+        assert_eq!(grid(&h.app), before, "→ reached the grid");
+        h.key(egui::Key::ArrowLeft);
+        assert_eq!(tip(&h), Some(0), "← shows the tip before");
+        let keys = [
+            (egui::Key::ArrowDown, egui::Modifiers::NONE),
+            (egui::Key::End, egui::Modifiers::NONE),
+            (egui::Key::Backspace, egui::Modifiers::NONE),
+            (egui::Key::ArrowUp, egui::Modifiers::ALT),
+            (egui::Key::A, egui::Modifiers::COMMAND),
+            (egui::Key::Delete, egui::Modifiers::NONE),
+            (egui::Key::F2, egui::Modifiers::NONE),
+            (egui::Key::F5, egui::Modifiers::NONE),
+        ];
+        for (key, modifiers) in keys {
+            h.key_with(key, modifiers);
+            h.frame(Vec::new());
+            assert_eq!(grid(&h.app), before, "{key:?} reached the grid");
+            assert_eq!(tip(&h), Some(0), "{key:?} changed the tip");
+        }
+        h.key(egui::Key::Enter);
+        h.frame(Vec::new());
+        assert_eq!(tip(&h), None, "Enter closes the tip");
+        assert_eq!(grid(&h.app), before, "Enter reached the grid");
+        h.app.tip_show(2);
+        h.frame(Vec::new());
+        h.key(egui::Key::Escape);
+        h.frame(Vec::new());
+        assert_eq!(tip(&h), None, "Esc closes the tip");
+        assert_eq!(grid(&h.app), before, "Esc reached the grid");
+    }
 }
