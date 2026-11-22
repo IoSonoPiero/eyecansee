@@ -132,6 +132,9 @@ impl App {
                 frame
                     .show(ui, |ui| {
                         crate::theme::on_dark(ui);
+                        // An area near the corner gives little room: the label went to a new line at
+                        // every few letters (seen by Piero, 22/11). One line, whatever its width.
+                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
                         ui.add(egui::Button::new(text).fill(Color32::TRANSPARENT)).on_hover_text(hint).clicked()
                     })
                     .inner
