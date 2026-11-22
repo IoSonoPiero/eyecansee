@@ -106,6 +106,7 @@ li code { overflow-wrap: anywhere; } /* a long name in a list breaks instead of 
 .trust li { margin: 6px 0; }
 footer { border-top: 1px solid var(--border); padding: 24px 16px 40px; color: var(--muted); font-size: 0.95rem; }
 footer nav { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+footer p { margin: 16px 0 0; font-size: 0.85rem; }
 /* What it does: the six cards in two full rows of three, then 3D models and CAD drawings half each. */
 @media (min-width: 700px) {
   #features .cards { grid-template-columns: repeat(6, 1fr); }
