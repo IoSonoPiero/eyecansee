@@ -740,6 +740,24 @@ mod tests {
     use super::*;
     use crate::transform::Op;
 
+    /// #190: the clip of the card's probe (QSV) was named by the process number and the encoder,
+    /// worked out beforehand by anyone on the computer, with the app's name even in the test copy,
+    /// and FFmpeg made it with the permissions of any new file. A new file only its owner can
+    /// read, under the test copy's own name, another one each time.
+    #[test]
+    #[cfg(unix)]
+    fn card_clip_is_private_and_not_guessed() {
+        use std::os::unix::fs::PermissionsExt;
+        let (a, b) = (card_clip("h264_qsv").unwrap(), card_clip("h264_qsv").unwrap());
+        let mode = std::fs::metadata(&a).map(|m| m.permissions().mode() & 0o777);
+        println!("{} {}: {mode:?}", a.display(), b.display());
+        let _ = (std::fs::remove_file(&a), std::fs::remove_file(&b));
+        let name = a.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(name.starts_with(&format!("{}-card-", crate::test_copy::NAME)) && name.ends_with(".mkv"), "{name}");
+        assert_ne!(a, b, "the same name each time");
+        assert!(mode.as_ref().is_ok_and(|m| m & 0o077 == 0), "{mode:?}");
+    }
+
     #[test]
     fn versions() {
         assert_eq!(version_text("ffmpeg version 8.1.3 Copyright (c) 2000-2026 the FFmpeg developers\nbuilt with gcc"), "8.1.3");
