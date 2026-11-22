@@ -33,6 +33,11 @@ pub(crate) const THREE_DS: Limit = Limit { max: 20_000_000, format: "three-ds" }
 /// A .gltf; as a GLB, each primitive is read whole before `Builder` counts its triangles
 /// (`model_gltf::gltf_mesh`): said without the why.
 pub(crate) const GLTF: Limit = Limit { max: 20_000_000, format: "gltf" };
+/// AMF, its triangles counted before the XML is parsed (`xml_triangles`), said with the why; and
+/// IFC, whose triangles its library makes before any is counted, without (Piero, 22/11/2026: no
+/// check before the reading). Measured: 1261 and 942 bytes a triangle at the peak.
+pub(crate) const AMF: Limit = Limit { max: 5_000_000, format: "amf" };
+pub(crate) const IFC: Limit = Limit { max: 5_000_000, format: "ifc" };
 pub(crate) const PLY_BINARY: Limit = Limit { max: 50_000_000, format: "ply-binary" };
 pub(crate) const STL: Limit = Limit { max: 20_000_000, format: "stl" };
 /// An STL in text, which stl_io reads whole first: the cap of the formats in text (Piero, 22/11/2026).
@@ -197,7 +202,7 @@ pub(crate) fn stl_text_triangles(bytes: &[u8]) -> usize {
     lines(bytes).filter_map(|mut words| words.next()).filter(|w| *w == b"facet").count()
 }
 
-/// The triangles of a 3MF's model in XML: one a `<triangle>` element, with or without the
+/// The triangles of a 3MF's or an AMF's model in XML: one a `<triangle>` element, with or without the
 /// prefix of its namespace (`<m:triangle`); the `<triangles>` around them are not counted.
 pub(crate) fn xml_triangles(text: &str) -> usize {
     let b = text.as_bytes();
@@ -314,8 +319,9 @@ mod tests {
         assert_eq!([PLY_BINARY, STL, GLB, OBJ, PLY_TEXT, STL_TEXT, THREE_MF, OTHER].map(|l| l.max), [50_000_000, 20_000_000, 20_000_000, 10_000_000, 10_000_000, 10_000_000, 10_000_000, 50_000_000]);
         // The formats measured after D1 (Piero, 22/11/2026).
         assert_eq!([OFF, COLLADA, VRML, X3D, FBX_TEXT, THREE_DS, GLTF].map(|l| l.max), [20_000_000; 7]);
-        assert_eq!(FBX_BINARY.max, 50_000_000);
+        assert_eq!([AMF, IFC, FBX_BINARY].map(|l| l.max), [5_000_000, 5_000_000, 50_000_000]);
         let (en, it) = (I18n::new("en"), I18n::new("it"));
+        assert_eq!(en.load_error(&IFC.error()).lines().nth(1), Some("EyeCanSee does not open IFC files with more than 5 million triangles."));
         assert_eq!(en.load_error(&THREE_DS.error()).lines().nth(1), Some("EyeCanSee does not open 3DS files with more than 20 million triangles, so that reading them does not fill the computer's memory."));
         assert_eq!(it.load_error(&GLTF.error()).lines().nth(1), Some("EyeCanSee non apre i file glTF con più di 20 milioni di triangoli."));
         assert_eq!(it.load_error(&COLLADA.error()).lines().nth(1), Some("EyeCanSee non apre i file Collada con più di 20 milioni di triangoli."));
