@@ -307,6 +307,13 @@ impl App {
                 log!("delete {path:?}: ERROR {id} {detail}");
                 // The loader stops at the first error: the others will not come.
                 self.deleting = 0;
+                // Gone already (deleted by another program, and the watcher did not tell, #207):
+                // said with its name, and its folder read again, which takes it from the grid.
+                if crate::fault::gone(&detail) {
+                    self.error = Some(self.i18n.fault(crate::fault::Kind::NotFound, Some(source::shown(&path))));
+                    self.relist(source::listed_in(&path));
+                    return;
+                }
                 self.error = Some(self.i18n.error(id, &detail));
             }
         }

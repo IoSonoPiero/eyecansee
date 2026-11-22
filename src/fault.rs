@@ -91,7 +91,7 @@ impl Kind {
 /// A full disk while writing the hidden files of a replace (`source::save_names`) says why a
 /// file that fits on the disk did not (#90).
 pub(crate) fn recognise(text: &str) -> Option<(Kind, Option<String>)> {
-    let mut kind = os_code(text).and_then(of_code).or_else(|| Kind::of_dal(text))?;
+    let mut kind = os_code(text).and_then(of_code).or_else(|| of_hresult(text)).or_else(|| Kind::of_dal(text))?;
     let path = context_path(text);
     let own = path.as_deref().map(source::name).unwrap_or_default();
     if kind == Kind::NoSpace && source::leftover(own) {
@@ -108,6 +108,26 @@ fn of_code(code: i32) -> Option<Kind> {
         return Some(Kind::InUse);
     }
     Kind::of_io(std::io::Error::from_raw_os_error(code).kind())
+}
+
+/// The kind of a Windows error as the `trash` crate gives it: "Os { code: -2147024894,
+/// description: "windows error: Impossibile trovare il file specificato. (0x80070002)" }". The
+/// description is in the language of Windows: the code is read, the HRESULT of "file not found"
+/// (0x80070002) or "path not found" (0x80070003) of an item gone meanwhile (#207). On any system:
+/// the text is Windows' whoever reads it.
+fn of_hresult(text: &str) -> Option<Kind> {
+    let code = text.split_once("Os { code: ").and_then(|(_, after)| after.split(|c: char| c != '-' && !c.is_ascii_digit()).next()?.parse::<i32>().ok());
+    let hex = text.rsplit_once("(0x").and_then(|(_, after)| u32::from_str_radix(after.get(..8)?, 16).ok());
+    match code.map(|c| c as u32).or(hex)? {
+        0x8007_0002 | 0x8007_0003 => Some(Kind::NotFound),
+        _ => None,
+    }
+}
+
+/// Whether an error of a deletion says that the item is not there any more (deleted or moved by
+/// another program meanwhile): the grid had it still (#207).
+pub(crate) fn gone(detail: &str) -> bool {
+    matches!(recognise(detail), Some((Kind::NotFound, _)))
 }
 
 /// N in "(os error N)".
