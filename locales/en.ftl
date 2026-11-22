@@ -1585,8 +1585,8 @@ summary-errors = { $n ->
    *[other] { $n } errors:
 }
 summary-no-preview = { $n ->
-    [one] 1 copy saved without the preview stored by the camera, which could not be written into it:
-   *[other] { $n } copies saved without the preview stored by the camera, which could not be written into them:
+    [one] 1 copy saved without the camera preview, because it could not be written:
+   *[other] { $n } copies saved without the camera previews, because they could not be written:
 }
 summary-open-folder = Open the folder
 summary-open-covered = Close the page in front first: the thumbnails are under it.

@@ -1583,8 +1583,8 @@ summary-errors = { $n ->
    *[other] { $n } errori:
 }
 summary-no-preview = { $n ->
-    [one] 1 copia salvata senza l'anteprima della videocamera, che non si è potuta scrivere:
-   *[other] { $n } copie salvate senza l'anteprima della videocamera, che non si è potuta scrivere:
+    [one] 1 copia salvata senza l'anteprima della videocamera, perché non è stato possibile scriverla:
+   *[other] { $n } copie salvate senza le anteprime della videocamera, perché non è stato possibile scriverle:
 }
 summary-open-folder = Apri la cartella
 summary-open-covered = Chiudi prima la pagina davanti: le miniature sono sotto.
