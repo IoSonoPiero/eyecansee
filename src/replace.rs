@@ -43,7 +43,8 @@ pub(crate) async fn write_file(op: &Store, path: &str, size: u64, chunks: Chunks
         return op.write_chunks(path, size, chunks).await;
     }
     if let Some(file) = op.local_file(path) {
-        return local::write_over(op, path, file, chunks).await;
+        let (chunks, relay) = source::sized(source::name(path), size, chunks);
+        return tokio::join!(local::write_over(op, path, file, chunks), relay).0;
     }
     source::SAVING.lock().unwrap().insert(path.to_string());
     let (new, old) = (source::save_names(path).0, source::aside_name(path));

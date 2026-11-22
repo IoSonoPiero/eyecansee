@@ -555,11 +555,23 @@ impl Store {
     /// in the chunks, a write or the closing that fails, for example for lack of space) what was
     /// written is deleted: `path` must be a name this write owns, a file already there is replaced
     /// only through `replace::write_file` (issue #90).
+    /// On this computer and on servers the bytes are counted (`sized`); a phone is told the size
+    /// before the upload begins.
     pub async fn write_chunks(&self, path: &str, size: u64, chunks: tokio::sync::mpsc::Receiver<std::io::Result<Bytes>>) -> Result<(), Error> {
+        let counted = |chunks| sized(name(path), size, chunks);
         match self {
-            Store::Dal(op) => write_dal(op, path, chunks).await,
-            Store::Sftp(server) => server.write_chunks(path, chunks).await,
-            Store::Ftp(server) => server.write_chunks(path, chunks).await,
+            Store::Dal(op) => {
+                let (chunks, relay) = counted(chunks);
+                tokio::join!(write_dal(op, path, chunks), relay).0
+            }
+            Store::Sftp(server) => {
+                let (chunks, relay) = counted(chunks);
+                tokio::join!(server.write_chunks(path, chunks), relay).0
+            }
+            Store::Ftp(server) => {
+                let (chunks, relay) = counted(chunks);
+                tokio::join!(server.write_chunks(path, chunks), relay).0
+            }
             Store::Mtp(phone) => {
                 let stream = futures_util::stream::unfold(chunks, |mut c| async { c.recv().await.map(|x| (x, c)) });
                 phone.upload(path, size, Box::pin(stream)).await
@@ -588,6 +600,35 @@ impl Store {
         }
     }
 }
+
+/// The chunks of a file of `size` bytes passed on as they come, counted: more bytes than `size`,
+/// or fewer when they end, is an error at the end of them, so the writer deletes what it wrote
+/// (audit 2.23). The second value moves them and must run beside the writer.
+pub(crate) fn sized(name: &str, size: u64, mut chunks: ChunksIn) -> (ChunksIn, impl std::future::Future<Output = ()>) {
+    let (tx, rx) = tokio::sync::mpsc::channel(1);
+    let name = name.to_string();
+    let relay = async move {
+        let mut got = 0u64;
+        while let Some(chunk) = chunks.recv().await {
+            let chunk = chunk.and_then(|c| {
+                got += c.len() as u64;
+                if got > size { Err(std::io::Error::other(format!("{name}: longer than expected ({size} bytes)"))) } else { Ok(c) }
+            });
+            let stop = chunk.is_err();
+            // A writer that stopped has its own error.
+            if tx.send(chunk).await.is_err() || stop {
+                return;
+            }
+        }
+        if got != size {
+            let _ = tx.send(Err(std::io::Error::other(format!("{name}: {got} bytes arrived of {size}")))).await;
+        }
+    };
+    (rx, relay)
+}
+
+/// What a writer receives: the chunks of `Store::send_chunks`.
+pub(crate) type ChunksIn = tokio::sync::mpsc::Receiver<std::io::Result<Bytes>>;
 
 /// `Store::write_chunks` on this computer. The writer is closed before the file is deleted
 /// (Windows does not delete an open file). The error of a full disk often comes only when the file
