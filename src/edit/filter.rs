@@ -207,4 +207,40 @@ mod tests {
         let deep = DynamicImage::ImageRgb16(img.to_rgb16());
         assert_eq!(apply(&deep, Filter::Gray, 0.0, 1.0).color(), image::ColorType::Rgb16);
     }
+
+    /// Brightness and Sharpen on a 16-bit or a floating-point image (a RAW, a 16-bit PNG or TIFF,
+    /// an OpenEXR) do what they do on the 8-bit preview: Brightness added 50 out of 65 535 (nothing
+    /// seen) or cut the floats to 0 or 1, and Sharpen's threshold was in units of the sample
+    /// (audit 5.5). Stripes 1 pixel wide 3 apart, which the threshold leaves as they are, and
+    /// stripes far apart, which it sharpens.
+    #[test]
+    fn every_depth_alike() {
+        let faint = DynamicImage::ImageRgb8(RgbImage::from_fn(40, 20, |x, _| if x % 2 == 0 { image::Rgb([100, 120, 140]) } else { image::Rgb([103, 123, 143]) }));
+        for img in [stripes(), faint] {
+            for (f, amount) in [(Filter::Brightness, 50.0), (Filter::Brightness, -40.0), (Filter::Sharpen, 2.0), (Filter::Contrast, 30.0)] {
+                let eight = apply(&img, f, amount, 1.0).to_rgb8();
+                for deep in [DynamicImage::ImageRgb16(img.to_rgb16()), DynamicImage::ImageRgba16(img.to_rgba16()), DynamicImage::ImageRgb32F(img.to_rgb32f()), DynamicImage::ImageRgba32F(img.to_rgba32f())] {
+                    let out = apply(&deep, f, amount, 1.0);
+                    assert_eq!(out.color(), deep.color(), "{f:?}: the same depth");
+                    for (x, y, p) in out.to_rgb8().enumerate_pixels() {
+                        let e = eight.get_pixel(x, y);
+                        assert!(p.0.iter().zip(e.0).all(|(a, b)| a.abs_diff(b) <= 1), "{f:?} {amount} {:?} at {x},{y}: {p:?}, 8 bits {e:?}", deep.color());
+                    }
+                }
+            }
+        }
+    }
+
+    /// A floating-point image with a pixel that is not a number and an infinite one: every filter
+    /// gives an image (Brightness and Sharpen ended in a panic, and the save in an error).
+    #[test]
+    fn floats_not_numbers() {
+        let mut img = image::Rgb32FImage::from_pixel(16, 8, image::Rgb([0.5, 0.25, 0.75]));
+        img.put_pixel(3, 3, image::Rgb([f32::NAN, f32::INFINITY, f32::NEG_INFINITY]));
+        let img = DynamicImage::ImageRgb32F(img);
+        for f in Filter::ALL {
+            let amount = f.amount(16.0).map_or(0.0, |(.., start)| start);
+            assert_eq!(apply(&img, f, amount, 1.0).dimensions(), (16, 8), "{f:?}");
+        }
+    }
 }
