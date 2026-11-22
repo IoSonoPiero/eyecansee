@@ -5,6 +5,7 @@
 use std::ffi::{c_char, c_int, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 const ERROR_GENERIC: i64 = -20;
 
@@ -15,6 +16,53 @@ pub trait Reader: Send + Sync {
     fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>, String>;
     /// The player closes: a read under way should return at once, and the next ones too.
     fn cancel(&self) {}
+    /// Bytes the source has given so far that no read returned yet (a whole copy under way): the
+    /// phone is answering, though mpv waits.
+    fn received(&self) -> u64 {
+        0
+    }
+}
+
+/// Seconds without data, a read waiting, after which the viewer says the phone or the server is
+/// not answering and the slideshow passes over the video (Piero, 22/11, #209).
+pub(crate) const STALL: Duration = Duration::from_secs(20);
+
+/// When data last came from a stream, and how many reads wait for more.
+#[derive(Debug)]
+pub(crate) struct Flow {
+    last: Instant,
+    waiting: u32,
+    received: u64,
+}
+
+impl Flow {
+    pub(crate) fn new(now: Instant) -> Flow {
+        Flow { last: now, waiting: 0, received: 0 }
+    }
+
+    fn read_started(&mut self) {
+        self.waiting += 1;
+    }
+
+    /// A read ended, with data or not.
+    fn read_ended(&mut self, now: Instant, data: bool) {
+        self.waiting = self.waiting.saturating_sub(1);
+        if data {
+            self.last = now;
+        }
+    }
+
+    /// The source has given `total` bytes outside the reads (`Reader::received`).
+    fn received(&mut self, now: Instant, total: u64) {
+        if total != self.received {
+            (self.received, self.last) = (total, now);
+        }
+    }
+
+    /// A read waits and no data came for `STALL`: not a time in all, a time without data.
+    pub(crate) fn stalled(&self, now: Instant) -> bool {
+        self.waiting > 0 && now.saturating_duration_since(self.last) >= STALL
+    }
 }
 
 /// mpv_stream_cb_info (stream_cb.h).
@@ -43,11 +91,20 @@ pub(crate) struct Stream {
     failed: Mutex<Option<String>>,
     /// The player closes: every read from now on fails at once (#276).
     closed: AtomicBool,
+    flow: Mutex<Flow>,
 }
 
 impl Stream {
     pub(crate) fn new(reader: Arc<dyn Reader>) -> Stream {
-        Stream { reader, failed: Mutex::new(None), closed: AtomicBool::new(false) }
+        Stream { reader, failed: Mutex::new(None), closed: AtomicBool::new(false), flow: Mutex::new(Flow::new(Instant::now())) }
+    }
+
+    /// No data for `STALL` while mpv waits for some: the phone or the server is not answering.
+    pub(crate) fn stalled(&self) -> bool {
+        let now = Instant::now();
+        let mut flow = self.flow.lock().unwrap();
+        flow.received(now, self.reader.received());
+        flow.stalled(now)
     }
 
     /// The player closes: a read under way is let go (`Reader::cancel`), the next ones fail at
@@ -67,7 +124,9 @@ impl Stream {
         if self.closed.load(Ordering::Relaxed) {
             return Err("closed".into());
         }
+        self.flow.lock().unwrap().read_started();
         let r = self.reader.read(offset, len).and_then(|d| if d.is_empty() { Err("empty read".into()) } else { Ok(d) });
+        self.flow.lock().unwrap().read_ended(Instant::now(), r.is_ok());
         *self.failed.lock().unwrap() = r.as_ref().err().cloned();
         r
     }
@@ -210,6 +269,31 @@ mod tests {
         fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>, String> {
             if self.1.contains(&offset) { Err("error-device-gone\u{1}USB".into()) } else { self.0.read(offset, len) }
         }
+    }
+
+    /// #209 (Piero, 22/11): "no data for 20 s" counts the time without data while a read waits,
+    /// not the time in all; data, or bytes of a whole copy, start it again.
+    #[test]
+    fn no_data_for_a_while() {
+        let t0 = Instant::now();
+        let at = |s: u64| t0 + Duration::from_secs(s);
+        let mut f = Flow::new(t0);
+        assert!(!f.stalled(at(60)), "no read waiting: nothing to say");
+        f.read_started();
+        assert!(!f.stalled(at(19)));
+        assert!(f.stalled(at(20)));
+        f.read_ended(at(21), true);
+        f.read_started();
+        assert!(!f.stalled(at(40)), "data at 21 s: 19 s without");
+        assert!(f.stalled(at(41)));
+        // A whole copy that goes on: the phone answers.
+        f.received(at(41), 5_000);
+        assert!(!f.stalled(at(60)));
+        f.received(at(60), 5_000);
+        assert!(f.stalled(at(61)), "the copy stopped at 41 s");
+        // A read that fails gives no data; none waits after it.
+        f.read_ended(at(62), false);
+        assert!(!f.stalled(at(90)));
     }
 
     /// #209: the error of the last read is kept for the player, until a read succeeds again; the

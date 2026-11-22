@@ -539,6 +539,10 @@ impl crate::mpv::Reader for StoreReader {
     fn cancel(&self) {
         self.closed.send_replace(true);
     }
+
+    fn received(&self) -> u64 {
+        self.copied.load(Ordering::Relaxed)
+    }
 }
 
 /// Video stills at a time from a slow disk (external, phone, server). Many at once make an SD card

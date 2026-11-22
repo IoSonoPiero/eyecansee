@@ -151,6 +151,12 @@ impl Player {
         judge(failed, read, picture)
     }
 
+    /// The phone or the server gives no data for a while (`mpv_stream::STALL`) while mpv waits
+    /// for some (#209); a file on this computer never.
+    pub fn stalled(&self) -> bool {
+        self.mpv.stream.as_ref().is_some_and(|s| s.stalled())
+    }
+
     /// Played to the end (the last frame stays, see keep-open).
     pub fn ended(&self) -> bool {
         self.mpv.property::<c_int>("eof-reached", FORMAT_FLAG).unwrap_or(0) != 0
@@ -366,11 +372,16 @@ mod tests {
         reads: std::sync::atomic::AtomicUsize,
         /// When the last read returned.
         returned: Mutex<Option<Instant>>,
+        /// What the reads give once released; none: an error.
+        data: Vec<u8>,
     }
 
     impl Stuck {
         fn new(size: u64, limit: Duration) -> Arc<Stuck> {
-            Arc::new(Stuck { size, limit, released: Mutex::new(false), cv: Condvar::new(), reads: Default::default(), returned: Mutex::new(None) })
+            Self::giving(size, limit, Vec::new())
+        }
+        fn giving(size: u64, limit: Duration, data: Vec<u8>) -> Arc<Stuck> {
+            Arc::new(Stuck { size, limit, released: Mutex::new(false), cv: Condvar::new(), reads: Default::default(), returned: Mutex::new(None), data })
         }
         fn release(&self) {
             *self.released.lock().unwrap() = true;
@@ -382,16 +393,42 @@ mod tests {
         fn size(&self) -> u64 {
             self.size
         }
-        fn read(&self, _offset: u64, _len: u64) -> Result<Vec<u8>, String> {
+        fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>, String> {
             self.reads.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let r = self.cv.wait_timeout_while(self.released.lock().unwrap(), self.limit, |r| !*r).unwrap();
             drop(r);
             *self.returned.lock().unwrap() = Some(Instant::now());
-            Err("released".into())
+            if self.data.is_empty() { Err("released".into()) } else { Ok(self.data[offset as usize..(offset + len) as usize].to_vec()) }
         }
         fn cancel(&self) {
             self.release();
         }
+    }
+
+    /// #209 (Piero, 22/11): a phone that gives no data for 20 s, then answers: said stalled after
+    /// 20 s, not before; once data comes it is not, and the video loads.
+    /// `cargo test stall_then_answer_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn stall_then_answer_live() {
+        let data = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/site/img/mtp-open.mp4")).unwrap();
+        let stuck = Stuck::giving(data.len() as u64, Duration::from_secs(3600), data);
+        let player = Player::open(Input::Stream(stuck.clone()), 0, true, || {}).unwrap();
+        let t = Instant::now();
+        std::thread::sleep(Duration::from_secs(19));
+        let at_19 = player.stalled();
+        while !player.stalled() && t.elapsed() < Duration::from_secs(25) {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let said_at = t.elapsed();
+        stuck.release();
+        let r = Instant::now();
+        while player.video_size().is_none() && r.elapsed() < Duration::from_secs(10) {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        println!("stalled at 19 s: {at_19}; said stalled after {said_at:?}; after the answer: size {:?} in {:?}, stalled {}, error {:?}", player.video_size(), r.elapsed(), player.stalled(), player.error());
+        assert!(!at_19 && said_at >= Duration::from_secs(20) && said_at < Duration::from_secs(21));
+        assert!(player.video_size().is_some() && !player.stalled() && player.error().is_none());
     }
 
     /// #276: a video closed while its stream waits 5 s on a slow phone or server: the window's
@@ -436,7 +473,7 @@ mod tests {
             while t.elapsed() < Duration::from_secs(if s == 1 { 1 } else if s == 5 { 4 } else { 25 }) {
                 std::thread::sleep(Duration::from_millis(50));
             }
-            println!("after {s} s: reads {}, size {:?}, error {:?}, position {:.1}, duration {:.1} (no size and no error: the viewer shows its spinner)", stuck.reads.load(std::sync::atomic::Ordering::Relaxed), player.video_size(), player.error(), player.position(), player.duration());
+            println!("after {s} s: reads {}, size {:?}, error {:?}, stalled {}, position {:.1}, duration {:.1}", stuck.reads.load(std::sync::atomic::Ordering::Relaxed), player.video_size(), player.error(), player.stalled(), player.position(), player.duration());
         }
         let (tx, rx) = std::sync::mpsc::channel();
         let t = Instant::now();

@@ -411,9 +411,13 @@ impl App {
         self.video.as_ref().filter(|v| v.path == path).is_some_and(|v| v.player.as_ref().map_or(true, |p| p.error().is_some()))
     }
 
-    /// The path of the video open, if it cannot be played (`video_failed`).
+    /// The path of the video open, if the slideshow passes over it as over a file that cannot be
+    /// opened: it cannot be played (`video_failed`), or its phone or server gives no data for a
+    /// while (Piero, 22/11: the slideshow never stops on it).
     pub(crate) fn failed_video(&self) -> Option<String> {
-        self.video.as_ref().map(|v| v.path.clone()).filter(|p| self.video_failed(p))
+        let v = self.video.as_ref()?;
+        let stalled = v.player.as_ref().is_ok_and(|p| p.stalled());
+        (stalled || self.video_failed(&v.path)).then(|| v.path.clone())
     }
 
     /// Why `v` does not play, the whole message: as for a picture that cannot be opened, "Cannot
@@ -468,6 +472,7 @@ fn said(failure: &mpv::Failure) -> String {
 /// mouse moves (#43).
 fn draw(ui: &mut egui::Ui, v: &mut Playing, (sound, turn): ((&mut u32, &mut bool), Turn), i18n: &I18n, wait: Option<(f32, String)>, bare: bool) -> Option<egui::Response> {
     let Ok(player) = &v.player else { return None };
+    let copying = wait.is_some();
     let rect = ui.available_rect_before_wrap();
     let area = if bare { rect } else { Rect::from_min_max(rect.min, pos2(rect.max.x, rect.max.y - BAR)) };
     let response = ui.allocate_rect(area, egui::Sense::click());
@@ -480,9 +485,12 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, (sound, turn): ((&mut u32, &mut bool
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
             let bar = egui::ProgressBar::new(share).text(text).desired_width(360.0);
             ui.put(Rect::from_center_size(area.center(), vec2(360.0, 24.0)), bar);
-        } else {
+        } else if !player.stalled() {
             ui.put(Rect::from_center_size(area.center(), vec2(32.0, 32.0)), egui::Spinner::new());
         }
+    }
+    if player.stalled() {
+        stalled_note(ui, area, i18n, copying);
     }
     // An audio file sends no frames (a cover is one): the time on the bar moves only if asked.
     if decode::is_audio(&v.path) && !player.paused() {
@@ -504,6 +512,19 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, (sound, turn): ((&mut u32, &mut bool
         });
     }
     Some(response)
+}
+
+/// The phone or the server gives no data (`mpv::Player::stalled`): said in the middle of the
+/// video, on a dark band, above the copy's bar when there is one, until data comes again (#209).
+fn stalled_note(ui: &egui::Ui, area: Rect, i18n: &I18n, above_bar: bool) {
+    // Looked at again: the note goes as soon as data comes.
+    ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
+    let painter = ui.painter();
+    let galley = painter.layout(i18n.t("video-stalled"), egui::FontId::proportional(16.0), Color32::WHITE, (area.width() - 64.0).max(100.0));
+    let center = area.center() - vec2(0.0, if above_bar { 30.0 + galley.size().y / 2.0 } else { 0.0 });
+    let back = Rect::from_center_size(center, galley.size() + vec2(32.0, 20.0));
+    painter.rect_filled(back, 8.0, Color32::from_black_alpha(190));
+    painter.galley(back.min + vec2(16.0, 10.0), galley, Color32::WHITE);
 }
 
 /// At full screen, the bar's opacity, `None` once hidden, when the pointer is hidden too. Shown

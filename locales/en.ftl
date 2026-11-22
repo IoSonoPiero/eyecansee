@@ -31,6 +31,9 @@ video-volume = Volume { $volume } (up and down arrows, mouse wheel on the video)
 video-no-audio = This video has no audio
 video-not-video = The file is not a video, or it is damaged.
 video-no-frame = No frame can be shown: the video is damaged.
+video-stalled =
+    No data for 20 seconds: the phone or the server is not answering.
+    The video will start as soon as it answers. Press Esc to go back to the thumbnails.
 error-unsupported = Unsupported protocol: { $detail }
 error-no-host = The address has no host: { $detail }
 error-path = Cannot open { $detail }

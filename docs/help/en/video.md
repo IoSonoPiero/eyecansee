@@ -53,7 +53,7 @@ Until then the thumbnail of a video is the preview stored by the camera, when th
 ## Good to know
 
 - Videos on a phone or a server are read a piece at a time while they play, also from a phone on Windows. Only a phone that cannot jump into the middle of a file (Windows notices on the first slow read) has its videos copied whole first, with a bar that shows how much has been read.
-- A file that cannot be played says why in the middle of the viewer, with the whole message in the bar at the bottom, as a picture that cannot be opened: **The file is not a video, or it is damaged**, or **No frame can be shown: the video is damaged**. When a phone or a server stops giving the video (unplugged, gone), its own message is shown. While a phone or a server is only slow, the video waits for it, however long it takes.
+- A file that cannot be played says why in the middle of the viewer, with the whole message in the bar at the bottom, as a picture that cannot be opened: **The file is not a video, or it is damaged**, or **No frame can be shown: the video is damaged**. When a phone or a server stops giving the video (unplugged, gone), its own message is shown. While a phone or a server is only slow, the video waits for it, however long it takes; when no data comes for 20 seconds, a message in the middle of the viewer says so. It goes as soon as data comes again, and the video starts; **Esc** goes back to the thumbnails at once.
 - Editing in the viewer is for pictures; of a video, Save as… saves the frame shown. To turn, shrink or convert a video use [Converting videos](convert-video.md).
 - The metadata panel shows the details of a selected video: see [Image information](metadata.md).
 - Which formats play: see [Supported formats](formats.md).
