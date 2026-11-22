@@ -170,9 +170,9 @@ fn kind_controls(ui: &mut egui::Ui, w: &mut Window, style: &mut Style, (kind, se
 /// 2026-11-06, the picker shows no codes).
 fn eyedroppers(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     let screen = crate::eyedropper::on_screen();
-    let (id, keys) = if screen { ("edit-pick", "I, Shift+I") } else { ("edit-pick-image", "I") };
+    let (id, keys) = if screen { ("edit-pick", "key-pick-screen") } else { ("edit-pick-image", "key-pick") };
     let off = w.screen_picking.then(|| i18n.t("edit-pick-screen-busy"));
-    let clicked = bar_button(ui, icons::toggle(ui, w.picking || w.screen_picking, Line::Pipette), tip(i18n, id, keys), off);
+    let clicked = bar_button(ui, icons::toggle(ui, w.picking || w.screen_picking, Line::Pipette), tip(i18n, id, &i18n.t(keys)), off);
     let whole = match (clicked, w.ask_pick.take()) {
         (true, _) => true,
         (false, Some(whole)) => whole,

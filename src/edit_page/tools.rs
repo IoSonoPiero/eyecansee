@@ -91,7 +91,7 @@ impl App {
         if w.copying {
             ui.spinner();
         }
-        let copy = bar_button(ui, icons::button(ui, Line::Copy), tip(i18n, "edit-copy", "Ctrl+C"), w.copying.then(|| i18n.t("edit-off-copying")));
+        let copy = bar_button(ui, icons::button(ui, Line::Copy), tip(i18n, "edit-copy", &i18n.t("key-copy")), w.copying.then(|| i18n.t("edit-off-copying")));
         (ask, copy)
     }
 
@@ -142,7 +142,7 @@ impl App {
             _ => off,
         };
         // The tip has the whole name: on the bar Overwrite the original… is only Overwrite….
-        let mut tip = format!("{} (Ctrl+S)\n{}", i18n.t(label), i18n.t(hint));
+        let mut tip = format!("{} ({})\n{}", i18n.t(label), i18n.t("key-save"), i18n.t(hint));
         // Overwrite chosen as the main save but not possible here: why it is Save copy.
         if self.settings.edit_main_overwrite && !w.new && let Some(why) = self.why_never_overwrite(w) {
             tip = format!("{tip}\n\n{}", crate::help_search::plain(&why));
@@ -337,10 +337,10 @@ pub(super) fn tools_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
     filters_menu(ui, w, i18n);
     ui.add(egui::Separator::default().spacing(SEPARATOR));
     let (can_undo, can_redo) = undo_redo(w);
-    if bar_button(ui, icons::button(ui, Line::Undo), tip(i18n, "edit-undo", "Ctrl+Z"), (!can_undo).then(|| i18n.t("edit-off-undo"))) {
+    if bar_button(ui, icons::button(ui, Line::Undo), tip(i18n, "edit-undo", &i18n.t("key-undo")), (!can_undo).then(|| i18n.t("edit-off-undo"))) {
         w.undo();
     }
-    if bar_button(ui, icons::button(ui, Line::Redo), tip(i18n, "edit-redo", "Ctrl+Y"), (!can_redo).then(|| i18n.t("edit-off-redo"))) {
+    if bar_button(ui, icons::button(ui, Line::Redo), tip(i18n, "edit-redo", &i18n.t("key-redo")), (!can_redo).then(|| i18n.t("edit-off-redo"))) {
         w.redo();
     }
 }
@@ -368,13 +368,13 @@ fn filters_menu(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
 fn marquee_bar(ui: &mut egui::Ui, w: &Window, i18n: &I18n) -> Option<Act> {
     let (none, empty) = marquee_off(w.marquee.is_some(), w.clip.is_some());
     let mut act = None;
-    if bar_button(ui, icons::button(ui, Line::Copy), tip(i18n, "edit-copy-part", "Ctrl+C"), none.map(|id| i18n.t(id))) {
+    if bar_button(ui, icons::button(ui, Line::Copy), tip(i18n, "edit-copy-part", &i18n.t("key-copy")), none.map(|id| i18n.t(id))) {
         act = Some(Act::EditCopy);
     }
-    if bar_button(ui, icons::button(ui, Line::Cut), tip(i18n, "edit-cut-part", "Ctrl+X"), none.map(|id| i18n.t(id))) {
+    if bar_button(ui, icons::button(ui, Line::Cut), tip(i18n, "edit-cut-part", &i18n.t("key-cut")), none.map(|id| i18n.t(id))) {
         act = Some(Act::EditCut);
     }
-    if bar_button(ui, icons::button(ui, Line::Paste), tip(i18n, "edit-paste-part", "Ctrl+V"), empty.map(|id| i18n.t(id))) {
+    if bar_button(ui, icons::button(ui, Line::Paste), tip(i18n, "edit-paste-part", &i18n.t("key-paste")), empty.map(|id| i18n.t(id))) {
         act = Some(Act::EditPaste(None));
     }
     act

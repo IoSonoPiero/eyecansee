@@ -371,7 +371,7 @@ impl App {
                 ui.set_max_width(width);
                 ui.add(egui::Label::new(measure_text(&text)).wrap());
             });
-            results.then(|| ui.add(button).on_hover_text("Ctrl+C"))
+            results.then(|| ui.add(button).on_hover_text(self.i18n.t("key-copy")))
         });
         ui.separator();
         copy.inner
@@ -398,7 +398,7 @@ impl App {
             // the bold font: `strong` only changes the colour, and the bar makes every text white.
             // The results on a row of their own (`measure_row`) when they did not fit here last time.
             let fits = ui.data(|d| d.get_temp::<bool>(measure_fits_id())).unwrap_or(true);
-            let copy = measure.as_ref().filter(|_| fits).and_then(|(_, results)| results.then(|| ui.add(copy).on_hover_text("Ctrl+C")));
+            let copy = measure.as_ref().filter(|_| fits).and_then(|(_, results)| results.then(|| ui.add(copy).on_hover_text(self.i18n.t("key-copy"))));
             // The buttons need their room; the results are cut to what is left.
             let need = ui.min_rect().width();
             if let Some((text, _)) = measure {
