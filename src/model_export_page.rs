@@ -104,17 +104,17 @@ mod tests {
     fn beyond_the_cap_of_the_new_format_d1() {
         let (en, it) = (I18n::new("en"), I18n::new("it"));
         let mut f = Form { path: None, models: 1, kind: Kind::Obj, known: vec![12_000_000] };
-        assert_eq!(beyond_line(&en, &f).as_deref(), Some("The model has more than 10 million triangles: EyeCanSee will not be able to open the new OBJ file. You can export it all the same."));
+        assert_eq!(beyond_line(&en, &f).as_deref(), Some("The model has more than 10 million triangles: EyeCanSee will not be able to open the new OBJ file. You can still export it."));
         assert_eq!(beyond_line(&it, &f).as_deref(), Some("Il modello ha più di 10 milioni di triangoli: EyeCanSee non potrà aprire il nuovo file OBJ. Puoi esportarlo lo stesso."));
         f.kind = Kind::Glb;
         assert_eq!(beyond_line(&en, &f), None);
         f.kind = Kind::Ply;
         assert_eq!(beyond_line(&en, &f), None);
         f = Form { path: None, models: 3, kind: Kind::Stl, known: vec![25_000_000, 21_000_000] };
-        assert_eq!(beyond_line(&en, &f).as_deref(), Some("2 of the models have more than 20 million triangles: EyeCanSee will not be able to open the new STL files. You can export them all the same."));
+        assert_eq!(beyond_line(&en, &f).as_deref(), Some("2 of the models have more than 20 million triangles: EyeCanSee will not be able to open the new STL files. You can still export them."));
         assert_eq!(beyond_line(&it, &f).as_deref(), Some("2 dei modelli hanno più di 20 milioni di triangoli: EyeCanSee non potrà aprire i nuovi file STL. Puoi esportarli lo stesso."));
         f.known = vec![25_000_000, 1];
-        assert_eq!(beyond_line(&en, &f).as_deref(), Some("One of the models has more than 20 million triangles: EyeCanSee will not be able to open the new STL file. You can export it all the same."));
+        assert_eq!(beyond_line(&en, &f).as_deref(), Some("One of the models has more than 20 million triangles: EyeCanSee will not be able to open the new STL file. You can still export it."));
         assert_eq!(beyond_line(&it, &f).as_deref(), Some("Uno dei modelli ha più di 20 milioni di triangoli: EyeCanSee non potrà aprire il nuovo file STL. Puoi esportarlo lo stesso."));
     }
 }

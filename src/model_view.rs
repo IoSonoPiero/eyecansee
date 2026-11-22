@@ -479,9 +479,9 @@ mod tests {
         assert!(s.told.is_empty());
         let n = export_notice(&en, &said).unwrap();
         assert!(n.warning);
-        assert_eq!(plain(&n.text), "2 models exported into files that EyeCanSee will not be able to open:\nThey have more triangles than EyeCanSee opens in their new format.\n- big.ply: more than 10 million triangles\n- huge.ply: more than 20 million triangles");
+        assert_eq!(plain(&n.text), "2 models exported to files that EyeCanSee will not be able to open:\nThey have more triangles than EyeCanSee can open in that format.\n- big.ply: more than 10 million triangles\n- huge.ply: more than 20 million triangles");
         let one = Said { beyond: vec![("big.ply".into(), crate::model_limit::OBJ.error())], ..Default::default() };
-        assert_eq!(plain(&export_notice(&it, &one).unwrap().text), "1 modello esportato in un file che EyeCanSee non potrà aprire:\nHa più triangoli di quanti EyeCanSee ne apre nel suo nuovo formato.\n- big.ply: più di 10 milioni di triangoli");
+        assert_eq!(plain(&export_notice(&it, &one).unwrap().text), "1 modello esportato in un file che EyeCanSee non potrà aprire:\nHa più triangoli di quanti EyeCanSee ne possa aprire in quel formato.\n- big.ply: più di 10 milioni di triangoli");
     }
 
     /// The models not exported, as Piero had them (21/11): a glTF without its data file, one with
