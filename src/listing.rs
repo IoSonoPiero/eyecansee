@@ -179,10 +179,11 @@ pub(crate) fn follow(old: &Listing, new: &Listing, s: Follow, select: Option<&st
     let generated = s.generated.iter().filter_map(|k| moved.get(k).copied()).collect();
     let (ndirs, n) = (new.dirs.len(), new.files.len());
     let file_at = |i: usize| to.get(i).copied().flatten();
-    let followed = match old.dirs.get(s.selected) {
+    let item_at = |i: usize| match old.dirs.get(i) {
         Some(d) => new.dirs.iter().position(|x| x == d),
-        None => file_at(s.selected - old.dirs.len()).map(|j| ndirs + j),
+        None => file_at(i - old.dirs.len()).map(|j| ndirs + j),
     };
+    let followed = item_at(s.selected);
     let made = select.and_then(|p| place(new, p));
     let selected = made.or(followed).unwrap_or(s.selected).min((ndirs + n).saturating_sub(1));
     let cursor = (s.cursor || made.is_some()) && ndirs + n > 0;
@@ -197,7 +198,10 @@ pub(crate) fn follow(old: &Listing, new: &Listing, s: Follow, select: Option<&st
     // file before it the image looked like another one, its turns not saved were dropped
     // and the date taken became the file's.
     let zoom_of = s.zoom_of.and_then(file_at);
-    let state = Follow { selected, anchor: s.anchor, cursor, viewing, zoom_of, generated };
+    // The anchor of Shift+click too: by position, after a file new before it the range marked
+    // from it was shifted by one (audit 1.15).
+    let anchor = item_at(s.anchor).unwrap_or(s.anchor).min((ndirs + n).saturating_sub(1));
+    let state = Follow { selected, anchor, cursor, viewing, zoom_of, generated };
     Followed { state, moved, made: made.is_some(), drop_turn }
 }
 
@@ -213,8 +217,10 @@ fn moves(old: &Listing, new: &Listing) -> (Vec<Option<usize>>, HashMap<usize, us
 }
 
 /// Whether the folder open `dir` goes with the item `path` removed (it was inside it).
+/// A file whose name starts the folder's (`a/IMG_1.jpg`, `a/IMG_1.jpg.bak/`) is not it: the grid
+/// went up to the folder above (audit 1.15).
 fn left_inside(dir: &str, path: &str) -> bool {
-    dir.starts_with(path)
+    path.ends_with('/') && dir.starts_with(path)
 }
 
 /// The item of `path` in a listing: folders first, then files.
