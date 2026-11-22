@@ -215,4 +215,24 @@ mod tests {
         assert!(super::shown(&dir.join("a.jpg")), "closed again");
         std::fs::remove_dir_all(&dir).unwrap();
     }
+
+    /// #207: a subfolder of the folder open deleted by another program (with a file in it, as
+    /// from a terminal) is told by the watcher, so the grid is read again. On Linux it is; on
+    /// Windows (ReadDirectoryChangesW) the grid of a test copy kept it: this test tells which
+    /// part fails there.
+    #[test]
+    fn subfolder_deleted_told() {
+        use notify::Watcher;
+        let dir = std::env::temp_dir().join(format!("eyecansee-watch-sub-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::write(dir.join("sub").join("a.jpg"), "x").unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut watcher = super::folder_watcher(tx, eframe::egui::Context::default()).unwrap();
+        watcher.watch(&dir, notify::RecursiveMode::NonRecursive).unwrap();
+        std::fs::remove_dir_all(dir.join("sub")).unwrap();
+        let told = rx.recv_timeout(std::time::Duration::from_secs(10));
+        assert!(matches!(told, Ok(crate::loader::Msg::Changed)), "the subfolder deleted not told");
+        drop(watcher);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }
