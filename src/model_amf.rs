@@ -51,6 +51,11 @@ fn number(n: Node, tag: &str) -> f32 {
     child(n, tag).and_then(|c| c.text()).and_then(|t| t.trim().parse().ok()).unwrap_or(0.0)
 }
 
+/// A triangle's corner: the number of its vertex.
+fn index(n: Node, tag: &str) -> u32 {
+    number(n, tag) as u32
+}
+
 fn color(n: Node) -> Option<[u8; 3]> {
     let c = child(n, "color")?;
     Some(["r", "g", "b"].map(|k| (number(c, k).clamp(0.0, 1.0) * 255.0) as u8))
@@ -104,7 +109,7 @@ impl Amf<'_, '_> {
         for vol in mesh.children().filter(|n| n.has_tag_name("volume")) {
             let fallback = color(vol).or_else(|| color(o)).or_else(|| vol.attribute("materialid").and_then(|id| self.materials.get(id)).and_then(|&mat| color(mat)));
             for t in vol.children().filter(|n| n.has_tag_name("triangle")) {
-                let v = ["v1", "v2", "v3"].map(|k| number(t, k) as u32);
+                let v = ["v1", "v2", "v3"].map(|k| index(t, k));
                 tris.push(v);
                 colors.push(color(t).or_else(|| vcolor.get(v[0] as usize).copied().flatten()).or(fallback));
             }
