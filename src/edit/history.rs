@@ -1,9 +1,20 @@
 //! Undo and redo of the editor: one whole `Doc` per operation done (an object added, moved at the
-//! end of the drag, changed or deleted, the crop, the angle, a turn, the fill). The document is a
-//! few kilobytes and the image is never copied; keeping states instead of inverse operations
-//! leaves nothing to undo wrongly.
+//! end of the drag, changed or deleted, the crop, the angle, a turn, the fill). Keeping states
+//! instead of inverse operations leaves nothing to undo wrongly. The photo is never copied, but a
+//! state holds the pixels of its pasted pieces (a turn makes a turned copy of them) and the
+//! previews of its filters, highlighters and lenses, shared with the other states while they are
+//! the same: the oldest steps go when those pixels pass `MOST_BYTES`, or past `MOST_STEPS` (audit
+//! 5.9).
+
+use std::collections::HashSet;
 
 use super::doc::Doc;
+
+/// The pixels the states may hold besides those of the one shown, each buffer counted once:
+/// 256 MB.
+const MOST_BYTES: usize = 256 << 20;
+/// The steps kept at most.
+const MOST_STEPS: usize = 1000;
 
 pub struct History {
     states: Vec<Doc>,
@@ -32,6 +43,16 @@ impl History {
         self.states.truncate(self.at + 1);
         self.states.push(doc);
         self.at += 1;
+        self.trim();
+    }
+
+    /// The oldest steps gone while there are too many or they hold too many pixels; one step back
+    /// always stays. Without a word: Undo turns grey when there is none left.
+    fn trim(&mut self) {
+        while self.at >= 2 && (self.states.len() > MOST_STEPS + 1 || held(&self.states, self.at) > MOST_BYTES) {
+            self.states.remove(0);
+            self.at -= 1;
+        }
     }
 
     /// `change` done on a copy of the document shown, kept as one operation.
@@ -78,6 +99,17 @@ impl History {
     pub fn unsaved(&mut self) {
         self.saved = None;
     }
+}
+
+/// The bytes of the pixels `states` hold for Undo, each buffer once: not those the state shown
+/// (`at`) holds itself, which dropping steps would not give back (counted, a large piece pasted
+/// left a single step back for the rest of the page).
+fn held(states: &[Doc], at: usize) -> usize {
+    fn buffers(d: &Doc) -> impl Iterator<Item = &super::doc::Pixels> {
+        d.objects.iter().filter_map(|o| o.shape.held())
+    }
+    let mut seen: HashSet<usize> = buffers(&states[at]).map(|p| p.id()).collect();
+    states.iter().flat_map(buffers).filter(|p| seen.insert(p.id())).map(|p| p.bytes()).sum()
 }
 
 #[cfg(test)]
@@ -183,12 +215,12 @@ mod tests {
     fn history_has_a_ceiling() {
         use crate::edit::doc::Pixels;
         let piece = |side| Obj { shape: Shape::Patch { area: Area { centre: Pt::new(0.0, 0.0), w: 10.0, h: 10.0, rot: 0.0 }, pixels: Pixels::new(image::RgbaImage::new(side, side)), mirrored: false }, style: Style::default() };
-        // Each step a new piece of 16 MB.
+        // Each step a new piece of 16 MB: 16 of them behind the one shown.
         let mut h = History::new(Doc::new(100, 80, None));
         for _ in 0..20 {
             h.apply(|d| d.objects = vec![piece(2048)]);
         }
-        assert!(h.states.len() <= 16 && h.can_undo(), "{} steps kept", h.states.len());
+        assert!(h.states.len() <= 17 && h.can_undo(), "{} steps kept", h.states.len());
         // One piece shared by every step: counted once, only the number of steps limits them.
         let mut h = History::new(Doc::new(100, 80, None));
         h.apply(|d| d.objects = vec![piece(2048)]);
@@ -208,6 +240,14 @@ mod tests {
         assert_eq!(h.states.len(), 2);
         h.undo();
         assert!(!h.can_undo() && h.doc().objects.len() == 1);
+        // What the image shown holds itself is not the history's: dropping steps would not give
+        // it back, and Undo kept only one step for the rest of the page.
+        let mut h = History::new(Doc::new(100, 80, None));
+        h.apply(|d| d.objects = (0..17).map(|_| piece(2048)).collect());
+        for i in 0..10 {
+            h.apply(|d| d.angle = i as f32 + 1.0);
+        }
+        assert_eq!(h.states.len(), 12);
     }
 
     /// Saved: nothing to save until something changes again; undone past the save, again.

@@ -142,6 +142,16 @@ impl Pixels {
         })
     }
 
+    /// Which buffer it is: the same for the copies of it.
+    pub fn id(&self) -> usize {
+        Arc::as_ptr(&self.0) as usize
+    }
+
+    /// The memory it takes: the pixels, and their PNG once made.
+    pub fn bytes(&self) -> usize {
+        self.image().as_raw().len() + self.0.1.get().map_or(0, String::len)
+    }
+
     /// The same pixels turned or flipped as `op` does to the image.
     fn turned(&self, op: Op) -> Pixels {
         use image::imageops;
@@ -419,6 +429,15 @@ impl Shape {
     /// the highlighters and the spotlights.
     pub fn is_layer(&self) -> bool {
         matches!(self, Shape::Filter { .. } | Shape::Highlight { .. } | Shape::Spotlight(_))
+    }
+
+    /// The pixels it holds: a pasted piece's, a preview's (`history` counts them).
+    pub fn held(&self) -> Option<&Pixels> {
+        match self {
+            Shape::Patch { pixels, .. } => Some(pixels),
+            Shape::Filter { preview, .. } | Shape::Highlight { preview, .. } | Shape::Lens { preview, .. } => preview.0.as_ref().map(|(.., p)| p),
+            _ => None,
+        }
     }
 
     /// The preview of a filter, highlighter or magnifier.
