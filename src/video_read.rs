@@ -650,6 +650,57 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
+    /// A video of a phone or a server copied whole, as mpv reads it on Windows.
+    fn copied(dir: &std::path::Path, name: &str) -> PathBuf {
+        let _ = std::fs::remove_dir_all(dir);
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::write(dir.join(name), b"the video").unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(copy_whole(&op, name, 9, &AtomicU64::new(0))).unwrap()
+    }
+
+    /// #190: the whole copy of a video goes to the temporary folder, which every user of the
+    /// computer can list, with the permissions of any new file (readable by all). Only its owner
+    /// must be able to read it.
+    #[test]
+    #[cfg(unix)]
+    fn whole_copy_is_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("eyecansee-copy-private-{}", std::process::id()));
+        let tmp = copied(&dir, "private.mp4");
+        let mode = std::fs::metadata(&tmp).unwrap().permissions().mode() & 0o777;
+        println!("{}: permissions {mode:o}", tmp.display());
+        let _ = std::fs::remove_file(&tmp);
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(mode & 0o077, 0, "permissions {mode:o}");
+    }
+
+    /// #190: the name of the copy can be worked out before it is made (the process number and a
+    /// count from zero) and it is made with `File::create`, which follows a link already there:
+    /// someone else on the computer who leaves links under those names gets the video written
+    /// over the file of ours they point to. The copy must never go through a link.
+    #[test]
+    #[cfg(unix)]
+    fn whole_copy_follows_no_link() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-copy-link-{}", std::process::id()));
+        let ours = std::env::temp_dir().join(format!("eyecansee-copy-ours-{}", std::process::id()));
+        std::fs::write(&ours, b"ours").unwrap();
+        // The next names, wherever the count has got to in this run of the tests.
+        let links: Vec<PathBuf> = (0..64).map(|n| std::env::temp_dir().join(format!("{}{}-{n}.tmp", temp_prefix(), std::process::id()))).collect();
+        for link in &links {
+            std::os::unix::fs::symlink(&ours, link).unwrap();
+        }
+        let tmp = copied(&dir, "linked.mp4");
+        let after = std::fs::read(&ours).unwrap();
+        println!("{}: our file now holds {:?}", tmp.display(), String::from_utf8_lossy(&after));
+        for f in links.iter().chain([&tmp, &ours]) {
+            let _ = std::fs::remove_file(f);
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(after, b"ours", "the copy was written through a link, over another file");
+    }
+
     /// A reader that copies the file whole first (a phone on Windows): the reads match the file,
     /// the copy goes away with the reader.
     #[test]
