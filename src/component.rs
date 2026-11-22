@@ -656,4 +656,44 @@ mod tests {
         assert_eq!(peak, 0, "bytes unpacked before the SHA-256 was compared");
         assert!(left.is_empty(), "{left:?}");
     }
+
+    /// Audit 2.9 (b): a second start of an add-on whose download is under way gives that download
+    /// back, and the work runs once; once it has ended, a start is a new download (to try again
+    /// after an error). Before, the second one removed the folder the first one was unpacking into.
+    #[test]
+    fn audit_2_9_one_download_of_an_add_on_at_a_time() {
+        use std::sync::atomic::AtomicU32;
+        let runs = std::sync::Arc::new(AtomicU32::new(0));
+        let (go, wait) = std::sync::mpsc::channel::<()>();
+        let counted = |wait: Option<std::sync::mpsc::Receiver<()>>| {
+            let runs = runs.clone();
+            move |_: &AtomicU64| {
+                runs.fetch_add(1, Ordering::SeqCst);
+                if let Some(w) = wait {
+                    let _ = w.recv();
+                }
+                Err("stopped by the test".to_string())
+            }
+        };
+        let kind = "audit-2-9-add-on";
+        let first = begin(kind, counted(Some(wait)), || {});
+        let again = begin(kind, counted(None), || {});
+        let other = begin("audit-2-9-other", counted(None), || {});
+        let same = std::sync::Arc::ptr_eq(&first, &again);
+        go.send(()).unwrap();
+        let started = std::time::Instant::now();
+        let ended = |d: &Download| d.result.lock().unwrap().is_some();
+        while !(ended(&first) && ended(&again) && ended(&other)) {
+            assert!(started.elapsed().as_secs() < 20, "the downloads did not end");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let after = begin(kind, counted(None), || {});
+        while !ended(&after) {
+            assert!(started.elapsed().as_secs() < 20, "the new download did not end");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(same, "a second download of the same add-on started");
+        assert!(!std::sync::Arc::ptr_eq(&first, &after), "an ended download given back");
+        assert_eq!(runs.load(Ordering::SeqCst), 3, "the first, the other add-on, the one after");
+    }
 }

@@ -597,6 +597,60 @@ ZNx9ootxLvzxqaW3Js8GQuuaRfw38173uezh9m7748ttQQ1wAqg5dxcDI9Q+3YopKvqk/hWD2HljErLO
         url
     }
 
+    /// As `serve_once`, the rest of the body sent once `gate` says so (or is dropped).
+    fn serve_gated(body: Vec<u8>, sent: usize, gate: std::sync::mpsc::Receiver<()>) -> String {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/file.bin", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            let (mut s, _) = listener.accept().unwrap();
+            let _ = s.read(&mut [0; 4096]);
+            let head = format!("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\n\r\n", body.len());
+            let _ = s.write_all(head.as_bytes()).and_then(|()| s.write_all(&body[..sent]));
+            let _ = gate.recv();
+            let _ = s.write_all(&body[sent..]);
+        });
+        url
+    }
+
+    /// Audit 2.9 (a): two checks for updates at once (the one at start, Help > Check for updates)
+    /// download the same file: the second one waits for the first, then finds its file there and
+    /// checked. Before, it emptied the `.part` the first one was writing, and the first one failed.
+    /// The first download is held half way by its server until the second one has ended, or for
+    /// 3 s if it waits.
+    #[test]
+    fn audit_2_9_two_downloads_of_one_update() {
+        let body: Vec<u8> = (0..200_000u32).map(|i| (i % 251) as u8).collect();
+        let sha = sha256_of(&mut &body[..]).unwrap();
+        let dir = scratch("twice");
+        let file = dir.join("file.bin");
+        let (open, gate) = std::sync::mpsc::channel();
+        let urls = [serve_gated(body.clone(), 1000, gate), serve_once(body.clone(), body.len(), Duration::ZERO)];
+        let fetching = |url: String| {
+            let (file, sha, body) = (file.clone(), sha.clone(), body.clone());
+            let whole = move |p: &Path| (std::fs::read(p).ok().as_deref() == Some(&body[..])).then_some(()).ok_or_else(|| "not the file".to_string());
+            std::thread::spawn(move || fetch(&agent_with(Duration::from_secs(20)), &url, &file, &sha, MAX_UPDATE, whole))
+        };
+        let [first_url, second_url] = urls;
+        let first = fetching(first_url);
+        let part = file.with_extension("part");
+        let started = std::time::Instant::now();
+        while !std::fs::metadata(&part).is_ok_and(|m| m.len() > 0) {
+            assert!(started.elapsed() < Duration::from_secs(20), "the first download did not start");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let second = fetching(second_url);
+        let waited = std::time::Instant::now();
+        while !second.is_finished() && waited.elapsed() < Duration::from_secs(3) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        open.send(()).unwrap();
+        let (first, second) = (first.join().unwrap(), second.join().unwrap());
+        let got = std::fs::read(&file).ok();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!((first, second), (Ok(()), Ok(())));
+        assert!(got.as_deref() == Some(&body[..]), "the file is not whole");
+    }
+
     /// A folder of its own for one test.
     fn scratch(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("eyecansee-update-{name}-{}", std::process::id()));
