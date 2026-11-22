@@ -493,22 +493,39 @@ impl Server {
     }
 
     /// Writes a file from the chunks of a copy, replacing one with the same name; removed if the
-    /// chunks end with an error or the transfer fails.
+    /// chunks end with an error or the transfer fails. An error of the chunks (the source, Cancel)
+    /// travels apart from the server's, as in `send`: the connection is not taken for lost, the
+    /// upload not tried again on another one, and the reason is the real one (audit 2.8).
     pub async fn write_chunks(&self, path: &str, mut chunks: tokio::sync::mpsc::Receiver<std::io::Result<Bytes>>) -> Result<(), Error> {
+        let source: Mutex<Option<Error>> = Mutex::new(None);
         let began = AtomicBool::new(false);
         let r: Result<(), Error> = (async {
             with!(self, path, transfer |c| async {
                 let mut d = waited(self.data(&mut c.s, format!("STOR {}", abs(path)), 0)).await?;
                 once(&began)?;
                 while let Some(chunk) = chunks.recv().await {
-                    let chunk = chunk.map_err(FtpError::ConnectionError)?;
-                    waited(async { d.write_all(&chunk).await.map_err(FtpError::ConnectionError) }).await?;
+                    match chunk {
+                        Ok(chunk) => waited(async { d.write_all(&chunk).await.map_err(FtpError::ConnectionError) }).await?,
+                        Err(e) => {
+                            *source.lock().unwrap() = Some(("error-detail", e.to_string()));
+                            // The transfer ended here, its answer read: the connection stays in step.
+                            if let Err(e) = waited(close_data(&mut c.s, d, true)).await {
+                                log!("ftp: closing the upload of {path} cut short: {e}");
+                                c.ok = false;
+                            }
+                            return Ok(());
+                        }
+                    }
                 }
                 waited(close_data(&mut c.s, d, true)).await
             }
             .await)
         })
         .await;
+        let r = match source.into_inner().unwrap() {
+            Some(e) => Err(e),
+            None => r,
+        };
         if r.is_err() {
             let _ = self.delete(path).await;
         }
