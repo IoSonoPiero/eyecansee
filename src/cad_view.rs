@@ -322,3 +322,35 @@ pub(crate) fn ucs_corner(painter: &egui::Painter, rect: egui::Rect) {
     }
     painter.rect_filled(egui::Rect::from_center_size(o, egui::vec2(7.0, 7.0)), 0.0, egui::Color32::from_gray(220));
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::audit_family_1::{Harness, folder, own_folder};
+
+    /// Audit 6.9: the pictures of layouts and of layers chosen (`State::sheets`), one per drawing
+    /// looked at, stayed on the graphics card for the whole session. Moving in the viewer keeps
+    /// only those of the drawings near the one open, as for the drawings; closing it frees them all.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn audit_6_9_sheets_freed() {
+        if own_folder("cad_view::tests::audit_6_9_sheets_freed") {
+            return;
+        }
+        let names: Vec<String> = (0..12).map(|i| format!("d{i:02}.png")).collect();
+        let dir = folder("sheets", &names.iter().map(String::as_str).collect::<Vec<_>>());
+        let mut h = Harness::new(&dir);
+        let paths: Vec<String> = h.app.files().iter().map(|f| f.path.clone()).collect();
+        assert_eq!(paths.len(), 12);
+        for p in &paths {
+            h.app.model.cad.sheets.insert((p.clone(), 1, 0), None);
+        }
+        h.app.viewing = Some(0);
+        h.app.prefetch_full(0);
+        let kept = |h: &Harness| h.app.model.cad.sheets.keys().map(|k| k.0.clone()).collect::<std::collections::BTreeSet<_>>();
+        // Around the first, among twelve: the three after it and the three before (from the end).
+        let near: std::collections::BTreeSet<String> = [0, 1, 2, 3, 9, 10, 11].iter().map(|&i| paths[i].clone()).collect();
+        assert_eq!(kept(&h), near);
+        h.app.close_viewer();
+        assert!(h.app.model.cad.sheets.is_empty(), "{:?}", kept(&h));
+    }
+}
