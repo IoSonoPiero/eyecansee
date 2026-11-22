@@ -45,7 +45,7 @@ pub fn turned_file_beside(bytes: &[u8], name: &str, turn: Turn, sidecar: Option<
     }
     let mut img = crate::decode::decode_full(bytes, name)?;
     turn.apply(&mut img);
-    encoded_beside(bytes, name, img, sidecar)
+    encoded_beside(bytes, name, img, sidecar, turn)
 }
 
 /// Whether turning the file `bytes` (all of it) by `turn`, as `turned_file_beside` does it,
@@ -82,12 +82,13 @@ pub fn edited_file(bytes: &[u8], name: &str, edit: impl FnOnce(&mut DynamicImage
 /// with its metadata, as `edited_file`; the file itself is not decoded again.
 #[cfg(test)]
 pub fn encoded_back(bytes: &[u8], name: &str, image: DynamicImage) -> Result<(Vec<u8>, bool), String> {
-    encoded_beside(bytes, name, image, None)
+    encoded_beside(bytes, name, image, None, Turn::default())
 }
 
 /// As `encoded_back`, with the XMP of the photo's `sidecar` added (#24): for a copy in the same
 /// format (Convert and resize), not for the file itself, which keeps its sidecar beside it.
-pub fn encoded_beside(bytes: &[u8], name: &str, image: DynamicImage, sidecar: Option<&[u8]>) -> Result<(Vec<u8>, bool), String> {
+/// `turn`: how `image` was turned from the file (upside down, the Photo Sphere tags go, #188).
+pub fn encoded_beside(bytes: &[u8], name: &str, image: DynamicImage, sidecar: Option<&[u8]>, turn: Turn) -> Result<(Vec<u8>, bool), String> {
     // A PSD comes back flattened: "lossy" when there was more than one plain layer.
     if crate::psd::is_psd(name) {
         return Ok((crate::psd::encode(&image, bytes)?, !crate::psd::simple(bytes)));
@@ -99,7 +100,7 @@ pub fn encoded_beside(bytes: &[u8], name: &str, image: DynamicImage, sidecar: Op
     let o = if format == Format::Jpeg { crate::encode::jpeg_quality::like(bytes, o) } else { o };
     // GIF too: its colours are chosen again (at most 256).
     let lossy = matches!(format, Format::Jpeg | Format::Avif | Format::Gif) || (format == Format::Webp && !webp_lossless);
-    Ok((Original::with_meta_beside(image, bytes, name, sidecar).encode(&o)?, lossy))
+    Ok((Original::with_meta_beside(image, bytes, name, sidecar).upside(turn).encode(&o)?, lossy))
 }
 
 /// Can the file be turned and written back over itself, losing at most a little quality? Its

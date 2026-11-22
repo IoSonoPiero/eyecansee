@@ -325,7 +325,7 @@ fn encoded(bytes: &[u8], name: &str, job: &Job, image: image::DynamicImage, cut:
         // As "Save" writes them, at the original's quality (which would refuse a phone JPEG: it
         // writes over the original).
         None if Format::of_file(name) == Some(Format::Jpeg) => (name.to_string(), crate::encode::jpeg_quality::like(bytes, Options::default())),
-        None => return crate::save_back::encoded_beside(bytes, name, image, sidecar).map(|(data, _)| (name.to_string(), data, LeftOut::default())).map_err(|_| (SKIP_INSIDE, name.to_string())),
+        None => return crate::save_back::encoded_beside(bytes, name, image, sidecar, job.turn).map(|(data, _)| (name.to_string(), data, LeftOut::default())).map_err(|_| (SKIP_INSIDE, name.to_string())),
         Some(format) => (with_ext(name, format), Options { format, turn: Turn::default(), ..job.options }),
     };
     let original = encode::Original::with_meta_beside(image, bytes, name, sidecar).alone().turned(job.turn);

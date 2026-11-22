@@ -28,6 +28,12 @@ impl Turn {
         self == Turn::default()
     }
 
+    /// Upside down: half a turn, or flipped top to bottom (a horizontal flip and half a turn).
+    /// The Photo Sphere tags of a panorama (#188) are then no longer true: its sky is below.
+    pub fn upside_down(self) -> bool {
+        self.quarter == 2
+    }
+
     /// The quarter turns alone: what a video shows and saves (it cannot be flipped without
     /// encoding it again).
     pub fn turns_only(self) -> Turn {
@@ -136,7 +142,8 @@ impl Turn {
 /// The JPEG turned without decoding it, upright (its EXIF orientation is done too and set back to
 /// "upright"). `None` when the size is not a multiple of the blocks: the edge could not be kept.
 pub fn jpeg_lossless(bytes: &[u8], turn: Turn) -> Option<Vec<u8>> {
-    jpeg_lossless_total(bytes, turn.after(exif_turn(bytes)))
+    // Upside down as shown (after its EXIF orientation): what the Photo Sphere tags describe.
+    jpeg_lossless_with(bytes, turn.after(exif_turn(bytes)), turn.upside_down())
 }
 
 /// Whether `jpeg_lossless_total` turns the JPEG `bytes` by `total` without decoding it, from its
@@ -173,12 +180,18 @@ pub fn exif_turn(bytes: &[u8]) -> Turn {
 /// (the gain map of an Ultra HDR photo turns as the photo does). The segments libjpeg-turbo
 /// copies are made to fit: EXIF, XMP, Photoshop block (`meta_write::fit_jpeg_segments`).
 pub fn jpeg_lossless_total(bytes: &[u8], total: Turn) -> Option<Vec<u8>> {
+    jpeg_lossless_with(bytes, total, false)
+}
+
+/// As `jpeg_lossless_total`; `upside`: the picture as shown ends upside down, and its Photo Sphere
+/// tags go (#188).
+fn jpeg_lossless_with(bytes: &[u8], total: Turn, upside: bool) -> Option<Vec<u8>> {
     let mut t = turbojpeg::Transform::op(total.jpeg_op());
     t.perfect = true;
     let mut out = turbojpeg::transform(&t, bytes).ok()?.to_vec();
     let h = turbojpeg::read_header(&out).ok()?;
     upright_exif(&mut out, h.width as u32, h.height as u32);
-    Some(crate::meta_write::fit_jpeg_segments(&out, h.width as u32, h.height as u32))
+    Some(crate::meta_write::fit_jpeg_segments(&out, h.width as u32, h.height as u32, upside))
 }
 
 /// Sets the orientation in the EXIF segment of a JPEG to "upright", in place, and makes the rest

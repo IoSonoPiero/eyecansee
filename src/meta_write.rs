@@ -193,13 +193,15 @@ pub(crate) fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
 /// A JPEG whose segments were copied from its original (lossless turn): XMP made to fit `w` × `h`
 /// and the Photoshop block without the original's thumbnails. An XMP that no longer fits its
 /// segment once made to fit is written again whole, split as in every JPEG written (#217).
-pub fn fit_jpeg_segments(jpeg: &[u8], w: u32, h: u32) -> Vec<u8> {
+/// `upside`: the picture was turned upside down, and the Photo Sphere tags go (`xmp::without_pano`).
+pub fn fit_jpeg_segments(jpeg: &[u8], w: u32, h: u32, upside: bool) -> Vec<u8> {
     let mut out = jpeg[..2.min(jpeg.len())].to_vec();
     let mut rest = 2;
     let segments = crate::ultrahdr::segments(jpeg);
     let main = segments.iter().find_map(|&(m, s, e)| if m == 0xE1 { jpeg[s + 4..e].strip_prefix(JPEG_XMP) } else { None });
-    let fitted = main.and_then(|m| crate::xmp::fit(Some(m), w, h, None));
-    let split = fitted.as_ref().filter(|x| x.len() > JPEG_XMP_MAX).and_then(|_| crate::xmp::fit(Some(&jpeg_xmp_whole(jpeg)?), w, h, None)).map(|x| jpeg_xmp_segments(&x));
+    let fit = |x: &[u8]| if upside { crate::xmp::fit(Some(&crate::xmp::without_pano(x)), w, h, None) } else { crate::xmp::fit(Some(x), w, h, None) };
+    let fitted = main.and_then(fit);
+    let split = fitted.as_ref().filter(|x| x.len() > JPEG_XMP_MAX).and_then(|_| fit(&jpeg_xmp_whole(jpeg)?)).map(|x| jpeg_xmp_segments(&x));
     for (marker, s, e) in segments {
         let body = &jpeg[s + 4..e];
         if let Some(bodies) = split.as_ref().filter(|_| marker == 0xE1 && (body.starts_with(JPEG_XMP) || body.starts_with(JPEG_XMP_EXT))) {

@@ -215,6 +215,7 @@ mod window_close;
 #[cfg(any(windows, test))]
 mod window_place;
 mod xmp;
+mod xmp_pano;
 mod xmp_ext;
 mod xmp_fields;
 mod zoom;

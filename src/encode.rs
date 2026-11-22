@@ -370,6 +370,15 @@ impl Original {
         if turn.sideways() {
             self.density = self.density.map(density::Density::swapped);
         }
+        self.upside(turn)
+    }
+
+    /// The pixels were turned by `turn`: upside down, the Photo Sphere tags of a panorama go
+    /// (#188, `xmp::without_pano`); turned on its side, its size says it (`xmp_pano`).
+    pub fn upside(mut self, turn: Turn) -> Original {
+        if turn.upside_down() {
+            self.xmp = self.xmp.map(|x| crate::xmp::without_pano(&x));
+        }
         self
     }
 
@@ -437,6 +446,15 @@ impl Original {
         Blocks { exif, icc: self.icc.clone(), xmp, irb, density, png_text, png_color, jpeg_comments }
     }
 
+    /// `blocks` for the pixels turned by `o.turn`: upside down, without the Photo Sphere tags (#188).
+    fn blocks_turned(&self, format: Format, w: u32, h: u32, o: &Options) -> Blocks {
+        let mut b = self.blocks(format, w, h, o.turn.sideways(), o.meta);
+        if o.turn.upside_down() {
+            b.xmp = b.xmp.map(|x| crate::xmp::without_pano(&x));
+        }
+        b
+    }
+
     /// What a file written with `o` leaves out of this original's metadata, too large for a
     /// JPEG's segments (#217); nothing for the other formats. Known before encoding: the
     /// metadata do not need the pixels.
@@ -446,7 +464,7 @@ impl Original {
         }
         let (w, h) = (self.image.width(), self.image.height());
         let (w, h) = if o.turn.sideways() { (h, w) } else { (w, h) };
-        encoders::jpeg_left_out(&self.blocks(Format::Jpeg, w, h, o.turn.sideways(), o.meta))
+        encoders::jpeg_left_out(&self.blocks_turned(Format::Jpeg, w, h, o))
     }
 
     /// The file as it would be saved.
@@ -461,7 +479,7 @@ impl Original {
             &turned
         };
         let img = pixels(image, o.format);
-        let mut b = self.blocks(o.format, img.width(), img.height(), o.turn.sideways(), o.meta);
+        let mut b = self.blocks_turned(o.format, img.width(), img.height(), o);
         // The profile only with pixels of its colour space (#214): a CMYK JPEG is decoded to RGB,
         // a grey picture becomes RGB in most formats, a JPEG in greys has one channel.
         let grey = !img.color().has_color() || (o.format == Format::Jpeg && o.chroma == Chroma::Grey && !o.jpeg_lossless);

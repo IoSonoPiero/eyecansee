@@ -30,7 +30,7 @@ const IPTC_EXT: &str = "http://iptc.org/std/Iptc4xmpExt/2008-02-29/";
 const DJI: &str = "http://www.dji.com/drone-dji/1.0/";
 
 /// What happens to a property: dropped, or its value replaced.
-enum Fix {
+pub(crate) enum Fix {
     Drop,
     Set(String),
 }
@@ -48,6 +48,10 @@ struct How {
     /// The XMP of a RAW file or of its sidecar (#24): its Camera Raw settings and darktable's
     /// history go (`without_camera_raw`).
     raw: bool,
+    /// The Photo Sphere tags (#188): kept, dropped or made to fit (`xmp_pano`).
+    pano: crate::xmp_pano::PanoFix,
+    /// Only the Photo Sphere tags dropped, nothing else changed (`without_pano`).
+    only_pano: bool,
 }
 
 /// A property that says where the photo was taken: the GPS of the EXIF, the place of Photoshop
@@ -79,6 +83,8 @@ fn place(ns: &str, local: &str) -> bool {
 fn fix(ns: &str, local: &str, w: u32, h: u32, how: How) -> Option<Fix> {
     match (ns, local) {
         _ if how.no_place && place(ns, local) => Some(Fix::Drop),
+        (crate::pano::GPANO, l) => how.pano.of(l),
+        _ if how.only_pano => None,
         (XMP_NOTE, "HasExtendedXMP") if how.merged => Some(Fix::Drop),
         // Only the lossless turn of an Ultra HDR Motion Photo keeps the video (`how.video`).
         (GCAMERA, l) if !how.video && (l.starts_with("MotionPhoto") || l.starts_with("MicroVideo")) => Some(Fix::Drop),
@@ -227,6 +233,17 @@ pub fn with_sidecar(inside: Option<&[u8]>, sidecar: &[u8]) -> Vec<u8> {
     [&sidecar[..end], added.as_bytes(), &sidecar[end..]].concat()
 }
 
+/// `xmp` without its Photo Sphere tags (#188), the rest as it was: the picture was turned upside
+/// down or flipped top to bottom, which its size does not show (`xmp_pano`). A packet without them,
+/// or not well-formed, is returned as it was.
+pub fn without_pano(xmp: &[u8]) -> Vec<u8> {
+    if !crate::xmp_pano::has(xmp) {
+        return xmp.to_vec();
+    }
+    let how = How { pano: crate::xmp_pano::PanoFix::Drop, only_pano: true, ..How::default() };
+    rewrite(xmp, 0, 0, &[], how).unwrap_or_else(|| xmp.to_vec())
+}
+
 /// `xmp` without what describes the parts after the picture in the file (Motion Photo video,
 /// Ultra HDR gain map and its container directory), for a picture written alone; sizes set to
 /// `w` × `h` as `fit` does. A packet that is not well-formed XML is returned as it was.
@@ -235,6 +252,8 @@ pub fn alone(xmp: &[u8], w: u32, h: u32) -> Vec<u8> {
 }
 
 fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], how: How) -> Option<Vec<u8>> {
+    // The Photo Sphere tags as the new size needs them (`xmp_pano`), unless they go anyway.
+    let how = if how.only_pano || how.pano != crate::xmp_pano::PanoFix::Keep { how } else { How { pano: crate::xmp_pano::fix_for(xmp, w, h), ..how } };
     let mut r = NsReader::from_reader(xmp);
     let mut out = Writer::new(Vec::with_capacity(xmp.len()));
     // Depth inside a dropped element; the new value for the text of the element being read, and
@@ -243,7 +262,7 @@ fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], how: How) -> Option<Vec<u
     // Camera Raw settings kept without `crs:AlreadyApplied`: it goes on the first description that
     // declares their namespace.
     let has = |s: &[u8]| xmp.windows(s.len()).any(|w| w == s);
-    let mut applied = how.raw || !has(CRS.as_bytes()) || has(b"AlreadyApplied");
+    let mut applied = how.raw || how.only_pano || !has(CRS.as_bytes()) || has(b"AlreadyApplied");
     let mut seen: Vec<(String, String)> = Vec::new();
     loop {
         let (ns, event) = r.read_resolved_event().ok()?;
@@ -303,7 +322,8 @@ fn attributes<'a>(r: &NsReader<&[u8]>, e: &BytesStart<'a>, w: u32, h: u32, how: 
         if let Some(binding) = a.key.as_namespace_binding() {
             // Their declarations go with what they named: a reader of Ultra HDR (Skia) takes the
             // first description declaring the container's namespaces as the one describing it.
-            if (value == CRS && how.raw) || (how.alone && [CONTAINER, ITEM, HDRGM].contains(&value.as_str())) {
+            let pano_gone = value == crate::pano::GPANO && how.pano == crate::xmp_pano::PanoFix::Drop;
+            if (value == CRS && how.raw) || (how.alone && [CONTAINER, ITEM, HDRGM].contains(&value.as_str())) || pano_gone {
                 changed = true;
                 continue;
             }
