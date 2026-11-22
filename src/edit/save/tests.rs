@@ -658,9 +658,11 @@ fn preview_is_the_file() {
         filter(-8.0, 24.0, Filter::Gray, 0.0),
         obj(Shape::Highlight { area: area(6.0, 24.0), preview: Default::default() }, Style { opacity: 0.6, ..Style::highlighter() }),
         filter(0.0, 16.0, Filter::Brightness, 40.0),
+        // A negative contrast changes the colours only: its preview was see-through (audit 5.4).
+        filter(20.0, 12.0, Filter::Contrast, -50.0),
     ];
     // At full size, as the file.
-    assert_eq!(crate::edit::photo::refresh_layers(&mut doc, &photo, |_| 8000.0), 3);
+    assert_eq!(crate::edit::photo::refresh_layers(&mut doc, &photo, |_| 8000.0), 4);
     assert_eq!(crate::edit::photo::refresh_layers(&mut doc, &photo, |_| 8000.0), 0, "made once");
     let mut screen = photo.clone();
     doc.edit().apply(&mut screen);
@@ -850,16 +852,17 @@ fn turned_objects_preview_is_the_file() {
     }
 }
 
-/// Blur, pixelate and sharpen over the empty corners of a straightened photo (no colour for
-/// them), their box upright or turned: the corners stay transparent and the edge of the photo by
-/// them stays as opaque as it was, in the saved file as on the screen. The file blurred the edge
-/// of the photo into the corners, see-through there, and the screen did not (seen on 2026-11-15).
+/// Blur, pixelate, sharpen and a negative contrast over the empty corners of a straightened photo
+/// (no colour for them), their box upright or turned: the corners stay transparent and the edge
+/// of the photo by them stays as opaque as it was, in the saved file as on the screen. The file
+/// blurred the edge of the photo into the corners, see-through there, and the screen did not
+/// (seen on 2026-11-15); a negative contrast made its whole box see-through (audit 5.4).
 #[test]
 fn filters_by_the_empty_corners() {
     use crate::edit::filter::Filter;
     let photo = motif();
     let original = Original::with_meta(photo.clone(), &[]);
-    for (filter, amount) in [(Filter::Blur, 2.0), (Filter::Pixelate, 6.0), (Filter::Sharpen, 2.0)] {
+    for (filter, amount) in [(Filter::Blur, 2.0), (Filter::Pixelate, 6.0), (Filter::Sharpen, 2.0), (Filter::Contrast, -50.0)] {
         for rot in [0.0, -20.0] {
             let mut doc = Doc::new(64, 48, None);
             doc.angle = 7.0;
