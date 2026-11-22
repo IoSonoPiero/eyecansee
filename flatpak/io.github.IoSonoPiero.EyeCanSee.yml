@@ -41,6 +41,16 @@ modules:
         url: https://github.com/strukturag/libde265/archive/refs/tags/v1.1.3.tar.gz
         sha256: 189baa08fd6d2dd34db099de411bd6b2e6bd5eb88e81236a3d0fa3826b9715c4
 
+  - name: dav1d  # AVIF and AV1: built here at 1.5.5 instead of the runtime's 1.5.4 (#172)
+    buildsystem: meson
+    config-opts: [--buildtype=release, -Denable_tools=false, -Denable_tests=false]
+    cleanup: [/include, /lib/pkgconfig]
+    license-files: [COPYING]
+    sources:
+      - type: archive
+        url: https://downloads.videolan.org/pub/videolan/dav1d/1.5.5/dav1d-1.5.5.tar.xz
+        sha256: ca96b1d0ba3f01f55de7231d775892b64994ba061aaeeaaa4f662a390b3abf9e
+
   - name: imagemagick
     config-opts: [--enable-shared, --disable-static, --without-modules, --enable-hdri,
                   --without-magick-plus-plus, --without-perl, --without-x, --without-xml, --disable-docs]
