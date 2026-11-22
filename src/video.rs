@@ -742,12 +742,17 @@ mod tests {
         h.app.on_replaced(&ctx, path.clone(), Ok(()));
         assert!(h.app.video.is_none(), "the old player stays");
         h.until(|a| a.player_of(&path).is_some(), "the video open again");
-        std::thread::sleep(std::time::Duration::from_millis(500));
-        h.frame(Vec::new());
-        let p = h.app.player_of(&path).unwrap();
-        let (time, paused) = (p.position(), p.paused());
-        println!("after Save: {time:.3} s, paused {paused}");
-        assert!(paused && (time - 4.5).abs() < 0.05, "after Save: {time:.3} s, paused {paused}");
+        // Waited for, 10 s at most (a fixed half second failed under load); what was seen is said.
+        let seen = |h: &Harness| h.app.player_of(&path).map(|p| (p.position(), p.paused()));
+        let there = |s: Option<(f64, bool)>| s.is_some_and(|(time, paused)| paused && (time - 4.5).abs() < 0.05);
+        let start = std::time::Instant::now();
+        while !there(seen(&h)) && start.elapsed() < std::time::Duration::from_secs(10) {
+            h.frame(Vec::new());
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let (time, paused) = seen(&h).expect("the player after Save");
+        println!("after Save: {time:.3} s, paused {paused}, after {:?}", start.elapsed());
+        assert!(paused && (time - 4.5).abs() < 0.05, "after Save: {time:.3} s, paused {paused}, in 10 s");
     }
 
     /// #209: in the viewer a video mpv cannot play says why, as a picture that cannot be opened

@@ -537,29 +537,37 @@ mod tests {
             return;
         }
         let file = || Input::File(concat!(env!("CARGO_MANIFEST_DIR"), "/site/img/mtp-open.mp4").into());
-        let settled = |p: &Player| {
+        // Each case waits for what it checks, 10 s at most (a fixed wait failed under load); what
+        // was seen is said when it does not come.
+        let reach = |p: &Player, what: &str, done: &dyn Fn(Place) -> bool| {
             let t = Instant::now();
-            while p.video_size().is_none() && t.elapsed() < Duration::from_secs(5) {
+            let mut seen = p.place();
+            while !done(seen) && t.elapsed() < Duration::from_secs(10) {
                 std::thread::sleep(Duration::from_millis(20));
+                seen = p.place();
             }
-            std::thread::sleep(Duration::from_millis(300));
-            p.place()
+            if !done(seen) {
+                println!("{what}: not reached in 10 s, seen {seen:?}, size {:?}, error {:?}", p.video_size(), p.error());
+            }
+            seen
         };
-        let paused = settled(&Player::open_at(file(), 0, true, Some(Place { time: 4.5, paused: true, at_end: false }), || {}).unwrap());
-        let playing = settled(&Player::open_at(file(), 0, true, Some(Place { time: 4.5, paused: false, at_end: false }), || {}).unwrap());
-        let end = settled(&Player::open_at(file(), 0, true, Some(Place { time: 9.958, paused: true, at_end: true }), || {}).unwrap());
-        let end_player = Player::open_at(file(), 0, true, Some(Place { time: 9.958, paused: true, at_end: true }), || {}).unwrap();
-        settled(&end_player);
+        let open = |at: Place| Player::open_at(file(), 0, true, Some(at), || {}).unwrap();
+        let paused = reach(&open(Place { time: 4.5, paused: true, at_end: false }), "paused", &|p| p.paused && (p.time - 4.5).abs() < 0.05);
+        let playing = reach(&open(Place { time: 4.5, paused: false, at_end: false }), "playing", &|p| !p.paused && p.time > 4.5);
+        let end_player = open(Place { time: 9.958, paused: true, at_end: true });
+        let end = reach(&end_player, "end", &|p| p.at_end && p.time > 9.9);
         println!("paused {paused:?}, playing {playing:?}, end {end:?}, end error {:?}", end_player.error());
         assert!(paused.paused && (paused.time - 4.5).abs() < 0.05, "{paused:?}");
-        // The frames shown from the opening on: all at 4.5 s, none from 0:00 first.
-        let p = Player::open_at(file(), 0, true, Some(Place { time: 4.5, paused: true, at_end: false }), || {}).unwrap();
-        let (t, mut times) = (Instant::now(), Vec::new());
-        while t.elapsed() < Duration::from_secs(1) {
+        // The frames shown from the opening on, for a second after the first: all at 4.5 s, none
+        // from 0:00 first.
+        let p = open(Place { time: 4.5, paused: true, at_end: false });
+        let (t, mut times, mut first) = (Instant::now(), Vec::new(), None);
+        while first.is_none_or(|f: Instant| f.elapsed() < Duration::from_secs(1)) && t.elapsed() < Duration::from_secs(10) {
             if let Some(size) = p.video_size() {
                 p.set_size(crate::mpv::fit(size, 200));
             }
             if p.frame().is_some() {
+                first.get_or_insert_with(Instant::now);
                 times.push(p.position());
             }
             std::thread::sleep(Duration::from_millis(2));
