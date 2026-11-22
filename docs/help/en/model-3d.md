@@ -13,7 +13,7 @@
 
 A `.gltf` whose data file (usually `.bin`) is not next to it does not open: the viewer names the file that is missing. EyeCanSee reads that file only from the model's folder or from a folder inside it: when the model points to a folder above, to a whole path or to the internet, the viewer says so and names the file. A model whose data inside the file is damaged, or a `.glb` without its block of data, does not open either, and the viewer says which of the two it is. A `.glb` cut off, as after a download or a copy that stopped, does not open: the viewer says the file is incomplete and, when the file says how large it should be, gives that size and the one it has.
 
-A model with very many triangles does not open, so that reading it does not fill the computer's memory: EyeCanSee reads binary PLY files of up to 50 million triangles, STL and `.glb` files of up to 20 million, and OBJ, 3MF and PLY files in text, which take more memory to read, of up to 10 million. The other formats go up to 50 million. A larger model is not read, and the viewer says how many triangles its format allows.
+A model with very many triangles does not open, so that reading it does not fill the computer's memory: EyeCanSee reads binary PLY files of up to 50 million triangles, STL and `.glb` files of up to 20 million, and OBJ, 3MF and PLY files in text, which take more memory to read, of up to 10 million. The other formats go up to 50 million. A point cloud, whose points are each drawn as a small solid, opens up to 2.5 million points from a PLY file in text and up to 12.5 million from a binary one. A larger model is not read, and the viewer says how many triangles its format allows.
 
 The full list is in [Supported formats](formats.md).
 

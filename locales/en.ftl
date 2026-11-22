@@ -615,6 +615,12 @@ error-model-too-many-triangles = The model has more than { $max } million triang
         [glb] GLB files
        *[other] 3D models
     } with more than { $max } million triangles, so that reading them does not fill the computer's memory.
+# A point cloud (PLY) with more points than EyeCanSee reads: { $max } in millions (2.5, 12.5), { $format } the kind of file.
+error-model-too-many-points = The point cloud has more than { $max } million points.
+    EyeCanSee does not read { $format ->
+        [ply-binary] binary PLY files
+       *[ply-text] PLY files in text
+    } with more than { $max } million points, so that reading them does not fill the computer's memory.
 # A few words after a file's name in the list of a message ("a.gltf: the file a.bin is missing"): no capital, no full stop.
 error-gltf-bin-missing-brief = the file { $detail } is missing
 error-gltf-bin-outside-brief = the data is outside the model's folder ({ $detail })
@@ -623,6 +629,7 @@ error-glb-incomplete-brief = the block with the data is missing
 error-glb-cut-brief = the file is incomplete
 error-glb-cut-sizes-brief = the file is incomplete
 error-model-too-many-triangles-brief = more than { $max } million triangles
+error-model-too-many-points-brief = more than { $max } million points
 # The keys of the viewer, under the status bar.
 hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | Ctrl + L: layers | M: measure | N, Shift + N: next, previous change of a comparison | →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Ctrl + Shift + S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
 hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift + L: next, previous layout | Ctrl + L: layers | M: measure | N, Shift + N: next, previous change of a comparison | →, Space, Page Down: next file | ←, Backspace, Page Up: previous file | Home, End: first, last file | Ctrl + Shift + S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back

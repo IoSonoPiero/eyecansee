@@ -613,6 +613,12 @@ error-model-too-many-triangles = Il modello ha più di { $max } milioni di trian
         [glb] i file GLB
        *[other] i modelli 3D
     } con più di { $max } milioni di triangoli, perché la lettura non riempia la memoria del computer.
+# A point cloud (PLY) with more points than EyeCanSee reads: { $max } in millions (2.5, 12.5), { $format } the kind of file.
+error-model-too-many-points = La nuvola di punti ha più di { $max } milioni di punti.
+    EyeCanSee non legge { $format ->
+        [ply-binary] i file PLY binari
+       *[ply-text] i file PLY in testo
+    } con più di { $max } milioni di punti, perché la lettura non riempia la memoria del computer.
 # A few words after a file's name in the list of a message ("a.gltf: manca il file a.bin"): no capital, no full stop.
 error-gltf-bin-missing-brief = manca il file { $detail }
 error-gltf-bin-outside-brief = i dati sono fuori dalla cartella del modello ({ $detail })
@@ -621,6 +627,7 @@ error-glb-incomplete-brief = manca il blocco con i dati
 error-glb-cut-brief = il file è incompleto
 error-glb-cut-sizes-brief = il file è incompleto
 error-model-too-many-triangles-brief = più di { $max } milioni di triangoli
+error-model-too-many-points-brief = più di { $max } milioni di punti
 # The keys of the viewer, under the status bar.
 hint-cad = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | Ctrl + L: livelli | M: misura | N, Maiusc + N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: successivo | ←, Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | Ctrl + Maiusc + S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
 hint-cad-layouts = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | L, Maiusc + L: layout successivo, precedente | Ctrl + L: livelli | M: misura | N, Maiusc + N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: file successivo | ←, Backspace, Pag↑: file precedente | Inizio, Fine: primo, ultimo file | Ctrl + Maiusc + S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro

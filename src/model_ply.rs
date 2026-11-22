@@ -37,7 +37,7 @@ fn parsed(bytes: &[u8], z_up: bool) -> Result<Mesh, String> {
     let limit = if in_text(bytes) { PLY_TEXT } else { PLY_BINARY };
     // Counted before the parser reads it all (`model_limit`).
     if limit == PLY_TEXT {
-        PLY_TEXT.check(crate::model_limit::ply_text_triangles(bytes))?;
+        PLY_TEXT.check_count(crate::model_limit::ply_text_count(bytes))?;
     }
     let cleaned = ply_header_cleaned(bytes);
     let bytes = cleaned.as_deref().unwrap_or(bytes);
@@ -402,6 +402,8 @@ impl Scan {
 /// points on a surface, so that the cloud looks like a surface of dots.
 fn point_cloud(pos: Vec<[f32; 3]>, rgb: &[[f32; 3]], limit: Limit) -> Result<Mesh, String> {
     let pos: Vec<([f32; 3], Option<[u8; 3]>)> = pos.into_iter().enumerate().filter(|(_, p)| p.iter().all(|c| c.is_finite())).map(|(i, p)| (p, rgb.get(i).map(|c| c.map(|v| v as u8)))).collect();
+    // Said as points, before the 4 triangles of each are made (Piero, 22/11/2026).
+    limit.check_points(pos.len())?;
     let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
     for (p, _) in &pos {
         for k in 0..3 {

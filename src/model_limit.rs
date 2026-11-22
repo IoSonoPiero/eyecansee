@@ -27,6 +27,17 @@ pub(crate) const THREE_MF: Limit = Limit { max: 10_000_000, format: "three-mf" }
 
 /// Fluent id of the error, sent as `id\u{1}format max` (`said`).
 pub const TOO_MANY: &str = "error-model-too-many-triangles";
+/// Fluent id of the error of a point cloud (PLY), each point drawn as 4 triangles: sent as
+/// `id\u{1}format points` (Piero, 22/11/2026: a message that speaks of points).
+pub const TOO_MANY_POINTS: &str = "error-model-too-many-points";
+
+/// What the early count of a PLY in text gives: the triangles of its faces, or the points of a
+/// cloud (`ply_text_count`).
+#[derive(Debug, PartialEq)]
+pub(crate) enum Count {
+    Triangles(usize),
+    Points(usize),
+}
 
 impl Default for Limit {
     fn default() -> Self {
@@ -44,6 +55,25 @@ impl Limit {
         format!("{TOO_MANY}\u{1}{} {}", self.format, self.max)
     }
 
+    /// The points of a cloud, 4 triangles each (`model_ply::point_cloud`): measured in text,
+    /// 1177 bytes a point at the peak against 857 a face with its points (22/11/2026).
+    pub(crate) fn points(self) -> usize {
+        self.max / 4
+    }
+
+    /// A cloud of `n` points, refused beyond `points`, with the error that speaks of points.
+    pub(crate) fn check_points(self, n: usize) -> Result<(), String> {
+        if n > self.points() { Err(format!("{TOO_MANY_POINTS}\u{1}{} {}", self.format, self.points())) } else { Ok(()) }
+    }
+
+    /// `check` or `check_points`, as the count says.
+    pub(crate) fn check_count(self, count: Count) -> Result<(), String> {
+        match count {
+            Count::Triangles(n) => self.check(n),
+            Count::Points(n) => self.check_points(n),
+        }
+    }
+
     /// Points and triangles the parts of one model may bring (`Builder::add_shiny`), kept or
     /// dropped: a triangle with its three points, as STL gives them. A part placed again and
     /// again counts at every placement, so that it cannot take forever or fill the memory even
@@ -56,13 +86,20 @@ impl Limit {
 /// The sentence of the error `id` with its `detail` (`Limit::error`), or its few words for the
 /// lists (`brief`); `None` for another error.
 pub(crate) fn said(i18n: &crate::i18n::I18n, id: &str, detail: &str, brief: bool) -> Option<String> {
-    if id != TOO_MANY {
+    if !is_error(id) {
         return None;
     }
     let (format, max) = detail.split_once(' ')?;
-    let millions = (max.parse::<usize>().ok()? / 1_000_000).to_string();
-    let id = if brief { format!("{TOO_MANY}-brief") } else { TOO_MANY.to_string() };
+    let max = max.parse::<usize>().ok()?;
+    // Millions, with a tenth when there is one: 10, 2.5 (2,5 in Italian).
+    let millions = if max.is_multiple_of(1_000_000) { (max / 1_000_000).to_string() } else { format!("{:.1}", max as f64 / 1e6).replace('.', &i18n.t("decimal-separator")) };
+    let id = if brief { format!("{id}-brief") } else { id.to_string() };
     Some(i18n.t_args(&id, &[("format", format), ("max", &millions)]))
+}
+
+/// Whether `id` is one of the errors of a cap (`said`).
+pub(crate) fn is_error(id: &str) -> bool {
+    id == TOO_MANY || id == TOO_MANY_POINTS
 }
 
 /// The lines of a file in text, as `BufRead::lines` gives them (tobj, stl_io), split into words.
@@ -140,15 +177,15 @@ fn word_of(props: &[(&[u8], bool, bool)], name: &[u8]) -> Option<usize> {
 }
 
 /// The triangles the parser of a PLY in text gives (`model_ply::parsed`) and `Builder` keeps: a
-/// fan of each face, without the triangles with a corner outside the points; without any, 4 for
-/// each point with three finite coordinates (a cloud, `point_cloud`). Rows it cannot follow (a
-/// list before the corners) stop the count there: the triangle strips are not counted either,
-/// so this is never more than what it gives.
-pub(crate) fn ply_text_triangles(bytes: &[u8]) -> usize {
-    let Some((elements, body)) = ply_header(bytes) else { return 0 };
+/// fan of each face, without the triangles with a corner outside the points; without any, the
+/// points with three finite coordinates (a cloud, `point_cloud`). Rows it cannot follow (a list
+/// before the corners) stop the count there: the triangle strips are not counted either, so
+/// this is never more than what it gives.
+pub(crate) fn ply_text_count(bytes: &[u8]) -> Count {
+    let Some((elements, body)) = ply_header(bytes) else { return Count::Triangles(0) };
     // Two elements of the same name: the parser keeps the last one, not counted.
     if elements.iter().enumerate().any(|(i, e)| elements[..i].iter().any(|o| o.name == e.name)) {
-        return 0;
+        return Count::Triangles(0);
     }
     let points = elements.iter().find(|e| e.name == b"vertex").map_or(0, |e| e.count);
     // As the parser takes the corners: `vertex_indices` when there is one, else `vertex_index`;
@@ -171,9 +208,9 @@ pub(crate) fn ply_text_triangles(bytes: &[u8]) -> usize {
             match (e.name, corners) {
                 (b"face", Some(Some(k))) => match fan(&row, k, points) {
                     Some(n) => faces = faces.saturating_add(n),
-                    None => return faces,
+                    None => return Count::Triangles(faces),
                 },
-                (b"face", Some(None)) => return faces,
+                (b"face", Some(None)) => return Count::Triangles(faces),
                 (b"vertex", _) if cloud => {
                     let number = |k: Option<usize>| k.and_then(|k| std::str::from_utf8(row.get(k)?).ok()?.parse::<f32>().ok()).is_some_and(f32::is_finite);
                     finite += usize::from(xyz.into_iter().all(number));
@@ -182,7 +219,7 @@ pub(crate) fn ply_text_triangles(bytes: &[u8]) -> usize {
             }
         }
     }
-    if cloud { finite.saturating_mul(4) } else { faces }
+    if cloud { Count::Points(finite) } else { Count::Triangles(faces) }
 }
 
 /// The triangles of the fan of a face whose corners' count is the word `k` of `row`, those with
@@ -304,17 +341,17 @@ mod tests {
         // A quad and a triangle, after a property of the faces; corners as floats are not read.
         let head = "ply\nformat ascii 1.0\ncomment made by hand\nelement vertex 4\nproperty float x\nproperty float y\nproperty float z\nelement face 2\nproperty uchar flags\nproperty list uchar int vertex_indices\nend_header\n";
         let ply = format!("{head}0 0 0\n1 0 0\n1 1 0\n0 1 0\n0 4 0 1 2 3\n0 3 0 1 2\n");
-        assert_eq!(ply_text_triangles(ply.as_bytes()), 3);
+        assert_eq!(ply_text_count(ply.as_bytes()), Count::Triangles(3));
         assert_eq!(tris(ply.as_bytes(), "a.ply"), Ok(3));
         // A corner outside the points drops the triangles of the fan that use it, as Builder does.
         let outside = ply.replace("0 4 0 1 2 3\n", "0 4 0 1 2 9\n");
-        assert_eq!(ply_text_triangles(outside.as_bytes()), 2);
+        assert_eq!(ply_text_count(outside.as_bytes()), Count::Triangles(2));
         assert_eq!(tris(outside.as_bytes(), "a.ply"), Ok(2));
         let floats = ply.replace("list uchar int", "list uchar float");
-        assert_eq!(ply_text_triangles(floats.as_bytes()), 4 * 4);
+        assert_eq!(ply_text_count(floats.as_bytes()), Count::Points(4));
         // A cloud: 4 triangles a point, the point too far to be drawn left out.
         let cloud = "ply\nformat ascii 1.0\nelement vertex 3\nproperty float x\nproperty float y\nproperty float z\nend_header\n0 0 0\n1 0 0\n1e39 1 0\n";
-        assert_eq!(ply_text_triangles(cloud.as_bytes()), 8);
+        assert_eq!(ply_text_count(cloud.as_bytes()), Count::Points(2));
         assert_eq!(tris(cloud.as_bytes(), "a.ply"), Ok(8));
         let xml = r#"<model xmlns:m="x"><resources><object id="1"><mesh><vertices/><triangles><triangle v1="0" v2="1" v3="2"/><m:triangle v1="0" v2="1" v3="2"></m:triangle>
             <triangle
@@ -331,6 +368,9 @@ mod tests {
         assert_eq!(b.add(vec![[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], [[0, 1, 2]], |_| None), Err(small.error()));
         assert_eq!(OBJ.check(OBJ.max), Ok(()));
         assert_eq!(OBJ.check(OBJ.max + 1), Err(OBJ.error()));
+        assert_eq!(PLY_BINARY.check_points(12_500_000), Ok(()));
+        assert_eq!(PLY_BINARY.check_points(12_500_001), Err("error-model-too-many-points\u{1}ply-binary 12500000".into()));
+        assert_eq!(I18n::new("it").load_error(&PLY_BINARY.check_points(12_500_001).unwrap_err()).lines().nth(1), Some("EyeCanSee non legge i file PLY binari con più di 12,5 milioni di punti, perché la lettura non riempia la memoria del computer."));
     }
 
     /// The time of the early count against the whole reading, three rounds each, of the models in
@@ -346,7 +386,9 @@ mod tests {
                 let n = match path.rsplit('.').next() {
                     Some("obj") => obj_triangles(&bytes),
                     Some("stl") => stl_text_triangles(&bytes),
-                    _ => ply_text_triangles(&bytes),
+                    _ => match ply_text_count(&bytes) {
+                        Count::Triangles(n) | Count::Points(n) => n,
+                    },
                 };
                 let count = t.elapsed();
                 let t = std::time::Instant::now();
