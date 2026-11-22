@@ -491,7 +491,7 @@ impl App {
                 icons::paint(painter, Icon::Download, Rect::from_min_size(sign.right_bottom() - vec2(side * 0.08, side * 0.14), vec2(side * 0.18, side * 0.18)));
             }
             // Too large for the computer's memory (#177): a picture and why, in place of the warning.
-            Some(Err(e)) if e == crate::thumb_memory::TOO_LARGE => self.paint_too_large(painter, thumb_rect, side, dim),
+            Some(Err(e)) if let Some(icon) = too_large_sign(e) => self.paint_too_large(painter, thumb_rect, side, dim, icon),
             // An audio file without a cover has no picture: a note in place of the warning.
             Some(Err(_)) if self.files().get(file).is_some_and(|f| crate::decode::is_audio(&f.path)) => {
                 icons::paint(painter, Icon::Audio, Rect::from_center_size(thumb_rect.center(), vec2(side * 0.45, side * 0.45)));
@@ -519,11 +519,10 @@ impl App {
         }
     }
 
-    /// The thumbnail of a picture too large for the memory (`thumb_memory::TOO_LARGE`): a picture
-    /// sign and, under it, the words.
-    fn paint_too_large(&self, painter: &egui::Painter, thumb_rect: Rect, side: f32, dim: Color32) {
+    /// The thumbnail of a file too large (`too_large_sign`): its sign and, under it, the words.
+    fn paint_too_large(&self, painter: &egui::Painter, thumb_rect: Rect, side: f32, dim: Color32, icon: Icon) {
         let sign = Rect::from_center_size(thumb_rect.center() - vec2(0.0, side * 0.12), vec2(side * 0.4, side * 0.4));
-        icons::paint(painter, Icon::Picture, sign);
+        icons::paint(painter, icon, sign);
         let mut job = egui::text::LayoutJob::simple(self.i18n.t("thumb-too-large"), FontId::proportional(12.0), dim, side - 8.0);
         job.halign = egui::Align::Center;
         painter.galley(pos2(thumb_rect.center().x, sign.max.y + 4.0), painter.layout_job(job), dim);
@@ -711,6 +710,12 @@ fn engine_sign(error: &str, path: &str) -> Option<Icon> {
     } else {
         Some(Icon::Video)
     }
+}
+
+/// The sign of a thumbnail not made because its file is too large: a picture too large for the
+/// memory (`thumb_memory::TOO_LARGE`).
+fn too_large_sign(error: &str) -> Option<Icon> {
+    (error == crate::thumb_memory::TOO_LARGE).then_some(Icon::Picture)
 }
 
 /// Order in which thumbnails are generated: selected, visible, nearby rows, the rest of those to
