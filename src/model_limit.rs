@@ -368,6 +368,19 @@ mod tests {
         assert_eq!(I18n::new("it").load_error(&e).lines().nth(1), Some("EyeCanSee non apre i file STL in testo con più di 10 milioni di triangoli, perché la lettura non riempia la memoria del computer."));
     }
 
+    /// The formats not named by D1, measured (22/11/2026), at 20 million (Piero, 22/11/2026):
+    /// an X3D extrusion of 1000 section points along 25 001 spine points would make 50 million
+    /// triangles, refused before they are made with X3D's cap, said as a 3D model's.
+    #[test]
+    fn x3d_at_20_million_d1() {
+        let section: String = (0..1000).map(|i| format!("{} {} ", i % 7, i % 5)).collect();
+        let spine: String = (0..25_001).map(|i| format!("0 {i} 0 ")).collect();
+        let x3d = format!(r#"<X3D><Scene><Shape><Extrusion crossSection="{section}" spine="{spine}"/></Shape></Scene></X3D>"#);
+        let e = refused(crate::model::parse(x3d.as_bytes(), "a.x3d")).unwrap();
+        assert_eq!(e, "error-model-too-many-triangles\u{1}other 20000000");
+        assert_eq!(I18n::new("en").load_error(&e).lines().nth(1), Some("EyeCanSee does not open 3D models with more than 20 million triangles."));
+    }
+
     /// The error said in the viewer, in the lists of Export and Convert (a few words, and the
     /// whole sentence), and in a message window, in English and in Italian.
     #[test]
