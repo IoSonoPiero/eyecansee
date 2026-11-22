@@ -80,12 +80,8 @@ impl App {
         }
         self.probe_chosen(ctx);
         self.update_title(ctx);
-        // Size to remember: that of the non-maximised window.
-        let (size, maximized) = ctx.input(|i| (i.viewport_rect().size(), i.viewport().maximized));
-        self.settings.window_maximized = maximized.unwrap_or(false);
-        if !self.settings.window_maximized {
-            self.settings.window_size = Some([size.x, size.y]);
-        }
+        let (size, viewport) = ctx.input(|i| (i.viewport_rect().size(), i.viewport().clone()));
+        self.settings.note_window(size, &viewport);
     }
 
     /// The panels of the window: the "Save in another format" page, or the bars with the viewer

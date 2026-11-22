@@ -381,6 +381,14 @@ impl Settings {
         self
     }
 
+    /// The window as it is now, for `WindowStart::Remember`: its size only when not maximised.
+    pub(crate) fn note_window(&mut self, size: egui::Vec2, viewport: &egui::ViewportInfo) {
+        self.window_maximized = viewport.maximized.unwrap_or(false);
+        if !self.window_maximized {
+            self.window_size = Some([size.x, size.y]);
+        }
+    }
+
     /// Written to a temporary file, flushed to the disk and renamed: never a half-written file.
     /// Errors are ignored.
     pub fn save(&self) {
