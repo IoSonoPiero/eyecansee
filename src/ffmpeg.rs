@@ -970,4 +970,29 @@ mod tests {
         println!("{encoder}: {} bytes in {:?}, last progress {}", std::fs::metadata(&out).unwrap().len(), t.elapsed(), last.lock().unwrap());
         std::fs::remove_file(out).unwrap();
     }
+
+    /// `run` on `sh -c script`, a fake FFmpeg: the result, every progress given, the time taken.
+    #[cfg(unix)]
+    fn fake_run(script: &str, cancel: &AtomicBool) -> (Result<(), String>, Vec<f32>, std::time::Duration) {
+        let seen = Mutex::new(Vec::new());
+        let t = std::time::Instant::now();
+        let r = run(Path::new("sh"), &["-c".into(), script.into()], |f| seen.lock().unwrap().push(f), cancel);
+        (r, seen.into_inner().unwrap(), t.elapsed())
+    }
+
+    /// #273: a line that is not UTF-8 (a Latin-1 tag) on either output does not stop the reading.
+    #[cfg(unix)]
+    #[test]
+    fn output_not_utf8() {
+        let script = r"printf '  title : caf\351\n  Duration: 00:00:10.00, start: 0.000000\n' >&2
+            sleep 0.3
+            printf 'bad=\351\nout_time_us=5000000\n'
+            sleep 0.3
+            printf 'Conversion failed!\n' >&2
+            exit 1";
+        let (r, seen, _) = fake_run(script, &AtomicBool::new(false));
+        assert!(seen.contains(&0.5), "progress {seen:?}");
+        let err = r.unwrap_err();
+        assert!(err.contains("caf\u{FFFD}") && err.ends_with("Conversion failed!"), "{err:?}");
+    }
 }
