@@ -158,7 +158,7 @@ procedure RemoveOwnIcons(Dir: String);
 var
   Find: TFindRec;
   Shell, Link: Variant;
-  Exe: String;
+  Exe, Target: String;
 begin
   Exe := Lowercase(ExpandConstant('{app}\eyecansee.exe'));
   if FindFirst(Dir + '\EyeCanSee*.lnk', Find) then
@@ -166,7 +166,8 @@ begin
     Shell := CreateOleObject('WScript.Shell');
     repeat
       Link := Shell.CreateShortcut(Dir + '\' + Find.Name);
-      if Lowercase(Link.TargetPath) = Exe then
+      Target := Link.TargetPath;
+      if Lowercase(Target) = Exe then
         DeleteFile(Dir + '\' + Find.Name);
     until not FindNext(Find);
   finally
