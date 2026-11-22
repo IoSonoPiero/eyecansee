@@ -31,9 +31,12 @@ pub(crate) fn new_private(path: &Path) -> std::io::Result<std::fs::File> {
 }
 
 /// Whether `name`, in the temporary folder, is one of the app's temporary files: the copies of
-/// videos (`video_read`) and of CAD models (`occt`). The test copy has its own names.
+/// videos (`video_read`) and of CAD models (`occt`), FFmpeg's files (`ffmpeg_files::temp`, also
+/// for a turned video) and the clip of the card's probe (`ffmpeg::try_card`). The test copy has
+/// its own names.
 fn old(name: &str) -> bool {
-    (name.starts_with(&crate::video_read::temp_prefix()) && name.ends_with(".tmp")) || name.starts_with(&crate::occt::temp_prefix())
+    let ffmpeg = ["in", "out", "turn", "card"].iter().any(|what| name.starts_with(&format!("{}-{what}-", crate::test_copy::NAME)));
+    ffmpeg || (name.starts_with(&crate::video_read::temp_prefix()) && name.ends_with(".tmp")) || name.starts_with(&crate::occt::temp_prefix())
 }
 
 /// At start (after `single::hand_over`, so no other copy of the app is using them): the copies a

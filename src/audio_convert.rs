@@ -101,7 +101,7 @@ pub async fn run(op: &Store, path: &str, (out, dest, taken): (&Store, &str, &Has
     let Some(probe) = crate::ffmpeg::copy_probed() else { return Err((SKIP_AUDIO, name)) };
     let input = Input::fetch(op, path, (out, dest), p).await?;
     let new_name = source::free_name(taken, &new_name(&name, s));
-    let output = Output::new(out, format!("{dest}{new_name}"), &name);
+    let output = Output::new(out, format!("{dest}{new_name}"), &name).map_err(|e| failed(&name, e.to_string()))?;
     let mut r = Err(String::new());
     // With the cover, then without it: a cover the format cannot take (a BMP into M4A) does not
     // stop the conversion.

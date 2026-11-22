@@ -457,7 +457,7 @@ async fn video(op: &Store, path: &str, (out, dest, taken): (&Store, &str, &HashS
         v.container = crate::video_copy::for_file(v.container, &name, &probe.program, &input.file);
     }
     let new_name = source::free_name(taken, &ext(&name, crate::ffmpeg::CONTAINERS[v.container].ext));
-    let output = Output::new(out, format!("{dest}{new_name}"), &name);
+    let output = Output::new(out, format!("{dest}{new_name}"), &name).map_err(|e| failed(e.to_string()))?;
     let tags = if v.meta { crate::video_read::track_tags(op, path).await } else { Vec::new() };
     let args = |on_card| crate::ffmpeg::args(&v, job.size, job.enlarge, job.turn, on_card, (&input.file.to_string_lossy(), &output.file.to_string_lossy()), &probe.audio, &tags);
     let on_card = probe.card.contains(&v.encoder);

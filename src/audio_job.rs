@@ -142,7 +142,7 @@ async fn write(program: &Path, input: &Input, (out, dest): (&Store, &str), job: 
         return Err(Ok((NO_AUDIO, name)));
     }
     let names = new_names(job, &name, &codecs, taken);
-    let outputs: Vec<Output> = names.iter().map(|n| Output::new(out, format!("{dest}{n}"), n)).collect();
+    let outputs = names.iter().map(|n| Output::new(out, format!("{dest}{n}"), n)).collect::<std::io::Result<Vec<Output>>>().map_err(|e| Err(e.to_string()))?;
     let paths: Vec<String> = outputs.iter().map(|o| o.file.to_string_lossy().into_owned()).collect();
     let source = input.file.to_string_lossy().into_owned();
     // With the data tracks, unless FFmpeg could not copy them.

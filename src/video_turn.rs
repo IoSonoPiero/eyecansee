@@ -93,9 +93,9 @@ pub fn write(program: &Path, input: &Path, output: &Path, quarters: u8, cancel: 
 }
 
 /// The temporary file `what` ("in" for the copy of a video of a phone or a server, "out" for the
-/// new one) of the video `name`.
-fn temp(what: &str, name: &str) -> std::path::PathBuf {
-    std::env::temp_dir().join(format!("eyecansee-turn-{what}-{}-{name}", std::process::id()))
+/// new one) of the video `name`: new and private, with only its extension (`ffmpeg_files::temp`).
+fn temp(what: &str, name: &str) -> std::io::Result<std::path::PathBuf> {
+    crate::ffmpeg_files::temp(&format!("turn-{what}"), name)
 }
 
 /// The video `path` of `op` saved over itself turned by `quarters` clockwise quarter turns, the
@@ -107,16 +107,24 @@ pub(crate) async fn replace(op: &crate::source::Store, path: &str, quarters: u8,
         return Err((NO_ROTATION, name));
     }
     let Some(program) = crate::ffmpeg::copier() else { return Err((crate::batch::SKIP_VIDEO, name)) };
-    let temp = |what: &str| temp(what, &name);
+    let temp = |what: &str| temp(what, &name).map_err(|e| ("error-detail", e.to_string()));
     let input = match op.local_file(path) {
         Some(file) => (file, false),
         None => {
-            let file = temp("in");
+            let file = temp("in")?;
             crate::batch::download(op, path, &file, || false, |_| {}).await.map_err(|e| ("error-detail", e.to_string()))?;
             (file, true)
         }
     };
-    let output = temp("out");
+    let output = match temp("out") {
+        Ok(output) => output,
+        Err(e) => {
+            if input.1 {
+                let _ = std::fs::remove_file(&input.0);
+            }
+            return Err(e);
+        }
+    };
     let (from, to) = (input.0.clone(), output.clone());
     let cancel = std::sync::atomic::AtomicBool::new(false);
     let written = tokio::task::spawn_blocking(move || write(&program, &from, &to, quarters, &cancel, |_| {})).await.unwrap_or_else(|e| Err(e.to_string()));
@@ -140,7 +148,7 @@ mod tests {
     #[test]
     fn temporary_names_hold_only_the_extension() {
         for what in ["in", "out"] {
-            let file = temp(what, "a:b?c.mov");
+            let file = temp(what, "a:b?c.mov").unwrap();
             let name = file.file_name().unwrap().to_string_lossy().into_owned();
             println!("{name}");
             let _ = std::fs::remove_file(&file);
