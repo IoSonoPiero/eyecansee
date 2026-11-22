@@ -406,7 +406,7 @@ fn stl(bytes: &[u8]) -> Result<Mesh, String> {
         return stl_binary(bytes, n);
     }
     // Counted before stl_io reads it all (`model_limit`).
-    crate::model_limit::STL.check(crate::model_limit::stl_text_triangles(bytes))?;
+    crate::model_limit::STL_TEXT.check(crate::model_limit::stl_text_triangles(bytes))?;
     // "solid" then a line break or a tab, without a name: stl_io takes it for binary.
     let named;
     let bytes = match bytes.strip_prefix(b"solid") {
@@ -417,7 +417,7 @@ fn stl(bytes: &[u8]) -> Result<Mesh, String> {
         _ => bytes,
     };
     let m = stl_io::read_stl(&mut Cursor::new(bytes)).map_err(|e| e.to_string())?;
-    let mut b = Builder::up_to(crate::model_limit::STL);
+    let mut b = Builder::up_to(crate::model_limit::STL_TEXT);
     let tris = m.faces.iter().map(|f| f.vertices.map(|v| v as u32));
     b.add(m.vertices.iter().map(|v| v.0).collect(), tris, |_| None)?;
     b.finish(true)

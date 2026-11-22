@@ -20,6 +20,8 @@ pub(crate) struct Limit {
 pub(crate) const OTHER: Limit = Limit { max: crate::model::MAX_TRIANGLES, format: "other" };
 pub(crate) const PLY_BINARY: Limit = Limit { max: 50_000_000, format: "ply-binary" };
 pub(crate) const STL: Limit = Limit { max: 20_000_000, format: "stl" };
+/// An STL in text, which stl_io reads whole first: the cap of the formats in text (Piero, 22/11/2026).
+pub(crate) const STL_TEXT: Limit = Limit { max: 10_000_000, format: "stl-text" };
 pub(crate) const GLB: Limit = Limit { max: 20_000_000, format: "glb" };
 pub(crate) const OBJ: Limit = Limit { max: 10_000_000, format: "obj" };
 pub(crate) const PLY_TEXT: Limit = Limit { max: 10_000_000, format: "ply-text" };
@@ -238,7 +240,7 @@ mod tests {
     /// D1 (Piero, 22/11/2026): the caps by format.
     #[test]
     fn caps_by_format_d1() {
-        assert_eq!([PLY_BINARY, STL, GLB, OBJ, PLY_TEXT, THREE_MF, OTHER].map(|l| l.max), [50_000_000, 20_000_000, 20_000_000, 10_000_000, 10_000_000, 10_000_000, 50_000_000]);
+        assert_eq!([PLY_BINARY, STL, GLB, OBJ, PLY_TEXT, STL_TEXT, THREE_MF, OTHER].map(|l| l.max), [50_000_000, 20_000_000, 20_000_000, 10_000_000, 10_000_000, 10_000_000, 10_000_000, 50_000_000]);
     }
 
     /// `n` + 2 corners of one face, `first` to `first` + 2 over and over: `n` triangles in a fan,
