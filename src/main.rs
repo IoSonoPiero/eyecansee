@@ -140,6 +140,7 @@ mod motion_view;
 mod mp4;
 mod mpv;
 mod mpv_load;
+mod mpv_stream;
 mod mtp;
 mod navigation;
 mod occt;
