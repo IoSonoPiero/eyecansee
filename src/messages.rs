@@ -620,6 +620,7 @@ fn takes_place(relisting: &mut HashSet<String>, dir: &str, _kept: Option<&Result
 #[cfg(test)]
 mod tests {
     use crate::audit_family_1::{Harness, folder, own_folder};
+    use crate::loader::Msg;
 
     /// A saved key that does not open: the server manager opens on that server with the message
     /// inside it, and the bar at the bottom is silent while that error lasts, as for a login
@@ -639,5 +640,28 @@ mod tests {
         let error = h.app.folder_error();
         assert!(error.as_deref().is_some_and(|e| e.contains("nas.local")), "the folder's error: {error:?}");
         assert_eq!(h.app.lasting_closed, error, "the bar is silent on it");
+    }
+
+    /// Audit 1.2: a listing that comes late from the source left (a server's root "", a folder
+    /// with the same path) does not take the place of the folder of the source open, nor does
+    /// it end the reading of one of its folders.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn listing_of_the_source_left_dropped() {
+        if own_folder("messages::tests::listing_of_the_source_left_dropped") {
+            return;
+        }
+        let dir = folder("source-left", &["a.png"]);
+        let mut h = Harness::new(&dir);
+        let here = h.app.dir.clone();
+        let fake = |p: &str| crate::source::Listing { files: vec![crate::source::File { path: p.into(), size: 1, modified: String::new() }], ..Default::default() };
+        h.app.listing_pending.insert("other/".into());
+        let old = "sftp://old.example/".to_string();
+        h.app.tx.send(Msg::Listed(old.clone(), here.clone(), Ok(fake(&format!("{here}gone.png"))))).unwrap();
+        h.app.tx.send(Msg::Listed(old, "other/".into(), Ok(fake("other/b.png")))).unwrap();
+        h.frame(Vec::new());
+        let names: Vec<_> = h.app.files().iter().map(|f| f.path.clone()).collect();
+        assert_eq!(names, [format!("{here}a.png")], "the old source's listing took the place of the open folder's");
+        assert!(h.app.listing_pending.contains("other/") && !h.app.listings.contains_key("other/"), "the old source's listing ended a reading of the new one");
     }
 }

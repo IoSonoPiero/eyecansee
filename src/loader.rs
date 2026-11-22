@@ -1482,4 +1482,58 @@ mod tests {
         }
         std::fs::remove_dir_all(&dir).unwrap();
     }
+
+    /// A loader on a new folder of this run with an image `a.png`, and what it sends.
+    fn loader_on(rt: &tokio::runtime::Runtime, name: &str) -> (Loader, std::sync::mpsc::Receiver<Msg>) {
+        let dir = std::env::temp_dir().join(format!("eyecansee-generations-{name}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        image::DynamicImage::new_rgb8(8, 6).save(dir.join("a.png")).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let (tx, rx) = std::sync::mpsc::channel();
+        (Loader::new(rt.handle().clone(), op, format!("{}/", dir.display()), tx, egui::Context::default()), rx)
+    }
+
+    /// Audit 1.2: the generation of a new loader (another source opened) is never one of the
+    /// loader before: its late results were taken for those of the folder open, by position.
+    #[test]
+    fn generations_of_two_loaders_differ() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (old, _rx) = loader_on(&rt, "two-old");
+        let before = old.next_generation();
+        let (new, _rx) = loader_on(&rt, "two-new");
+        let now = new.next_generation();
+        assert_ne!(before, now, "the new source's results could not be told from the old one's");
+        assert!(now > before);
+    }
+
+    /// Audit 1.2 and 2.6 (choice D1): an image of the viewer asked to the loader before, still
+    /// waiting for its turn, is not read once another source is open; it came in the folder open
+    /// under the index it was asked with.
+    #[test]
+    fn queued_image_of_the_old_loader_not_read() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (old, rx) = loader_on(&rt, "queued");
+        // The loader's own, and the one of the permits held here.
+        let idle = Arc::strong_count(&old.full);
+        let held = old.full.clone().try_acquire_many_owned(2).unwrap();
+        let generation = old.next_generation();
+        old.load_full(generation, 0, "a.png".into(), None, crate::view_memory::Wanted::Shown);
+        let start = std::time::Instant::now();
+        while Arc::strong_count(&old.full) == idle + 1 {
+            assert!(start.elapsed().as_secs() < 30, "the request did not start");
+            std::thread::yield_now();
+        }
+        let (new, _rx) = loader_on(&rt, "queued-new");
+        new.next_generation();
+        drop(held);
+        while Arc::strong_count(&old.full) > idle {
+            assert!(start.elapsed().as_secs() < 30, "the request did not end");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let read: Vec<usize> = rx.try_iter().filter_map(|m| match m {
+            Msg::Loaded { index, .. } => Some(index),
+            _ => None,
+        }).collect();
+        assert!(read.is_empty(), "the old loader read its image after the new source opened: {read:?}");
+    }
 }
