@@ -549,11 +549,19 @@ pub(super) mod tests {
         let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
         let listing = rt.block_on(op.list("d/")).unwrap();
         assert_eq!(listing.trashed.len(), 1);
+        // The cache writes in a thread of its own: what was sent is in once `forget` is done.
+        let settled = || {
+            let (tx, rx) = std::sync::mpsc::channel();
+            thumbcache::forget(base, Vec::new(), move || { let _ = tx.send(()); });
+            rx.recv_timeout(std::time::Duration::from_secs(60)).expect("the cache did not write");
+        };
         let img = image::DynamicImage::new_rgb8(4, 4);
         for f in listing.files.iter().chain(&listing.trashed) {
             thumbcache::save(base, f, &img);
         }
+        settled();
         rt.block_on(maintain(&op, base));
+        settled();
         let mut kept: Vec<String> = thumbcache::entries(base).into_iter().map(|f| f.path).collect();
         kept.sort();
         for f in listing.files.iter().chain(&listing.trashed) {
