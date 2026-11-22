@@ -726,7 +726,7 @@ async fn saved_picture(p: &Progress, (out, dest, taken): (&Store, &str, &mut Has
             p.saved.lock().unwrap().push(to);
             // Saved, without what a JPEG has no room for (#217): the summary says it.
             if left.any() {
-                p.left_out_meta.lock().unwrap().push((META_TOO_LARGE, format!("{name} ({})", left.parts())));
+                p.left_out_meta.lock().unwrap().push((META_TOO_LARGE, format!("{name} ({})", left.parts(crate::encoders::AND))));
             }
         }
         Err(e) => p.failed.lock().unwrap().push(e),
@@ -1260,7 +1260,7 @@ mod tests {
         e.write_image(&[90; 8 * 6 * 3], 8, 6, image::ExtendedColorType::Rgb8).unwrap();
         let to = |format| convert_with(&png, "a.png", &Job { format: Some(format), ..Job::default() }, &|_| None, None).unwrap();
         let (name, jpeg, left) = to(Format::Jpeg);
-        assert_eq!((name.as_str(), left.parts().as_str()), ("a.jpg", "EXIF"));
+        assert_eq!((name.as_str(), left.parts("and").as_str()), ("a.jpg", "EXIF"));
         assert_eq!(crate::decode::decode_full(&jpeg, "a.jpg").unwrap().width(), 8);
         assert!(!to(Format::Png).2.any());
     }

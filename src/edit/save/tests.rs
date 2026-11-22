@@ -988,7 +988,7 @@ fn meta_too_large_said_in_the_plan() {
     let mut doc = Doc::new(64, 48, None);
     doc.objects.push(cover_at(0.0, 0.0, 8.0, 8.0));
     let left = |keep| plan_keeping(&doc, &original, &jpeg, "x.jpg", "edited", &[], keep).unwrap().meta_left_out;
-    assert_eq!(left(Keep::All).parts(), "EXIF");
+    assert_eq!(left(Keep::All).parts("and"), "EXIF");
     assert!(!left(Keep::Nothing).any());
     assert!(!plan_keeping(&doc, &Original::with_exif(motif(), None), &jpeg, "x.jpg", "edited", &[], Keep::All).unwrap().meta_left_out.any());
 }

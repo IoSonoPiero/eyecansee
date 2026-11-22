@@ -724,7 +724,9 @@ convert-first-only = This image is animated or has several pages: only the pictu
 convert-no-meta = The original has no metadata.
 convert-meta-unsupported = This format cannot keep metadata.
 convert-meta-density-only = This format keeps only the resolution (dpi), when the original has one.
-convert-meta-too-large = The new file is without the original's { $parts }: a JPEG has no room for data so large.
+# Between the last two names of a list ("EXIF and XMP").
+list-and = and
+convert-meta-too-large = The new file will be saved without the original's { $parts } data, because it is too large for a JPEG file.
 convert-folder = Folder
 convert-name = File name
 convert-save = Save
@@ -1066,7 +1068,7 @@ edit-loss-hdr = The copy is a 16-bit PNG: what is **brighter than white** in the
 edit-loss-ultra-hdr = Without metadata the copy is no longer **Ultra HDR**: nothing holds its HDR part.
 edit-loss-video = The copy has no **video**: the motion photo stays only in the original.
 edit-loss-pictures = The copy is the photo alone: the **depth map** or the other pictures the original carries stay only in the original.
-edit-loss-meta = The copy is a JPEG without the original's **{ $parts }**: a JPEG has no room for data so large.
+edit-loss-meta = The copy is a JPEG without the original's **{ $parts }** data, because it is too large for a JPEG file.
 edit-overwrite-trash = **{ $name }** is replaced by the edited image.
 
     The original goes **to the trash**.
@@ -1079,7 +1081,7 @@ edit-over-loss-hdr = The new file has 16 bits per colour: what is **brighter tha
 edit-over-loss-ultra-hdr = Without metadata the new file is no longer **Ultra HDR**: nothing holds its HDR part.
 edit-over-loss-video = The new file has no **video**: the motion photo becomes a still photo.
 edit-over-loss-pictures = The new file is the photo alone: the **depth map** or the other pictures the original carries are not kept.
-edit-over-loss-meta = The new file is a JPEG without the original's **{ $parts }**: a JPEG has no room for data so large.
+edit-over-loss-meta = The new file is a JPEG without the original's **{ $parts }** data, because it is too large for a JPEG file.
 edit-leave = The changes to **{ $name }** are not saved.
 
     { "**" }Save** makes a copy next to the original.
@@ -1573,12 +1575,12 @@ summary-too-large = { $n ->
    *[other] { $n } pictures too large for the memory of this computer, left out:
 }
 summary-meta-left-out = { $n ->
-    [one] **1 file** saved without a part of its metadata: too large for a JPEG.
-   *[other] **{ $n } files** saved without a part of their metadata: too large for a JPEG.
+    [one] **1 file** saved without part of its metadata, because it is too large for a JPEG file.
+   *[other] **{ $n } files** saved without part of their metadata, because it is too large for a JPEG file.
 }
 summary-meta-group = { $n ->
-    [one] 1 file saved without the metadata in brackets, too large for a JPEG:
-   *[other] { $n } files saved without the metadata in brackets, too large for a JPEG:
+    [one] 1 file saved without the metadata in brackets, because it is too large for a JPEG file:
+   *[other] { $n } files saved without the metadata in brackets, because it is too large for a JPEG file:
 }
 summary-errors = { $n ->
     [one] 1 error:

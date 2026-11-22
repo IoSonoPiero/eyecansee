@@ -287,7 +287,7 @@ impl App {
         // Metadata too large for a JPEG (#217).
         if s.meta_left_out.any() {
             let id = if over { "edit-over-loss-meta" } else { "edit-loss-meta" };
-            text += &format!("\n\n{}", self.i18n.t_args(id, &[("parts", &s.meta_left_out.parts())]));
+            text += &format!("\n\n{}", self.i18n.t_args(id, &[("parts", &s.meta_left_out.parts(&self.i18n.t("list-and")))]));
         }
         text
     }

@@ -112,6 +112,8 @@ fn groups(i18n: &I18n, failed: &[(&'static str, String)], preset: bool) -> Vec<G
 pub(crate) fn item(i18n: &I18n, id: &str, detail: &str, names: bool) -> (String, String) {
     // One line each in the list: a reason said on several lines is joined again.
     let line = |text: &str| md(text).replace('\n', " ");
+    // "EXIF and XMP" in the language of the summary (#217).
+    let detail = &detail.replace(crate::encoders::AND, &i18n.t("list-and"));
     match detail.split_once('\u{1}').filter(|_| id == NOT_OPENED) {
         _ if names => (md(detail), md(detail)),
         Some((name, raw)) => {
@@ -423,7 +425,9 @@ mod tests {
             assert_eq!(summary(&i18n, "batch-title", &outcome(&failed, 2, 3, 3), String::new()).groups.len(), 1);
         }
         let one = summary(&I18n::new("en"), "batch-title", &Outcome { no_preview: &["v (2).mp4".into()], ..outcome(&[], 1, 1, 1) }, String::new());
-        assert_eq!(one.groups[0].heading, "1 copy saved without the preview stored by the camera, which could not be written into it:");
+        assert_eq!(one.groups[0].heading, "1 copy saved without the camera preview, because it could not be written:");
+        let two = summary(&I18n::new("it"), "batch-title", &Outcome { no_preview: &["a.mp4".into(), "b.mp4".into()], ..outcome(&[], 2, 2, 2) }, String::new());
+        assert_eq!(two.groups[0].heading, "2 copie salvate senza le anteprime della videocamera, perché non è stato possibile scriverle:");
     }
 
     /// Files saved without metadata too large for a JPEG (#217): a line after the files saved,
@@ -431,13 +435,13 @@ mod tests {
     #[test]
     fn meta_too_large_said() {
         let i18n = I18n::new("en");
-        let thin = [(META_TOO_LARGE, "b.png (EXIF)".to_string()), (META_TOO_LARGE, "a.tif (EXIF, XMP)".to_string())];
+        let thin = [(META_TOO_LARGE, "b.png (EXIF)".to_string()), (META_TOO_LARGE, format!("a.tif (EXIF {} XMP)", crate::encoders::AND))];
         let failed = [("skip-not-picture", "c.txt".to_string())];
         let s = summary(&i18n, "batch-title", &Outcome { left_out_meta: &thin, ..outcome(&failed, 2, 3, 3) }, String::new());
-        assert!(s.text.starts_with("**2 files** saved in \\/p\\/converted.\n**2 files** saved without a part of their metadata: too large for a JPEG.\n**1 file** left out."), "{}", s.text);
-        assert_eq!(s.groups[0].heading, "2 files saved without the metadata in brackets, too large for a JPEG:");
-        assert_eq!(s.groups[0].items, ["a\\.tif \\(EXIF\\, XMP\\)", "b\\.png \\(EXIF\\)"]);
+        assert!(s.text.starts_with("**2 files** saved in \\/p\\/converted.\n**2 files** saved without part of their metadata, because it is too large for a JPEG file.\n**1 file** left out."), "{}", s.text);
+        assert_eq!(s.groups[0].heading, "2 files saved without the metadata in brackets, because it is too large for a JPEG file:");
+        assert_eq!(s.groups[0].items, ["a\\.tif \\(EXIF and XMP\\)", "b\\.png \\(EXIF\\)"]);
         let it = summary(&I18n::new("it"), "batch-title", &Outcome { left_out_meta: &thin[..1], ..outcome(&[], 1, 1, 1) }, String::new());
-        assert!(it.text.contains("**1 file** salvato senza una parte dei suoi metadati: troppo grandi per un JPEG."), "{}", it.text);
+        assert!(it.text.contains("**1 file** salvato senza una parte dei suoi metadati, perché sono troppo grandi per un file JPEG."), "{}", it.text);
     }
 }

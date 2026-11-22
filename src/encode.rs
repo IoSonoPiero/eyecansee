@@ -1070,7 +1070,7 @@ pub(crate) mod tests {
         let original = Original::upright(DynamicImage::new_rgb8(8, 6), Some(caption_exif(70_000)), None, Some(vec![b'<'; 70_000]), Some(irb));
         let jpeg = Options::default();
         assert_eq!(original.left_out(&jpeg), LeftOut { exif: true, xmp: true, iptc: true });
-        assert_eq!(original.left_out(&jpeg).parts(), "EXIF, XMP, IPTC");
+        assert_eq!(original.left_out(&jpeg).parts("and"), "EXIF, XMP and IPTC");
         assert_eq!(original.left_out(&Options { meta: Keep::Nothing, ..jpeg }), LeftOut::default());
         assert_eq!(original.left_out(&Options { format: Format::Png, ..jpeg }), LeftOut::default());
         let small = Original::upright(DynamicImage::new_rgb8(8, 6), Some(large_exif(70_000, 0)), None, None, None);

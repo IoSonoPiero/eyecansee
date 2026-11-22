@@ -49,16 +49,24 @@ pub struct LeftOut {
     pub iptc: bool,
 }
 
+/// Stands for the language's "and" in `LeftOut::parts` where no language is at hand (a batch
+/// in the background): the summary puts the word in (`batch_summary::item`).
+pub const AND: &str = "\u{2}";
+
 impl LeftOut {
     pub fn any(self) -> bool {
         self.exif || self.xmp || self.iptc
     }
 
-    /// The names of what is left out, as the user knows them ("EXIF, IPTC"): the same in every
-    /// language.
-    pub fn parts(self) -> String {
-        let names = [(self.exif, "EXIF"), (self.xmp, "XMP"), (self.iptc, "IPTC")];
-        names.iter().filter(|(on, _)| *on).map(|(_, n)| *n).collect::<Vec<_>>().join(", ")
+    /// The names of what is left out, as the user knows them, the last two joined by `and`
+    /// ("EXIF and XMP", "EXIF, XMP and IPTC"; Piero, 22/11): the names are the same in every
+    /// language, `and` is the language's (`list-and`).
+    pub fn parts(self, and: &str) -> String {
+        let names: Vec<_> = [(self.exif, "EXIF"), (self.xmp, "XMP"), (self.iptc, "IPTC")].into_iter().filter(|(on, _)| *on).map(|(_, n)| n).collect();
+        match names.split_last() {
+            Some((last, rest)) if !rest.is_empty() => format!("{} {and} {last}", rest.join(", ")),
+            _ => names.concat(),
+        }
     }
 }
 

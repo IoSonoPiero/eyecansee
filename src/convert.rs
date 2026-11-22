@@ -442,7 +442,7 @@ impl crate::App {
                 }
                 // Metadata too large for a JPEG (#217), for the file made with the options shown.
                 if w.left_out.any() && !w.busy && w.encoded_with == Some(w.options) {
-                    ui.label(crate::theme::alert(i18n.t_args("convert-meta-too-large", &[("parts", &w.left_out.parts())])));
+                    ui.label(crate::theme::alert(i18n.t_args("convert-meta-too-large", &[("parts", &w.left_out.parts(&i18n.t("list-and")))])));
                 }
                 // The folder and the name belong to the new image, so they sit on its side.
                 ui.add_space(6.0);
