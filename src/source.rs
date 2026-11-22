@@ -358,7 +358,8 @@ impl Store {
     }
 
     /// Renames an image or a folder (path ending in "/") in its folder; returns the new path.
-    /// Never over an existing item.
+    /// Never over an existing item; on a local disk that does not tell case apart, a new name that
+    /// differs only in case is the item itself (`local::rename_new`).
     pub async fn rename(&self, path: &str, new_name: &str) -> Result<String, Error> {
         let slash = if path.ends_with('/') { "/" } else { "" };
         let to = format!("{}{new_name}{slash}", parent(path));
@@ -366,12 +367,7 @@ impl Store {
             // Local and gvfs: by hand, folders too (OpenDAL renames files only).
             Store::Dal(op) if op.info().scheme() == "fs" => {
                 let (from, dest) = (local_path(op, path), local_path(op, &to));
-                tokio::task::spawn_blocking(move || {
-                    if dest.symlink_metadata().is_ok() {
-                        return Err(("error-exists", dest.display().to_string()));
-                    }
-                    std::fs::rename(&from, &dest).map_err(|e| ("error-detail", e.to_string()))
-                })
+                tokio::task::spawn_blocking(move || local::rename_new(&from, &dest))
                 .await
                 .map_err(|e| ("error-detail", e.to_string()))??;
             }

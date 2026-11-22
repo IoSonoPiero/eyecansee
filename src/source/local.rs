@@ -97,6 +97,50 @@ pub(super) fn rename(from: &Path, to: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Renames a local file or folder to a name of the same folder, never over another item. On a
+/// disk that does not tell case apart (Windows, FAT, exFAT) a new name that differs only in case
+/// finds the item itself: renamed anyway, through a free name, since Linux's FAT, asked directly,
+/// does nothing and says it did (seen on a vfat image, 22/11).
+pub(super) fn rename_new(from: &Path, to: &Path) -> Result<(), Error> {
+    let detail = |e: std::io::Error| ("error-detail", e.to_string());
+    if to.symlink_metadata().is_err() {
+        return std::fs::rename(from, to).map_err(detail);
+    }
+    if !only_case(from, to) {
+        return Err(("error-exists", to.display().to_string()));
+    }
+    let step = (0..).map(|i| from.with_file_name(format!(".eyecansee-rename-{}-{i}", std::process::id()))).find(|p| p.symlink_metadata().is_err()).unwrap_or_default();
+    std::fs::rename(from, &step).map_err(detail)?;
+    std::fs::rename(&step, to).map_err(|e| {
+        let _ = std::fs::rename(&step, from);
+        detail(e)
+    })
+}
+
+/// Is `to`, which exists, `from` itself under a name that differs only in case? Not when the
+/// folder holds the new name exactly as written: another item (a disk that tells case apart).
+fn only_case(from: &Path, to: &Path) -> bool {
+    let (Some(old), Some(new), Some(dir)) = (from.file_name(), to.file_name(), to.parent()) else { return false };
+    if old == new || old.to_string_lossy().to_lowercase() != new.to_string_lossy().to_lowercase() {
+        return false;
+    }
+    let Ok(mut items) = std::fs::read_dir(dir) else { return false };
+    !items.any(|e| e.is_ok_and(|e| e.file_name() == new)) && same_item(from, to)
+}
+
+/// The same item on the disk, links not followed.
+#[cfg(unix)]
+fn same_item(a: &Path, b: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    matches!((a.symlink_metadata(), b.symlink_metadata()), (Ok(x), Ok(y)) if (x.dev(), x.ino()) == (y.dev(), y.ino()))
+}
+
+/// The same item on the disk: Windows gives both paths the name the disk holds.
+#[cfg(windows)]
+fn same_item(a: &Path, b: &Path) -> bool {
+    matches!((std::fs::canonicalize(a), std::fs::canonicalize(b)), (Ok(x), Ok(y)) if x == y)
+}
+
 /// Sets a file's creation date, opening it only to write its attributes (read-only files too).
 #[cfg(windows)]
 fn set_created(path: &Path, t: std::time::SystemTime) -> std::io::Result<()> {
