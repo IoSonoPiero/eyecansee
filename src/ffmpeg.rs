@@ -619,7 +619,7 @@ fn try_card(program: &Path, encoder: &str) -> bool {
     let filters = card_filters(card, encoder, Size::Percent(50), false, Turn::default().then(crate::transform::Op::Cw)).join(",");
     // Not smaller: turned and halved it must stay 160 px wide or more, the least NVENC takes.
     let black = ["-f", "lavfi", "-i", "color=c=black:s=640x360:r=25:d=0.4"];
-    let Ok(clip) = card_clip(encoder) else { return false };
+    let mut clip = None;
     let mut c = command(program);
     c.args(["-hide_banner", "-loglevel", "error"]);
     match card {
@@ -628,24 +628,28 @@ fn try_card(program: &Path, encoder: &str) -> bool {
         // Frames uploaded to QSV fail on Windows ("Could not create the texture", Intel UHD,
         // 2026-11-08): a clip of this encoder read there instead, as a conversion does.
         Card::Qsv => {
+            let Ok(file) = card_clip(encoder) else { return false };
             let mut make = command(program);
-            make.args(["-hide_banner", "-loglevel", "error", "-y"]).args(black).args(["-c:v", encoder]).args(quality_args(encoder, Quality::Medium)).arg(&clip);
+            make.args(["-hide_banner", "-loglevel", "error", "-y"]).args(black).args(["-c:v", encoder]).args(quality_args(encoder, Quality::Medium)).arg(&file);
             if !ok(&mut make) {
-                let _ = std::fs::remove_file(&clip);
+                let _ = std::fs::remove_file(&file);
                 return false;
             }
-            c.args(["-hwaccel", "qsv", "-hwaccel_output_format", "qsv", "-i"]).arg(&clip).args(["-vf", &filters])
+            c.args(["-hwaccel", "qsv", "-hwaccel_output_format", "qsv", "-i"]).arg(clip.insert(file)).args(["-vf", &filters])
         }
     };
     c.args(["-c:v", encoder]).args(quality_args(encoder, Quality::Medium)).args(["-f", "null", "-"]);
     let works = ok(&mut c);
-    let _ = std::fs::remove_file(&clip);
+    if let Some(clip) = clip {
+        let _ = std::fs::remove_file(clip);
+    }
     works
 }
 
-/// The clip `try_card` makes with `encoder` for QSV.
+/// The clip `try_card` makes with `encoder` for QSV: a new private file under a random name
+/// (`ffmpeg_files::temp`), FFmpeg writes into it with `-y`.
 fn card_clip(encoder: &str) -> std::io::Result<PathBuf> {
-    Ok(std::env::temp_dir().join(format!("eyecansee-card-{}-{encoder}.mkv", std::process::id())))
+    crate::ffmpeg_files::temp("card", &format!("{encoder}.mkv"))
 }
 
 /// Audio encoders of `ffmpeg -encoders` (lines " A..... name  description").
