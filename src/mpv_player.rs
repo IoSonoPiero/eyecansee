@@ -88,14 +88,15 @@ pub struct Place {
     pub at_end: bool,
 }
 
-/// mpv's options that open a video at `at`: its own `start` and `pause`, so that the first frame
-/// shown is already that one (not a seek after loading).
-/// At the end: from the end, playing, so that mpv ends there at once with the last frame kept, as
+/// How a video opens at `at`: mpv's `pause` option, and the seek given as its tracks are turned
+/// on (`start_tracks`), before any frame is decoded, so that the first frame shown is already that
+/// one. mpv's own `start` is lost on a file opened with no track (#173): it opened at 0:00.
+/// At the end: to the end, playing, so that mpv ends there at once with the last frame kept, as
 /// after playing it (paused there it was one frame before, not at its end).
-fn start_options(at: Option<Place>) -> Vec<(&'static str, String)> {
-    let Some(at) = at else { return Vec::new() };
-    let (start, paused) = if at.at_end { ("100%".to_string(), false) } else { (format!("{:.3}", at.time.max(0.0)), at.paused) };
-    vec![("start", start), ("pause", if paused { "yes" } else { "no" }.to_string())]
+fn start_options(at: Option<Place>) -> (Vec<(&'static str, String)>, Option<[String; 3]>) {
+    let Some(at) = at else { return (Vec::new(), None) };
+    let (seek, paused) = if at.at_end { (["seek".into(), "100".into(), "absolute-percent+exact".into()], false) } else { (["seek".into(), format!("{:.3}", at.time.max(0.0)), "absolute+exact".into()], at.paused) };
+    (vec![("pause", if paused { "yes" } else { "no" }.to_string())], Some(seek))
 }
 
 /// A video playing (with sound), its frames drawn by a thread of its own at the size the
@@ -123,14 +124,15 @@ impl Player {
         // every frame) covered half of the picture (2026-10-27).
         let volume = volume.min(100).to_string();
         let mute = if mute { "yes" } else { "no" };
-        let start = start_options(at);
-        let mut options = vec![("hwdec", "auto-copy-safe"), ("keep-open", "yes"), ("audio-client-name", "EyeCanSee"), ("sub-auto", "no"), ("volume", volume.as_str()), ("mute", mute)];
+        let (start, seek) = start_options(at);
+        // track-auto-selection=no: no track until the rotation is set (`start_tracks`, #173).
+        let mut options = vec![("hwdec", "auto-copy-safe"), ("track-auto-selection", "no"), ("keep-open", "yes"), ("audio-client-name", "EyeCanSee"), ("sub-auto", "no"), ("volume", volume.as_str()), ("mute", mute)];
         options.extend(start.iter().map(|(k, v)| (*k, v.as_str())));
         let mut mpv = Mpv::new(&options, move || s.change(|st| st.dirty = true))?;
         mpv.load(input)?;
         let mpv = Arc::new(mpv);
         let (m, s) = (mpv.clone(), shared.clone());
-        let thread = crate::logging::spawn_named("mpv-draw", move || draw_loop(&m, &s, repaint));
+        let thread = crate::logging::spawn_named("mpv-draw", move || draw_loop(&m, &s, seek, repaint));
         Ok(Player { mpv, shared, thread: Some(thread) })
     }
 
@@ -314,13 +316,53 @@ pub fn wait_closed(limit: Duration) -> bool {
 /// The frames turned by the file's rotation, by a filter. A turn not saved yet (#125) is not
 /// mpv's: the window turns the frames it draws (`video::paint_fitted`), at once (#168).
 fn turn_frames(mpv: &Mpv) {
-    let filter = match mpv.rotation() {
+    turn_by(mpv, mpv.rotation());
+}
+
+fn turn_by(mpv: &Mpv, rotation: i64) {
+    let filter = match rotation {
         90 => "transpose=clock",
         180 => "hflip,vflip",
         270 => "transpose=cclock",
         _ => "",
     };
     let _ = if filter.is_empty() { mpv.command(&["vf", "clr", ""]) } else { mpv.command(&["vf", "set", filter]) };
+}
+
+/// The file was opened with no track (`track-auto-selection=no`): the rotation of the video
+/// track mpv is going to choose is read from the track list and its filter set, and only then
+/// mpv chooses the tracks, as it does by itself, audio and subtitles too (Piero, 22/11). The first
+/// frame decoded is already turned: set after the tracks, the filter came 0.4-0.5 s late and the
+/// first frames lay as the file stores them (#173). Opened with `vid=no` instead, a video without
+/// sound did not open at all (mpv: "nothing to play").
+fn start_tracks(mpv: &Mpv, seek: Option<[String; 3]>) {
+    let ahead = rotation_ahead(mpv);
+    if ahead != 0 {
+        turn_by(mpv, ahead);
+    }
+    let _ = mpv.command(&["set", "track-auto-selection", "yes"]);
+    // Already "auto", it is set again for mpv to choose now.
+    for track in ["vid", "aid", "sid"] {
+        let _ = mpv.command(&["set", track, "no"]);
+        let _ = mpv.command(&["set", track, "auto"]);
+    }
+    // Where the video was before Save (#211), before the first frame is decoded.
+    if let Some(seek) = seek {
+        let _ = mpv.command(&seek.each_ref().map(String::as_str));
+    }
+    // Another video track chosen (a file with two), turned another way: as before.
+    if mpv.rotation() != ahead {
+        turn_frames(mpv);
+    }
+}
+
+/// The rotation of the video track mpv chooses by itself: the first one marked default, or else
+/// the first one (`track-list`, read before any track is chosen).
+fn rotation_ahead(mpv: &Mpv) -> i64 {
+    let count = mpv.property::<i64>("track-list/count", FORMAT_INT64).unwrap_or(0);
+    let video: Vec<i64> = (0..count).filter(|i| mpv.string(&format!("track-list/{i}/type")).as_deref() == Some("video")).collect();
+    let default = video.iter().find(|i| mpv.property::<c_int>(&format!("track-list/{i}/default"), FORMAT_FLAG) == Some(1));
+    default.or(video.first()).and_then(|i| mpv.property::<i64>(&format!("track-list/{i}/demux-rotation"), FORMAT_INT64)).unwrap_or(0).rem_euclid(360)
 }
 
 /// Waits for the file to be loaded, as long as it takes: a phone copying a whole video first, a
@@ -347,13 +389,13 @@ fn wait_loaded(mpv: &Mpv, shared: &Shared, repaint: &impl Fn()) -> bool {
     }
 }
 
-fn draw_loop(mpv: &Mpv, shared: &Shared, repaint: impl Fn()) {
-    // The rotation is known once the file is loaded; a filter turns every frame from then on
-    // (a frame decoded before is filtered again by mpv). `dwidth`/`dheight` follow the filter.
+fn draw_loop(mpv: &Mpv, shared: &Shared, seek: Option<[String; 3]>, repaint: impl Fn()) {
+    // The rotation is known once the file is loaded; a filter turns every frame from then on,
+    // set before any track plays (`start_tracks`). `dwidth`/`dheight` follow the filter.
     if !wait_loaded(mpv, shared, &repaint) {
         return;
     }
-    turn_frames(mpv);
+    start_tracks(mpv, seek);
     loop {
         let (size, grab) = {
             let mut st = shared.state.lock().unwrap();
@@ -466,11 +508,12 @@ mod tests {
     #[test]
     fn opened_where_it_was() {
         let at = |time, paused, at_end| Some(Place { time, paused, at_end });
-        let owned = |v: &[(&'static str, &str)]| v.iter().map(|(k, v)| (*k, v.to_string())).collect::<Vec<_>>();
-        assert_eq!(start_options(None), owned(&[]));
-        assert_eq!(start_options(at(62.345678, true, false)), owned(&[("start", "62.346"), ("pause", "yes")]));
-        assert_eq!(start_options(at(4.5, false, false)), owned(&[("start", "4.500"), ("pause", "no")]));
-        assert_eq!(start_options(at(9.958, true, true)), owned(&[("start", "100%"), ("pause", "no")]));
+        let paused = |p: &str| vec![("pause", p.to_string())];
+        let seek = |to: &str, how: &str| Some(["seek".to_string(), to.into(), how.into()]);
+        assert_eq!(start_options(None), (vec![], None));
+        assert_eq!(start_options(at(62.345678, true, false)), (paused("yes"), seek("62.346", "absolute+exact")));
+        assert_eq!(start_options(at(4.5, false, false)), (paused("no"), seek("4.500", "absolute+exact")));
+        assert_eq!(start_options(at(9.958, true, true)), (paused("no"), seek("100", "absolute-percent+exact")));
     }
 
     /// #211 with the real player: opened at a time, it is there, paused when asked, playing when
@@ -497,6 +540,20 @@ mod tests {
         settled(&end_player);
         println!("paused {paused:?}, playing {playing:?}, end {end:?}, end error {:?}", end_player.error());
         assert!(paused.paused && (paused.time - 4.5).abs() < 0.05, "{paused:?}");
+        // The frames shown from the opening on: all at 4.5 s, none from 0:00 first.
+        let p = Player::open_at(file(), 0, true, Some(Place { time: 4.5, paused: true, at_end: false }), || {}).unwrap();
+        let (t, mut times) = (Instant::now(), Vec::new());
+        while t.elapsed() < Duration::from_secs(1) {
+            if let Some(size) = p.video_size() {
+                p.set_size(crate::mpv::fit(size, 200));
+            }
+            if p.frame().is_some() {
+                times.push(p.position());
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        println!("frames at {times:?}");
+        assert!(!times.is_empty() && times.iter().all(|t| (t - 4.5).abs() < 0.05), "frames at {times:?}");
         assert!(!playing.paused && playing.time > 4.5 && playing.time < 5.5, "{playing:?}");
         assert!(end.at_end && end.time > 9.9, "{end:?}");
         assert_eq!(end_player.error(), None, "at the end with its last frame: not a damaged video");
@@ -516,9 +573,29 @@ mod tests {
         let turned = crate::mp4::turned(&original, crate::transform::Turn::default().then(crate::transform::Op::Cw)).unwrap();
         let file = std::env::temp_dir().join(format!("eyecansee-173-{}.mp4", std::process::id()));
         std::fs::write(&file, turned).unwrap();
+        let wrong = lying_openings(&file, 12, true);
+        let _ = std::fs::remove_file(&file);
+        assert!(wrong.is_empty(), "shown unturned: {wrong:?}");
+    }
+
+    /// As `turned_from_the_first_frame`, on any video: `EYECANSEE_VIDEO=<file>
+    /// EYECANSEE_VIDEO_UPRIGHT=portrait|landscape cargo test turned_from_the_first_frame_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn turned_from_the_first_frame_live() {
+        let file = std::path::PathBuf::from(std::env::var("EYECANSEE_VIDEO").expect("EYECANSEE_VIDEO"));
+        let portrait = std::env::var("EYECANSEE_VIDEO_UPRIGHT").is_ok_and(|v| v == "portrait");
+        let wrong = lying_openings(&file, 8, portrait);
+        assert!(wrong.is_empty(), "shown another way: {wrong:?}");
+    }
+
+    /// The openings of `file` (out of `times`) whose first size or some frame of the first second
+    /// is not `portrait` (or landscape), as the window would see them.
+    fn lying_openings(file: &std::path::Path, times: usize, portrait: bool) -> Vec<(usize, Option<[u32; 2]>, usize)> {
+        let wrong_way = |[w, h]: [usize; 2]| if portrait { w > h } else { h > w };
         let mut wrong = Vec::new();
-        for n in 0..12 {
-            let player = Player::open(Input::File(file.clone()), 0, true, || {}).unwrap();
+        for n in 0..times {
+            let player = Player::open(Input::File(file.to_path_buf()), 0, true, || {}).unwrap();
             let (t, mut first_size, mut frames) = (Instant::now(), None, Vec::new());
             while t.elapsed() < Duration::from_secs(1) || first_size.is_none() && t.elapsed() < Duration::from_secs(5) {
                 if let Some(size) = player.video_size() {
@@ -530,14 +607,13 @@ mod tests {
                 }
                 std::thread::sleep(Duration::from_millis(2));
             }
-            let lying = frames.iter().filter(|[w, h]| w > h).count();
-            println!("opening {n}: first size {first_size:?}, {} frames, {lying} lying, first {:?}", frames.len(), frames.first());
-            if first_size.is_none_or(|[w, h]| w > h) || lying > 0 {
+            let lying = frames.iter().filter(|f| wrong_way(**f)).count();
+            println!("opening {n}: first size {first_size:?}, {} frames, {lying} the wrong way, first {:?}", frames.len(), frames.first());
+            if first_size.is_none_or(|[w, h]| wrong_way([w as usize, h as usize])) || lying > 0 {
                 wrong.push((n, first_size, lying));
             }
         }
-        let _ = std::fs::remove_file(&file);
-        assert!(wrong.is_empty(), "shown unturned: {wrong:?}");
+        wrong
     }
 
     /// The video, audio and subtitle tracks playing (`current-tracks/*/id`), once loaded.
