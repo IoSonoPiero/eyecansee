@@ -294,8 +294,8 @@ mod tests {
         }
         let e = refused(crate::model::parse(ply.as_bytes(), "a.ply")).unwrap();
         assert_eq!(e, "error-model-too-many-points\u{1}ply-text 2500000");
-        assert_eq!(I18n::new("en").load_error(&e), "The point cloud has more than 2.5 million points.\nEyeCanSee does not read PLY files in text with more than 2.5 million points, so that reading them does not fill the computer's memory.");
-        assert_eq!(I18n::new("it").load_error(&e), "La nuvola di punti ha più di 2,5 milioni di punti.\nEyeCanSee non legge i file PLY in testo con più di 2,5 milioni di punti, perché la lettura non riempia la memoria del computer.");
+        assert_eq!(I18n::new("en").load_error(&e), "The point cloud has more than 2.5 million points.\nEyeCanSee does not open text PLY files with more than 2.5 million points, so that reading them does not fill the computer's memory.");
+        assert_eq!(I18n::new("it").load_error(&e), "La nuvola di punti ha più di 2,5 milioni di punti.\nEyeCanSee non apre i file PLY in testo con più di 2,5 milioni di punti, perché la lettura non riempia la memoria del computer.");
         assert_eq!(I18n::new("en").brief_load(&e).as_deref(), Some("more than 2.5 million points"));
         assert_eq!(I18n::new("it").brief_load(&e).as_deref(), Some("più di 2,5 milioni di punti"));
     }
@@ -306,7 +306,7 @@ mod tests {
     fn said_where_the_model_does_not_open_d1() {
         let e = OBJ.error();
         let en = I18n::new("en");
-        let said = "The model has more than 10 million triangles.\nEyeCanSee does not read OBJ files with more than 10 million triangles, so that reading them does not fill the computer's memory.";
+        let said = "The model has more than 10 million triangles.\nEyeCanSee does not open OBJ files with more than 10 million triangles, so that reading them does not fill the computer's memory.";
         assert_eq!(en.load_error(&e), said);
         assert_eq!(en.cannot_load("a.obj", &e), format!("Cannot open a.obj\n{said}"));
         assert_eq!(en.brief_load(&e).as_deref(), Some("more than 10 million triangles"));
@@ -319,10 +319,15 @@ mod tests {
         let (id, detail) = e.split_once('\u{1}').unwrap();
         assert_eq!(en.error_md(id, detail), crate::save_dialogs::md(said));
         let it = I18n::new("it");
-        assert_eq!(it.load_error(&PLY_TEXT.error()), "Il modello ha più di 10 milioni di triangoli.\nEyeCanSee non legge i file PLY in testo con più di 10 milioni di triangoli, perché la lettura non riempia la memoria del computer.");
-        assert_eq!(it.load_error(&OTHER.error()), "Il modello ha più di 50 milioni di triangoli.\nEyeCanSee non legge i modelli 3D con più di 50 milioni di triangoli, perché la lettura non riempia la memoria del computer.");
+        assert_eq!(it.load_error(&PLY_TEXT.error()), "Il modello ha più di 10 milioni di triangoli.\nEyeCanSee non apre i file PLY in testo con più di 10 milioni di triangoli, perché la lettura non riempia la memoria del computer.");
+        assert_eq!(it.load_error(&OTHER.error()), "Il modello ha più di 50 milioni di triangoli.\nEyeCanSee non apre i modelli 3D con più di 50 milioni di triangoli.");
         assert_eq!(it.brief_load(&STL.error()).as_deref(), Some("più di 20 milioni di triangoli"));
-        assert_eq!(en.load_error(&GLB.error()).lines().nth(1), Some("EyeCanSee does not read GLB files with more than 20 million triangles, so that reading them does not fill the computer's memory."));
+        // The formats read whole before the cap is met (AMF, Collada, X3D…): without the why, which
+        // would be true only in part (Piero, 22/11/2026).
+        assert_eq!(en.load_error(&OTHER.error()), "The model has more than 50 million triangles.\nEyeCanSee does not open 3D models with more than 50 million triangles.");
+        assert_eq!(en.load_error(&PLY_TEXT.error()).lines().nth(1), Some("EyeCanSee does not open text PLY files with more than 10 million triangles, so that reading them does not fill the computer's memory."));
+        assert_eq!(en.brief_load(&OTHER.error()).as_deref(), Some("more than 50 million triangles"));
+        assert_eq!(en.load_error(&GLB.error()).lines().nth(1), Some("EyeCanSee does not open GLB files with more than 20 million triangles, so that reading them does not fill the computer's memory."));
     }
 
     /// The early counts give what the readers give, on small files of every kind they count.
@@ -370,7 +375,7 @@ mod tests {
         assert_eq!(OBJ.check(OBJ.max + 1), Err(OBJ.error()));
         assert_eq!(PLY_BINARY.check_points(12_500_000), Ok(()));
         assert_eq!(PLY_BINARY.check_points(12_500_001), Err("error-model-too-many-points\u{1}ply-binary 12500000".into()));
-        assert_eq!(I18n::new("it").load_error(&PLY_BINARY.check_points(12_500_001).unwrap_err()).lines().nth(1), Some("EyeCanSee non legge i file PLY binari con più di 12,5 milioni di punti, perché la lettura non riempia la memoria del computer."));
+        assert_eq!(I18n::new("it").load_error(&PLY_BINARY.check_points(12_500_001).unwrap_err()).lines().nth(1), Some("EyeCanSee non apre i file PLY binari con più di 12,5 milioni di punti, perché la lettura non riempia la memoria del computer."));
     }
 
     /// The time of the early count against the whole reading, three rounds each, of the models in
