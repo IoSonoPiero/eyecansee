@@ -314,20 +314,57 @@ pub(crate) fn config_path(name: &str) -> Option<PathBuf> {
 }
 
 impl Settings {
-    /// Missing file: default values. Unreadable file: set aside as `.bad`, so a wrong manual
-    /// edit is not silently overwritten.
+    /// Missing file: default values. A file that cannot be read (no permission, not UTF-8: UTF-16
+    /// or ANSI as PowerShell and Notepad may save it) or is not JSON: set aside as `.bad`, so the
+    /// save at exit does not overwrite what the user wrote. A value this version does not know (a
+    /// file written by a newer one, a wrong edit): only that key takes its default (`tolerant`).
     pub fn load() -> Self {
         path().map_or_else(Self::default, |p| Self::load_from(&p))
     }
 
     /// `load` from a given file.
     pub(crate) fn load_from(path: &Path) -> Self {
-        let Ok(text) = std::fs::read_to_string(path) else { return Self::default() };
+        let bad = path.with_extension("json.bad");
+        let text = match std::fs::read(path).map(String::from_utf8) {
+            Ok(Ok(text)) => text,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Self::default(),
+            other => {
+                log!("settings: {path:?} not read ({:?}), set aside", other.err());
+                let _ = std::fs::rename(path, &bad);
+                return Self::default();
+            }
+        };
         // A BOM (written by PowerShell and some editors) is not JSON: without this the file was set aside.
-        serde_json::from_str(text.trim_start_matches('\u{feff}')).map(Self::upgraded).unwrap_or_else(|_| {
-            let _ = std::fs::rename(path, path.with_extension("json.bad"));
-            Self::default()
-        })
+        let text = text.trim_start_matches('\u{feff}');
+        if let Ok(s) = serde_json::from_str::<Self>(text) {
+            return s.upgraded();
+        }
+        if let Some(s) = Self::tolerant(text) {
+            // Copied, not moved: the file stays the settings until the next save.
+            log!("settings: {path:?} read key by key, copied aside");
+            let _ = std::fs::copy(path, &bad);
+            return s.upgraded();
+        }
+        log!("settings: {path:?} is not JSON, set aside");
+        let _ = std::fs::rename(path, &bad);
+        Self::default()
+    }
+
+    /// The keys of a JSON object one at a time: a key whose value does not fit keeps its default,
+    /// the others are taken. `None` when the text is not a JSON object.
+    fn tolerant(text: &str) -> Option<Self> {
+        let serde_json::Value::Object(keys) = serde_json::from_str(text).ok()? else { return None };
+        let mut good = serde_json::Map::new();
+        for (key, value) in keys {
+            let one = serde_json::Value::Object(serde_json::Map::from_iter([(key.clone(), value.clone())]));
+            match serde_json::from_value::<Self>(one) {
+                Ok(_) => {
+                    good.insert(key, value);
+                }
+                Err(e) => log!("settings: {key:?} not understood ({e}), default kept"),
+            }
+        }
+        serde_json::from_value(serde_json::Value::Object(good)).ok()
     }
 
     /// Settings of an older EyeCanSee brought up to date: the highlighter remembered at 40%
@@ -441,6 +478,7 @@ mod tests {
         assert_eq!(std::fs::read(path.with_extension("json.bad")).ok(), Some(utf16), "the file is set aside as it was");
         // An error other than "not found" (here a folder where the file should be): set aside too.
         std::fs::remove_file(&path).unwrap();
+        std::fs::remove_file(path.with_extension("json.bad")).unwrap();
         std::fs::create_dir(&path).unwrap();
         assert_eq!(Settings::load_from(&path), Settings::default());
         assert!(path.with_extension("json.bad").is_dir() && !path.exists());
