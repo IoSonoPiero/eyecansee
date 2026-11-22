@@ -122,6 +122,17 @@ impl Amf<'_, '_> {
 mod tests {
     use super::*;
 
+    /// Audit 6.21: a vertex number beyond 2^24 is read as itself, not rounded as an `f32`; a
+    /// number that is not one (or below 0) points nowhere, and its triangle is dropped.
+    #[test]
+    fn audit_6_21_large_index() {
+        let doc = roxmltree::Document::parse("<triangle><v1>16777217</v1><v2>-1</v2><v3>2.5</v3></triangle>").unwrap();
+        let t = doc.root_element();
+        assert_eq!(index(t, "v1"), 16_777_217);
+        assert_eq!(index(t, "v2"), u32::MAX);
+        assert_eq!(index(t, "v3"), u32::MAX);
+    }
+
     #[test]
     fn a_triangle_placed_twice() {
         let amf = r#"<amf><object id="1"><mesh><vertices>

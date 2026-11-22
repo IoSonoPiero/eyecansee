@@ -712,6 +712,8 @@ mod tests {
 
     #[test]
     fn bad_indices_and_empty_files_refused() {
+        // Audit 6.21: points so far apart that the box around them is endless.
+        assert!(parse(b"v -1e38 0 0\nv 1e38 0 0\nv 0 1e38 0\nf 1 2 3\n", "far.obj").is_err());
         assert!(parse(b"v 0 0 0\nf 1 2 3\n", "x.obj").is_err());
         assert!(parse(b"", "x.stl").is_err());
         assert!(parse(b"{}", "x.gltf").is_err());

@@ -678,6 +678,16 @@ mod tests {
 
     const DXF: &str = "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n62\n1\n10\n0\n20\n0\n30\n0\n11\n100\n21\n50\n31\n0\n0\nCIRCLE\n8\n0\n10\n50\n20\n25\n30\n0\n40\n10\n0\nTEXT\n8\n0\n10\n5\n20\n5\n30\n0\n40\n3\n1\nA & B\n0\nENDSEC\n0\nEOF\n";
 
+    /// Audit 6.21: a TEXT with an endless height is left out; the drawing keeps the box of the rest.
+    #[test]
+    fn audit_6_21_endless_text_height() {
+        let dxf = "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n30\n0\n11\n100\n21\n50\n31\n0\n0\nTEXT\n8\n0\n10\n5\n20\n5\n30\n0\n40\n1e400\n1\nA\n0\nENDSEC\n0\nEOF\n";
+        let d = read(dxf.as_bytes(), "x.dxf").unwrap();
+        let b = d.bounds().unwrap();
+        assert!(b.iter().all(|v| v.is_finite()), "{b:?}");
+        assert_eq!(b, [0.0, 0.0, 100.0, 50.0]);
+    }
+
     #[test]
     fn a_minimal_dxf_becomes_an_svg() {
         let d = read(DXF.as_bytes(), "x.DXF").unwrap();

@@ -357,6 +357,19 @@ impl Numbers<'_> {
 mod tests {
     use super::*;
 
+    /// Audit 6.21: a number of 400 digits (endless as an `f64`), `inf` and `nan` are left out
+    /// with their command; the moves after them, also relative, go on from the last good point.
+    #[test]
+    fn audit_6_21_endless_numbers() {
+        let plt = format!("IN;SP1;PU0,0;PD100,100;PD1{},0;PDinf,5;PDnan,5;PR10,10;LBx\x03CI1{};", "0".repeat(400), "0".repeat(400));
+        let d = read(plt.as_bytes()).unwrap();
+        let b = d.bounds().unwrap();
+        assert!(b.iter().all(|v| v.is_finite()), "{b:?}");
+        assert_eq!([b[0], b[1]], [0.0, 0.0]);
+        assert!((b[2] - 110.0).abs() < 1e-9 && b[3] >= 110.0 && b[3] < 1e6, "{b:?}");
+        assert!(d.items.iter().any(|i| matches!(i, Item::Text { at: [110.0, 110.0], .. })));
+    }
+
     #[test]
     fn moves_pens_shapes_labels_and_encoded_lines() {
         let plt = b"\x1b%-12345X\x1bE\x1b%0BIN;SP2;PU0,0;PD1000,0,1000,1000;PU;SP1;PA2000,0;CI500;LBHello\x03PR100,0;EA3000,1000;PE<=\x40\x40\xbf\xbf;\x1b%0A";

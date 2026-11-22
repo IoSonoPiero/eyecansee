@@ -441,6 +441,28 @@ fn extrusion(n: &SceneNode) -> Result<Part, String> {
 mod tests {
     use super::*;
 
+    /// The first node of `kind` in the scene.
+    fn find(n: &Rc<SceneNode>, kind: &str) -> Option<Rc<SceneNode>> {
+        if n.kind == kind {
+            return Some(n.clone());
+        }
+        n.children().find_map(|c| find(c, kind))
+    }
+
+    /// Audit 6.21: indices beyond 2^24, as VRML and X3D give them, read as themselves (an `f32`
+    /// rounds 16 777 217 to 16 777 216: triangles on the wrong points).
+    #[test]
+    fn audit_6_21_large_index() {
+        let wrl = "#VRML V2.0 utf8\nShape { geometry IndexedFaceSet { coord Coordinate { point [ 0 0 0, 1 0 0, 0 1 0 ] } coordIndex [ 16777217 0 1 -1 ] texCoordIndex [ 16777219 0 1 -1 ] } }";
+        let x3d = "<X3D><Scene><Shape><IndexedTriangleSet index='16777217 0 1'><Coordinate point='0 0 0 1 0 0 0 1 0'/></IndexedTriangleSet></Shape></Scene></X3D>";
+        for (text, kind) in [(wrl, "IndexedFaceSet"), (x3d, "IndexedTriangleSet")] {
+            let scene = Rc::new(crate::model_vrml::parse(text.as_bytes(), &Default::default()).unwrap());
+            let g = find(&scene, kind).unwrap();
+            let Some(Ok(part)) = geometry(&g) else { panic!("{kind}") };
+            assert_eq!(part.tris[0][0], 16_777_217, "{kind}");
+        }
+    }
+
     #[test]
     fn face_sets_primitives_and_transforms() {
         let wrl = "#VRML V2.0 utf8\nTransform { translation 10 0 0 children [\n Shape { appearance Appearance { material Material { diffuseColor 1 0 0 } }\n  geometry IndexedFaceSet { coord Coordinate { point [ 0 0 0, 1 0 0, 1 1 0, 0 1 0 ] } coordIndex [ 0 1 2 3 -1 ] } }\n Shape { geometry Box { size 2 2 2 } } ] }\n";
