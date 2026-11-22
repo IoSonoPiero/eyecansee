@@ -447,4 +447,24 @@ mod tests {
         let plain = I18n::new("en").error("error-detail", &t.replace(".f.jpg.eyecansee-new", "f.jpg"));
         assert_eq!(plain, I18n::new("en").fault(Kind::NoSpace, Some("f.jpg")));
     }
+
+    /// #207: the `trash` crate on Windows, a folder deleted by another program: the error the
+    /// user saw (Italian Windows), the same in English, and "path not found". Known by its code,
+    /// which Windows does not translate; on any system, as the text says Windows' code.
+    #[test]
+    fn windows_trash_not_found() {
+        let it = r#"Error during a `trash` operation: Os { code: -2147024894, description: "windows error: Impossibile trovare il file specificato. (0x80070002)" }"#;
+        let en = r#"Error during a `trash` operation: Os { code: -2147024894, description: "windows error: The system cannot find the file specified. (0x80070002)" }"#;
+        let path = r#"Error during a `trash` operation: Os { code: -2147024893, description: "windows error: Impossibile trovare il percorso specificato. (0x80070003)" }"#;
+        for t in [it, en, path] {
+            assert_eq!(recognise(t), Some((Kind::NotFound, None)), "{t}");
+            for lang in ["en", "it"] {
+                let i18n = I18n::new(lang);
+                assert_eq!(i18n.error("error-detail", t), i18n.fault(Kind::NotFound, None), "{lang}: {t}");
+            }
+        }
+        // Another error of Windows: as before.
+        let other = r#"Error during a `trash` operation: Os { code: -2147467259, description: "windows error: Errore non specificato (0x80004005)" }"#;
+        assert_eq!(recognise(other), None);
+    }
 }

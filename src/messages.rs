@@ -674,4 +674,30 @@ mod tests {
         assert_eq!(names, [format!("{here}a.png")], "the old source's listing took the place of the open folder's");
         assert!(h.app.listing_pending.contains("other/") && !h.app.listings.contains_key("other/"), "the old source's listing ended a reading of the new one");
     }
+
+    /// #207 (choice D7): a folder deleted by another program, then sent to the trash from the
+    /// grid on Windows: the message says that it is not there any more, and the folder is read
+    /// again, so the folder goes from the grid. The error of the `trash` crate is made up here:
+    /// on Linux the trash says it otherwise.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn trashed_folder_already_gone() {
+        if own_folder("messages::tests::trashed_folder_already_gone") {
+            return;
+        }
+        let dir = folder("trash-gone", &["a.png"]);
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        let mut h = Harness::new(&dir);
+        h.until(|app| app.listing_dirs() == 1, "the subfolder listed");
+        let sub = format!("{}sub/", h.app.dir);
+        std::fs::remove_dir(dir.join("sub")).unwrap();
+        let raw = r#"Error during a `trash` operation: Os { code: -2147024894, description: "windows error: Impossibile trovare il file specificato. (0x80070002)" }"#;
+        h.app.tx.send(Msg::Deleted(sub, crate::source::Deletion::SystemTrash, Err(("error-detail", raw.into())))).unwrap();
+        h.frame(Vec::new());
+        assert_eq!(h.app.error, Some(h.app.i18n.fault(crate::fault::Kind::NotFound, Some("sub"))));
+        // Read again by the message itself: the watcher of Linux waits 0.3 s after its event,
+        // and Windows' did not tell (#207).
+        assert!(h.app.listing_pending.contains(&h.app.dir), "the folder not read again");
+        h.until(|app| app.listing_dirs() == 0, "the folder gone from the grid");
+    }
 }
