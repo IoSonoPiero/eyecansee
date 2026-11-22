@@ -488,10 +488,16 @@ mod tests {
         let socket = test_socket("long");
         let inbox = super::listen_on(&socket).unwrap();
         let mut long = Stream::connect(super::ns_name(&socket).unwrap()).unwrap();
-        // Dropped after `LONGEST`: the rest of the writing may fail.
-        let _ = long.write_all(&vec![b'a'; 1 << 20]);
-        let _ = long.write_all(b"\n");
-        drop(long);
+        // Dropped after `LONGEST`. Only a little more than that is written, and the answer read:
+        // on a named pipe a writer the copy no longer reads waits for ever, and the copy's side,
+        // flushing its answer as it closes, waits for it to be read; the two held each other and
+        // every pipe closed later in the process (seen in a Windows 11 VM, 22/11). A thread of its
+        // own, so the next start is tried meanwhile.
+        std::thread::spawn(move || {
+            let _ = long.write_all(&vec![b'a'; super::LONGEST as usize + 16]);
+            let _ = long.write_all(b"\n");
+            let _ = std::io::copy(&mut long, &mut std::io::sink());
+        });
         let handed = handing(&socket, "/next");
         let first = arrived(&inbox, 1);
         assert_eq!(first, ["/next"], "{} bytes arrived first", first.first().map_or(0, String::len));
