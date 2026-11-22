@@ -29,6 +29,17 @@ pub(crate) struct Playing {
     copying: Option<(Arc<AtomicU64>, u64)>,
     /// At full screen, the bar hidden while the mouse stays still (#43).
     hide: crate::video_full::Hide,
+    /// When it was opened: the spinner waits `SPIN_AFTER` before showing (`spin_in`).
+    opened: std::time::Instant,
+}
+
+/// How long a video may take to its first frame without a spinner: a quicker one does not flash
+/// it (Piero, 22/11).
+const SPIN_AFTER: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// `None`: the spinner shows now; otherwise the time until it may, after `waited`.
+fn spin_in(waited: std::time::Duration) -> Option<std::time::Duration> {
+    SPIN_AFTER.checked_sub(waited).filter(|left| !left.is_zero())
 }
 
 /// Where the video engine is, for the card shown in its place.
@@ -398,7 +409,7 @@ impl App {
         if let Err(e) = &player {
             log!("motion photo {path:?}: ERROR {e}");
         }
-        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying: None, hide: Default::default() }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying: None, hide: Default::default(), opened: std::time::Instant::now() }
     }
 
     /// Why the video open for `path` does not play, when no card says it (the engine to
@@ -468,7 +479,7 @@ impl App {
         if let Some(at) = at {
             log!("video {path:?}: opened at {:.3} s, paused {}, at the end {}", at.time, at.paused, at.at_end);
         }
-        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying, hide: Default::default() }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying, hide: Default::default(), opened: std::time::Instant::now() }
     }
 }
 
@@ -509,8 +520,11 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, (sound, turn): ((&mut u32, &mut bool
             let bar = egui::ProgressBar::new(share).text(text).desired_width(360.0);
             ui.put(Rect::from_center_size(area.center(), vec2(360.0, 24.0)), bar);
         } else if !player.stalled() {
-            // Light on the viewer's dark ground in both themes, as the spinner of a picture (Piero, 22/11).
-            ui.put(Rect::from_center_size(area.center(), vec2(32.0, 32.0)), egui::Spinner::new().color(Color32::from_gray(220)));
+            match spin_in(v.opened.elapsed()) {
+                Some(left) => ui.ctx().request_repaint_after(left),
+                // Light on the viewer's dark ground in both themes, as the spinner of a picture (Piero, 22/11).
+                None => drop(ui.put(Rect::from_center_size(area.center(), vec2(32.0, 32.0)), egui::Spinner::new().color(Color32::from_gray(220)))),
+            }
         }
     }
     if player.stalled() {
@@ -703,6 +717,15 @@ fn sound_controls(ui: &mut egui::Ui, player: &mpv::Player, (volume, mute): (&mut
 
 #[cfg(test)]
 mod tests {
+    /// The spinner of a video waits half a second: a video quicker to its first frame never shows it.
+    #[test]
+    fn spinner_after_half_a_second() {
+        use std::time::Duration;
+        assert_eq!(super::spin_in(Duration::ZERO), Some(Duration::from_millis(500)));
+        assert_eq!(super::spin_in(Duration::from_millis(300)), Some(Duration::from_millis(200)));
+        assert_eq!(super::spin_in(Duration::from_millis(500)), None);
+        assert_eq!(super::spin_in(Duration::from_secs(3)), None);
+    }
 
     /// #211: a place kept before Save is for that video only.
     #[test]
