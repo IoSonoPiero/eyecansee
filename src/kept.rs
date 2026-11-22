@@ -65,11 +65,33 @@ fn folder(root: &Path, base: &str, path: &str) -> PathBuf {
     root.join(format!("{}-{:016x}", local_name(path), h.finish()))
 }
 
-/// The name of `path` as a file on this computer: the characters Windows does not allow in a name
-/// (a phone or a server allows them) become "_".
+/// The name of `path` as a file on this computer, also on Windows (`source::windows_name`): the
+/// characters it does not allow in a name (a phone or a server allows them) become "_", a final
+/// dot or space gets a "_" after it, a name it keeps for a device ("aux.jpg") one before it; a
+/// long name is cut to `KEPT_NAME` bytes, keeping its extension, so that the folder
+/// "name-<hash>" fits in 255 (audit 2.29).
 fn local_name(path: &str) -> String {
-    source::name(path).chars().map(|c| if r#"<>:"/\|?*"#.contains(c) || c.is_control() { '_' } else { c }).collect()
+    let mut name: String = source::name(path).chars().map(|c| if r#"<>:"/\|?*"#.contains(c) || c.is_control() { '_' } else { c }).collect();
+    if name.len() > KEPT_NAME {
+        let ext = name.rsplit_once('.').map(|(_, e)| e).filter(|e| e.len() <= 16).map(|e| format!(".{e}")).unwrap_or_default();
+        let mut cut = KEPT_NAME - ext.len();
+        while !name.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        name = format!("{}{ext}", &name[..cut]);
+    }
+    if name.ends_with(['.', ' ']) {
+        name.push('_');
+    }
+    if !source::windows_name(&name) {
+        name.insert(0, '_');
+    }
+    name
 }
+
+/// The longest name of a kept image, in bytes: with "-" and the 16 digits of the hash its folder
+/// stays within 255.
+const KEPT_NAME: usize = 200;
 
 /// Writes `data` as the image `path` of `base` in its folder in `root`, with a text saying where
 /// it was going; gives the file.

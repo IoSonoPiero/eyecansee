@@ -11,8 +11,24 @@ use url::Url;
 use super::{BAD_NAME, Error, Source, Store};
 use crate::decode::is_media;
 
+/// Is `path` (of a store at `root`) under a gvfs mount: `/run/user/<uid>/gvfs/`, or
+/// `$XDG_RUNTIME_DIR/gvfs/`, or the `~/.gvfs/` of old versions, or a folder "gvfs" holding a mount
+/// by its name ("gvfs/mtp:host=…", "gvfs/smb-share:server=…,share=…"). A folder of the user called
+/// "gvfs" is an ordinary folder (audit 2.29).
 pub fn in_gvfs(root: &str, path: &str) -> bool {
-    format!("{root}/{path}").contains("/gvfs/")
+    let mut full = format!("{root}/{path}");
+    while full.contains("//") {
+        full = full.replace("//", "/");
+    }
+    gvfs_mount(&full, std::env::var("XDG_RUNTIME_DIR").ok().as_deref(), std::env::home_dir().as_deref())
+}
+
+/// `in_gvfs` of a whole path, with the runtime folder and the home given.
+fn gvfs_mount(full: &str, runtime: Option<&str>, home: Option<&Path>) -> bool {
+    let under = |dir: String| full.starts_with(&format!("{}/", dir.trim_end_matches('/')));
+    let run_user = full.strip_prefix("/run/user/").and_then(|r| r.split_once('/')).is_some_and(|(uid, rest)| !uid.is_empty() && uid.bytes().all(|b| b.is_ascii_digit()) && rest.starts_with("gvfs/"));
+    let named = full.split_once("/gvfs/").and_then(|(_, rest)| rest.split('/').next()).is_some_and(|mount| mount.split_once(':').is_some_and(|(kind, keys)| !kind.is_empty() && keys.contains('=')));
+    run_user || named || runtime.is_some_and(|r| under(format!("{r}/gvfs"))) || home.is_some_and(|h| under(format!("{}/.gvfs", h.display())))
 }
 
 /// A temporary copy Windows made of a file it cannot hand over as a path, kept in its internet
@@ -24,12 +40,14 @@ pub fn windows_temp_copy(path: &str) -> bool {
     path.replace('\\', "/").to_ascii_lowercase().contains("/microsoft/windows/inetcache/")
 }
 
-/// Splits a relative path into (folder, file) if the last element is an image or a video.
+/// Splits a relative path into (folder, file) if the last element is an image or a video. A path
+/// ending with "/" is a folder, whatever its name ("trip.png/", audit 2.29).
 fn split(path: &str) -> (String, Option<String>) {
+    let folder = path.ends_with('/');
     let path = path.trim_matches('/');
     let dir = |d: &str| if d.is_empty() { String::new() } else { format!("{d}/") };
     match path.rsplit_once('/').unwrap_or(("", path)) {
-        (d, name) if is_media(name) => (dir(d), Some(path.to_string())),
+        (d, name) if is_media(name) && !folder => (dir(d), Some(path.to_string())),
         _ => (dir(path), None),
     }
 }
@@ -128,7 +146,9 @@ fn local(path: &Path) -> Result<Source, Error> {
     let root = path.ancestors().last().unwrap_or(&path);
     let rel = path.strip_prefix(root).unwrap_or(&path);
     let rel: Vec<_> = rel.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
-    let (dir, start) = split(&rel.join("/"));
+    // A folder is a folder, also with the name of an image: the disk says.
+    let slash = if path.is_dir() { "/" } else { "" };
+    let (dir, start) = split(&format!("{}{slash}", rel.join("/")));
     let op = Operator::new(services::Fs::default().root(&root.to_string_lossy()))
         .map_err(|e| ("error-source", e.to_string()))?;
     // ponytail: Windows' "\\?\" prefix is hidden only in the bar; it is really needed only for paths over 260 characters
@@ -175,6 +195,12 @@ mod tests {
         for ordinary in [("/", "home/me/src/gvfs/foto.jpg"), ("/home/me", "gvfs/a.jpg"), ("/", "run/user/1000/x/gvfs/a.jpg"), ("/", "mnt/gvfs/a.jpg")] {
             assert!(!in_gvfs(ordinary.0, ordinary.1), "{ordinary:?}");
         }
+        let home = Path::new("/home/me");
+        assert!(gvfs_mount("/tmp/run-me/gvfs/mtp:host=X/a.jpg", Some("/tmp/run-me"), None));
+        assert!(gvfs_mount("/home/me/.gvfs/share/a.jpg", None, Some(home)));
+        assert!(!gvfs_mount("/home/me/gvfs/a.jpg", Some("/run/user/1000"), Some(home)));
+        assert!(gvfs_mount("/tmp/test/gvfs/mtp:host=Phone_X/DCIM/a.jpg", None, None), "a mount by its name");
+        assert!(!gvfs_mount("/home/me/gvfs/12:30/a.jpg", None, None));
     }
 
     /// Audit 2.29 (b): a folder whose name ends like an image ("trip.png/") opens as a folder, from

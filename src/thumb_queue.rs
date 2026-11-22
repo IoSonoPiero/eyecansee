@@ -389,7 +389,8 @@ pub(crate) async fn maintain(op: &Store, base: &str) {
             Err((source::NOT_FOUND, _)) => continue,
             Err(_) => return,
         };
-        let current: HashMap<&str, &File> = listing.files.iter().map(|f| (f.path.as_str(), f)).collect();
+        // Android's trashed files too: listed apart, their thumbnails show in the trash (audit 2.29).
+        let current: HashMap<&str, &File> = listing.files.iter().chain(&listing.trashed).map(|f| (f.path.as_str(), f)).collect();
         for old in saved {
             match current.get(old.path.as_str()) {
                 None => thumbcache::delete(base, &old.path),
