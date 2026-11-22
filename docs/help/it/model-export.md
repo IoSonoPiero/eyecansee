@@ -10,6 +10,8 @@ EyeCanSee sa salvare un modello 3D in un altro formato 3D, per esempio per aprir
 
 Ogni file nuovo viene salvato accanto al suo originale, con lo stesso nome e la nuova estensione. Se quel nome è già preso si aggiunge " (2)", per esempio `staffa (2).stl`. La barra di stato dice il nome che ha preso. Se un modello non si riesce a esportare, o il file nuovo non è proprio come l'originale (un glTF che mette una sua parte più volte nella gerarchia, cosa che il formato non permette: il file nuovo la contiene una volta sola), lo dice un messaggio alla fine dell'esportazione, **Esportazione finita**: un solo messaggio per tutti i modelli, che dice quanti non sono stati esportati e quanti con una modifica, con i loro nomi in ordine (i primi dieci, poi quanti altri) e, accanto a ogni modello non esportato, il perché in breve quando si sa. ![Copia il messaggio](icon://copy) lo copia con tutti i nomi e il motivo completo.
 
+EyeCanSee apre i file OBJ fino a 10 milioni di triangoli, i file STL binari e GLB fino a 20 milioni e i file PLY binari fino a 50 milioni (vedi [Modelli 3D](model-3d.md)). Un modello con più triangoli di quanti ne permette il formato scelto si può esportare lo stesso, ma EyeCanSee non potrà aprire il file nuovo: per un modello già letto nel visore lo dice la finestra sotto il formato, e il messaggio **Esportazione finita** elenca gli altri, ciascuno con il numero di triangoli che permette il suo nuovo formato.
+
 Se sono selezionati anche file di altro tipo, la voce è segnata con **\*** e lavora solo sui modelli. I disegni CAD si esportano allo stesso modo, con **File > Esporta disegno…**: vedi [Disegni CAD](cad.md).
 
 ## Cosa tiene ogni formato

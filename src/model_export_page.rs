@@ -7,11 +7,13 @@ use crate::App;
 use crate::i18n::I18n;
 use crate::model_export::Kind;
 
-/// The window open: the models it works on (`None` = those chosen when it opened), the format.
+/// The window open: the models it works on (`None` = those chosen when it opened), the format,
+/// and the triangles of those already read (in the viewer, `model.meshes`).
 pub(crate) struct Form {
     pub(crate) path: Option<String>,
     pub(crate) models: usize,
     pub(crate) kind: Kind,
+    pub(crate) known: Vec<usize>,
 }
 
 enum Answer {
@@ -23,9 +25,10 @@ impl App {
     /// File > Export as a 3D model… and the same entry of the right-click menus: the window, on the
     /// format of the last export (STL at first).
     pub(crate) fn open_model_export(&mut self, path: Option<String>) {
-        let models = self.files_chosen(path.clone()).iter().filter(|p| crate::model::is_model(p)).count();
-        if models > 0 {
-            self.model_export = Some(Form { path, models, kind: self.model_export_kind });
+        let chosen: Vec<String> = self.files_chosen(path.clone()).into_iter().filter(|p| crate::model::is_model(p)).collect();
+        if !chosen.is_empty() {
+            let known = chosen.iter().filter_map(|p| self.model.meshes.get(p)).map(|m| m.tris.len()).collect();
+            self.model_export = Some(Form { path, models: chosen.len(), kind: self.model_export_kind, known });
         }
     }
 
@@ -60,6 +63,10 @@ fn form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer> {
             }
         });
     });
+    if let Some(line) = beyond_line(i18n, f) {
+        ui.add_space(6.0);
+        ui.colored_label(ui.visuals().warn_fg_color, line);
+    }
     ui.add_space(6.0);
     ui.weak(t("model-export-where"));
     ui.add_space(8.0);
@@ -73,4 +80,41 @@ fn form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer> {
         }
     });
     answer
+}
+
+/// The warning of the window when some of the models already read have more triangles than
+/// EyeCanSee opens in the format chosen (`model_limit::of_export`): Export writes them all the
+/// same (Piero, 22/11/2026). The others are told at the end (`model_view::export_notice`).
+fn beyond_line(i18n: &I18n, f: &Form) -> Option<String> {
+    let limit = crate::model_limit::of_export(f.kind);
+    let n = f.known.iter().filter(|&&t| limit.check(t).is_err()).count();
+    let all = if n == f.models { "yes" } else { "no" };
+    let max = (limit.max / 1_000_000).to_string();
+    (n > 0).then(|| i18n.t_args("model-export-beyond", &[("n", &n.to_string()), ("all", all), ("max", &max), ("format", f.kind.label())]))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The model open in the viewer, of 12 million triangles: OBJ (10 million) warned, GLB (20)
+    /// not; with three models chosen, two of them read and beyond, said of the two (Piero,
+    /// 22/11/2026). In both languages.
+    #[test]
+    fn beyond_the_cap_of_the_new_format_d1() {
+        let (en, it) = (I18n::new("en"), I18n::new("it"));
+        let mut f = Form { path: None, models: 1, kind: Kind::Obj, known: vec![12_000_000] };
+        assert_eq!(beyond_line(&en, &f).as_deref(), Some("The model has more than 10 million triangles: EyeCanSee will not be able to open the new OBJ file. You can export it all the same."));
+        assert_eq!(beyond_line(&it, &f).as_deref(), Some("Il modello ha più di 10 milioni di triangoli: EyeCanSee non potrà aprire il nuovo file OBJ. Puoi esportarlo lo stesso."));
+        f.kind = Kind::Glb;
+        assert_eq!(beyond_line(&en, &f), None);
+        f.kind = Kind::Ply;
+        assert_eq!(beyond_line(&en, &f), None);
+        f = Form { path: None, models: 3, kind: Kind::Stl, known: vec![25_000_000, 21_000_000] };
+        assert_eq!(beyond_line(&en, &f).as_deref(), Some("2 of the models have more than 20 million triangles: EyeCanSee will not be able to open the new STL files. You can export them all the same."));
+        assert_eq!(beyond_line(&it, &f).as_deref(), Some("2 dei modelli hanno più di 20 milioni di triangoli: EyeCanSee non potrà aprire i nuovi file STL. Puoi esportarli lo stesso."));
+        f.known = vec![25_000_000, 1];
+        assert_eq!(beyond_line(&en, &f).as_deref(), Some("One of the models has more than 20 million triangles: EyeCanSee will not be able to open the new STL file. You can export it all the same."));
+        assert_eq!(beyond_line(&it, &f).as_deref(), Some("Uno dei modelli ha più di 20 milioni di triangoli: EyeCanSee non potrà aprire il nuovo file STL. Puoi esportarlo lo stesso."));
+    }
 }

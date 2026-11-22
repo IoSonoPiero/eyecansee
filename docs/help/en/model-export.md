@@ -10,6 +10,8 @@ EyeCanSee can save a 3D model in another 3D format, for example to open a model 
 
 Each new file is saved next to its original, with the same name and the new extension. If that name is already taken, " (2)" is added, for example `bracket (2).stl`. The status bar says the name it got. If a model cannot be exported, or the new file is not quite like the original (a glTF that places one of its parts more than once in its hierarchy, which the format does not allow: the new file has it once), a message says so when the export is done, **Export finished**: one message for all the models, which says how many were not exported and how many with a change, with their names in order (the first ten, then how many more) and, next to each model not exported, why in a few words when it is known. ![Copy the message](icon://copy) copies it with every name and the whole reason.
 
+EyeCanSee opens OBJ files of up to 10 million triangles, binary STL and GLB files of up to 20 million and binary PLY files of up to 50 million (see [3D models](model-3d.md)). A model with more triangles than the format chosen allows can be exported all the same, but EyeCanSee will not be able to open the new file: for a model already read in the viewer the window says so under the format, and the **Export finished** message lists the others, each with the most triangles its new format allows.
+
 With other kinds of files selected too, the entry is marked with **\*** and works only on the models. CAD drawings are exported the same way, with **File > Export drawing…**: see [CAD drawings](cad.md).
 
 ## What each format keeps

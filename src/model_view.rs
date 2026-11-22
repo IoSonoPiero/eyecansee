@@ -276,6 +276,10 @@ impl App {
             log!("export {path:?} as {to:?}");
             jobs.push((path, to));
         }
+        // Told in the window already (`model_export_page::beyond_line`), not again at the end.
+        let limit = crate::model_limit::of_export(kind);
+        let read = |p: &String| self.model.meshes.get(p).is_some_and(|m| limit.check(m.tris.len()).is_err());
+        self.export_said.told.extend(jobs.iter().map(|(p, _)| p).filter(|p| read(p)).cloned());
         self.export_said.start(jobs.len());
         loader.export_models(jobs, kind);
     }
@@ -294,6 +298,9 @@ impl App {
                     log!("export {from:?}: said of the new file {notes:?}");
                 }
                 again = notes.contains(&crate::model_gltf::NODE_AGAIN).then(|| crate::source::name(from).to_string());
+                if notes.contains(&crate::model_limit::BEYOND_EXPORT) {
+                    self.export_said.beyond(from, to);
+                }
                 self.status_note = Some(self.i18n.t_args("status-exported", &[("name", crate::source::name(to))]));
                 self.note_until = Some(ctx.input(|i| i.time) + 6.0);
             }
@@ -309,25 +316,39 @@ impl App {
 }
 
 /// The models of an export still to come, and what there is to say of those done (`Said`): said
-/// all together when the last one is done.
+/// all together when the last one is done; the models already told in the window to be beyond
+/// the cap of their new format (`told`).
 #[derive(Default)]
 pub(crate) struct ExportSaid {
     left: usize,
     said: Said,
+    told: std::collections::HashSet<String>,
 }
 
 /// What the end of an export says: the models not exported, each with its error as the loader
-/// gave it, and the names of those whose glTF placed a part more than once in its hierarchy (#179).
+/// gave it, the names of those whose glTF placed a part more than once in its hierarchy (#179),
+/// and those exported into a file EyeCanSee will not open, with the cap of its format
+/// (`model_limit::Limit::error`).
 #[derive(Default, Debug, PartialEq)]
 pub(crate) struct Said {
     pub(crate) failed: Vec<(String, String)>,
     pub(crate) again: Vec<String>,
+    pub(crate) beyond: Vec<(String, String)>,
 }
 
 impl ExportSaid {
     /// `n` models more to export; with an export still running, one message at the end of both.
     pub(crate) fn start(&mut self, n: usize) {
         self.left += n;
+    }
+
+    /// The model `from` exported into `to`, a file beyond the cap of its format: said at the end,
+    /// unless the window said it before (`told`).
+    pub(crate) fn beyond(&mut self, from: &str, to: &str) {
+        let kind = to.rsplit_once('.').and_then(|(_, ext)| crate::model_export::Kind::of_ext(ext));
+        if let Some(kind) = kind.filter(|_| !self.told.remove(from)) {
+            self.said.beyond.push((crate::source::name(from).to_string(), crate::model_limit::of_export(kind).error()));
+        }
     }
 
     /// A model exported (`again`: its name, if it placed a part more than once) or not (`failed`:
@@ -351,7 +372,12 @@ pub(crate) fn export_notice(i18n: &crate::i18n::I18n, said: &Said) -> Option<cra
         let whole = crate::batch_summary::item(i18n, crate::fault::NOT_OPENED, &format!("{name}\u{1}{e}"), false).1;
         Entry { name: name.clone(), why: i18n.brief_load(e).unwrap_or_default(), whole: Some(crate::save_dialogs::plain(&whole)) }
     });
-    let parts = vec![Part::of(i18n, "model-export-failed-heading", "", failed.collect()), Part::named(i18n, "model-export-again-heading", "model-export-again-why", &said.again)];
+    let beyond = said.beyond.iter().map(|(name, e)| Entry { name: name.clone(), why: i18n.brief_load(e).unwrap_or_default(), whole: None });
+    let parts = vec![
+        Part::of(i18n, "model-export-failed-heading", "", failed.collect()),
+        Part::named(i18n, "model-export-again-heading", "model-export-again-why", &said.again),
+        Part::of(i18n, "model-export-beyond-heading", "model-export-beyond-why", beyond.collect()),
+    ];
     (*said != Said::default()).then(|| crate::notice_list::told(i18n, i18n.t("model-export-done-title"), "", parts))
 }
 
@@ -385,12 +411,12 @@ mod tests {
     /// nothing; a second export started while the first runs is said with it, at the end of both.
     #[test]
     fn said_at_the_end() {
-        let again = |names: &[&str]| Some(Said { failed: Vec::new(), again: names.iter().map(|n| n.to_string()).collect() });
+        let again = |names: &[&str]| Some(Said { failed: Vec::new(), again: names.iter().map(|n| n.to_string()).collect(), ..Default::default() });
         let mut s = ExportSaid::default();
         s.start(3);
         assert_eq!(s.done(Some("a.gltf".into()), None), None);
         assert_eq!(s.done(None, Some(("b.gltf".into(), "cut short".into()))), None);
-        assert_eq!(s.done(Some("c.gltf".into()), None), Some(Said { failed: vec![("b.gltf".into(), "cut short".into())], again: vec!["a.gltf".into(), "c.gltf".into()] }));
+        assert_eq!(s.done(Some("c.gltf".into()), None), Some(Said { failed: vec![("b.gltf".into(), "cut short".into())], again: vec!["a.gltf".into(), "c.gltf".into()], ..Default::default() }));
         s.start(2);
         assert_eq!((s.done(None, None), s.done(None, None)), (None, None));
         s.start(1);
@@ -404,7 +430,7 @@ mod tests {
         assert_eq!(s.done(None, None), None);
         // The only model, not exported: said at once.
         s.start(1);
-        assert_eq!(s.done(None, Some(("m.step".into(), "no".into()))), Some(Said { failed: vec![("m.step".into(), "no".into())], again: Vec::new() }));
+        assert_eq!(s.done(None, Some(("m.step".into(), "no".into()))), Some(Said { failed: vec![("m.step".into(), "no".into())], again: Vec::new(), ..Default::default() }));
     }
 
     /// One model exported with a change: the title says the whole, the heading counts in the
@@ -414,7 +440,7 @@ mod tests {
     fn one_window_for_all() {
         let (en, it) = (I18n::new("en"), I18n::new("it"));
         let md = crate::save_dialogs::md;
-        let again = |names: &[String]| Said { failed: Vec::new(), again: names.to_vec() };
+        let again = |names: &[String]| Said { failed: Vec::new(), again: names.to_vec(), ..Default::default() };
         let one = export_notice(&it, &again(&["nodo_doppio.gltf".to_string()])).unwrap();
         assert!(one.warning);
         assert_eq!(one.title, "Esportazione finita");
@@ -434,6 +460,30 @@ mod tests {
         assert_eq!(export_notice(&en, &Said::default()).map(|n| n.title), None);
     }
 
+    /// Exported from the grid into files beyond the cap of their format (Piero, 22/11/2026): said
+    /// at the end with the cap, in a few words; not the one the window told already.
+    #[test]
+    fn beyond_told_at_the_end_d1() {
+        let (en, it) = (I18n::new("en"), I18n::new("it"));
+        let plain = crate::save_dialogs::plain;
+        let mut s = ExportSaid::default();
+        s.told.insert("d/seen.ply".into());
+        s.start(3);
+        s.beyond("d/big.ply", "d/big.obj");
+        assert_eq!(s.done(None, None), None);
+        s.beyond("d/seen.ply", "d/seen.obj");
+        assert_eq!(s.done(None, None), None);
+        s.beyond("d/huge.ply", "d/huge (2).glb");
+        let said = s.done(None, None).unwrap();
+        assert_eq!(said.beyond, [("big.ply".to_string(), crate::model_limit::OBJ.error()), ("huge.ply".to_string(), crate::model_limit::GLB.error())]);
+        assert!(s.told.is_empty());
+        let n = export_notice(&en, &said).unwrap();
+        assert!(n.warning);
+        assert_eq!(plain(&n.text), "2 models exported into files that EyeCanSee will not be able to open:\nThey have more triangles than EyeCanSee opens in their new format.\n- big.ply: more than 10 million triangles\n- huge.ply: more than 20 million triangles");
+        let one = Said { beyond: vec![("big.ply".into(), crate::model_limit::OBJ.error())], ..Default::default() };
+        assert_eq!(plain(&export_notice(&it, &one).unwrap().text), "1 modello esportato in un file che EyeCanSee non potrà aprire:\nHa più triangoli di quanti EyeCanSee ne apre nel suo nuovo formato.\n- big.ply: più di 10 milioni di triangoli");
+    }
+
     /// The models not exported, as Piero had them (21/11): a glTF without its data file, one with
     /// data damaged inside, one with data outside its folder, a GLB without its block, with the
     /// errors as the loader gives them. Each is a line of the list, in the order of the names:
@@ -446,7 +496,7 @@ mod tests {
         use crate::model_gltf::{DAMAGED_INSIDE, INCOMPLETE, MISSING_BIN, OUTSIDE_BIN};
         let (en, it) = (I18n::new("en"), I18n::new("it"));
         let plain = crate::save_dialogs::plain;
-        let said = |errors: &[(&str, String)]| Said { failed: errors.iter().map(|(n, e)| (n.to_string(), e.clone())).collect(), again: Vec::new() };
+        let said = |errors: &[(&str, String)]| Said { failed: errors.iter().map(|(n, e)| (n.to_string(), e.clone())).collect(), again: Vec::new(), ..Default::default() };
         let four = [("senza-bin.gltf", format!("{MISSING_BIN}\u{1}senza-bin.bin")), ("dati-rovinati.gltf", format!("{DAMAGED_INSIDE}\u{1}")), ("fuori.gltf", format!("{OUTSIDE_BIN}\u{1}../dati.bin")), ("incompleto.glb", format!("{INCOMPLETE}\u{1}"))];
         let n = export_notice(&it, &said(&four)).unwrap();
         assert!(n.warning);
@@ -465,7 +515,7 @@ mod tests {
         let copy = other.copy.unwrap();
         assert!(copy.contains("\n- Cannot open b.glb (unexpected end of file)\n") && copy.contains("c.stl") && !copy.contains("PermissionDenied") && copy.ends_with(&format!("\n- Cannot open d.step: {}", en.t("cad-engine-missing"))), "{copy}");
         let many: Vec<(String, String)> = (1..=12).map(|i| (format!("m{i}.glb"), "cut".to_string())).collect();
-        let both = export_notice(&en, &Said { failed: many, again: vec!["a.gltf".into()] }).unwrap();
+        let both = export_notice(&en, &Said { failed: many, again: vec!["a.gltf".into()], ..Default::default() }).unwrap();
         assert_eq!(both.title, "Export finished");
         assert!(plain(&both.text).contains("\n- m10.glb\n- and 2 more\n\n1 model exported with a change:\nIt placed one of its parts") && !both.text.contains("m11"), "{}", both.text);
         let copy = both.copy.unwrap();

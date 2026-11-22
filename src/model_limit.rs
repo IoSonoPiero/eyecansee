@@ -27,6 +27,21 @@ pub(crate) const OBJ: Limit = Limit { max: 10_000_000, format: "obj" };
 pub(crate) const PLY_TEXT: Limit = Limit { max: 10_000_000, format: "ply-text" };
 pub(crate) const THREE_MF: Limit = Limit { max: 10_000_000, format: "three-mf" };
 
+/// The note of a model exported (`model_export::export_file`) into a file beyond the cap of its
+/// new format (`of_export`): EyeCanSee will not open it (Piero, 22/11/2026).
+pub(crate) const BEYOND_EXPORT: &str = "model-export-beyond";
+
+/// The cap a file exported as `kind` is read back with: STL and PLY are written binary.
+pub(crate) fn of_export(kind: crate::model_export::Kind) -> Limit {
+    use crate::model_export::Kind;
+    match kind {
+        Kind::Stl => STL,
+        Kind::Obj => OBJ,
+        Kind::Ply => PLY_BINARY,
+        Kind::Glb => GLB,
+    }
+}
+
 /// Fluent id of the error, sent as `id\u{1}format max` (`said`).
 pub const TOO_MANY: &str = "error-model-too-many-triangles";
 /// Fluent id of the error of a point cloud (PLY), each point drawn as 4 triangles: sent as

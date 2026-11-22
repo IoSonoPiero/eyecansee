@@ -733,6 +733,25 @@ model-export-again-why = { $n ->
     [one] It placed one of its parts more than once in its hierarchy, which glTF does not allow: the new file has it only once.
    *[other] They placed one of their parts more than once in their hierarchy, which glTF does not allow: the new files have it only once.
 }
+# The window of Export, when models already read have more triangles than EyeCanSee opens in the format chosen: { $n } of them, { $all } yes when they are all the models chosen, { $max } the cap in millions, { $format } the format ("OBJ").
+model-export-beyond = { $n ->
+    [one] { $all ->
+        [yes] The model has
+       *[no] One of the models has
+    }
+   *[other] { $n } of the models have
+} more than { $max } million triangles: EyeCanSee will not be able to open the new { $format } { $n ->
+    [one] file. You can export it all the same.
+   *[other] files. You can export them all the same.
+}
+model-export-beyond-heading = { $n ->
+    [one] 1 model exported into a file that EyeCanSee will not be able to open:
+   *[other] { $n } models exported into files that EyeCanSee will not be able to open:
+}
+model-export-beyond-why = { $n ->
+    [one] It has more triangles than EyeCanSee opens in its new format.
+   *[other] They have more triangles than EyeCanSee opens in their new format.
+}
 hint-model = Arrows or drag: rotate | Shift + drag: move | Wheel, + and −: zoom | 0: starting view | M: measure | S: section | Space, Page Down: next | Backspace, Page Up: previous | Home, End: first, last | Ctrl + Shift + S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
 hint-edit-select = Click: select an object | Drag: move it | Drag a corner or an end: resize (Shift: a box keeps its proportions; a pasted piece keeps them, Shift frees them) | Drag the round handle above the object: rotate it (Shift: 15° at a time) | Double click on a text or bubble: change its letters | Del: delete | Ctrl + C: copy the result | Esc: let go of the object
 hint-edit-marquee = Drag: choose a part | Shift + drag: a square | Ctrl + C: copy the part | Ctrl + X: cut it | Ctrl + V: paste as an object | Click or Esc: let go of the part

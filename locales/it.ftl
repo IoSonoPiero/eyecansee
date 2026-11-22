@@ -743,6 +743,25 @@ model-export-again-why = { $n ->
     [one] Metteva una sua parte più volte nella gerarchia, cosa che glTF non permette: nel file nuovo c'è una volta sola.
    *[other] Mettevano una loro parte più volte nella gerarchia, cosa che glTF non permette: nei file nuovi c'è una volta sola.
 }
+# The window of Export, when models already read have more triangles than EyeCanSee opens in the format chosen: { $n } of them, { $all } yes when they are all the models chosen, { $max } the cap in millions, { $format } the format ("OBJ").
+model-export-beyond = { $n ->
+    [one] { $all ->
+        [yes] Il modello ha
+       *[no] Uno dei modelli ha
+    }
+   *[other] { $n } dei modelli hanno
+} più di { $max } milioni di triangoli: EyeCanSee non potrà aprire { $n ->
+    [one] il nuovo file { $format }. Puoi esportarlo lo stesso.
+   *[other] i nuovi file { $format }. Puoi esportarli lo stesso.
+}
+model-export-beyond-heading = { $n ->
+    [one] 1 modello esportato in un file che EyeCanSee non potrà aprire:
+   *[other] { $n } modelli esportati in file che EyeCanSee non potrà aprire:
+}
+model-export-beyond-why = { $n ->
+    [one] Ha più triangoli di quanti EyeCanSee ne apre nel suo nuovo formato.
+   *[other] Hanno più triangoli di quanti EyeCanSee ne apre nel loro nuovo formato.
+}
 hint-model = Frecce o trascinare: ruotare | Maiusc + trascinare: spostare | Rotellina, + e −: zoom | 0: vista di partenza | M: misura | S: sezione | Spazio, Pag↓: successivo | Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | Ctrl + Maiusc + S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
 hint-edit-select = Clic: seleziona un oggetto | Trascinare: lo sposta | Trascinare un angolo o un capo: ridimensiona (Maiusc: un riquadro mantiene le proporzioni; un pezzo incollato le mantiene, Maiusc le libera) | Trascinare la maniglia tonda sopra l'oggetto: lo ruota (Maiusc: a scatti di 15°) | Doppio clic su un testo o un fumetto: cambia le lettere | Canc: elimina | Ctrl + C: copia il risultato | Esc: lascia l'oggetto
 hint-edit-marquee = Trascinare: sceglie una zona | Maiusc + trascinare: un quadrato | Ctrl + C: copia la zona | Ctrl + X: la taglia | Ctrl + V: incolla come oggetto | Clic o Esc: lascia la zona
