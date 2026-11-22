@@ -50,8 +50,10 @@ jobs:
             ${{ runner.temp }}/appimage-cache/rustup
             target/appimage-check
           # Saved again only when the crates change (Cargo.lock): EyeCanSee itself is quick to build.
-          key: appimage-check-${{ hashFiles('Cargo.lock') }}
-          restore-keys: appimage-check-
+          # The C libraries in the key too: libheif-sys keeps in target the folder of libde265 and
+          # dav1d it was built with, gone once their versions change (dav1d 1.5.5, #172).
+          key: appimage-check-${{ steps.deps.outputs.key }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: appimage-check-${{ steps.deps.outputs.key }}-
       - name: Clippy and tests
         env:
           APPIMAGE_CACHE: ${{ runner.temp }}/appimage-cache
