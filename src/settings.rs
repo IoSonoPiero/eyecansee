@@ -525,6 +525,23 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
+    /// At full screen (F11, the slideshow) the window's size and state stay as they were: closed
+    /// from there, with "remember" the window reopened as large as the screen (audit 1.11).
+    #[test]
+    fn full_screen_not_remembered() {
+        let mut s = Settings::default();
+        let normal = egui::ViewportInfo { maximized: Some(false), fullscreen: Some(false), ..Default::default() };
+        s.note_window(egui::vec2(900.0, 600.0), &normal);
+        assert_eq!((s.window_size, s.window_maximized), (Some([900.0, 600.0]), false));
+        let full = egui::ViewportInfo { maximized: Some(false), fullscreen: Some(true), ..Default::default() };
+        s.note_window(egui::vec2(1920.0, 1080.0), &full);
+        assert_eq!((s.window_size, s.window_maximized), (Some([900.0, 600.0]), false));
+        // Full screen from a maximised window: still maximised, whatever the desktop says then.
+        s.note_window(egui::vec2(1920.0, 1040.0), &egui::ViewportInfo { maximized: Some(true), ..Default::default() });
+        s.note_window(egui::vec2(1920.0, 1080.0), &full);
+        assert_eq!((s.window_size, s.window_maximized), (Some([900.0, 600.0]), true));
+    }
+
     /// A settings file from before #151 has no `smooth`: the pictures are smoothed.
     #[test]
     fn smooth_is_on_in_an_old_file() {
