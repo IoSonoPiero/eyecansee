@@ -26,6 +26,10 @@ Where a format cannot hold a picture, its colours are taken from the picture, so
 
 Each file is written with the up axis other programs expect: Z for STL and PLY, Y for OBJ and glTF. So the model opens standing in those programs too. For this reason the axes in the corner of the viewer can differ from those of the original.
 
+## Units
+
+glTF counts in metres. A model whose file says its unit (STEP and IGES in millimetres, 3MF and AMF as they say) is converted to metres when it is exported as glTF, so it keeps its size: a part of 100 mm becomes 0.1 m. STL, OBJ and PLY have no place for the unit: the numbers stay as they are, and the unit is written at the top of the file as a comment, which other programs do not read.
+
 ## Good to know
 
 - To save a model as a picture instead, see [3D models](model-3d.md) (**Ctrl + Shift + S** in the viewer).

@@ -4,7 +4,9 @@
 //! vertices; PLY (binary) and STL (binary, VisCAM colours) a colour per triangle. Where the
 //! format cannot hold a picture, its colours are taken from it. Each is written with the up axis
 //! other programs expect, so that it opens standing (tried with Blender 4.5, 2026-11-02): Z for
-//! STL and PLY (with a mark EyeCanSee reads, `model::PLY_Z_UP`), Y for OBJ and glTF.
+//! STL and PLY (with a mark EyeCanSee reads, `model::PLY_Z_UP`), Y for OBJ and glTF. glTF counts
+//! in metres: a model whose unit is known is converted; the others keep their numbers and say the
+//! unit in their header (`unit_line`), which other programs take as a comment.
 
 use std::collections::BTreeMap;
 use std::fmt::Write;
@@ -47,6 +49,8 @@ struct View<'a> {
     mesh: &'a Mesh,
     /// Z up (STL, PLY), else Y up (OBJ, glTF).
     z_up: bool,
+    /// What the positions are multiplied by: to metres for glTF, else 1.
+    scale: f32,
 }
 
 impl View<'_> {
@@ -59,7 +63,7 @@ impl View<'_> {
     }
 
     fn corner(&self, t: usize, k: usize) -> [f32; 3] {
-        self.turn(self.mesh.pos[self.mesh.tris[t][k] as usize])
+        self.turn(self.mesh.pos[self.mesh.tris[t][k] as usize]).map(|c| c * self.scale)
     }
 
     /// Normals at the corners: the file's, else the face's own.
@@ -131,9 +135,32 @@ pub fn export_file(bytes: &[u8], name: &str, sibling: crate::model::Sibling, kin
     Ok((export(&mesh, kind), mesh.warnings))
 }
 
+/// How many metres a unit of `model::Mesh::unit` is.
+fn metres(unit: &str) -> Option<f32> {
+    Some(match unit {
+        "µm" => 1e-6,
+        "mm" => 1e-3,
+        "cm" => 1e-2,
+        "m" => 1.0,
+        "in" => 0.0254,
+        "ft" => 0.3048,
+        _ => return None,
+    })
+}
+
+/// The unit in the header of a format without a place for it (STL, OBJ, PLY), after its mark of
+/// comment; nothing when the model does not say it.
+fn unit_line(mesh: &Mesh, comment: &str) -> String {
+    mesh.unit.map(|u| format!("{comment} unit: {u}\n")).unwrap_or_default()
+}
+
 /// The file's bytes.
 pub fn export(mesh: &Mesh, kind: Kind) -> Vec<u8> {
-    let v = View { mesh, z_up: matches!(kind, Kind::Stl | Kind::Ply) };
+    let scale = match (kind, mesh.unit) {
+        (Kind::Glb, Some(u)) => metres(u).unwrap_or(1.0),
+        _ => 1.0,
+    };
+    let v = View { mesh, z_up: matches!(kind, Kind::Stl | Kind::Ply), scale };
     match kind {
         Kind::Stl => stl(&v),
         Kind::Obj => obj(&v),
@@ -147,7 +174,8 @@ fn floats(out: &mut Vec<u8>, v: &[f32]) {
 }
 
 fn stl(v: &View) -> Vec<u8> {
-    let mut out = b"EyeCanSee".to_vec();
+    // The header is free text: the unit in it, as in OBJ and PLY.
+    let mut out = format!("EyeCanSee{}", v.mesh.unit.map(|u| format!(", unit: {u}")).unwrap_or_default()).into_bytes();
     out.resize(80, 0);
     out.extend((v.mesh.tris.len() as u32).to_le_bytes());
     let colored = v.colored();
@@ -170,7 +198,7 @@ fn stl(v: &View) -> Vec<u8> {
 }
 
 fn obj(v: &View) -> Vec<u8> {
-    let mut s = String::from("# EyeCanSee\n");
+    let mut s = format!("# EyeCanSee\n{}", unit_line(v.mesh, "#"));
     let (colored, smooth) = (v.colored(), !v.mesh.normals.is_empty());
     // Each triangle its own corners: colours and normals are per corner.
     for t in 0..v.mesh.tris.len() {
@@ -196,15 +224,16 @@ fn obj(v: &View) -> Vec<u8> {
 fn ply(v: &View) -> Vec<u8> {
     let colored = v.colored();
     let mut out = format!(
-        "ply\nformat binary_little_endian 1.0\n{}\nelement vertex {}\nproperty float x\nproperty float y\nproperty float z\nelement face {}\nproperty list uchar uint vertex_indices\n{}end_header\n",
+        "ply\nformat binary_little_endian 1.0\n{}\n{}element vertex {}\nproperty float x\nproperty float y\nproperty float z\nelement face {}\nproperty list uchar uint vertex_indices\n{}end_header\n",
         crate::model::PLY_Z_UP,
+        unit_line(v.mesh, "comment"),
         v.mesh.pos.len(),
         v.mesh.tris.len(),
         if colored { "property uchar red\nproperty uchar green\nproperty uchar blue\n" } else { "" }
     )
     .into_bytes();
     for p in &v.mesh.pos {
-        floats(&mut out, &v.turn(*p));
+        floats(&mut out, &v.turn(*p).map(|c| c * v.scale));
     }
     for (t, tri) in v.mesh.tris.iter().enumerate() {
         out.push(3);

@@ -26,6 +26,10 @@ Dove un formato non sa contenere un'immagine, i colori vengono presi dall'immagi
 
 Ogni file viene scritto con l'asse verso l'alto che si aspettano gli altri programmi: Z per STL e PLY, Y per OBJ e glTF. Così il modello si apre in piedi anche lì. Per questo gli assi nell'angolo del visore possono essere diversi da quelli dell'originale.
 
+## Unità di misura
+
+glTF conta in metri. Un modello il cui file dice la sua unità (STEP e IGES in millimetri, 3MF e AMF come dicono) viene convertito in metri quando si esporta in glTF, così tiene la sua misura: un pezzo di 100 mm diventa 0,1 m. STL, OBJ e PLY non hanno un posto per l'unità: i numeri restano come sono, e l'unità viene scritta in cima al file come commento, che gli altri programmi non leggono.
+
 ## Da sapere
 
 - Per salvare invece un modello come immagine, vedi [Modelli 3D](model-3d.md) (**Ctrl + Maiusc + S** nel visore).
