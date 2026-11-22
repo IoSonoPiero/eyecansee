@@ -6,13 +6,9 @@ use std::io::Cursor;
 /// Extensions read as 3D models.
 const MODEL: &[&str] = &["stl", "obj", "ply", "glb", "gltf", "3mf", "ifc", "fbx", "3ds", "off", "amf", "dae", "zae", "wrl", "wrz", "x3d", "x3dv", "x3dz", "x3dvz"];
 
-/// Beyond this the file is refused instead of filling the memory (a 3D scan of a statue is ~10 M).
+/// Beyond this the file is refused instead of filling the memory (a 3D scan of a statue is ~10 M),
+/// in the formats without a cap of their own (`model_limit`).
 pub(crate) const MAX_TRIANGLES: usize = 50_000_000;
-/// Points and triangles the parts of one model may bring (`Builder::add_shiny`), kept or dropped:
-/// a triangle with its three points, as STL gives them. A part placed again and again counts at
-/// every placement, so that it cannot take forever or fill the memory even when its points are
-/// not used or its triangles are dropped.
-pub(crate) const MAX_OFFERED: usize = 4 * MAX_TRIANGLES;
 /// Nodes, instances and blocks placed while reading one model or drawing (`Builder::visit`,
 /// `cad::Walk::block`). A part can be placed by many parents, each placed by many more: a file of
 /// a few KB can ask for 10^32 placements. A million is far more than a scene places (a 3MF plate
@@ -117,13 +113,24 @@ pub(crate) struct Builder {
     surfaces: Vec<Surface>,
     /// Per triangle, as `colors`: surface and normals (`Shine`).
     shine: Vec<(u16, Option<[[f32; 3]; 3]>)>,
-    /// Nodes and instances placed so far (`visit`), points and triangles brought (`MAX_OFFERED`).
+    /// Nodes and instances placed so far (`visit`), points and triangles brought (`Limit::offered`).
     visits: usize,
     offered: usize,
     warnings: Vec<&'static str>,
+    /// The cap of the format read (`model_limit`).
+    limit: crate::model_limit::Limit,
 }
 
 impl Builder {
+    /// For a format with a cap of its own (`model_limit`); `default` has the others'.
+    pub(crate) fn up_to(limit: crate::model_limit::Limit) -> Self {
+        Builder { limit, ..Default::default() }
+    }
+
+    pub(crate) fn limit(&self) -> crate::model_limit::Limit {
+        self.limit
+    }
+
     /// Something read differently from the file, said once in the viewer (`Mesh::warnings`).
     pub(crate) fn warn(&mut self, id: &'static str) {
         if !self.warnings.contains(&id) {
@@ -144,15 +151,16 @@ impl Builder {
 
     /// As `add`, with texture, surface and normals of each triangle.
     pub(crate) fn add_shiny(&mut self, pos: Vec<[f32; 3]>, tris: impl IntoIterator<Item = [u32; 3]>, mut color: impl FnMut(usize) -> Option<[u8; 3]>, mut shine: impl FnMut(usize) -> Shine) -> Result<(), String> {
+        let offered = self.limit.offered();
         self.offered = self.offered.saturating_add(pos.len());
-        if self.offered > MAX_OFFERED {
-            return Err(format!("more than {MAX_OFFERED} points and triangles"));
+        if self.offered > offered {
+            return Err(format!("more than {offered} points and triangles"));
         }
         let base = self.pos.len() as u32;
         let n = pos.len() as u32;
         let tris = tris.into_iter();
         // As many as given at once (a list), not twice as many by growing.
-        self.tris.reserve(tris.size_hint().0.min(MAX_TRIANGLES + 1));
+        self.tris.reserve(tris.size_hint().0.min(self.limit.max + 1));
         for (i, t) in tris.enumerate() {
             if t.iter().all(|&v| v < n) {
                 self.tris.push(t.map(|v| v + base));
@@ -165,11 +173,9 @@ impl Builder {
                 pad(&mut self.shine, k, (surface, normals));
             }
             self.offered += 1;
-            if self.tris.len() > MAX_TRIANGLES {
-                return Err(format!("more than {MAX_TRIANGLES} triangles"));
-            }
-            if self.offered > MAX_OFFERED {
-                return Err(format!("more than {MAX_OFFERED} points and triangles"));
+            self.limit.check(self.tris.len())?;
+            if self.offered > offered {
+                return Err(format!("more than {offered} points and triangles"));
             }
         }
         self.pos.extend(pos);
@@ -409,7 +415,7 @@ fn stl(bytes: &[u8]) -> Result<Mesh, String> {
         _ => bytes,
     };
     let m = stl_io::read_stl(&mut Cursor::new(bytes)).map_err(|e| e.to_string())?;
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(crate::model_limit::STL);
     let tris = m.faces.iter().map(|f| f.vertices.map(|v| v as u32));
     b.add(m.vertices.iter().map(|v| v.0).collect(), tris, |_| None)?;
     b.finish(true)
@@ -434,7 +440,7 @@ fn stl_binary(bytes: &[u8], n: usize) -> Result<Mesh, String> {
             _ => None,
         });
     }
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(crate::model_limit::STL);
     b.add(pos, (0..n as u32).map(|i| [i * 3, i * 3 + 1, i * 3 + 2]), |i| colors[i])?;
     b.finish(true)
 }
@@ -483,7 +489,7 @@ fn obj(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     };
     let (models, materials) = tobj::load_obj_buf(&mut Cursor::new(utf8(bytes).as_bytes()), &options, mtl).map_err(|e| e.to_string())?;
     let materials = materials.unwrap_or_default();
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(crate::model_limit::OBJ);
     let mut surfaces: std::collections::HashMap<usize, u16> = std::collections::HashMap::new();
     for m in models {
         let id = m.mesh.material_id;

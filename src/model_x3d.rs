@@ -109,7 +109,7 @@ impl Walk<'_, '_> {
         });
         if let Some(g) = n.children().find(|g| matches!(g.kind.as_str(), "IndexedLineSet" | "LineSet" | "PointSet")) {
             self.line_set(g, m, color);
-            return crate::model_lines::fits(self.lines.len() + self.points.len());
+            return crate::model_lines::fits(self.lines.len() + self.points.len(), crate::model_limit::OTHER);
         }
         let Some(part) = n.children().find_map(geometry) else { return Ok(()) };
         let part = part?;

@@ -79,9 +79,11 @@ pub fn read(bytes: &[u8], sibling: Sibling, unpacked: &crate::model_3mf::Unpacke
     if let Some(e) = cut(bytes) {
         return Err(e);
     }
+    // A GLB by its first bytes, also when its data is first made plain; a .gltf as the others.
+    let limit = if bytes.starts_with(b"glTF") { crate::model_limit::GLB } else { crate::model_limit::OTHER };
     match crate::model_gltf_unpack::plain(bytes, sibling, unpacked)? {
-        Some(glb) => read_plain(&glb, sibling),
-        None => read_plain(bytes, sibling),
+        Some(glb) => read_plain(&glb, sibling, limit),
+        None => read_plain(bytes, sibling, limit),
     }
 }
 
@@ -127,7 +129,7 @@ pub(crate) fn cut_text(i18n: &crate::i18n::I18n, id: &str, detail: &str) -> Opti
     Some(if expected == actual { i18n.t_args(CUT, &[("detail", rest)]) } else { i18n.t_args(CUT_SIZES, &[("expected", &expected), ("actual", &actual), ("detail", rest)]) })
 }
 
-fn read_plain(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
+fn read_plain(bytes: &[u8], sibling: Sibling, limit: crate::model_limit::Limit) -> Result<Mesh, String> {
     let g = gltf::Gltf::from_slice(bytes).map_err(|e| gltf_error(e.to_string()))?;
     let inside: Vec<Option<Vec<u8>>> = g
         .document
@@ -145,7 +147,7 @@ fn read_plain(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     if let Some(b) = g.document.buffers().find(|b| data(b.clone()).is_none()) {
         return Err(unread_buffer(b.source()));
     }
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(limit);
     let mut extra: Extra = (Vec::new(), Vec::new(), HashMap::new(), HashSet::new(), 0);
     // The materials' pictures, read once: in the file, in base64, or next to it; decoded in
     // parallel (a 2048² picture takes ~30 ms).
@@ -220,7 +222,7 @@ fn gltf_node<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>
     let m = mul(parent, &node.transform().matrix());
     if let Some(mesh) = node.mesh() {
         gltf_mesh(b, extra, &mesh, &m, data)?;
-        crate::model_lines::fits(extra.0.len() + extra.1.len())?;
+        crate::model_lines::fits(extra.0.len() + extra.1.len(), b.limit())?;
     }
     for child in node.children() {
         gltf_node(b, extra, &child, &m, data, depth + 1)?;

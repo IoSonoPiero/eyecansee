@@ -136,7 +136,7 @@ pub fn read(bytes: &[u8], unpacked: &Unpacked) -> Result<Mesh, String> {
     let mut files = Files { zip, unpacked, texts: HashMap::new(), pictures: HashMap::new() };
     let text = files.text(&main)?;
     let doc = Document::parse(&text).map_err(|e| e.to_string())?;
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(crate::model_limit::THREE_MF);
     let model = Model::new(&doc);
     for item in doc.descendants().filter(|n| n.has_tag_name_local("item")) {
         let Some(id) = item.attribute("objectid") else { continue };

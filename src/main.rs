@@ -121,6 +121,7 @@ mod model_fbx;
 mod model_gltf;
 mod model_gltf_unpack;
 mod model_ifc;
+mod model_limit;
 mod model_cpu;
 mod model_lines;
 mod model_measure;
