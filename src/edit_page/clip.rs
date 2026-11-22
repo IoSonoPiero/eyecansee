@@ -216,4 +216,17 @@ mod tests {
         assert!(matches!(clip_event(&Event::Paste("text".into()), &mut pasted), (Some(Act::EditPaste(None)), false)));
         assert!(matches!(clip_event(&v_up(Modifiers::COMMAND), &mut pasted), (None, true)));
     }
+
+    /// An image pasted from another program larger than the editor takes (20 000 pixels a side)
+    /// is refused: it had no limit (audit 5.10). One that fits becomes a patch.
+    #[test]
+    fn pasted_image_within_the_limit() {
+        let mut w = super::super::Window::new("p/a.png".into(), Default::default(), super::super::Tool::Select);
+        w.doc = crate::edit::doc::Doc::new(64, 48, None);
+        let max = crate::edit::resize::MAX_SIDE as usize;
+        assert!(clipboard_patch(&w, &ColorImage::filled([30, 20], egui::Color32::RED)).is_some());
+        assert!(clipboard_patch(&w, &ColorImage::filled([max, 2], egui::Color32::RED)).is_some());
+        assert!(clipboard_patch(&w, &ColorImage::filled([max + 1, 2], egui::Color32::RED)).is_none());
+        assert!(clipboard_patch(&w, &ColorImage::filled([2, max + 1], egui::Color32::RED)).is_none());
+    }
 }

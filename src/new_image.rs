@@ -225,6 +225,26 @@ mod tests {
         assert_eq!(blank((4, 3), Some([1, 2, 3])).to_rgba8().get_pixel(3, 2).0, [1, 2, 3, 255]);
     }
 
+    /// At most 200 megapixels: 20 000 × 20 000 (1.6 GB, a mistake with the units brings there) is
+    /// not made, Enter or no Enter; 20 000 × 10 000 and A4 at 300 dpi are (4.15 a).
+    #[test]
+    fn at_most_200_megapixels() {
+        let ctx = egui::Context::default();
+        let enter = egui::Event::Key { key: egui::Key::Enter, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() };
+        let i18n = I18n::new("en");
+        let made = |w: f32, h: f32, unit: Unit| {
+            let mut f = Form { preset: None, w, h, unit, ..Form::new() };
+            let mut answer = None;
+            for events in [vec![], vec![enter.clone()]] {
+                ctx.run_ui(egui::RawInput { events, ..Default::default() }, |ui| answer = new_image_form(ui, &mut f, &i18n).or(answer.take())).textures_delta.clear();
+            }
+            matches!(answer, Some(Answer::Create))
+        };
+        assert!(!made(20_000.0, 20_000.0, Unit::Px));
+        assert!(made(20_000.0, 10_000.0, Unit::Px));
+        assert!(made(210.0, 297.0, Unit::Mm));
+    }
+
     /// In the grid of a folder open; not in the viewer, not before a folder is open.
     #[test]
     fn available_in_the_grid_only() {

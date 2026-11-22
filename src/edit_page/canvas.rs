@@ -722,6 +722,39 @@ mod tests {
         assert_eq!(resized(start, 1, 0, egui::vec2(-500.0, 0.0), None).w, 1.0);
     }
 
+    /// The crop stops at the largest side (20 000 pixels, or the photo's own side when it is
+    /// larger): a side dragged far with the view zoomed out, or the whole of a straightened image,
+    /// made a result of tens of thousands of pixels a side, which ran out of memory at Save or
+    /// Copy (audit 5.10).
+    #[test]
+    fn crop_within_the_limit() {
+        use crate::edit::doc::Doc;
+        let max = crate::edit::resize::MAX_SIDE as f32;
+        let start = Crop::centred(100.0, 50.0);
+        let far = resized(start, 1, 0, egui::vec2(60_000.0, 0.0), None);
+        assert_eq!((far.w, far.h, far.cx - far.w / 2.0), (max, 50.0, -50.0), "the left side stays");
+        let both = resized(start, -1, -1, egui::vec2(-90_000.0, -90_000.0), Some(2.0));
+        assert!(both.w <= max && both.h <= max && (both.w / both.h - 2.0).abs() < 1e-3, "{both:?}");
+        assert_eq!((both.cx + both.w / 2.0, both.cy + both.h / 2.0), (50.0, 25.0), "the bottom right corner stays");
+        // All of a photo of 20 000 × 2000 straightened by 10°: 20 043 across.
+        let tex = egui::Context::default().load_texture("t", egui::ColorImage::filled([1, 1], egui::Color32::WHITE), Default::default());
+        let mut w = Window::new("p/a.png".into(), Default::default(), Tool::Select);
+        let photo = |w: &mut Window, iw, ih| {
+            let image = std::sync::Arc::new(crate::encode::Original::with_meta(image::DynamicImage::ImageLuma8(image::GrayImage::new(iw, ih)), &[]));
+            w.original = Some(Ok((image, tex.clone().into(), 0)));
+            w.doc = Doc::new(iw, ih, None);
+        };
+        photo(&mut w, 20_000, 2_000);
+        (w.follow, w.doc.angle) = (Follow::Whole, 10.0);
+        w.refit();
+        assert!(w.doc.crop.w <= max && w.doc.crop.h <= max, "{:?}", w.doc.crop);
+        // A photo larger than that keeps all of itself.
+        photo(&mut w, 21_000, 10);
+        (w.follow, w.doc.angle) = (Follow::Whole, 0.0);
+        w.refit();
+        assert_eq!(w.doc.crop.pixels(), (21_000, 10));
+    }
+
     /// Issue #103: a click outside the result with Text, Step numbers or Stamps places nothing and
     /// gives no text the keys; inside it places one. An empty text goes when another is placed.
     #[test]
