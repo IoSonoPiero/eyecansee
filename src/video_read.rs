@@ -473,27 +473,9 @@ fn keep_copy(key: String, tmp: PathBuf) {
 }
 
 /// Start of the names of the temporary video copies: "eyecansee-video-" (the test copy has its
-/// own, so the two copies of the app never remove each other's).
+/// own, so the two copies of the app never remove each other's; `temp_file::remove_old_copies`).
 pub(crate) fn temp_prefix() -> String {
     format!("{}-video-", crate::test_copy::NAME)
-}
-
-/// At start (after `single::hand_over`, so no other copy of the app is using them): the copies a
-/// copy of the app closed by force or crashed left in the temporary folder. Not with
-/// `EYECANSEE_MULTI`: another instance may be using them.
-pub(crate) fn remove_old_copies() {
-    if crate::single::multi() {
-        return;
-    }
-    let Ok(dir) = std::fs::read_dir(std::env::temp_dir()) else { return };
-    for entry in dir.flatten() {
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if name.starts_with(&temp_prefix()) && name.ends_with(".tmp") {
-            log!("old video copy removed: {name}");
-            let _ = std::fs::remove_file(entry.path());
-        }
-    }
 }
 
 /// At exit: the copies go.

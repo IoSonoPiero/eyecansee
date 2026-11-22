@@ -5,7 +5,7 @@
 //! `model::Mesh` for the 3D viewer.
 
 use std::ffi::{CStr, CString, c_char, c_int};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
 use crate::model::{Builder, Mesh};
@@ -97,8 +97,8 @@ impl Drop for Temp {
 }
 
 /// The start of the copies' names, by which those left by a copy of the app closed by force are
-/// found again (`remove_old_copies`); the test copy has its own.
-fn temp_prefix() -> String {
+/// found again (`temp_file::remove_old_copies`); the test copy has its own.
+pub(crate) fn temp_prefix() -> String {
     format!("{}-cad-", crate::test_copy::NAME)
 }
 
@@ -106,52 +106,10 @@ fn temp_prefix() -> String {
 /// the user can read, under a name nobody can work out beforehand, never written through a link
 /// or over a file already there (`create_new`).
 fn temp_copy(bytes: &[u8], ext: &str) -> Result<Temp, String> {
-    use std::hash::{BuildHasher, Hasher};
-    for _ in 0..8 {
-        // Keys seeded from the system's random source, new for each `RandomState`.
-        let n = std::hash::RandomState::new().build_hasher().finish();
-        let path = std::env::temp_dir().join(format!("{}{}-{n:016x}.{ext}", temp_prefix(), std::process::id()));
-        match new_private(&path) {
-            Ok(mut f) => {
-                let temp = Temp(path);
-                std::io::Write::write_all(&mut f, bytes).map_err(|e| e.to_string())?;
-                return Ok(temp);
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(e) => return Err(e.to_string()),
-        }
-    }
-    Err("no new name for the temporary copy".into())
-}
-
-/// A new file only the user can read; an error when the name is taken, even by a link.
-fn new_private(path: &Path) -> std::io::Result<std::fs::File> {
-    let mut open = std::fs::OpenOptions::new();
-    open.write(true).create_new(true);
-    #[cfg(unix)]
-    std::os::unix::fs::OpenOptionsExt::mode(&mut open, 0o600);
-    open.open(path)
-}
-
-/// At start (after `single::hand_over`, so no other copy of the app is using them): the copies a
-/// copy of the app closed by force or crashed left in the temporary folder. Not with
-/// `EYECANSEE_MULTI`: another instance may be using them.
-pub(crate) fn remove_old_copies() {
-    if !crate::single::multi() {
-        remove_old_copies_in(&std::env::temp_dir());
-    }
-}
-
-fn remove_old_copies_in(dir: &Path) {
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
-    for entry in entries.flatten() {
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if name.starts_with(&temp_prefix()) {
-            log!("old CAD copy removed: {name}");
-            let _ = std::fs::remove_file(entry.path());
-        }
-    }
+    let (path, mut f) = crate::temp_file::create(&temp_prefix(), ext).map_err(|e| e.to_string())?;
+    let temp = Temp(path);
+    std::io::Write::write_all(&mut f, bytes).map_err(|e| e.to_string())?;
+    Ok(temp)
 }
 
 thread_local! {
@@ -333,44 +291,6 @@ mod tests {
         }
         let _ = std::fs::remove_file(&ours);
         assert_eq!(after, b"ours", "the copy was written through a link, over another file");
-    }
-
-    /// The file made for the copy is never one already there: a link under its name is refused,
-    /// and the file it points to stays as it was.
-    #[test]
-    #[cfg(unix)]
-    fn new_private_refuses_a_link() {
-        let dir = std::env::temp_dir().join(format!("eyecansee-occt-link-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("ours"), b"ours").unwrap();
-        std::os::unix::fs::symlink(dir.join("ours"), dir.join("copy.step")).unwrap();
-        std::os::unix::fs::symlink(dir.join("nowhere"), dir.join("dangling.step")).unwrap();
-        let link = new_private(&dir.join("copy.step")).map(|_| ()).map_err(|e| e.kind());
-        let dangling = new_private(&dir.join("dangling.step")).map(|_| ()).map_err(|e| e.kind());
-        let (ours, nowhere) = (std::fs::read(dir.join("ours")).unwrap(), dir.join("nowhere").exists());
-        std::fs::remove_dir_all(&dir).unwrap();
-        assert_eq!(link, Err(std::io::ErrorKind::AlreadyExists));
-        assert_eq!(dangling, Err(std::io::ErrorKind::AlreadyExists));
-        assert_eq!(ours, b"ours");
-        assert!(!nowhere);
-    }
-
-    /// The copies left by an earlier run go at start, and nothing else in the folder.
-    #[test]
-    fn old_copies_removed() {
-        let dir = std::env::temp_dir().join(format!("eyecansee-occt-old-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        let old = dir.join(format!("{}123-00ff.step", temp_prefix()));
-        let others = [dir.join("eyecansee-video-1-0.tmp"), dir.join("model.step"), dir.join("cad-1.step")];
-        for f in others.iter().chain([&old]) {
-            std::fs::write(f, b"x").unwrap();
-        }
-        remove_old_copies_in(&dir);
-        let (gone, kept) = (!old.exists(), others.iter().all(|f| f.exists()));
-        std::fs::remove_dir_all(&dir).unwrap();
-        assert!(gone && kept);
     }
 
     /// A model read with its local file gives the engine that file, with no copy, until the

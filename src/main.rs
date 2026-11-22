@@ -178,6 +178,7 @@ mod thumb_details;
 mod thumb_memory;
 mod thumb_queue;
 mod test_copy;
+mod temp_file;
 #[cfg(test)]
 mod test_alloc;
 #[cfg(test)]
@@ -687,8 +688,7 @@ fn main() -> eframe::Result {
     if std::env::var_os("EYECANSEE_SCREENSHOT").is_none() && single::hand_over(arg.as_deref().unwrap_or("")) {
         return Ok(());
     }
-    video_read::remove_old_copies();
-    occt::remove_old_copies();
+    temp_file::remove_old_copies();
     // Flatpak points XDG_DATA_HOME into the sandbox: files would go to a trash no file manager sees.
     let flatpak_id = std::env::var("FLATPAK_ID").ok();
     if let (Some(_), Some(home)) = (&flatpak_id, std::env::var_os("HOME")) {
