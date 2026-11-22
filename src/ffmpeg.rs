@@ -1070,4 +1070,16 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
         assert!(!works && took >= std::time::Duration::from_secs(10) && took < std::time::Duration::from_secs(12), "{works} after {took:?}");
     }
+
+    /// #275: a length of zero ("Duration: 00:00:00.00") gives no progress that is not a number.
+    #[cfg(unix)]
+    #[test]
+    fn length_zero() {
+        let script = r"printf '  Duration: 00:00:00.00, start: 0.000000\n' >&2
+            sleep 0.3
+            printf 'out_time_us=0\nout_time_us=40000\n'";
+        let (r, seen, _) = fake_run(script, &AtomicBool::new(false));
+        assert_eq!(r, Ok(()));
+        assert!(seen.iter().all(|f| f.is_finite()), "progress {seen:?}");
+    }
 }
