@@ -607,6 +607,73 @@ mod tests {
         assert!(failed.is_empty(), "{failed:#?}");
     }
 
+    /// Megabytes of `key` in /proc/self/status (VmRSS, VmHWM).
+    #[cfg(target_os = "linux")]
+    fn status_mb(key: &str) -> u64 {
+        let s = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
+        s.lines().find(|l| l.starts_with(key)).and_then(|l| l.split_whitespace().nth(1)).and_then(|v| v.parse::<u64>().ok()).unwrap_or(0) / 1024
+    }
+
+    /// #191: the model in `EYECANSEE_PROBE` read as the viewer reads it, with the peak of the
+    /// whole process while it is read (VmHWM), what the process keeps once it is read (VmRSS) and
+    /// the bytes a triangle at the peak. `EYECANSEE_PROBE_BEFORE=1` reads it with the parser of
+    /// before too, and compares. Run alone in a release build, in a cgroup with a ceiling on the
+    /// memory (`systemd-run --user --scope -p MemoryMax=12G -p MemorySwapMax=0`).
+    #[test]
+    #[ignore]
+    #[cfg(target_os = "linux")]
+    fn peak_live_191() {
+        let Ok(path) = std::env::var("EYECANSEE_PROBE") else { return };
+        let bytes = std::fs::read(&path).unwrap();
+        let name = std::path::Path::new(&path).file_name().unwrap().to_string_lossy().to_string();
+        let file = bytes.len() >> 20;
+        let _ = std::fs::write("/proc/self/clear_refs", "5");
+        let (start, t) = (status_mb("VmRSS:"), std::time::Instant::now());
+        let m = crate::model::parse(&bytes, &name).unwrap();
+        let (took, peak, kept) = (t.elapsed(), status_mb("VmHWM:"), status_mb("VmRSS:"));
+        let n = m.tris.len().max(1) as u64;
+        println!("RESULT {name}: {} triangles, {} points, file {file} MB, read in {took:.1?}", m.tris.len(), m.pos.len());
+        println!("RESULT peak {peak} MB ({} bytes a triangle beyond the file and the start), kept {kept} MB, {} MB of vertices for the graphics card", (peak.saturating_sub(start)) * (1 << 20) / n, (n * 132) >> 20);
+        if std::env::var_os("EYECANSEE_PROBE_BEFORE").is_some() {
+            let z_up = m.z_up;
+            let _ = std::fs::write("/proc/self/clear_refs", "5");
+            let t = std::time::Instant::now();
+            let before = parsed(&bytes, z_up).unwrap();
+            println!("RESULT before: peak {} MB, read in {:.1?}", status_mb("VmHWM:"), t.elapsed());
+            println!("RESULT alike: {:?}", alike(&m, &before));
+        }
+    }
+
+    /// #191, for the ceiling of the triangles (#179): the model in `EYECANSEE_PROBE` written into
+    /// `EYECANSEE_PROBE_OUT` in the other formats, to measure them with `peak_live_191`: STL, OBJ,
+    /// GLB (`model_export`), PLY in ASCII and 3MF (written here, without colours).
+    #[test]
+    #[ignore]
+    fn formats_for_191() {
+        use std::io::Write;
+        let (Ok(path), Ok(out)) = (std::env::var("EYECANSEE_PROBE"), std::env::var("EYECANSEE_PROBE_OUT")) else { return };
+        let m = crate::model::parse(&std::fs::read(&path).unwrap(), "probe.ply").unwrap();
+        let out = std::path::Path::new(&out);
+        for kind in [crate::model_export::Kind::Stl, crate::model_export::Kind::Obj, crate::model_export::Kind::Glb] {
+            std::fs::write(out.join(format!("probe.{}", kind.ext())), crate::model_export::export(&m, kind)).unwrap();
+        }
+        let mut ply = std::io::BufWriter::new(std::fs::File::create(out.join("probe-ascii.ply")).unwrap());
+        write!(ply, "ply\nformat ascii 1.0\nelement vertex {}\nproperty float x\nproperty float y\nproperty float z\nelement face {}\nproperty list uchar int vertex_indices\nend_header\n", m.pos.len(), m.tris.len()).unwrap();
+        m.pos.iter().for_each(|p| writeln!(ply, "{} {} {}", p[0], p[1], p[2]).unwrap());
+        m.tris.iter().for_each(|t| writeln!(ply, "3 {} {} {}", t[0], t[1], t[2]).unwrap());
+        drop(ply);
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(out.join("probe.3mf")).unwrap());
+        zip.start_file("3D/3dmodel.model", zip::write::SimpleFileOptions::default()).unwrap();
+        let mut w = std::io::BufWriter::new(&mut zip);
+        write!(w, r#"<?xml version="1.0" encoding="UTF-8"?><model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><resources><object id="1" type="model"><mesh><vertices>"#).unwrap();
+        m.pos.iter().for_each(|p| write!(w, r#"<vertex x="{}" y="{}" z="{}"/>"#, p[0], p[1], p[2]).unwrap());
+        write!(w, "</vertices><triangles>").unwrap();
+        m.tris.iter().for_each(|t| write!(w, r#"<triangle v1="{}" v2="{}" v3="{}"/>"#, t[0], t[1], t[2]).unwrap());
+        write!(w, r#"</triangles></mesh></object></resources><build><item objectid="1"/></build></model>"#).unwrap();
+        drop(w);
+        zip.finish().unwrap();
+    }
+
     /// #191: reading a binary PLY took about 870 bytes per triangle at its peak (Lucy, 28 million
     /// triangles: 21.9 GB), four times what the model keeps once open. A grid of 200 000
     /// triangles, read on this thread: the peak per triangle.
