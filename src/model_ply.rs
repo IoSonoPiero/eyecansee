@@ -569,6 +569,10 @@ mod tests {
             let (r, peak) = crate::test_alloc::peak(|| read(&bytes));
             assert!(r.is_err() && peak < 1 << 20, "{head}: {peak} bytes");
         }
+        // An element without properties takes no byte a row: its count cannot be checked against
+        // the file, and nothing is read of it (30 million points of nothing were 360 MB).
+        let (r, peak) = crate::test_alloc::peak(|| read(b"ply\nformat binary_little_endian 1.0\nelement vertex 30000000\nelement face 30000000\nend_header\n"));
+        assert!(r.is_err() && peak < 1 << 20, "{peak} bytes");
         // An ASCII file is still read by the parser.
         assert!(binary(b"ply\nformat ascii 1.0\nelement vertex 0\nend_header\n", false).is_none());
     }
