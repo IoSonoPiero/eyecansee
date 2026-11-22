@@ -95,7 +95,7 @@ impl App {
             ui.ctx().data_mut(|d| d.insert_temp(slider_id(), at));
         }
         // A model that is not closed has no known inside: the cut is left empty, and said so.
-        let open = self.viewed_mesh().and_then(|(p, _)| self.model.measure.sizes.get(&p).cloned().flatten()).is_some_and(|s| s.open_edges > 0);
+        let open = self.viewed_mesh().and_then(|(p, _)| self.model.measure.sizes.known(&p)).is_some_and(|s| s.open_edges > 0);
         if open {
             ui.label(crate::theme::alert(t("section-open")));
         }

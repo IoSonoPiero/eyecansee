@@ -70,21 +70,8 @@ impl App {
 
     /// The sizes of the model, asked once and worked out in the background: `None` meanwhile.
     pub(crate) fn model_sizes(&mut self, ctx: &egui::Context, path: &str, mesh: &Arc<Mesh>) -> Option<Sizes> {
-        let m = &mut self.model.measure;
-        for (p, s) in m.sizes_done.lock().unwrap().drain(..) {
-            m.sizes.insert(p, Some(s));
-        }
-        if let Some(s) = m.sizes.get(path) {
-            return s.clone();
-        }
-        m.sizes.insert(path.to_string(), None);
-        let (done, ctx, path, mesh) = (m.sizes_done.clone(), ctx.clone(), path.to_string(), mesh.clone());
-        crate::logging::spawn_named("model-measure", move || {
-            let s = crate::model_measure::sizes(&mesh);
-            done.lock().unwrap().push((path, s));
-            ctx.request_repaint();
-        });
-        None
+        let ctx = ctx.clone();
+        self.model.measure.sizes.get(path, mesh, move || ctx.request_repaint())
     }
 
     /// The lines of a model's measures: size, surface, volume or why there is none, and the

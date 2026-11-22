@@ -5,9 +5,6 @@
 //! go to the status bar (`measure_status`), with Copy (also Ctrl+C), until Esc. Nothing covers
 //! the drawing or the model (Piero, 15/11).
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-
 use eframe::egui::{self, Color32, Key, Modifiers, Pos2, pos2};
 
 use crate::App;
@@ -30,9 +27,8 @@ pub(crate) struct State {
     done: bool,
     /// The points clicked on a 3D model, in its coordinates.
     pub(crate) pts3: Vec<[f32; 3]>,
-    /// The sizes of the models, measured in the background (`None` while being measured).
-    pub(crate) sizes: HashMap<String, Option<crate::model_measure::Sizes>>,
-    pub(crate) sizes_done: Arc<Mutex<Vec<(String, crate::model_measure::Sizes)>>>,
+    /// The sizes of the models, measured in the background.
+    pub(crate) sizes: crate::model_measure::Memo,
     /// What the status bar shows, set by the viewer at every frame while measuring.
     pub(crate) shown: Option<Shown>,
 }

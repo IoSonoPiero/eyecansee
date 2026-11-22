@@ -3,8 +3,43 @@
 //! pointer, for a distance between two points. In the file's units.
 
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use crate::model::Mesh;
+
+/// The sizes of the models seen, each measured once in the background (`get`).
+#[derive(Default)]
+pub(crate) struct Memo {
+    /// By path: `None` while being measured.
+    by: HashMap<String, Option<Sizes>>,
+    done: Arc<Mutex<Vec<(String, Sizes)>>>,
+}
+
+impl Memo {
+    /// The sizes of `mesh`, read from `path`: measured in a thread of their own the first time,
+    /// `None` until then; `wake` when they are ready.
+    pub(crate) fn get(&mut self, path: &str, mesh: &Arc<Mesh>, wake: impl FnOnce() + Send + 'static) -> Option<Sizes> {
+        for (p, s) in self.done.lock().unwrap().drain(..) {
+            self.by.insert(p, Some(s));
+        }
+        if let Some(s) = self.by.get(path) {
+            return s.clone();
+        }
+        self.by.insert(path.to_string(), None);
+        let (done, path, mesh) = (self.done.clone(), path.to_string(), mesh.clone());
+        crate::logging::spawn_named("model-measure", move || {
+            let s = sizes(&mesh);
+            done.lock().unwrap().push((path, s));
+            wake();
+        });
+        None
+    }
+
+    /// The sizes of the model read from `path` if they are measured already (`get`).
+    pub(crate) fn known(&self, path: &str) -> Option<Sizes> {
+        self.by.get(path).cloned().flatten()
+    }
+}
 
 /// What is measured once for a model.
 #[derive(Clone, Debug, PartialEq)]
