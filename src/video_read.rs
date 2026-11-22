@@ -649,7 +649,9 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
-    /// A video of a phone or a server copied whole, as mpv reads it on Windows.
+    /// A video of a phone or a server copied whole, as mpv reads it on Windows. Only the Unix
+    /// tests of the permissions use it.
+    #[cfg(unix)]
     fn copied(dir: &std::path::Path, name: &str) -> PathBuf {
         let _ = std::fs::remove_dir_all(dir);
         std::fs::create_dir_all(dir).unwrap();
