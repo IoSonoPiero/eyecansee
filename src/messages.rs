@@ -154,6 +154,9 @@ impl App {
             Err(e) => log!("listing {dir:?} of {base:?}: ERROR {e:?}"),
         }
         self.listing_pending.remove(&dir);
+        // The mark of this reading goes before another starts, which keeps its own: it went
+        // after, and the next listing came in without the files followed (audit 1.3).
+        self.relisting.remove(&dir);
         if self.relist_again.remove(&dir) {
             self.relist(dir.clone());
         }
@@ -178,9 +181,6 @@ impl App {
             self.note_until = Some(ctx.input(|i| i.time) + crate::watch::NOTE_SECS);
         }
         if dir == self.dir {
-            self.start_found(&r);
-        }
-        if dir == self.dir {
             let no_storage = match &r {
                 Err((id, _)) => matches!(*id, "error-no-storage" | "error-no-device" | "error-not-ready"),
                 Ok(l) => l.dirs.is_empty() && l.files.is_empty() && self.phone_root(&dir).is_some(),
@@ -189,19 +189,22 @@ impl App {
         }
         let r = r.map_err(|(id, detail)| self.i18n.error(id, &detail));
         match r {
-            Ok(l) if takes_place(&mut self.relisting, &dir, self.listings.get(&dir)) => self.swap_listing(&dir, l),
+            Ok(l) if takes_place(self.listings.get(&dir)) => self.swap_listing(&dir, l),
             r => {
-                self.relisting.remove(&dir);
-                self.listings.insert(dir, r);
+                self.listings.insert(dir.clone(), r);
             }
+        }
+        // After the files followed: the viewer and the selection already on their file by then.
+        if dir == self.dir {
+            self.start_found();
         }
     }
 
     /// The file asked to be shown at the start (`start`: an image opened, or the one in the viewer
     /// at F5) in the listing of the open folder: the viewer opens on it, and it is selected.
-    fn start_found(&mut self, r: &Result<Listing, source::Error>) {
+    fn start_found(&mut self) {
         let Some(start) = self.start.take() else { return };
-        let found = r.as_ref().ok().and_then(|l| l.files.iter().position(|f| f.path == start).map(|i| (l.dirs.len(), i)));
+        let found = self.listings.get(&self.dir).and_then(|r| r.as_ref().ok()).and_then(|l| l.files.iter().position(|f| f.path == start).map(|i| (l.dirs.len(), i)));
         // After Refresh the image may have changed position or be gone:
         // images already loaded by position are no longer valid.
         if self.viewing.is_some() && self.viewing != found.map(|(_, i)| i) {
@@ -616,11 +619,12 @@ impl App {
     }
 }
 
-/// Whether a listing read fine for `dir` takes the place of the one kept (`swap_listing`: the
-/// files followed by their path), rather than going in as it is: when the folder was read again
-/// (`relisting`, whose mark goes with this listing). `kept`: the listing of `dir` already there.
-fn takes_place(relisting: &mut HashSet<String>, dir: &str, _kept: Option<&Result<Listing, String>>) -> bool {
-    relisting.remove(dir)
+/// Whether a listing read fine takes the place of the one kept for its folder (`swap_listing`:
+/// the files followed by their path), rather than going in as it is: whenever there is one. It
+/// depended on the mark of a reading again, gone when two readings followed each other, and F5
+/// in the viewer had none (audit 1.3).
+fn takes_place(kept: Option<&Result<Listing, String>>) -> bool {
+    matches!(kept, Some(Ok(_)))
 }
 
 #[cfg(test)]
