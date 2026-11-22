@@ -21,7 +21,7 @@ EyeCanSee mostra le foto, i video, i modelli 3D e i disegni CAD di una cartella 
 
 All'avvio EyeCanSee riapre la cartella che stavi guardando quando l'hai chiuso (si può spegnere nelle [Opzioni](options.md)), oppure la tua cartella home. Se apri una foto con EyeCanSee da un altro programma, mostra quella foto.
 
-EyeCanSee resta aperto in una sola copia: se è già aperto, una foto o una cartella aperta di nuovo con EyeCanSee compare nella finestra che c'è già.
+EyeCanSee resta aperto in una sola copia: se è già aperto, una foto o una cartella aperta di nuovo con EyeCanSee compare nella finestra che c'è già. Se quella finestra non risponde entro pochi secondi (è bloccata), la foto o la cartella si apre in una finestra nuova.
 
 ## Guardare una foto
 

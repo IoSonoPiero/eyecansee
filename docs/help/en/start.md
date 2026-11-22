@@ -21,7 +21,7 @@ EyeCanSee shows the pictures, videos, 3D models and CAD drawings of a folder as 
 
 When EyeCanSee starts, it opens the folder you were looking at when you closed it (you can turn this off in [Options](options.md)), or your home folder. If you open a picture with EyeCanSee from another program, it shows that picture.
 
-Only one EyeCanSee runs at a time: if it is already open, a picture or folder opened again with EyeCanSee appears in the window that is already open.
+Only one EyeCanSee runs at a time: if it is already open, a picture or folder opened again with EyeCanSee appears in the window that is already open. If that window does not answer within a few seconds (it is stuck), the picture or folder opens in a new window.
 
 ## Looking at a picture
 
