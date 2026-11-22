@@ -705,6 +705,17 @@ mod tests {
         assert_eq!(super::epsv_port("Entering Extended Passive Mode"), None);
     }
 
+    /// Audit 2.19: the six numbers of a PASV answer are bytes; one beyond 255 is a bad answer,
+    /// not a port worked out by overflowing (a panic in a debug build).
+    #[test]
+    fn audit_2_19_pasv_numbers_over_255() {
+        for bad in ["(1,2,3,4,300,0)", "(1,2,3,4,0,256)", "(1,2,3,4,255,65535)", "(999,2,3,4,1,1)"] {
+            assert_eq!(std::panic::catch_unwind(|| super::pasv_port(bad)).ok(), Some(None), "{bad}");
+        }
+        assert_eq!(super::pasv_port("227 Entering Passive Mode (10,0,0,2,255,255)"), Some(65535));
+        assert_eq!(super::pasv_port("(10,0,0,2,0,21)"), Some(21));
+    }
+
     /// Renaming over a file (issue #92): done where the server replaces; where it refuses, `None`
     /// (the caller moves the original aside) and never tried again on that server; an error of
     /// the connection is an error. A server that replaced once stays so after a refusal.
