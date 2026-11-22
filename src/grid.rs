@@ -739,7 +739,7 @@ fn thumb_order(
 
 #[cfg(test)]
 mod tests {
-    use super::{engine_sign, thumb_order};
+    use super::{engine_sign, thumb_order, too_large_sign};
     use crate::icons::Icon;
 
     #[test]
@@ -749,6 +749,21 @@ mod tests {
         assert_eq!(engine_sign(crate::video_read::NO_ENGINE, "a/clip.mp4"), Some(Icon::Video));
         assert_eq!(engine_sign(crate::occt::MISSING, "a/part.step"), Some(Icon::Model));
         assert_eq!(engine_sign("damaged", "a/song.mp3"), None);
+    }
+
+    /// A 3D model beyond the cap of its format gets no thumbnail: in its place the model's sign
+    /// with "Too large for a thumbnail", as a picture too large for the memory (Piero, 22/11/2026).
+    #[test]
+    fn model_over_its_cap_too_large_d1() {
+        let mut obj = String::from("v 0 0 0\nv 1 0 0\nv 0 1 0\nf");
+        for i in 0..crate::model_limit::OBJ.max + 3 {
+            obj.push_str([" 1", " 2", " 3"][i % 3]);
+        }
+        let e = crate::decode::model_picture(obj.as_bytes(), "a.obj", 64, 48).unwrap_err();
+        assert_eq!(too_large_sign(&e), Some(Icon::Model));
+        assert_eq!(too_large_sign(&crate::model_limit::PLY_BINARY.check_points(usize::MAX).unwrap_err()), Some(Icon::Model));
+        assert_eq!(too_large_sign(crate::thumb_memory::TOO_LARGE), Some(Icon::Picture));
+        assert_eq!(too_large_sign("unexpected end of file"), None);
     }
 
     /// egui keeps a tooltip already open while the pointer stays inside the widget's rectangle,
