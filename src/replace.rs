@@ -338,6 +338,25 @@ mod tests {
     use super::*;
     use crate::source::Deletion;
 
+    /// A picture open from a phone or a server (here a store that is not this computer's disk) is
+    /// kept on this computer while it is open: Save of the viewer turns it from that copy, without
+    /// reading it again from the phone or the server (Piero, 23/11/2026: 213 MB downloaded again).
+    #[test]
+    fn viewer_save_reads_the_open_copy() {
+        let dal = opendal::Operator::new(opendal::services::Memory::default()).unwrap();
+        let op = Store::Dal(dal.clone());
+        let mut jpeg = Vec::new();
+        image::DynamicImage::new_rgb8(64, 48).write_to(&mut std::io::Cursor::new(&mut jpeg), image::ImageFormat::Jpeg).unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(dal.write("dcim/open-copy.jpg", jpeg)).unwrap();
+        // The viewer opens it.
+        rt.block_on(crate::view_memory::read(&op, "dcim/open-copy.jpg", None, crate::view_memory::Use::View, false)).unwrap();
+        crate::source::BYTES_READ.with(|n| n.set(0));
+        let turn = crate::transform::Turn::default().then(crate::transform::Op::Cw);
+        rt.block_on(turned(&op, "dcim/open-copy.jpg", turn, false)).unwrap();
+        assert_eq!(crate::source::BYTES_READ.with(std::cell::Cell::get), 0, "read again from the phone or the server");
+    }
+
     /// The editor's overwrite: with a trash folder that cannot be made (a file has its name) the
     /// original stays as it was, under its name, and no hidden file is left; `replace` instead
     /// writes over it and leaves the original hidden. With a trash that works, the original goes
