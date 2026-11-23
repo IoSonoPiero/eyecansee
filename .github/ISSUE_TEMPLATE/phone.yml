@@ -62,7 +62,7 @@ body:
       description: |
         EyeCanSee writes its log only when asked. The log holds file names and folder names from the phone: remove what you prefer to keep private before pasting it.
 
-        From version 0.78.0: in **Tools > Options… > Diagnostics** turn on **Write a diagnostic log**, close EyeCanSee, start it again, repeat the problem and close it. **Open the folder of the logs**, in the same tab, shows the files: attach the newest one here, or paste it.
+        From version 0.78.0: in **Tools > Options… > Diagnostics** turn on **Write a diagnostic log**, close EyeCanSee, start it again, repeat the problem and close it. **Open the logs folder**, in the same tab, shows the files: attach the newest one here, or paste it.
 
         Older versions write it to the standard error stream: close EyeCanSee, start it like this, repeat the problem, close it and paste the file here.
 
