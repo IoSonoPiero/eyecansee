@@ -29,8 +29,6 @@ pub(crate) struct Buffer {
     /// The frame shown has changed: the texture takes it at the next paint.
     show_now: bool,
     fill: Option<Fill>,
-    /// Presses of , while filling: frames further back once it ends.
-    queued: usize,
 }
 
 struct Fill {
@@ -52,10 +50,10 @@ impl Buffer {
         self.fill.is_some()
     }
 
-    /// , pressed: the frame before, kept, or a filling started.
+    /// , pressed: the frame before, kept, or a filling started. Presses while filling do not
+    /// count: kept and applied at its end they jumped several frames at once (Piero, 23/11/2026).
     pub(crate) fn back(&mut self, player: &mpv::Player) {
         if self.fill.is_some() {
-            self.queued += 1;
             return;
         }
         if let Some(i) = self.shown.filter(|&i| i > 0) {
@@ -103,7 +101,7 @@ impl Buffer {
             player.record(false);
         }
         self.frames.clear();
-        (self.shown, self.show_now, self.queued) = (None, false, 0);
+        (self.shown, self.show_now) = (None, false);
     }
 
     /// Each frame of the viewer: the filling goes on, a step forward at a time, and ends once the
@@ -123,7 +121,7 @@ impl Buffer {
         let target = f.target;
         self.fill = None;
         self.frames = kept_before(player.record(false), target, MAX_BYTES);
-        self.shown = self.frames.len().checked_sub(1 + std::mem::take(&mut self.queued)).or((!self.frames.is_empty()).then_some(0));
+        self.shown = self.frames.len().checked_sub(1);
         self.show_now = self.shown.is_some();
         let times: Vec<String> = self.frames.iter().map(|(at, _)| format!("{at:.3}")).collect();
         log!("video: {} frames kept before {target:.3} s: {}", self.frames.len(), times.join(" "));
