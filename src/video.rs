@@ -113,28 +113,49 @@ impl App {
     /// Space in the viewer of a video: from the frame kept shown, if any (`video_back`).
     pub(crate) fn toggle_video(&mut self) {
         if let Some(Playing { player: Ok(p), back, .. }) = &mut self.video {
-            back.leave(p);
-            p.toggle();
+            // After the seek of `leave`, `toggle` could still read the old end and start again
+            // from 0:00 (Fable's review): play.
+            if back.leave(p).is_some() { p.play() } else { p.toggle() }
         }
     }
 
     /// Ctrl and an arrow in the viewer of a video: `seconds` forward (or back), within the video.
     pub(crate) fn video_jump(&mut self, seconds: f64) {
         if let Some(Playing { player: Ok(p), back, .. }) = &mut self.video {
-            back.leave(p);
-            p.seek(jumped(p.position(), seconds, p.duration()), true);
+            // From the frame kept shown: right after its seek mpv still says where it was.
+            let from = back.leave(p).unwrap_or_else(|| p.position());
+            p.seek(jumped(from, seconds, p.duration()), true);
         }
     }
 
     /// . and , in the viewer of a video: one frame forward or back, paused (#165, as in mpv). The
     /// frames back come from frames kept in memory (`video_back`), . too while there are some.
     pub(crate) fn video_frame_step(&mut self, forward: bool) {
-        if let Some(Playing { player: Ok(p), back, .. }) = &mut self.video {
+        if let Some(Playing { player: Ok(p), back, path, .. }) = &mut self.video {
+            // A sound file has no frames: , and . do nothing there.
+            if decode::is_audio(path) || p.video_size().is_none() {
+                return;
+            }
             if !forward {
                 back.back(p);
             } else if !back.forward(p) {
                 p.frame_step(true);
             }
+        }
+    }
+
+    /// Save as… of a frame: when a frame kept is shown, the player goes there first and the frame is
+    /// taken once it has (Fable's review: it saved mpv's frame, up to a second after the one shown).
+    pub(crate) fn leave_kept(&mut self, path: &str) {
+        let Some(Playing { player: Ok(p), back, path: playing, .. }) = &mut self.video else { return };
+        if playing != path || back.shown_at().is_none() {
+            return;
+        }
+        let Some(at) = back.leave(p) else { return };
+        let start = std::time::Instant::now();
+        // ponytail: waits on the interface's thread, at most 3 s, as Save as… asks once.
+        while (p.seeking() || (p.position() - at).abs() > 0.001) && start.elapsed() < std::time::Duration::from_secs(3) {
+            std::thread::sleep(std::time::Duration::from_millis(10));
         }
     }
 
@@ -576,8 +597,7 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, (sound, turn): ((&mut u32, &mut bool
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
     }
     if response.clicked() {
-        v.back.leave(player);
-        player.toggle();
+        if v.back.leave(player).is_some() { player.play() } else { player.toggle() }
     }
     let bar = Rect::from_min_max(pos2(rect.min.x, rect.max.y - BAR), rect.max);
     let (mut sought, mut toggle) = (false, false);
@@ -597,8 +617,7 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, (sound, turn): ((&mut u32, &mut bool
         v.back.clear(player);
     }
     if toggle {
-        v.back.leave(player);
-        player.toggle();
+        if v.back.leave(player).is_some() { player.play() } else { player.toggle() }
     }
     Some(response)
 }

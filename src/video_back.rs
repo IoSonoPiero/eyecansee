@@ -34,20 +34,25 @@ pub(crate) struct Buffer {
 struct Fill {
     /// The time it fills up to, the frame shown when , was pressed.
     target: f64,
-    /// The player is back before `target` (the seek has landed).
+    /// The seek back has ended before `target`: from then on the frames drawn are kept.
     landed: bool,
-    /// The position when the last step forward was sent, and when. The next waits for the video
-    /// to move and for the frame of the new position to be kept (sent on a change of position, or
-    /// on a frame drawn again, some frames were never kept: 24-26 of 30, the frames back jumped;
-    /// Piero, 23/11/2026).
+    /// The position when the last step forward was sent, and when (`step_now`).
     sent: Option<(f64, Instant)>,
     started: Instant,
+    /// The sound was off before: what it goes back to (it is off while filling, the steps play
+    /// bits of it).
+    was_muted: bool,
 }
 
 impl Buffer {
     /// Frames are being kept: the status bar says so (`App::frames_back`).
     pub(crate) fn busy(&self) -> bool {
         self.fill.is_some()
+    }
+
+    /// A frame kept is shown, not mpv's: the time it has.
+    pub(crate) fn shown_at(&self) -> Option<f64> {
+        self.shown.map(|i| self.frames[i].0)
     }
 
     /// , pressed: the frame before, kept, or a filling started. Presses while filling do not
@@ -61,16 +66,18 @@ impl Buffer {
             log!("video: frame back to {:.3} s, kept", self.frames[i - 1].0);
             return;
         }
-        let target = self.shown.map_or_else(|| player.position(), |i| self.frames[i].0);
-        self.frames.clear();
-        self.shown = None;
+        let target = self.shown_at().unwrap_or_else(|| player.position());
+        // At the first frame there is none before: the frame kept stays shown.
         if target <= 0.001 {
             return;
         }
+        self.frames.clear();
+        self.shown = None;
+        let was_muted = player.muted();
+        player.set_mute(true);
         player.pause();
-        player.record(true);
         player.seek((target - WINDOW).max(0.0), true);
-        self.fill = Some(Fill { target, landed: false, sent: None, started: Instant::now() });
+        self.fill = Some(Fill { target, landed: false, sent: None, started: Instant::now(), was_muted });
     }
 
     /// . pressed: the frame after, kept; `false` when mpv steps (none kept after it).
@@ -87,44 +94,63 @@ impl Buffer {
         }
     }
 
-    /// Back to mpv at the frame shown (play, Ctrl and an arrow), the frames let go.
-    pub(crate) fn leave(&mut self, player: &mpv::Player) {
-        if let Some(i) = self.shown {
-            player.seek(self.frames[i].0, true);
+    /// Back to mpv at the frame shown, or where a filling was going (play, Ctrl and an arrow, .):
+    /// the time sought, if any, for what comes next (a jump from there, not from where mpv was).
+    pub(crate) fn leave(&mut self, player: &mpv::Player) -> Option<f64> {
+        let to = self.shown_at().or(self.fill.as_ref().map(|f| f.target));
+        if let Some(at) = to {
+            player.seek(at, true);
         }
         self.clear(player);
+        to
     }
 
     /// The frames let go without moving the player (a seek of the timeline goes elsewhere anyway).
     pub(crate) fn clear(&mut self, player: &mpv::Player) {
-        if self.fill.take().is_some() {
+        if let Some(f) = self.fill.take() {
             player.record(false);
+            player.set_mute(f.was_muted);
         }
         self.frames.clear();
         (self.shown, self.show_now) = (None, false);
     }
 
-    /// Each frame of the viewer: the filling goes on, a step forward at a time, and ends once the
-    /// player is back where it was.
+    /// Each frame of the viewer: the filling goes on, a step forward at a time, each once the frame
+    /// before is drawn and kept, and ends once the player is back where it was (Fable's review,
+    /// 23/11/2026: a step sent while a frame was still being drawn gave it the next one's time).
     pub(crate) fn pump(&mut self, player: &mpv::Player) {
         let Some(f) = &mut self.fill else { return };
         let (pos, now) = (player.position(), Instant::now());
-        f.landed |= pos < f.target - 0.001;
-        let done = (f.landed && pos >= f.target - 0.001) || now.duration_since(f.started) >= FILL_LIMIT;
-        if !done {
-            if f.landed && step_now(f.sent, player.recorded(), pos, now) {
-                player.frame_step(true);
-                f.sent = Some((pos, now));
+        if now.duration_since(f.started) >= FILL_LIMIT {
+            return self.finish(player);
+        }
+        if !f.landed {
+            // Kept from the frame the seek has landed on: drawn again, so that it is kept too.
+            if !player.seeking() && pos < f.target - 0.001 {
+                f.landed = true;
+                player.record(true);
+                player.redraw();
             }
             return;
         }
-        let target = f.target;
-        self.fill = None;
-        self.frames = kept_before(player.record(false), target, MAX_BYTES);
+        if pos >= f.target - 0.001 && player.idle() {
+            return self.finish(player);
+        }
+        if player.idle() && step_now(f.sent, player.recorded(), pos, now) {
+            player.frame_step(true);
+            f.sent = Some((pos, now));
+        }
+    }
+
+    /// The filling ends: the frames before its target kept, the last one shown.
+    fn finish(&mut self, player: &mpv::Player) {
+        let Some(f) = self.fill.take() else { return };
+        player.set_mute(f.was_muted);
+        self.frames = kept_before(player.record(false), f.target, MAX_BYTES);
         self.shown = self.frames.len().checked_sub(1);
         self.show_now = self.shown.is_some();
         let times: Vec<String> = self.frames.iter().map(|(at, _)| format!("{at:.3}")).collect();
-        log!("video: {} frames kept before {target:.3} s: {}", self.frames.len(), times.join(" "));
+        log!("video: {} frames kept before {:.3} s: {}", self.frames.len(), f.target, times.join(" "));
     }
 
     /// Before the frame is painted: while filling or showing a frame kept, the player's own frames

@@ -128,6 +128,7 @@ impl App {
     /// Save as… on the video in the viewer: paused, its frame asked to the player, with the time
     /// it shows; `None` when `path` is not the video playing.
     pub(crate) fn convert_frame(&mut self, path: &str, asked: u64) -> Option<f64> {
+        self.leave_kept(path);
         let player = self.player_of(path)?;
         player.pause();
         let at = player.position();

@@ -25,6 +25,8 @@ struct State {
     grab: Option<Grab>,
     /// The frames drawn are kept with their time, for the frames back (`video_back`).
     record: Option<Vec<(f64, ColorImage)>>,
+    /// A frame is being drawn: taken from `dirty`, not yet given (`Player::idle`).
+    in_draw: bool,
     /// Frames drawn, frames drawn over before the window took them, time spent drawing, the
     /// longest draw (#17, written in the log when the video closes).
     drawn: u64,
@@ -104,6 +106,8 @@ fn start_options(at: Option<Place>) -> (Vec<(&'static str, String)>, Option<[Str
 /// At most this many frames kept by `Player::record` (3 s at 60 per second, a few MB each at the
 /// window's size); a filling takes 1 s (`video_back::WINDOW`).
 const RECORDED: usize = 180;
+/// And at most this much memory, while a filling goes on.
+const RECORD_BYTES: usize = 512 << 20;
 
 /// A video playing (with sound), its frames drawn by a thread of its own at the size the
 /// window asks (`set_size`).
@@ -169,6 +173,31 @@ impl Player {
         } else {
             st.record.take().unwrap_or_default()
         }
+    }
+
+    /// Nothing being drawn and nothing waiting to be: the last frame of the player is drawn.
+    pub fn idle(&self) -> bool {
+        let st = self.shared.state.lock().unwrap();
+        !st.dirty && !st.in_draw
+    }
+
+    /// The frame drawn again (a new `record` keeps it).
+    pub fn redraw(&self) {
+        self.shared.change(|st| st.dirty = true);
+    }
+
+    /// A seek is under way.
+    pub fn seeking(&self) -> bool {
+        self.mpv.property::<c_int>("seeking", FORMAT_FLAG).unwrap_or(0) != 0
+    }
+
+    pub fn muted(&self) -> bool {
+        self.mpv.property::<c_int>("mute", FORMAT_FLAG).unwrap_or(0) != 0
+    }
+
+    /// Play, not toggle: after a seek, `ended` can still read the old end.
+    pub fn play(&self) {
+        let _ = self.mpv.command(&["set", "pause", "no"]);
     }
 
     /// The time of the last frame `record` has kept, if any.
@@ -454,6 +483,7 @@ fn draw_loop(mpv: &Mpv, shared: &Shared, seek: Option<[String; 3]>, repaint: imp
                 return;
             }
             let dirty = std::mem::take(&mut st.dirty);
+            st.in_draw = dirty && st.size[0] > 0 && st.size[1] > 0;
             (if dirty { st.size } else { [0, 0] }, st.grab.take())
         };
         // Called at every wake-up, as render.h asks, even when nothing is drawn.
@@ -469,10 +499,16 @@ fn draw_loop(mpv: &Mpv, shared: &Shared, seek: Option<[String; 3]>, repaint: imp
         let took = start.elapsed();
         let at = mpv.property::<f64>("time-pos", FORMAT_DOUBLE).unwrap_or(0.0);
         let mut st = shared.state.lock().unwrap();
-        // ponytail: at most RECORDED frames, for a filling that would never end.
-        if let Some(kept) = st.record.as_mut().filter(|k| k.len() < RECORDED) {
+        // The newest kept, the oldest let go beyond RECORDED frames or RECORD_BYTES: a screen in
+        // 4K draws 33 MB frames (Fable's review, 23/11/2026).
+        if let Some(kept) = st.record.as_mut() {
             kept.push((at, frame.clone()));
+            let each = frame.pixels.len() * 4;
+            while kept.len() > RECORDED || kept.len() * each > RECORD_BYTES {
+                kept.remove(0);
+            }
         }
+        st.in_draw = false;
         st.lost += u64::from(st.frame.is_some());
         st.frame = Some(frame);
         st.drawn += 1;
