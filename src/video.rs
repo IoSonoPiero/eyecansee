@@ -687,8 +687,16 @@ fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u3
             ui.data_mut(|d| d.insert_temp(fine_id, anchor));
         } else {
             ui.data_mut(|d| d.remove::<(f32, f64)>(fine_id));
+            // A click or a drag goes to the time shown under the pointer, worked out the same way
+            // (`time_at`), not to egui's own reading of the bar (Piero, 23/11: "near, not it").
+            if r.changed() && let Some(x) = pointer {
+                at = time_at(x, track, length);
+            }
         }
         for (to, exact) in timeline_seeks(&mut target, r.changed(), r.dragged(), r.drag_stopped(), at) {
+            if exact {
+                log!("video: timeline to {to:.3} s, exact");
+            }
             player.seek(to, exact);
         }
         ui.data_mut(|d| d.insert_temp(id, target));
