@@ -240,11 +240,7 @@ impl App {
     }
 
     fn on_loaded(&mut self, ctx: &egui::Context, index: usize, thumb: bool, image: Result<ColorImage, String>, halves: Vec<ColorImage>) {
-        // `loader::with_id`: translated here, where the language is.
-        let image = image.map_err(|e| match e.split_once('\u{1}') {
-            Some((id, detail)) => self.i18n.error(id, detail),
-            None => e,
-        });
+        let image = image.map_err(|e| kept_error(&self.i18n, e));
         let name = self.files().get(index).map(|f| f.path.clone()).unwrap_or_default();
         match &image {
             Err(e) => log!("{} {index} {name:?}: ERROR {e}", if thumb { "thumbnail" } else { "image" }),
@@ -637,6 +633,15 @@ impl App {
                 self.note_until = Some(ctx.input(|i| i.time) + crate::watch::NOTE_SECS);
             }
         }
+    }
+}
+
+/// The error of a picture or a thumbnail as the program keeps it: `loader::with_id`'s
+/// `id\u{1}detail` translated here, where the language is.
+fn kept_error(i18n: &crate::i18n::I18n, e: String) -> String {
+    match e.split_once('\u{1}') {
+        Some((id, detail)) => i18n.error(id, detail),
+        None => e,
     }
 }
 
