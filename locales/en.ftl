@@ -605,13 +605,14 @@ error-glb-cut = The file is incomplete{ $detail }
 error-glb-cut-sizes = The file is incomplete{ $detail }: it should be { $expected } but it is { $actual }.
     Perhaps the download or the copy stopped: try downloading or copying it again.
 # A 3D model with more triangles than EyeCanSee opens in its format: { $max } in millions (10, 20, 50), { $format } the kind of file.
-# The formats read whole before the cap is met (GLB, glTF, OFF, Collada, VRML, X3D, FBX, IFC, the CAD engine's) do not say why.
+# The formats read whole before the cap is met (GLB, glTF, OFF, Collada, VRML, X3D, FBX, IFC, a binary PLY left to the old parser, the CAD engine's) do not say why.
 error-model-too-many-triangles = The model has more than { $max } million triangles.
     EyeCanSee does not open { $format ->
         [obj] OBJ files
         [three-mf] 3MF files
         [ply-text] text PLY files
         [ply-binary] binary PLY files
+        [ply-binary-whole] binary PLY files
         [stl] STL files
         [stl-text] text STL files
         [glb] GLB files
@@ -633,6 +634,7 @@ error-model-too-many-triangles = The model has more than { $max } million triang
         [vrml] .
         [x3d] .
         [fbx] .
+        [ply-binary-whole] .
         [ifc] .
         [other] .
        *[read] , so that reading them does not fill the computer's memory.
@@ -641,8 +643,12 @@ error-model-too-many-triangles = The model has more than { $max } million triang
 error-model-too-many-points = The point cloud has more than { $max } million points.
     EyeCanSee does not open { $format ->
         [ply-binary] binary PLY files
+        [ply-binary-whole] binary PLY files
        *[ply-text] text PLY files
-    } with more than { $max } million points, so that reading them does not fill the computer's memory.
+    } with more than { $max } million points{ $format ->
+        [ply-binary-whole] .
+       *[read] , so that reading them does not fill the computer's memory.
+    }
 # The rarer refusals of a model or a drawing too large: { $max } in millions (1, 1.25, 200) where the sentence says "million", else as it is (1000 files, "2 GB" with its unit, 100 times).
 error-model-too-many-offered = The model has more than { $max } million points and triangles, too many to open.
 error-model-too-many-lines = The model has more than { $max } million lines and points, too many to open.

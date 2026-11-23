@@ -39,6 +39,11 @@ pub(crate) const GLTF: Limit = Limit { max: 20_000_000, format: "gltf" };
 pub(crate) const AMF: Limit = Limit { max: 5_000_000, format: "amf" };
 pub(crate) const IFC: Limit = Limit { max: 5_000_000, format: "ifc" };
 pub(crate) const PLY_BINARY: Limit = Limit { max: 50_000_000, format: "ply-binary" };
+/// A binary PLY whose header EyeCanSee's reader leaves to the parser of `ply-rs-bw` (rare: two
+/// elements of the same name, types it does not know), which reads it whole first. Its triangles
+/// cannot be counted before: the header is the one the reader did not understand, and the faces'
+/// lists must be read to count them. Said without the why (Piero, 22/11/2026).
+pub(crate) const PLY_BINARY_WHOLE: Limit = Limit { max: 50_000_000, format: "ply-binary-whole" };
 pub(crate) const STL: Limit = Limit { max: 20_000_000, format: "stl" };
 /// An STL in text, which stl_io reads whole first: the cap of the formats in text (Piero, 22/11/2026).
 pub(crate) const STL_TEXT: Limit = Limit { max: 10_000_000, format: "stl-text" };

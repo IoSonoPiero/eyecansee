@@ -6,7 +6,7 @@ use std::io::Cursor;
 use ply_rs_bw::{parser::Parser, ply::DefaultElement, ply::Property};
 
 use crate::model::{Builder, Mesh, TOO_FAR, average};
-use crate::model_limit::{Limit, PLY_BINARY, PLY_TEXT};
+use crate::model_limit::{Limit, PLY_BINARY, PLY_BINARY_WHOLE, PLY_TEXT};
 
 /// The mark of the PLY files `model_export` writes with Z up, as Blender expects them (tried with
 /// Blender 4.5, 2026-11-02); without it a PLY is read with Y up, as the scans have it.
@@ -72,9 +72,9 @@ fn parsed(bytes: &[u8], z_up: bool) -> Result<Mesh, String> {
     b.finish(z_up)
 }
 
-/// The cap of a file read by the parser of `ply-rs-bw`.
+/// The cap of a file read by the parser of `ply-rs-bw`: in text counted first, binary read whole.
 fn parsed_limit(bytes: &[u8]) -> Limit {
-    if in_text(bytes) { PLY_TEXT } else { PLY_BINARY }
+    if in_text(bytes) { PLY_TEXT } else { PLY_BINARY_WHOLE }
 }
 
 /// Whether the PLY is in text (ASCII), as its header's `format` line says.

@@ -603,13 +603,14 @@ error-glb-cut = Il file è incompleto{ $detail }
 error-glb-cut-sizes = Il file è incompleto{ $detail }: dovrebbe essere di { $expected } ma è di { $actual }.
     Forse lo scaricamento o la copia si è interrotta: prova a scaricarlo o copiarlo di nuovo.
 # A 3D model with more triangles than EyeCanSee opens in its format: { $max } in millions (10, 20, 50), { $format } the kind of file.
-# The formats read whole before the cap is met (GLB, glTF, OFF, Collada, VRML, X3D, FBX, IFC, the CAD engine's) do not say why.
+# The formats read whole before the cap is met (GLB, glTF, OFF, Collada, VRML, X3D, FBX, IFC, a binary PLY left to the old parser, the CAD engine's) do not say why.
 error-model-too-many-triangles = Il modello ha più di { $max } milioni di triangoli.
     EyeCanSee non apre { $format ->
         [obj] i file OBJ
         [three-mf] i file 3MF
         [ply-text] i file PLY in testo
         [ply-binary] i file PLY binari
+        [ply-binary-whole] i file PLY binari
         [stl] i file STL
         [stl-text] i file STL in testo
         [glb] i file GLB
@@ -631,6 +632,7 @@ error-model-too-many-triangles = Il modello ha più di { $max } milioni di trian
         [vrml] .
         [x3d] .
         [fbx] .
+        [ply-binary-whole] .
         [ifc] .
         [other] .
        *[read] , perché la lettura non riempia la memoria del computer.
@@ -639,8 +641,12 @@ error-model-too-many-triangles = Il modello ha più di { $max } milioni di trian
 error-model-too-many-points = La nuvola di punti ha più di { $max } milioni di punti.
     EyeCanSee non apre { $format ->
         [ply-binary] i file PLY binari
+        [ply-binary-whole] i file PLY binari
        *[ply-text] i file PLY in testo
-    } con più di { $max } milioni di punti, perché la lettura non riempia la memoria del computer.
+    } con più di { $max } milioni di punti{ $format ->
+        [ply-binary-whole] .
+       *[read] , perché la lettura non riempia la memoria del computer.
+    }
 # The rarer refusals of a model or a drawing too large: { $max } in millions (1, 1.25, 200) where the sentence says "million", else as it is (1000 files, "2 GB" with its unit, 100 times).
 error-model-too-many-offered = Il modello ha più di { $max } milioni di punti e triangoli, troppi per aprirlo.
 error-model-too-many-lines = Il modello ha più di { $max } milioni di linee e punti, troppi per aprirlo.
