@@ -31,7 +31,7 @@ impl App {
         // back to the grid, as Esc, when chosen in the Options (on at first), or EyeCanSee; a
         // turned image not saved is asked about first, as when leaving it.
         if self.transfer.is_none() && self.editor.is_none() && ctx.input(|i| i.viewport().close_requested()) {
-            let close = self.on_close(self.turn_unsaved());
+            let close = self.on_close(self.turn_unsaved() && !self.quit_dropped_turn);
             match close.step {
                 Step::Viewer => {
                     ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);

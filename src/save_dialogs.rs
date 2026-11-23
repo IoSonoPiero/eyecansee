@@ -50,7 +50,12 @@ impl App {
 
     /// What was asked, now that the changes are saved or dropped.
     fn run_after(&mut self, ctx: &egui::Context, after: After) {
-        self.turn = Default::default();
+        // Quitting: the turn is left on screen, not taken back for the last frames.
+        if matches!(after, After::Quit) {
+            self.quit_dropped_turn = true;
+        } else {
+            self.turn = Default::default();
+        }
         match after {
             After::Go(to) => self.go(to),
             After::Close => self.close_viewer(),

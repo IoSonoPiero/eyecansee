@@ -540,6 +540,9 @@ struct App {
     deleting: usize,
     /// Window closed during a copy: it closes when the copy has stopped.
     quit_after_transfer: bool,
+    /// "Don't save" before quitting: the turned picture stays as shown until the window goes,
+    /// and the ✕ that follows does not ask again (a frame of the picture not turned showed first).
+    quit_dropped_turn: bool,
     /// The window's ✕ over the editor with "goes back to the grid" off: EyeCanSee closes once the
     /// editor has (`window_close`); `Some(true)`: the editor asked about its changes.
     quit_after_editor: Option<bool>,
