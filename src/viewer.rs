@@ -1,10 +1,17 @@
 //! Viewer: the image at full window, zoom and pan, its keys, the images read ahead.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use eframe::egui::{self, Key};
 
 use crate::navigation::Go;
 use crate::actions::Act;
 use crate::{AROUND, App, browser, paint, zoom};
+
+/// An Esc left full screen and has not been let go yet: it does not close EyeCanSee (#320).
+// ponytail: one flag for the one window; a release missed while the window had no focus costs one
+// more Esc, never a close.
+static ESC_FROM_FULL: AtomicBool = AtomicBool::new(false);
 
 /// The window is at full screen (F11).
 pub(crate) fn full_screen(ctx: &egui::Context) -> bool {
@@ -79,6 +86,34 @@ pub(crate) fn ahead<R>(ui: &mut egui::Ui, draw: impl FnOnce(&mut egui::Ui) -> R)
 }
 
 impl App {
+    /// Esc in the viewer, `close`: pressed in this pass (taken already).
+    fn viewer_esc(&mut self, ctx: &egui::Context, close: bool) {
+        // Esc in full screen leaves it first, with the bars back; then as the window's ✕: the
+        // viewer, or EyeCanSee when the ✕ closes it (#320), never with the key held down.
+        // The Esc that left full screen counts as held until it is let go: leaving full screen
+        // takes the window's focus away and back (GNOME), and egui then forgets the key was down,
+        // so its repeats came as new presses and closed EyeCanSee (Piero's test L4, 24/11).
+        let (repeat, released) = ctx.input(|i| {
+            let esc = |down: bool, rep: bool| i.events.iter().any(|e| matches!(e, egui::Event::Key { key: Key::Escape, pressed, repeat, .. } if *pressed == down && (!down || *repeat == rep)));
+            (esc(true, true), esc(false, false))
+        });
+        if released {
+            ESC_FROM_FULL.store(false, Ordering::Relaxed);
+        }
+        if close {
+            let held = repeat || ESC_FROM_FULL.load(Ordering::Relaxed);
+            match crate::window_close::on_esc(self.settings.close_to_grid, full_screen(ctx), held) {
+                crate::window_close::Esc::LeaveFullScreen => {
+                    ESC_FROM_FULL.store(true, Ordering::Relaxed);
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
+                }
+                crate::window_close::Esc::Viewer => self.close_viewer(),
+                crate::window_close::Esc::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+                crate::window_close::Esc::Nothing => {}
+            }
+        }
+    }
+
     pub(crate) fn viewer_keys(&mut self, ctx: &egui::Context) {
         // A modal window (Rename, Delete…) has the keys: its Esc closed the viewer and was taken,
         // the window stayed open over the grid (Piero, 17/11). Egui drops the text field's focus
@@ -135,17 +170,7 @@ impl App {
         if close {
             ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape));
         }
-        // Esc in full screen leaves it first, with the bars back; then as the window's ✕: the
-        // viewer, or EyeCanSee when the ✕ closes it (#320), never with the key held down.
-        if close {
-            let repeat = ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Key { key: Key::Escape, pressed: true, repeat: true, .. })));
-            match crate::window_close::on_esc(self.settings.close_to_grid, full_screen(ctx), repeat) {
-                crate::window_close::Esc::LeaveFullScreen => ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false)),
-                crate::window_close::Esc::Viewer => self.close_viewer(),
-                crate::window_close::Esc::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
-                crate::window_close::Esc::Nothing => {}
-            }
-        }
+        self.viewer_esc(ctx, close);
         if video {
             // A turned video is saved as an image (issue #125): Ctrl+S and Ctrl+Shift+S before
             // the return below, which left them unread on a video.
