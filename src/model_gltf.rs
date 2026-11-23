@@ -131,6 +131,8 @@ pub(crate) fn cut_text(i18n: &crate::i18n::I18n, id: &str, detail: &str) -> Opti
 
 fn read_plain(bytes: &[u8], sibling: Sibling, limit: crate::model_limit::Limit) -> Result<Mesh, String> {
     let g = gltf::Gltf::from_slice(bytes).map_err(|e| gltf_error(e.to_string()))?;
+    // Counted from the accessors before the data is read (T5, Piero 22/11/2026).
+    limit.check(triangles(&g.document))?;
     let inside: Vec<Option<Vec<u8>>> = g
         .document
         .buffers()
@@ -192,6 +194,39 @@ fn read_plain(bytes: &[u8], sibling: Sibling, limit: crate::model_limit::Limit) 
     }
     crate::model_lines::add(&mut b, &extra.0, &extra.1)?;
     b.finish(false)
+}
+
+/// The triangles the reading makes (`gltf_node`, `gltf_mesh`), from the accessors' counts alone:
+/// every node of the scene once, each mesh at every node that places it, primitives without
+/// points left out as the reading leaves them. Triangles the reading drops (indices that point
+/// nowhere) still count: never fewer than the reading's.
+fn triangles(doc: &gltf::Document) -> usize {
+    fn mesh(m: &gltf::Mesh) -> usize {
+        use gltf::mesh::Mode;
+        m.primitives()
+            .filter_map(|p| {
+                let pos = p.get(&gltf::Semantic::Positions)?;
+                let n = p.indices().map_or(pos.count(), |i| i.count());
+                match p.mode() {
+                    Mode::Triangles => Some(n / 3),
+                    Mode::TriangleStrip | Mode::TriangleFan => Some(n.saturating_sub(2)),
+                    _ => None,
+                }
+            })
+            .fold(0, usize::saturating_add)
+    }
+    fn node(n: &gltf::Node, seen: &mut HashSet<usize>, depth: u32) -> usize {
+        // As `gltf_node`: too deep is refused by the reading, a node met again placed once.
+        if depth > 64 || !seen.insert(n.index()) {
+            return 0;
+        }
+        n.children().map(|c| node(&c, seen, depth + 1)).fold(n.mesh().map_or(0, |m| mesh(&m)), usize::saturating_add)
+    }
+    let mut seen = HashSet::new();
+    match doc.default_scene().or_else(|| doc.scenes().next()) {
+        Some(scene) => scene.nodes().map(|n| node(&n, &mut seen, 0)).fold(0, usize::saturating_add),
+        None => doc.meshes().map(|m| mesh(&m)).fold(0, usize::saturating_add),
+    }
 }
 
 /// Line segments and points of a glTF, made solid at the end (`model_lines`), the number of
@@ -645,6 +680,59 @@ mod tests {
         assert_eq!((e, asked.get()), (crate::model_limit::GLTF.error(), 0));
         assert_eq!(said(&crate::model_limit::GLTF.error())[0].lines().nth(1), Some("EyeCanSee does not open glTF files with more than 20 million triangles, so that reading them does not fill the computer's memory."));
         assert_eq!(said(&crate::model_limit::GLB.error())[1].lines().nth(1), Some("EyeCanSee non apre i file GLB con più di 20 milioni di triangoli, perché la lettura non riempia la memoria del computer."));
+    }
+
+    /// T5: the count from the accessors gives what the reading makes: a node met again, strips
+    /// and fans, no scene; and on every glTF and GLB under `EYECANSEE_GLTF` (`counted_live`).
+    #[test]
+    fn counted_as_read_t5() {
+        let count = |bytes: &[u8]| super::triangles(&gltf::Gltf::from_slice(bytes).unwrap().document);
+        for (what, gltf) in [
+            ("twice", triangle("0,1")),
+            ("strip", triangle("0").replace(r#""attributes":{"POSITION":0}"#, r#""attributes":{"POSITION":0},"mode":5"#)),
+            ("fan", triangle("0").replace(r#""attributes":{"POSITION":0}"#, r#""attributes":{"POSITION":0},"mode":6"#)),
+            ("lines", triangle("0").replace(r#""attributes":{"POSITION":0}"#, r#""attributes":{"POSITION":0},"mode":1"#)),
+            ("no scene", triangle("0").replace(r#","scenes":[{"nodes":[0]}],"scene":0"#, "")),
+        ] {
+            let read = crate::model::parse(gltf.as_bytes(), "a.gltf").map_or(0, |m| m.tris.len());
+            let lines = what == "lines";
+            assert_eq!(count(gltf.as_bytes()), if lines { 0 } else { read }, "{what}");
+        }
+    }
+
+    /// `counted_as_read_t5` on real files: every .glb and .gltf under `EYECANSEE_GLTF`, the count
+    /// never below the triangles read (dropped ones only make it higher) when the file has only
+    /// triangles.
+    #[test]
+    #[ignore]
+    fn counted_live() {
+        let root = std::path::PathBuf::from(std::env::var("EYECANSEE_GLTF").expect("EYECANSEE_GLTF"));
+        let mut dirs = vec![root];
+        while let Some(dir) = dirs.pop() {
+            for e in std::fs::read_dir(&dir).unwrap().flatten() {
+                let path = e.path();
+                if path.is_dir() {
+                    dirs.push(path);
+                    continue;
+                }
+                let ext = path.extension().and_then(|x| x.to_str()).unwrap_or("").to_ascii_lowercase();
+                if !["glb", "gltf"].contains(&ext.as_str()) {
+                    continue;
+                }
+                let bytes = std::fs::read(&path).unwrap();
+                let folder = path.parent().unwrap().to_path_buf();
+                let sibling = move |uri: &str| std::fs::read(folder.join(crate::model::percent_decoded(uri).unwrap_or_else(|| uri.to_string()))).ok();
+                let plain = crate::model_gltf_unpack::plain(&bytes, &sibling, &Default::default()).ok().flatten().unwrap_or_else(|| bytes.clone());
+                let Ok(g) = gltf::Gltf::from_slice(&plain) else { continue };
+                let read = super::read(&bytes, &sibling, &Default::default()).map_or(0, |m| m.tris.len());
+                let counted = super::triangles(&g.document);
+                println!("{}: counted {counted}, read {read}", path.display());
+                // Lines and points are made solid too, under a cap of their own (`model_lines::fits`).
+                use gltf::mesh::Mode;
+                let only_triangles = g.document.meshes().flat_map(|m| m.primitives().collect::<Vec<_>>()).all(|p| matches!(p.mode(), Mode::Triangles | Mode::TriangleStrip | Mode::TriangleFan));
+                assert!(counted >= read || !only_triangles, "{}", path.display());
+            }
+        }
     }
 
     /// Audit 6.6: a chain of 60 nodes, each one with the next as its child twice, none with a
