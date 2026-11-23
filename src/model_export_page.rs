@@ -97,6 +97,29 @@ fn beyond_line(i18n: &I18n, f: &Form) -> Option<String> {
 mod tests {
     use super::*;
 
+    /// Esc on the window of Export as a 3D model, opened from the viewer, closes the window and
+    /// leaves the viewer open; Enter exports (Piero, 23/11: Esc closed the viewer and the window
+    /// stayed over the grid).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn esc_closes_the_export_window_not_the_viewer() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("model_export_page::tests::esc_closes_the_export_window_not_the_viewer") {
+            return;
+        }
+        let dir = folder("export-esc", &["a.obj"]);
+        let mut h = Harness::new(&dir);
+        h.app.viewing = Some(0);
+        h.frame(Vec::new());
+        h.app.open_model_export(None);
+        h.frame(Vec::new());
+        assert!(h.app.model_export.is_some(), "the window opened");
+        h.key(egui::Key::Escape);
+        h.frame(Vec::new());
+        assert!(h.app.model_export.is_none(), "Esc should close the export window");
+        assert!(h.app.viewing.is_some(), "Esc on the export window closed the viewer");
+    }
+
     /// The model open in the viewer, of 12 million triangles: OBJ (10 million) warned, GLB (20)
     /// not; with three models chosen, two of them read and beyond, said of the two (Piero,
     /// 22/11/2026). In both languages.
