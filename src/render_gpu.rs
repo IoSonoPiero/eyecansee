@@ -143,24 +143,39 @@ pub fn adapter_selector(graphics: Graphics) -> eframe::egui_wgpu::NativeAdapterS
     Arc::new(move |adapters: &[wgpu::Adapter], surface: Option<&wgpu::Surface<'_>>| {
         let saving = std::env::var("WGPU_POWER_PREF").is_ok_and(|v| v.eq_ignore_ascii_case("low"));
         let wanted = if saving { wgpu::DeviceType::IntegratedGpu } else { wgpu::DeviceType::DiscreteGpu };
-        let mut usable: Vec<&wgpu::Adapter> = adapters.iter().filter(|a| surface.is_none_or(|s| a.is_surface_supported(s))).collect();
-        // On Windows the one chosen in the Options first, DirectX 12 unless changed: while the
-        // window changes size it stretches the last picture drawn over the new size, on every
-        // card, which entering full screen counts on (`viewer::enter_full`); with Vulkan an NVIDIA
-        // card left it in the top left corner (#171).
-        if cfg!(windows) {
-            let first = match graphics {
-                Graphics::Directx12 => wgpu::Backend::Dx12,
-                Graphics::Vulkan => wgpu::Backend::Vulkan,
-            };
-            usable.sort_by_key(|a| a.get_info().backend != first);
-        }
-        let chosen = usable.iter().find(|a| a.get_info().device_type == wanted).or_else(|| usable.first()).ok_or("no graphics card can draw this window")?;
+        let usable: Vec<&wgpu::Adapter> = adapters.iter().filter(|a| surface.is_none_or(|s| a.is_surface_supported(s))).collect();
+        // On Windows the one chosen in the Options first among cards of the same kind, DirectX 12
+        // unless changed: while the window changes size it stretches the last picture drawn over
+        // the new size, on every card, which entering full screen counts on
+        // (`viewer::enter_full`); with Vulkan an NVIDIA card left it in the top left corner (#171).
+        let first = cfg!(windows).then_some(match graphics {
+            Graphics::Directx12 => wgpu::Backend::Dx12,
+            Graphics::Vulkan => wgpu::Backend::Vulkan,
+        });
+        let cards: Vec<_> = usable.iter().map(|a| a.get_info()).map(|i| (i.device_type, i.backend)).collect();
+        let chosen = pick(&cards, wanted, first).map(|i| usable[i]).ok_or("no graphics card can draw this window")?;
         let mailbox = surface.is_some_and(|s| s.get_capabilities(chosen).present_modes.contains(&wgpu::PresentMode::Mailbox));
         MAILBOX.store(mailbox, std::sync::atomic::Ordering::Relaxed);
         STRETCHES.store(chosen.get_info().backend == wgpu::Backend::Dx12, std::sync::atomic::Ordering::Relaxed);
         Ok((*chosen).clone())
     })
+}
+
+/// The card to draw with, by kind: the one `wanted`, then a dedicated card, an integrated one, a
+/// virtual or other one, the processor last (Mesa's llvmpipe, Windows' WARP). Between cards of
+/// the same kind `first` (the kind of drawing chosen in the Options, on Windows) and then wgpu's
+/// own order, which puts Vulkan first: without the kind, a Vulkan that exists only as llvmpipe
+/// came before an integrated card that draws with OpenGL (#318).
+fn pick(cards: &[(wgpu::DeviceType, wgpu::Backend)], wanted: wgpu::DeviceType, first: Option<wgpu::Backend>) -> Option<usize> {
+    let kind = |t: wgpu::DeviceType| match t {
+        _ if t == wanted => 0,
+        wgpu::DeviceType::DiscreteGpu => 1,
+        wgpu::DeviceType::IntegratedGpu => 2,
+        wgpu::DeviceType::VirtualGpu => 3,
+        wgpu::DeviceType::Other => 4,
+        wgpu::DeviceType::Cpu => 5,
+    };
+    (0..cards.len()).min_by_key(|&i| (kind(cards[i].0), first.is_some_and(|b| cards[i].1 != b), i))
 }
 
 /// eframe's device, asked for with small blocks of graphics memory: a texture larger than a block
@@ -530,5 +545,39 @@ mod tests {
         let d = frugal_descriptor(base);
         assert!(matches!(d.memory_hints, wgpu::MemoryHints::MemoryUsage));
         assert_eq!((d.label, d.required_limits.max_texture_dimension_2d), (Some("egui wgpu device"), 8192));
+    }
+
+    use wgpu::{Backend as B, DeviceType as T};
+
+    /// Vulkan only as llvmpipe, OpenGL on the integrated card (Nobara in a virtual machine with
+    /// virgl, #318): the card, not the processor.
+    #[test]
+    fn pick_prefers_a_card_to_the_processor() {
+        let cards = [(T::Cpu, B::Vulkan), (T::IntegratedGpu, B::Gl)];
+        assert_eq!(pick(&cards, T::DiscreteGpu, None), Some(1));
+        assert_eq!(pick(&cards, T::IntegratedGpu, None), Some(1));
+    }
+
+    /// The card asked for first, then dedicated before integrated before virtual; the processor
+    /// only when nothing else draws; none with no card at all.
+    #[test]
+    fn pick_by_kind() {
+        let cards = [(T::Cpu, B::Vulkan), (T::VirtualGpu, B::Vulkan), (T::IntegratedGpu, B::Vulkan), (T::DiscreteGpu, B::Vulkan)];
+        assert_eq!(pick(&cards, T::DiscreteGpu, None), Some(3));
+        assert_eq!(pick(&cards, T::IntegratedGpu, None), Some(2));
+        assert_eq!(pick(&cards[..2], T::DiscreteGpu, None), Some(1));
+        assert_eq!(pick(&cards[..1], T::DiscreteGpu, None), Some(0));
+        assert_eq!(pick(&[], T::DiscreteGpu, None), None);
+    }
+
+    /// Same kind: the kind of drawing chosen in the Options (Windows), otherwise wgpu's order;
+    /// a dedicated card still wins over the one chosen on an integrated card.
+    #[test]
+    fn pick_same_kind_by_backend() {
+        let cards = [(T::IntegratedGpu, B::Vulkan), (T::IntegratedGpu, B::Dx12), (T::DiscreteGpu, B::Vulkan)];
+        assert_eq!(pick(&cards[..2], T::DiscreteGpu, Some(B::Dx12)), Some(1));
+        assert_eq!(pick(&cards[..2], T::DiscreteGpu, Some(B::Vulkan)), Some(0));
+        assert_eq!(pick(&cards[..2], T::DiscreteGpu, None), Some(0));
+        assert_eq!(pick(&cards, T::DiscreteGpu, Some(B::Dx12)), Some(2));
     }
 }
