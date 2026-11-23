@@ -38,8 +38,10 @@ struct Fill {
     target: f64,
     /// The player is back before `target` (the seek has landed).
     landed: bool,
-    /// The position when the last step forward was sent, and when.
-    sent: Option<(f64, Instant)>,
+    /// The frames kept when the last step forward was sent, and when: the next waits for the
+    /// frame of that step to be drawn and kept (sent on a change of position alone, some frames
+    /// were never drawn: 26 kept of 30, the video jumped; Piero, 23/11/2026).
+    sent: Option<(usize, Instant)>,
     started: Instant,
 }
 
@@ -110,9 +112,10 @@ impl Buffer {
         f.landed |= pos < f.target - 0.001;
         let done = (f.landed && pos >= f.target - 0.001) || now.duration_since(f.started) >= FILL_LIMIT;
         if !done {
-            if f.landed && f.sent.is_none_or(|(at, when)| pos != at || now.duration_since(when) >= STEP_WAIT) {
+            let kept = player.recorded();
+            if f.landed && kept > 0 && f.sent.is_none_or(|(had, when)| kept > had || now.duration_since(when) >= STEP_WAIT) {
                 player.frame_step(true);
-                f.sent = Some((pos, now));
+                f.sent = Some((kept, now));
             }
             return;
         }

@@ -171,6 +171,11 @@ impl Player {
         }
     }
 
+    /// How many frames `record` has kept so far.
+    pub fn recorded(&self) -> usize {
+        self.shared.state.lock().unwrap().record.as_ref().map_or(0, Vec::len)
+    }
+
     /// Pixels the frames are drawn at: the video fitted to the window.
     pub fn set_size(&self, size: [u32; 2]) {
         if self.shared.state.lock().unwrap().size != size {
