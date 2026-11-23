@@ -171,9 +171,9 @@ impl Player {
         }
     }
 
-    /// How many frames `record` has kept so far.
-    pub fn recorded(&self) -> usize {
-        self.shared.state.lock().unwrap().record.as_ref().map_or(0, Vec::len)
+    /// The time of the last frame `record` has kept, if any.
+    pub fn recorded(&self) -> Option<f64> {
+        self.shared.state.lock().unwrap().record.as_ref().and_then(|k| k.last()).map(|(at, _)| *at)
     }
 
     /// Pixels the frames are drawn at: the video fitted to the window.

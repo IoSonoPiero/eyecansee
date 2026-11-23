@@ -38,10 +38,11 @@ struct Fill {
     target: f64,
     /// The player is back before `target` (the seek has landed).
     landed: bool,
-    /// The frames kept when the last step forward was sent, and when: the next waits for the
-    /// frame of that step to be drawn and kept (sent on a change of position alone, some frames
-    /// were never drawn: 26 kept of 30, the video jumped; Piero, 23/11/2026).
-    sent: Option<(usize, Instant)>,
+    /// The position when the last step forward was sent, and when. The next waits for the video
+    /// to move and for the frame of the new position to be kept (sent on a change of position, or
+    /// on a frame drawn again, some frames were never kept: 24-26 of 30, the frames back jumped;
+    /// Piero, 23/11/2026).
+    sent: Option<(f64, Instant)>,
     started: Instant,
 }
 
@@ -59,6 +60,7 @@ impl Buffer {
         }
         if let Some(i) = self.shown.filter(|&i| i > 0) {
             (self.shown, self.show_now) = (Some(i - 1), true);
+            log!("video: frame back to {:.3} s, kept", self.frames[i - 1].0);
             return;
         }
         let target = self.shown.map_or_else(|| player.position(), |i| self.frames[i].0);
@@ -112,10 +114,9 @@ impl Buffer {
         f.landed |= pos < f.target - 0.001;
         let done = (f.landed && pos >= f.target - 0.001) || now.duration_since(f.started) >= FILL_LIMIT;
         if !done {
-            let kept = player.recorded();
-            if f.landed && kept > 0 && f.sent.is_none_or(|(had, when)| kept > had || now.duration_since(when) >= STEP_WAIT) {
+            if f.landed && step_now(f.sent, player.recorded(), pos, now) {
                 player.frame_step(true);
-                f.sent = Some((kept, now));
+                f.sent = Some((pos, now));
             }
             return;
         }
@@ -124,7 +125,8 @@ impl Buffer {
         self.frames = kept_before(player.record(false), target, MAX_BYTES);
         self.shown = self.frames.len().checked_sub(1 + std::mem::take(&mut self.queued)).or((!self.frames.is_empty()).then_some(0));
         self.show_now = self.shown.is_some();
-        log!("video: {} frames kept before {target:.3} s", self.frames.len());
+        let times: Vec<String> = self.frames.iter().map(|(at, _)| format!("{at:.3}")).collect();
+        log!("video: {} frames kept before {target:.3} s: {}", self.frames.len(), times.join(" "));
     }
 
     /// Before the frame is painted: while filling or showing a frame kept, the player's own frames
@@ -143,6 +145,14 @@ impl Buffer {
             }
         }
     }
+}
+
+/// Whether the next step forward of a filling can go: the frame of the position now is kept, and
+/// the video has moved since the last step (or that one has waited `STEP_WAIT`, at the end).
+fn step_now(sent: Option<(f64, Instant)>, kept: Option<f64>, pos: f64, now: Instant) -> bool {
+    let this_kept = kept.is_some_and(|at| (at - pos).abs() < 0.0005);
+    let moved = sent.is_none_or(|(at, when)| pos != at || now.duration_since(when) >= STEP_WAIT);
+    (this_kept && moved) || sent.is_some_and(|(_, when)| now.duration_since(when) >= STEP_WAIT)
 }
 
 /// The frames before `target` (the one shown when , was pressed), each time once (the last drawn
@@ -171,6 +181,21 @@ mod tests {
 
     fn frame(side: usize) -> ColorImage {
         ColorImage::new([side, side], vec![eframe::egui::Color32::BLACK; side * side])
+    }
+
+    /// #165: a step forward goes only once the frame of the position now is kept, and the video
+    /// has moved since the step before (a frame drawn again does not count).
+    #[test]
+    fn a_step_waits_for_its_frame_kept() {
+        use std::time::{Duration, Instant};
+        let t0 = Instant::now();
+        assert!(super::step_now(None, Some(3.7), 3.7, t0), "landed and kept: the first step");
+        assert!(!super::step_now(None, Some(3.667), 3.7, t0), "the frame of 3.7 not kept yet");
+        let sent = Some((3.7, t0));
+        assert!(!super::step_now(sent, Some(3.7), 3.7, t0 + Duration::from_millis(40)), "not moved yet");
+        assert!(!super::step_now(sent, Some(3.7), 3.733, t0 + Duration::from_millis(40)), "moved, its frame not kept");
+        assert!(super::step_now(sent, Some(3.733), 3.733, t0 + Duration::from_millis(50)));
+        assert!(super::step_now(sent, Some(3.7), 3.7, t0 + super::STEP_WAIT), "stuck: not waited for ever");
     }
 
     /// #165: the frames kept are those before the one shown, once each, in order, within the memory.
