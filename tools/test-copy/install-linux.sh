@@ -28,9 +28,12 @@ else
 #!/bin/sh
 logs="$HOME/.cache/eyecansee-prova/registri"
 mkdir -p "$logs"
-ls -1t "$logs"/registro-*.log 2>/dev/null | tail -n +30 | xargs -r rm -f
-log="$logs/registro-$(date +%Y-%m-%d_%H%M%S).log"
-EYECANSEE_LOG="$log" RUST_BACKTRACE=1 exec "$(dirname "$0")/eyecansee" "$@" 2>> "$log"
+ls -1t "$logs"/registro-*.log "$logs"/stderr-*.log 2>/dev/null | tail -n +30 | xargs -r rm -f
+# The diagnostic log is the program's own, switched on in Options > Diagnostics (Piero, 23/11/2026:
+# "let me switch it on myself, and it stays on"); no EYECANSEE_LOG, which would lock the switch.
+# What the program and its libraries write to stderr (a crash's backtrace, mpv) still goes here.
+log="$logs/stderr-$(date +%Y-%m-%d_%H%M%S).log"
+RUST_BACKTRACE=1 exec "$(dirname "$0")/eyecansee" "$@" 2>> "$log"
 RUN
     chmod 755 "$DIR/avvia.sh"
     printf 'EyeCanSee test copy\nVersion: %s\nBranch: %s\nCommit: %s\nBuilt: %s\n' \
