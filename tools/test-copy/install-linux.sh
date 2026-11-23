@@ -34,7 +34,10 @@ RUN
     chmod 755 "$DIR/avvia.sh"
     printf 'EyeCanSee test copy\nVersion: %s\nBranch: %s\nCommit: %s\nBuilt: %s\n' \
         "$(cat VERSION)" "$(git branch --show-current)" "$commit" "$(date '+%Y-%m-%d %H:%M %Z')" > "$DIR/BUILD.txt"
-    # No MimeType: the test copy never becomes the default viewer. StartupWMClass = app id (test_copy::NAME).
+    # The types of the published app, so that "Open with" offers the test copy (Piero, 23/11/2026);
+    # not folders, which stay with the file manager. It becomes the default only when chosen.
+    # StartupWMClass = app id (test_copy::NAME).
+    mime=$(grep '^MimeType=' assets/eyecansee.desktop | sed 's|inode/directory;||')
     mkdir -p "$(dirname "$DESKTOP")"
     cat > "$DESKTOP" <<DESK
 [Desktop Entry]
@@ -45,6 +48,7 @@ Exec=$DIR/avvia.sh %f
 Icon=$DIR/eyecansee-prova.png
 StartupWMClass=eyecansee-prova
 Categories=Graphics;Viewer;
+$mime
 Terminal=false
 DESK
 fi
