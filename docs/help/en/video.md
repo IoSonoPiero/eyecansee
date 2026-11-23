@@ -11,7 +11,7 @@ Double-click a video, or select it and press **Enter**: it opens in the viewer, 
 - **Space**, a click on the video, or ![Play](icon://play) / ![Pause](icon://pause) under it play and pause.
 - The bar under the video shows the time and the position: drag it, or click a point, to move there. With the pointer over the bar, the time of that point shows before you click. Hold **Shift** while dragging to move ten times more slowly, to reach a precise moment.
 - **Ctrl + ←** and **Ctrl + →** go 5 seconds back and forward.
-- **.** and **,** go one frame forward and back, and pause the video there. Going back takes longer, a second or so on a large video: meanwhile **Preparing the previous frame…** shows at the foot of the picture, and each press is kept, one frame after the other.
+- **.** and **,** go one frame forward and back, and pause the video there. Going back takes longer, a second or so on a large video: meanwhile the status bar says **Preparing the previous frame…**, and each press is kept, one frame after the other.
 - At the end the last frame stays; playing again starts from the beginning.
 
 ## Saving a frame as a picture

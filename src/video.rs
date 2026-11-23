@@ -161,6 +161,30 @@ impl App {
         }
     }
 
+    /// Each frame of the viewer and of the slideshow: the next frame back asked with , goes to mpv
+    /// once the one before has moved the video (`Back`); while they are made the status bar says so,
+    /// where the passing notes are, and the note goes once the frame is there (Piero, 23/11/2026).
+    fn frames_back(&mut self, ctx: &egui::Context) {
+        let note = self.i18n.t("video-frame-back-busy");
+        let busy = match &mut self.video {
+            Some(Playing { player: Ok(player), back, .. }) => {
+                let (pos, now) = (player.position(), std::time::Instant::now());
+                if back_now(back.pending, back.sent, pos, now) {
+                    player.frame_step(false);
+                    *back = Back { pending: back.pending - 1, sent: Some((pos, now)) };
+                }
+                back_busy(back.pending, back.sent, pos, now)
+            }
+            _ => false,
+        };
+        if busy {
+            self.status_note = Some(note);
+            ctx.request_repaint_after(std::time::Duration::from_millis(30));
+        } else if self.status_note.as_ref() == Some(&note) {
+            self.status_note = None;
+        }
+    }
+
     /// Up and down in the viewer of a video, and the wheel on it: `steps` of `VOLUME_STEP`.
     /// Nothing on a video without sound, whose controls are off.
     pub(crate) fn video_volume(&mut self, steps: i32) {
@@ -191,6 +215,7 @@ impl App {
             self.video = Some(self.open_video(ui.ctx(), path, size, at));
         }
         let engine = self.engine();
+        self.frames_back(ui.ctx());
         let Some(v) = &mut self.video else { return };
         if v.no_engine && engine {
             self.video = None; // the engine is there now: opened at the next frame
@@ -246,16 +271,9 @@ impl App {
             return (false, false);
         }
         // Without the engine: over at once, as before (the card is the viewer's).
+        self.frames_back(painter.ctx());
         let Some(v) = &mut self.video else { return (false, true) };
         let Ok(player) = &v.player else { return (false, true) };
-        let (pos, now) = (player.position(), std::time::Instant::now());
-        if back_now(v.back.pending, v.back.sent, pos, now) {
-            player.frame_step(false);
-            v.back = Back { pending: v.back.pending - 1, sent: Some((pos, now)) };
-        }
-        if v.back.pending > 0 {
-            painter.ctx().request_repaint_after(std::time::Duration::from_millis(30));
-        }
         (paint_fitted(painter, rect, player, &mut v.texture, Turn::default()), player.ended())
     }
 
@@ -579,9 +597,6 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, (sound, turn): ((&mut u32, &mut bool
     if player.stalled() {
         stalled_note(ui, area, i18n, copying);
     }
-    if back_busy(v.back.pending, v.back.sent, player.position(), std::time::Instant::now()) {
-        back_note(ui, area, i18n);
-    }
     // An audio file sends no frames (a cover is one): the time on the bar moves only if asked.
     if decode::is_audio(&v.path) && !player.paused() {
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
@@ -606,18 +621,6 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, (sound, turn): ((&mut u32, &mut bool
 
 /// The phone or the server gives no data (`mpv::Player::stalled`): said in the middle of the
 /// video, on a dark band, above the copy's bar when there is one, until data comes again (#209).
-/// While frames back are being made (`Back`), a yellow line at the foot of the picture, gone once
-/// the frame is there (Piero, 23/11/2026).
-fn back_note(ui: &egui::Ui, area: Rect, i18n: &I18n) {
-    ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
-    let painter = ui.painter();
-    let yellow = Color32::from_rgb(250, 204, 21);
-    let galley = painter.layout_no_wrap(i18n.t("video-frame-back-busy"), egui::FontId::proportional(15.0), yellow);
-    let back = Rect::from_center_size(pos2(area.center().x, area.max.y - 24.0 - galley.size().y / 2.0), galley.size() + vec2(24.0, 12.0));
-    painter.rect_filled(back, 6.0, Color32::from_black_alpha(190));
-    painter.galley(back.min + vec2(12.0, 6.0), galley, yellow);
-}
-
 fn stalled_note(ui: &egui::Ui, area: Rect, i18n: &I18n, above_bar: bool) {
     // Looked at again: the note goes as soon as data comes.
     ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));

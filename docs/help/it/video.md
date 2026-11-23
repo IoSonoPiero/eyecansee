@@ -11,7 +11,7 @@ Fai doppio clic su un video, oppure selezionalo e premi **Invio**: si apre nel v
 - **Spazio**, un clic sul video, oppure ![Riproduci](icon://play) / ![Pausa](icon://pause) sotto il video, avviano e mettono in pausa.
 - La barra sotto il video mostra il tempo e il punto in cui sei: trascinala, o fai clic su un punto, per andare lì. Col puntatore sopra la barra, il tempo di quel punto compare prima del clic. Tieni premuto **Maiusc** mentre trascini per muoverti dieci volte più piano, e arrivare a un momento preciso.
 - **Ctrl + ←** e **Ctrl + →** vanno indietro e avanti di 5 secondi.
-- **.** e **,** vanno avanti e indietro di un fotogramma, e mettono in pausa il video lì. Tornare indietro chiede più tempo, anche un secondo su un video grande: intanto in basso sull'immagine compare **Preparo il fotogramma precedente…**, e ogni pressione viene tenuta, un fotogramma dopo l'altro.
+- **.** e **,** vanno avanti e indietro di un fotogramma, e mettono in pausa il video lì. Tornare indietro chiede più tempo, anche un secondo su un video grande: intanto la barra di stato dice **Preparo il fotogramma precedente…**, e ogni pressione viene tenuta, un fotogramma dopo l'altro.
 - Alla fine resta l'ultimo fotogramma; facendo ripartire il video, riparte dall'inizio.
 
 ## Salvare un fotogramma come immagine
