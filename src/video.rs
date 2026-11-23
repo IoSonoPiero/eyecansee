@@ -675,14 +675,20 @@ fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u3
 }
 
 /// The seeks of the timeline in one frame (`at`: the bar's value now): while dragging, to the
-/// nearest keyframe (fast); exact when released or clicked. `target` is kept between frames.
-fn timeline_seeks(_target: &mut Option<f64>, changed: bool, dragged: bool, stopped: bool, at: f64) -> Vec<(f64, bool)> {
+/// nearest keyframe (fast); when let go, exact to the point chosen, kept in `target` between
+/// frames: by then the bar shows where the player is, the keyframe (#165, Piero 23/11/2026: a
+/// click "goes before or after the point clicked"). A click that does not move is exact at once.
+fn timeline_seeks(target: &mut Option<f64>, changed: bool, dragged: bool, stopped: bool, at: f64) -> Vec<(f64, bool)> {
     let mut seeks = Vec::new();
-    if changed {
-        seeks.push((at, !dragged));
-    }
-    if stopped {
+    if changed && dragged {
+        *target = Some(at);
+        seeks.push((at, false));
+    } else if changed {
+        *target = None;
         seeks.push((at, true));
+    }
+    if stopped && let Some(to) = target.take() {
+        seeks.push((to, true));
     }
     seeks
 }
