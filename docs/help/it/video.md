@@ -9,8 +9,9 @@ I video compaiono nella griglia insieme alle foto, con un fotogramma del video c
 Fai doppio clic su un video, oppure selezionalo e premi **Invio**: si apre nel visore, adattato alla finestra, e parte.
 
 - **Spazio**, un clic sul video, oppure ![Riproduci](icon://play) / ![Pausa](icon://pause) sotto il video, avviano e mettono in pausa.
-- La barra sotto il video mostra il tempo e il punto in cui sei: trascinala, o fai clic su un punto, per andare lì.
+- La barra sotto il video mostra il tempo e il punto in cui sei: trascinala, o fai clic su un punto, per andare lì. Col puntatore sopra la barra, il tempo di quel punto compare prima del clic. Tieni premuto **Maiusc** mentre trascini per muoverti dieci volte più piano, e arrivare a un momento preciso.
 - **Ctrl + ←** e **Ctrl + →** vanno indietro e avanti di 5 secondi.
+- **.** e **,** vanno avanti e indietro di un fotogramma, e mettono in pausa il video lì.
 - Alla fine resta l'ultimo fotogramma; facendo ripartire il video, riparte dall'inizio.
 
 ## Salvare un fotogramma come immagine

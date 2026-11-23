@@ -9,8 +9,9 @@ Videos appear in the grid next to the pictures, with a frame of the video as thu
 Double-click a video, or select it and press **Enter**: it opens in the viewer, fitted to the window, and starts playing.
 
 - **Space**, a click on the video, or ![Play](icon://play) / ![Pause](icon://pause) under it play and pause.
-- The bar under the video shows the time and the position: drag it, or click a point, to move there.
+- The bar under the video shows the time and the position: drag it, or click a point, to move there. With the pointer over the bar, the time of that point shows before you click. Hold **Shift** while dragging to move ten times more slowly, to reach a precise moment.
 - **Ctrl + ←** and **Ctrl + →** go 5 seconds back and forward.
+- **.** and **,** go one frame forward and back, and pause the video there.
 - At the end the last frame stays; playing again starts from the beginning.
 
 ## Saving a frame as a picture

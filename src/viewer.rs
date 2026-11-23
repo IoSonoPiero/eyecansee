@@ -105,6 +105,11 @@ impl App {
             if jumps != 0 {
                 self.video_jump(jumps as f64 * crate::video::JUMP);
             }
+            // . and , one frame forward and back, paused (#165, as in mpv).
+            let frames = ctx.input_mut(|i| i.count_and_consume_key(egui::Modifiers::NONE, Key::Period) as i32 - i.count_and_consume_key(egui::Modifiers::NONE, Key::Comma) as i32);
+            for _ in 0..frames.unsigned_abs() {
+                self.video_frame_step(frames > 0);
+            }
         }
         let (next, prev, first, last, close, space) = ctx.input(|i| {
             let any = |keys: &[Key]| keys.iter().any(|k| i.key_pressed(*k));

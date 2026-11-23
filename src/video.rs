@@ -122,6 +122,13 @@ impl App {
         }
     }
 
+    /// . and , in the viewer of a video: one frame forward or back, paused (#165, as in mpv).
+    pub(crate) fn video_frame_step(&self, forward: bool) {
+        if let Some(Playing { player: Ok(p), .. }) = &self.video {
+            p.frame_step(forward);
+        }
+    }
+
     /// Up and down in the viewer of a video, and the wheel on it: `steps` of `VOLUME_STEP`.
     /// Nothing on a video without sound, whose controls are off.
     pub(crate) fn video_volume(&mut self, steps: i32) {
@@ -666,14 +673,50 @@ fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u3
         ui.spacing_mut().slider_width = (ui.available_width() - sound_width).max(40.0);
         let mut at = pos;
         let r = crate::ticked::styled(ui, |ui| ui.add(egui::Slider::new(&mut at, 0.0..=length.max(0.001)).show_value(false)));
+        // The part of the bar the handle's centre runs on (egui's `SliderCore::position_range`).
+        let track = egui::Rangef::new(r.rect.left(), r.rect.right()).shrink(r.rect.height() / 2.5);
         let id = r.id.with("target");
         let mut target = ui.data(|d| d.get_temp::<Option<f64>>(id)).flatten();
+        // With Shift held while dragging, the time moves FINE times slower than the pointer, from
+        // where it was when Shift was pressed (#165).
+        let fine_id = r.id.with("fine");
+        let pointer = r.interact_pointer_pos().map(|p| p.x);
+        if r.dragged() && ui.input(|i| i.modifiers.shift) && let Some(x) = pointer {
+            let anchor = ui.data(|d| d.get_temp::<(f32, f64)>(fine_id)).unwrap_or((x, target.unwrap_or(pos)));
+            at = fine(anchor, x, track.span(), length);
+            ui.data_mut(|d| d.insert_temp(fine_id, anchor));
+        } else {
+            ui.data_mut(|d| d.remove::<(f32, f64)>(fine_id));
+        }
         for (to, exact) in timeline_seeks(&mut target, r.changed(), r.dragged(), r.drag_stopped(), at) {
             player.seek(to, exact);
         }
         ui.data_mut(|d| d.insert_temp(id, target));
+        // The time under the pointer, before clicking (#165).
+        if let Some(p) = r.hover_pos() {
+            r.on_hover_text_at_pointer(mpv::clock(time_at(p.x, track, length)));
+        }
         sound_controls(ui, player, sound, i18n);
     });
+}
+
+/// How many times slower than the pointer a drag with Shift moves the time (#165).
+const FINE: f64 = 10.0;
+
+/// The time under the pointer at `x` on a timeline whose handle runs along `track`, of `length`
+/// seconds (#165).
+fn time_at(x: f32, track: egui::Rangef, length: f64) -> f64 {
+    let f = if track.span() > 0.0 { ((x - track.min) / track.span()).clamp(0.0, 1.0) } else { 0.0 };
+    f64::from(f) * length
+}
+
+/// The time of a drag with Shift: from `anchor` (pointer and time when Shift was pressed), `FINE`
+/// times slower than the pointer along a track `width` pixels long, within the video.
+fn fine(anchor: (f32, f64), x: f32, width: f32, length: f64) -> f64 {
+    if width <= 0.0 {
+        return anchor.1;
+    }
+    (anchor.1 + f64::from(x - anchor.0) / f64::from(width) * length / FINE).clamp(0.0, length)
 }
 
 /// The seeks of the timeline in one frame (`at`: the bar's value now): while dragging, to the
@@ -737,6 +780,22 @@ fn sound_controls(ui: &mut egui::Ui, player: &mpv::Player, (volume, mute): (&mut
 
 #[cfg(test)]
 mod tests {
+
+    /// #165: the time under the pointer, and a drag with Shift ten times finer.
+    #[test]
+    fn timeline_time_under_pointer_and_fine_drag_165() {
+        use super::{fine, time_at};
+        let track = egui::Rangef::new(100.0, 1100.0);
+        assert_eq!(time_at(100.0, track, 200.0), 0.0);
+        assert_eq!(time_at(600.0, track, 200.0), 100.0);
+        assert_eq!(time_at(1500.0, track, 200.0), 200.0);
+        assert_eq!(time_at(50.0, track, 200.0), 0.0);
+        // 100 pixels of a 1000-pixel track on 200 s: 20 s without Shift, 2 s with it.
+        assert!((fine((500.0, 80.0), 600.0, 1000.0, 200.0) - 82.0).abs() < 1e-9);
+        assert!((fine((500.0, 80.0), 400.0, 1000.0, 200.0) - 78.0).abs() < 1e-9);
+        assert_eq!(fine((500.0, 1.0), 0.0, 1000.0, 200.0), 0.0);
+        assert_eq!(fine((500.0, 80.0), 600.0, 0.0, 200.0), 80.0);
+    }
 
     /// #165, a click on the timeline lands where clicked (Piero, 23/11/2026: "it goes before or
     /// after the point clicked"). A click almost always moves the pointer a little: it is a drag,

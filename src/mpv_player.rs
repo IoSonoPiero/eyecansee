@@ -240,6 +240,11 @@ impl Player {
         }
     }
 
+    /// One frame forward or back, paused there (mpv's frame-step and frame-back-step, #165).
+    pub fn frame_step(&self, forward: bool) {
+        let _ = self.mpv.command(&[if forward { "frame-step" } else { "frame-back-step" }]);
+    }
+
     /// To `seconds` from the start; `exact` false jumps to the nearest keyframe (fast, while dragging).
     pub fn seek(&self, seconds: f64, exact: bool) {
         let how = if exact { "absolute+exact" } else { "absolute+keyframes" };
