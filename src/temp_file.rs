@@ -45,6 +45,7 @@ fn old(name: &str) -> bool {
 pub(crate) fn remove_old_copies() {
     if !crate::single::multi() {
         remove_old_in(&std::env::temp_dir());
+        crate::open_copy::forget_all();
     }
 }
 

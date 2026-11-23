@@ -293,6 +293,9 @@ impl Store {
     /// name `new_name`; returns the new path. The name must be free (`free_name`), except on this
     /// computer, where a file there is replaced (`local::rename`).
     pub async fn move_into(&self, path: &str, to_dir: &str, new_name: &str) -> Result<String, Error> {
+        // The copy of an open picture is no longer that file (`open_copy`), here or where it goes.
+        crate::open_copy::forget(self, path);
+        crate::open_copy::forget(self, &format!("{to_dir}{new_name}"));
         let slash = if path.ends_with('/') { "/" } else { "" };
         let to = format!("{to_dir}{new_name}{slash}");
         match self {
@@ -361,6 +364,8 @@ impl Store {
     /// Never over an existing item; on a local disk that does not tell case apart, a new name that
     /// differs only in case is the item itself (`local::rename_new`).
     pub async fn rename(&self, path: &str, new_name: &str) -> Result<String, Error> {
+        crate::open_copy::forget(self, path);
+        crate::open_copy::forget(self, &format!("{}{new_name}", parent(path)));
         let slash = if path.ends_with('/') { "/" } else { "" };
         let to = format!("{}{new_name}{slash}", parent(path));
         match self {
@@ -507,6 +512,7 @@ impl Store {
     /// `error-cancelled` when `cancel` is set. An error also goes into `out`, so the writer
     /// knows the file is incomplete.
     pub async fn send_chunks(&self, path: &str, size: u64, out: Chunks, done: &AtomicU64, cancel: &AtomicBool) -> Result<(), Error> {
+        crate::open_copy::forget(self, path);
         // Also what a phone on Windows answers after a stale handle (the whole copy of a video).
         let r = self.noticed(self.send(path, size, &out, done, cancel).await, path);
         if let Err((_, detail)) = &r {
@@ -558,6 +564,7 @@ impl Store {
     /// On this computer and on servers the bytes are counted (`sized`); a phone is told the size
     /// before the upload begins.
     pub async fn write_chunks(&self, path: &str, size: u64, chunks: tokio::sync::mpsc::Receiver<std::io::Result<Bytes>>) -> Result<(), Error> {
+        crate::open_copy::forget(self, path);
         let counted = |chunks| sized(name(path), size, chunks);
         match self {
             Store::Dal(op) => {

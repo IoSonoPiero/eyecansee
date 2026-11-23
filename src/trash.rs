@@ -266,6 +266,7 @@ impl Store {
 
     /// Deletes an image, or a folder (path ending in "/") with everything inside it.
     pub async fn delete(&self, path: &str, how: Deletion) -> Result<(), Error> {
+        crate::open_copy::forget(self, path);
         let detail = |e: &dyn std::fmt::Display| ("error-detail", e.to_string());
         match (self, how) {
             (Store::Dal(op), Deletion::SystemTrash) => {

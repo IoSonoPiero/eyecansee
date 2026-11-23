@@ -27,6 +27,7 @@ External disks, USB sticks and memory cards appear in the panel on the left as s
 
 - If you unplug a disk, a stick or a phone while one of its folders is open, the home folder opens and the status bar says for a few seconds which device was unplugged ("Device unplugged: …"). A picture or a video open from it closes.
 - Thumbnails of a device stay in the cache after you disconnect it, so it opens quickly the next time.
+- While a picture from a phone or a server is open, EyeCanSee keeps the file it downloaded in its cache folder on this computer, so that saving does not download it again. The copy is deleted when you close the picture.
 - Folders on this computer and on disks update by themselves: files added, deleted or renamed by another program appear and disappear without F5.
 - On Linux, a folder opened through the file manager's connection (gvfs, for example a network folder opened from the Files app) is never saved over: there replacing a file can lose the original. Use **Save as…** instead.
 - On Linux, on an **NTFS** disk the Files app cannot restore from the trash: see [Known limits](limits.md).

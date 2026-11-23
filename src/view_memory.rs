@@ -154,10 +154,16 @@ pub fn own_limits(path: &str) -> bool {
 
 /// `read` on a computer with `ram`, a file up to `once` bytes read whole at once.
 async fn read_for(op: &Store, path: &str, size: Option<u64>, (what, anyway): (Use, bool), (ram, once): (u64, u64)) -> Result<Vec<u8>, NotRead> {
-    if anyway || own_limits(path) {
-        return op.read(path).await.map_err(NotRead::Failed);
+    let r = if anyway || own_limits(path) {
+        op.read(path).await.map_err(NotRead::Failed)
+    } else {
+        read_within(op, path, size, once, |bytes, size| estimate(bytes, size, path, what).over_half(bytes.len(), size, path, ram)).await
+    };
+    // Kept on this computer while open, for the saves (`open_copy`).
+    if let Ok(bytes) = &r {
+        crate::open_copy::keep(op, path, bytes);
     }
-    read_within(op, path, size, once, |bytes, size| estimate(bytes, size, path, what).over_half(bytes.len(), size, path, ram)).await
+    r
 }
 
 /// The pictures opened anyway since EyeCanSee started (Piero, 21/11/2026): the base of their

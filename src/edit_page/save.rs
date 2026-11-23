@@ -126,7 +126,7 @@ impl Prepared {
 pub(crate) async fn prepare(store: &crate::source::Store, path: &str, (doc, original): (&crate::edit::doc::Doc, Arc<Original>), bytes: Option<Arc<Vec<u8>>>, (word, over, written, keep): (String, bool, Option<Written>, Keep)) -> Result<Prepared, source::Error> {
     let bytes = match bytes {
         Some(b) => b,
-        None => Arc::new(store.read(path).await?),
+        None => Arc::new(crate::open_copy::read(store, path).await?),
     };
     let still = match &written {
         Some(w) => store.read(&w.path).await.is_ok_and(|b| sha256(&b) == w.sha),
@@ -397,7 +397,7 @@ impl App {
         self.rt.spawn(async move {
             let file = match (bytes, store) {
                 (Some(b), _) => Some(b),
-                (None, Some(store)) => store.read(&path).await.ok().map(Arc::new),
+                (None, Some(store)) => crate::open_copy::read(&store, &path).await.ok().map(Arc::new),
                 (None, None) => None,
             };
             let made = tokio::task::spawn_blocking(move || {

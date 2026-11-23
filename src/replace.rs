@@ -134,7 +134,12 @@ pub(crate) const TOO_LARGE: &str = "save-too-large";
 /// too large for the memory once decoded is not turned (`TOO_LARGE`); a JPEG turned without
 /// re-encoding never is.
 pub(crate) async fn turned(op: &Store, path: &str, turn: crate::transform::Turn, anyway: bool) -> Result<(Vec<u8>, bool), source::Error> {
-    let bytes = if anyway { op.read(path).await? } else { to_turn(op, path, turn, crate::thumb_memory::ram()).await? };
+    // The copy kept while the picture is open (`open_copy`), else read from its source.
+    let bytes = match crate::open_copy::kept(op, path) {
+        Some(bytes) => bytes,
+        None if anyway => op.read(path).await?,
+        None => to_turn(op, path, turn, crate::thumb_memory::ram()).await?,
+    };
     rewritten(bytes, path, move |bytes, name| crate::save_back::turned_file(bytes, name, turn)).await
 }
 

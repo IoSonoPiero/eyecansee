@@ -150,6 +150,7 @@ mod mpv_stream;
 mod mtp;
 mod navigation;
 mod occt;
+mod open_copy;
 mod options_tabs;
 mod new_folder;
 mod new_image;
@@ -663,6 +664,7 @@ impl eframe::App for App {
         self.video = None;
         mpv::wait_closed(std::time::Duration::from_secs(2));
         video_read::forget_copies();
+        open_copy::forget_all();
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
