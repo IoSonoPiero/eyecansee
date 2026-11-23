@@ -624,6 +624,29 @@ mod tests {
         assert_eq!(line("it"), ["a.gltf: una parte del modello compariva più volte nella sua gerarchia; il file nuovo la contiene una volta sola"]);
     }
 
+    /// T5 (Piero, 22/11/2026): a .gltf with more triangles than its cap, as its accessors give
+    /// them, is refused before its data file is read, with the why; and a GLB the same (its
+    /// data is in the file: refused before a triangle is made).
+    #[test]
+    fn counted_before_the_reading_t5() {
+        let n = crate::model_limit::GLTF.max * 3 + 3;
+        let body = format!(
+            r#""buffers":[{{"uri":"big.bin","byteLength":{len}}}],"bufferViews":[{{"buffer":0,"byteLength":36}},{{"buffer":0,"byteOffset":36,"byteLength":{idx}}}],"accessors":[{{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","max":[1,1,0],"min":[0,0,0]}},{{"bufferView":1,"componentType":5125,"count":{n},"type":"SCALAR"}}],"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0}},"indices":1}}]}}],"nodes":[{{"mesh":0}}],"scenes":[{{"nodes":[0]}}],"scene":0"#,
+            len = 36 + 4 * n,
+            idx = 4 * n
+        );
+        let gltf = format!(r#"{{"asset":{{"version":"2.0"}},{body}}}"#);
+        let asked = std::cell::Cell::new(0);
+        let sibling = |_: &str| {
+            asked.set(asked.get() + 1);
+            None
+        };
+        let e = super::read(gltf.as_bytes(), &sibling, &Default::default()).unwrap_err();
+        assert_eq!((e, asked.get()), (crate::model_limit::GLTF.error(), 0));
+        assert_eq!(said(&crate::model_limit::GLTF.error())[0].lines().nth(1), Some("EyeCanSee does not open glTF files with more than 20 million triangles, so that reading them does not fill the computer's memory."));
+        assert_eq!(said(&crate::model_limit::GLB.error())[1].lines().nth(1), Some("EyeCanSee non apre i file GLB con più di 20 milioni di triangoli, perché la lettura non riempia la memoria del computer."));
+    }
+
     /// Audit 6.6: a chain of 60 nodes, each one with the next as its child twice, none with a
     /// mesh: 2^60 visits in a .gltf of a few hundred bytes (`gltf` accepts a node with more than
     /// one parent). It must end (refused, or found empty) without visiting them all.
