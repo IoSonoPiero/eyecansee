@@ -296,6 +296,23 @@ mod tests {
         assert!(!f.stalled(at(90)));
     }
 
+    /// Piero, 23/11: a video paused for 20 s or more, then a click elsewhere on the timeline,
+    /// said at once "no data for 20 seconds": the time was counted from the last data, also while
+    /// nothing was asked. It counts from when a read starts waiting.
+    #[test]
+    fn paused_then_sought_is_not_stalled() {
+        let t0 = Instant::now();
+        let at = |s: u64| t0 + Duration::from_secs(s);
+        let mut f = Flow::new(t0);
+        f.read_started();
+        f.read_ended(at(1), true);
+        // Paused: no read for 29 s, then the seek reads.
+        f.read_started();
+        assert!(!f.stalled(at(30)), "the read has just started");
+        assert!(!f.stalled(at(49)));
+        assert!(f.stalled(at(50)), "20 s waiting without data");
+    }
+
     /// #209: the error of the last read is kept for the player, until a read succeeds again; the
     /// end of the file reads nothing and changes nothing.
     #[test]
