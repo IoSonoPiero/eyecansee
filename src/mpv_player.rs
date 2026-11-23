@@ -107,6 +107,12 @@ pub struct Player {
     thread: Option<JoinHandle<()>>,
 }
 
+/// What the player keeps of the video already played, in memory: a frame back (`,`) and a seek
+/// back from there need no new read from a phone or a server, where mpv would read the stretch
+/// again and a frame back only paused (Piero, 23/11/2026). mpv keeps its cache only for network
+/// streams unless asked; 150 MB is a few minutes of a phone's video.
+const BACK_CACHE: [(&str, &str); 3] = [("cache", "yes"), ("demuxer-seekable-cache", "yes"), ("demuxer-max-back-bytes", "150MiB")];
+
 impl Player {
     /// `repaint` is called at every new frame, from the player's thread. `volume` (0-100) and
     /// `mute` are set before the first frame plays.
@@ -127,6 +133,7 @@ impl Player {
         let (start, seek) = start_options(at);
         // track-auto-selection=no: no track until the rotation is set (`start_tracks`, #173).
         let mut options = vec![("hwdec", "auto-copy-safe"), ("track-auto-selection", "no"), ("keep-open", "yes"), ("audio-client-name", "EyeCanSee"), ("sub-auto", "no"), ("volume", volume.as_str()), ("mute", mute)];
+        options.extend(BACK_CACHE);
         options.extend(start.iter().map(|(k, v)| (*k, v.as_str())));
         let mut mpv = Mpv::new(&options, move || s.change(|st| st.dirty = true))?;
         mpv.load(input)?;
@@ -242,6 +249,7 @@ impl Player {
 
     /// One frame forward or back, paused there (mpv's frame-step and frame-back-step, #165).
     pub fn frame_step(&self, forward: bool) {
+        log!("video: one frame {} from {:.3} s", if forward { "forward" } else { "back" }, self.position());
         let _ = self.mpv.command(&[if forward { "frame-step" } else { "frame-back-step" }]);
     }
 
