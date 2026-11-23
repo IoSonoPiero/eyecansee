@@ -729,6 +729,25 @@ fn sound_controls(ui: &mut egui::Ui, player: &mpv::Player, (volume, mute): (&mut
 
 #[cfg(test)]
 mod tests {
+
+    /// #165, a click on the timeline lands where clicked (Piero, 23/11/2026: "it goes before or
+    /// after the point clicked"). A click almost always moves the pointer a little: it is a drag,
+    /// which seeks to keyframes while held; when let go the bar already shows the keyframe the
+    /// player is at, and the exact seek went there instead of to the point chosen.
+    #[test]
+    fn timeline_release_lands_where_chosen_165() {
+        use super::timeline_seeks;
+        let mut target = None;
+        // Pressed and moved to 60 s: a fast seek, to the nearest keyframe (58 s).
+        assert_eq!(timeline_seeks(&mut target, true, true, false, 60.0), vec![(60.0, false)]);
+        // Let go: the bar shows 58 s, where the player is; the exact seek goes to 60 s.
+        assert_eq!(timeline_seeks(&mut target, false, false, true, 58.0), vec![(60.0, true)]);
+        // Nothing left for the next frames.
+        assert_eq!(timeline_seeks(&mut target, false, false, false, 60.0), vec![]);
+        // A click that does not move: exact at once, nothing more when let go.
+        assert_eq!(timeline_seeks(&mut target, true, false, false, 30.0), vec![(30.0, true)]);
+        assert_eq!(timeline_seeks(&mut target, false, false, false, 30.0), vec![]);
+    }
     /// The spinner of a video waits half a second: a video quicker to its first frame never shows it.
     #[test]
     fn spinner_after_half_a_second() {
