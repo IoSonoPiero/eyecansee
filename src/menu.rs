@@ -42,7 +42,7 @@ impl App {
                 #[cfg(not(feature = "shots"))]
                 let version_shown = true;
                 // Only where it fits: in a narrow window it was drawn over the Help menu.
-                let text = format!("EyeCanSee {}", version());
+                let text = version_text(crate::test_copy::BUILT);
                 let font = egui::TextStyle::Body.resolve(ui.style());
                 let width = ui.painter().layout_no_wrap(text.clone(), font, ui.visuals().weak_text_color()).size().x;
                 // Not counted in what the right end needs: shown only where it fits.
@@ -361,5 +361,27 @@ fn partial_note(ui: &mut egui::Ui, partial: bool, i18n: &crate::i18n::I18n) {
     if partial {
         ui.separator();
         ui.weak(i18n.t("menu-partial")).on_hover_text(i18n.t("menu-partial-hint"));
+    }
+}
+/// The version at the right end of the menu bar, with the test copy's build time when it has one.
+fn version_text(built: Option<&str>) -> String {
+    match built {
+        Some(when) => format!("EyeCanSee {} · {when}", version()),
+        None => format!("EyeCanSee {}", version()),
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    /// The test copy shows when it was built next to the version; the published app only the version.
+    #[test]
+    fn version_with_build_time() {
+        let v = crate::version();
+        assert_eq!(super::version_text(None), format!("EyeCanSee {v}"));
+        assert_eq!(super::version_text(Some("2026-11-23 16:05:12")), format!("EyeCanSee {v} · 2026-11-23 16:05:12"));
+        if !cfg!(feature = "test-copy") {
+            assert_eq!(crate::test_copy::BUILT, None);
+        }
     }
 }

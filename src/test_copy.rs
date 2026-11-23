@@ -8,6 +8,11 @@
 /// Name of the app's folders, of its app id on Linux and of its single-instance socket.
 pub const NAME: &str = if cfg!(feature = "test-copy") { "eyecansee-prova" } else { "eyecansee" };
 
+/// When the test copy was built, "YYYY-MM-DD HH:MM:SS", set by its install scripts
+/// (`EYECANSEE_BUILT`), shown next to the version in the menu bar (Piero, 23/11/2026: "so I
+/// always know when the version is from"); never in the published app.
+pub const BUILT: Option<&str> = if cfg!(feature = "test-copy") { option_env!("EYECANSEE_BUILT") } else { None };
+
 /// The app icon (window, task bar, About); the Windows executable's is in `build.rs`.
 pub const ICON_SVG: &[u8] = if cfg!(feature = "test-copy") {
     include_bytes!("../assets/eyecansee-prova.svg")

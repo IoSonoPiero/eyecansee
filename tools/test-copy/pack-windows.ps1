@@ -10,6 +10,8 @@ foreach ($v in [Environment]::GetEnvironmentVariables("User").GetEnumerator()) {
 }
 $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
 
+# When it was built, shown next to the version (test_copy::BUILT).
+$env:EYECANSEE_BUILT = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 cargo build --locked --profile prova --no-default-features --features heif,magick,test-copy
 if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
 

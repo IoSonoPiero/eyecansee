@@ -18,7 +18,8 @@ DESKTOP="$HOME/.local/share/applications/eyecansee-prova.desktop"
 if [[ "${1:-}" == "--uninstall" ]]; then
     rm -rf "$DIR" "$DESKTOP"
 else
-    cargo build --locked --profile prova --features test-copy
+    # When it was built, shown next to the version (test_copy::BUILT).
+    EYECANSEE_BUILT="$(date '+%Y-%m-%d %H:%M:%S')" cargo build --locked --profile prova --features test-copy
     commit=$(git rev-parse --short HEAD)
     git diff --quiet HEAD || commit="$commit (with uncommitted changes)"
     install -Dm755 target/prova/eyecansee "$DIR/eyecansee"
