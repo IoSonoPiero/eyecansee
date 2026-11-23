@@ -542,6 +542,25 @@ mod tests {
             .collect()
     }
 
+    /// A binary PLY left to the parser (two elements of the same name) is read whole before its
+    /// triangles or points can be counted: refused without the why (Piero, 22/11/2026), as the
+    /// other formats read whole.
+    #[test]
+    fn binary_left_to_the_parser_without_the_why() {
+        let head = "element vertex 1\nproperty float x\nproperty float y\nproperty float z\nelement vertex 1\nproperty float x\nproperty float y\nproperty float z\n";
+        let bytes = ply("binary_little_endian", head, &le(&[(0.0, "f"); 6]));
+        assert!(binary(&bytes, false).is_none() && !in_text(&bytes));
+        let limit = parsed_limit(&bytes);
+        let (en, it) = (crate::i18n::I18n::new("en"), crate::i18n::I18n::new("it"));
+        assert_eq!(en.load_error(&limit.error()).lines().nth(1), Some("EyeCanSee does not open binary PLY files with more than 50 million triangles."));
+        assert_eq!(it.load_error(&limit.error()).lines().nth(1), Some("EyeCanSee non apre i file PLY binari con più di 50 milioni di triangoli."));
+        let points = limit.check_points(usize::MAX).unwrap_err();
+        assert_eq!(en.load_error(&points).lines().nth(1), Some("EyeCanSee does not open binary PLY files with more than 12.5 million points."));
+        assert_eq!(it.load_error(&points).lines().nth(1), Some("EyeCanSee non apre i file PLY binari con più di 12,5 milioni di punti."));
+        // EyeCanSee's own reader counts before it reads: the why stays.
+        assert_eq!(en.load_error(&PLY_BINARY.error()).lines().nth(1), Some("EyeCanSee does not open binary PLY files with more than 50 million triangles, so that reading them does not fill the computer's memory."));
+    }
+
     /// #191: the reader of the binary files gives what the parser gave, on every kind the files
     /// in the collection have and on files made to break it.
     #[test]
