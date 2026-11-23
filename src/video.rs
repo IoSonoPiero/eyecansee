@@ -31,32 +31,8 @@ pub(crate) struct Playing {
     hide: crate::video_full::Hide,
     /// When it was opened: the spinner waits `SPIN_AFTER` before showing (`spin_in`).
     opened: std::time::Instant,
-    /// Frames back asked with , and not yet sent to mpv (`Back`).
-    back: Back,
-}
-
-/// Frames back asked with , one after the other: mpv drops a frame back asked while the one
-/// before is still being decoded (a 4K video took about a second each, and nine presses of ten
-/// were lost; Piero, 23/11/2026). The next is sent once the frame shown has changed, or after
-/// `BACK_WAIT` (at the start of the video it cannot change).
-#[derive(Default)]
-struct Back {
-    pending: u32,
-    /// The position when the last frame back was sent, and when.
-    sent: Option<(f64, std::time::Instant)>,
-}
-
-const BACK_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
-
-/// Frames back are being made: some still asked, or the last one sent has not moved the video yet.
-fn back_busy(pending: u32, sent: Option<(f64, std::time::Instant)>, pos: f64, now: std::time::Instant) -> bool {
-    pending > 0 || sent.is_some_and(|(at, when)| pos == at && now.duration_since(when) < BACK_WAIT)
-}
-
-/// Whether the next frame back can go to mpv now: one is asked, and the last one sent has
-/// moved the video (or `BACK_WAIT` has passed).
-fn back_now(pending: u32, sent: Option<(f64, std::time::Instant)>, pos: f64, now: std::time::Instant) -> bool {
-    pending > 0 && sent.is_none_or(|(at, when)| pos != at || now.duration_since(when) >= BACK_WAIT)
+    /// The frames kept for , (`video_back`).
+    back: crate::video_back::Buffer,
 }
 
 /// How long a video may take to its first frame without a spinner: a quicker one does not flash
@@ -134,46 +110,43 @@ impl App {
         self.video.as_ref()?.player.as_ref().ok()?.video_size().map(|size| turned(size, self.turn))
     }
 
-    /// Space in the viewer of a video.
-    pub(crate) fn toggle_video(&self) {
-        if let Some(Playing { player: Ok(p), .. }) = &self.video {
+    /// Space in the viewer of a video: from the frame kept shown, if any (`video_back`).
+    pub(crate) fn toggle_video(&mut self) {
+        if let Some(Playing { player: Ok(p), back, .. }) = &mut self.video {
+            back.leave(p);
             p.toggle();
         }
     }
 
     /// Ctrl and an arrow in the viewer of a video: `seconds` forward (or back), within the video.
-    pub(crate) fn video_jump(&self, seconds: f64) {
-        if let Some(Playing { player: Ok(p), .. }) = &self.video {
+    pub(crate) fn video_jump(&mut self, seconds: f64) {
+        if let Some(Playing { player: Ok(p), back, .. }) = &mut self.video {
+            back.leave(p);
             p.seek(jumped(p.position(), seconds, p.duration()), true);
         }
     }
 
-    /// . and , in the viewer of a video: one frame forward or back, paused (#165, as in mpv).
-    /// The frames back go one after the other (`Back`).
+    /// . and , in the viewer of a video: one frame forward or back, paused (#165, as in mpv). The
+    /// frames back come from frames kept in memory (`video_back`), . too while there are some.
     pub(crate) fn video_frame_step(&mut self, forward: bool) {
         if let Some(Playing { player: Ok(p), back, .. }) = &mut self.video {
-            if forward {
-                *back = Back::default();
+            if !forward {
+                back.back(p);
+            } else if !back.forward(p) {
                 p.frame_step(true);
-            } else {
-                back.pending += 1;
             }
         }
     }
 
-    /// Each frame of the viewer and of the slideshow: the next frame back asked with , goes to mpv
-    /// once the one before has moved the video (`Back`); while they are made the status bar says so,
-    /// where the passing notes are, and the note goes once the frame is there (Piero, 23/11/2026).
+    /// Each frame of the viewer and of the slideshow: the frames back are kept (`video_back`);
+    /// meanwhile the status bar says so, where the passing notes are, and the note goes once the
+    /// frame is there (Piero, 23/11/2026).
     fn frames_back(&mut self, ctx: &egui::Context) {
         let note = self.i18n.t("video-frame-back-busy");
         let busy = match &mut self.video {
             Some(Playing { player: Ok(player), back, .. }) => {
-                let (pos, now) = (player.position(), std::time::Instant::now());
-                if back_now(back.pending, back.sent, pos, now) {
-                    player.frame_step(false);
-                    *back = Back { pending: back.pending - 1, sent: Some((pos, now)) };
-                }
-                back_busy(back.pending, back.sent, pos, now)
+                back.pump(player);
+                back.busy()
             }
             _ => false,
         };
@@ -476,7 +449,7 @@ impl App {
         if let Err(e) = &player {
             log!("motion photo {path:?}: ERROR {e}");
         }
-        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying: None, hide: Default::default(), opened: std::time::Instant::now(), back: Back::default() }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying: None, hide: Default::default(), opened: std::time::Instant::now(), back: Default::default() }
     }
 
     /// Why the video open for `path` does not play, when no card says it (the engine to
@@ -546,7 +519,7 @@ impl App {
         if let Some(at) = at {
             log!("video {path:?}: opened at {:.3} s, paused {}, at the end {}", at.time, at.paused, at.at_end);
         }
-        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying, hide: Default::default(), opened: std::time::Instant::now(), back: Back::default() }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying, hide: Default::default(), opened: std::time::Instant::now(), back: Default::default() }
     }
 }
 
@@ -577,6 +550,7 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, (sound, turn): ((&mut u32, &mut bool
     let rect = ui.available_rect_before_wrap();
     let area = if bare { rect } else { Rect::from_min_max(rect.min, pos2(rect.max.x, rect.max.y - BAR)) };
     let response = ui.allocate_rect(area, egui::Sense::click());
+    v.back.before_paint(ui.ctx(), player, &mut v.texture);
     if !paint_fitted(ui.painter(), area, player, &mut v.texture, turn) && player.video_size().is_none() {
         if decode::is_audio(&v.path) {
             // An audio file without a cover never gets a picture: a note, not a spinner forever.
@@ -602,19 +576,29 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, (sound, turn): ((&mut u32, &mut bool
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
     }
     if response.clicked() {
+        v.back.leave(player);
         player.toggle();
     }
     let bar = Rect::from_min_max(pos2(rect.min.x, rect.max.y - BAR), rect.max);
+    let (mut sought, mut toggle) = (false, false);
     if !bare {
         v.hide.reset();
-        controls(ui, bar, player, sound, i18n);
+        (sought, toggle) = controls(ui, bar, player, sound, i18n);
     } else if let Some(opacity) = bar_shown(ui, &mut v.hide, bar) {
         // Over the picture: on a dark band, fading in and out.
         ui.painter().rect_filled(bar, 0.0, Color32::from_black_alpha((170.0 * opacity) as u8));
         ui.scope(|ui| {
             ui.set_opacity(opacity);
-            controls(ui, bar, player, sound, i18n);
+            (sought, toggle) = controls(ui, bar, player, sound, i18n);
         });
+    }
+    // The timeline went elsewhere: the frames kept are no longer around it.
+    if sought {
+        v.back.clear(player);
+    }
+    if toggle {
+        v.back.leave(player);
+        player.toggle();
     }
     Some(response)
 }
@@ -712,15 +696,18 @@ fn frame_sizes(video: [u32; 2], room: [f32; 2]) -> ([u32; 2], [u32; 2]) {
 }
 
 /// Play/pause, time, position, then sound off and volume. On the viewer's dark background in both themes.
-fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u32, &mut bool), i18n: &I18n) {
+/// What was asked: the timeline sought, and play or pause (done by the caller, after the frames
+/// kept: `video_back`).
+fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u32, &mut bool), i18n: &I18n) -> (bool, bool) {
     let builder = egui::UiBuilder::new().max_rect(rect.shrink2(vec2(8.0, 0.0))).layout(egui::Layout::left_to_right(egui::Align::Center));
     ui.scope_builder(builder, |ui| {
+        let (mut sought, mut toggle) = (false, false);
         crate::theme::on_dark(ui);
         let light = Color32::from_gray(225);
         let paused = player.paused();
         let (icon, tip) = if paused { (crate::icons::Line::Play, "video-play") } else { (crate::icons::Line::Pause, "video-pause") };
         if ui.add(egui::Button::image(crate::icons::line_in(ui.ctx(), icon, 18.0, light))).on_hover_text(i18n.t(tip)).clicked() {
-            player.toggle();
+            toggle = true;
         }
         let length = player.duration();
         let pos = shown_position(player.position(), length, player.ended());
@@ -756,6 +743,7 @@ fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u3
                 log!("video: timeline to {to:.3} s, exact");
             }
             player.seek(to, exact);
+            sought = true;
         }
         ui.data_mut(|d| d.insert_temp(id, target));
         // The time under the pointer, before clicking (#165).
@@ -763,7 +751,9 @@ fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u3
             r.on_hover_text_at_pointer(mpv::clock(time_at(p.x, track, length)));
         }
         sound_controls(ui, player, sound, i18n);
-    });
+        (sought, toggle)
+    })
+    .inner
 }
 
 /// How many times slower than the pointer a drag with Shift moves the time (#165).
@@ -846,25 +836,6 @@ fn sound_controls(ui: &mut egui::Ui, player: &mpv::Player, (volume, mute): (&mut
 
 #[cfg(test)]
 mod tests {
-
-    /// #165: frames back go one after the other, each once the one before has moved the video.
-    #[test]
-    fn frames_back_one_after_the_other_165() {
-        use super::{BACK_WAIT, back_now};
-        let t0 = std::time::Instant::now();
-        assert!(!back_now(0, None, 10.0, t0), "none asked");
-        assert!(back_now(3, None, 10.0, t0), "the first goes at once");
-        let sent = Some((10.0, t0));
-        assert!(!back_now(2, sent, 10.0, t0 + std::time::Duration::from_millis(900)), "still decoding");
-        assert!(back_now(2, sent, 9.967, t0 + std::time::Duration::from_millis(1000)), "moved: the next");
-        assert!(back_now(2, sent, 10.0, t0 + BACK_WAIT), "at the start it cannot move: not stuck");
-        // The yellow line: while asked or not yet moved; gone once moved.
-        use super::back_busy;
-        assert!(back_busy(1, None, 10.0, t0));
-        assert!(back_busy(0, sent, 10.0, t0 + std::time::Duration::from_millis(500)));
-        assert!(!back_busy(0, sent, 9.967, t0 + std::time::Duration::from_millis(600)));
-        assert!(!back_busy(0, None, 10.0, t0));
-    }
 
     /// #165: the time under the pointer, and a drag with Shift ten times finer.
     #[test]

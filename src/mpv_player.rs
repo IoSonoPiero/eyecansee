@@ -23,6 +23,8 @@ struct State {
     failed: bool,
     /// Who asked for the frame shown at the video's own size (`Player::grab`).
     grab: Option<Grab>,
+    /// The frames drawn are kept with their time, for the frames back (`video_back`).
+    record: Option<Vec<(f64, ColorImage)>>,
     /// Frames drawn, frames drawn over before the window took them, time spent drawing, the
     /// longest draw (#17, written in the log when the video closes).
     drawn: u64,
@@ -99,6 +101,10 @@ fn start_options(at: Option<Place>) -> (Vec<(&'static str, String)>, Option<[Str
     (vec![("pause", if paused { "yes" } else { "no" }.to_string())], Some(seek))
 }
 
+/// At most this many frames kept by `Player::record` (3 s at 60 per second, a few MB each at the
+/// window's size); a filling takes 1 s (`video_back::WINDOW`).
+const RECORDED: usize = 180;
+
 /// A video playing (with sound), its frames drawn by a thread of its own at the size the
 /// window asks (`set_size`).
 pub struct Player {
@@ -151,6 +157,18 @@ impl Player {
     /// The frame drawn since the last call, if any.
     pub fn frame(&self) -> Option<ColorImage> {
         self.shared.state.lock().unwrap().frame.take()
+    }
+
+    /// From now on (`on`) every frame drawn is kept with its time; off, the frames kept are given
+    /// back (`video_back`, #165).
+    pub fn record(&self, on: bool) -> Vec<(f64, ColorImage)> {
+        let mut st = self.shared.state.lock().unwrap();
+        if on {
+            st.record = Some(Vec::new());
+            Vec::new()
+        } else {
+            st.record.take().unwrap_or_default()
+        }
     }
 
     /// Pixels the frames are drawn at: the video fitted to the window.
@@ -444,7 +462,12 @@ fn draw_loop(mpv: &Mpv, shared: &Shared, seek: Option<[String; 3]>, repaint: imp
         let start = Instant::now();
         let frame = mpv.draw_frame(size, true);
         let took = start.elapsed();
+        let at = mpv.property::<f64>("time-pos", FORMAT_DOUBLE).unwrap_or(0.0);
         let mut st = shared.state.lock().unwrap();
+        // ponytail: at most RECORDED frames, for a filling that would never end.
+        if let Some(kept) = st.record.as_mut().filter(|k| k.len() < RECORDED) {
+            kept.push((at, frame.clone()));
+        }
         st.lost += u64::from(st.frame.is_some());
         st.frame = Some(frame);
         st.drawn += 1;
