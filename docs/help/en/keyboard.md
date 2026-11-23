@@ -72,7 +72,7 @@ In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device e
 | Space (on a motion photo) | Play its video |
 | Page Down, Page Up (on a TIFF with pages) | Next, previous page |
 | P (on a 360° panorama) | Flat picture, and back to the 360° view |
-| Esc | Back to the grid (in full screen it first leaves full screen) |
+| Esc | Back to the grid (in full screen it first leaves full screen); closes EyeCanSee when **The window's ✕ goes back to the grid** is off in the [Options](options.md) |
 | + and − (or the mouse wheel) | Zoom in and out |
 | 0 | Fit the image to the window |
 | 1 | 100%: one image pixel per screen pixel |
@@ -99,7 +99,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | →, Page Down | Next item |
 | ←, Backspace, Page Up | Previous item |
 | Home, End | First, last item |
-| Esc | Back to the grid |
+| Esc | Back to the grid, or closes EyeCanSee as above |
 
 ## In the viewer: 3D models
 
@@ -114,7 +114,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | Page Down, Space | Next item |
 | Page Up, Backspace | Previous item |
 | **Ctrl + Shift + S** | Save the model as it is shown, as an image (**Ctrl + S**, which saves over the original, is greyed out on a model) |
-| Esc | Back to the grid |
+| Esc | Back to the grid, or closes EyeCanSee as above |
 
 ## In the viewer: CAD drawings
 
@@ -128,7 +128,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | M | Measure (then D distance, A area, G angle; Enter closes an area, Backspace takes back a point, Esc clears) |
 | N, **Shift + N** | Next, previous change, when comparing two drawings |
 | **Ctrl + Shift + S** | Save the drawing as an image |
-| Esc | Back to the grid |
+| Esc | Back to the grid, or closes EyeCanSee as above |
 
 ## In the slideshow
 

@@ -30,7 +30,7 @@ Su Windows **Strumenti > Crea icona sul desktop**, appena sopra **Opzioni…**, 
 ## Visore
 
 - **Dopo l'ultima immagine ricomincia dalla prima** (spenta): e dalla prima immagine, tornando indietro, mostra l'ultima. Spenta, il visore si ferma alla prima e all'ultima immagine.
-- **La X della finestra torna alla griglia** (accesa): la X in alto a destra fa come Esc, un passo alla volta: prima chiude l'editor, poi il visore, poi EyeCanSee. Spenta, la X chiude EyeCanSee anche dal visore e dall'editor; con modifiche non salvate chiede una volta sola se salvarle.
+- **La X della finestra torna alla griglia** (accesa): la X in alto a destra fa come Esc, un passo alla volta: prima chiude l'editor, poi il visore, poi EyeCanSee. Spenta, la X chiude EyeCanSee anche dal visore e dall'editor, e lo stesso fa **Esc** nel visore (dalla versione 0.78; a schermo intero il primo Esc esce dallo schermo intero, e tenere premuto Esc non chiude EyeCanSee); con modifiche non salvate chiede una volta sola se salvarle. Esc nell'editor chiude comunque solo l'editor.
 - **Rotellina del mouse nel visore**: **Ingrandisce e rimpicciolisce** (predefinita) oppure **Mostra l'immagine successiva o precedente**. Tenendo premuto Ctrl, la rotellina ingrandisce sempre.
 - **Ingrandimento massimo nel visore** (2000% all'inizio): fin dove la rotellina e **+** possono ingrandire un'immagine, in percentuale dei suoi pixel (per un disegno SVG più piccolo di 2048 pixel, dei 2048 pixel a cui viene disegnato).
 

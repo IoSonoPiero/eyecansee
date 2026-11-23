@@ -44,6 +44,30 @@ pub(crate) fn on_close(step_back: bool, page: Page, changes: bool) -> Close {
     Close { step, ask: changes }
 }
 
+/// What Esc does in the viewer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Esc {
+    /// Leaves full screen, the viewer stays.
+    LeaveFullScreen,
+    /// Back to the grid.
+    Viewer,
+    /// EyeCanSee closes, as with the ✕ (which asks about a turned image not saved first).
+    Quit,
+    /// Nothing: Esc held down after leaving full screen does not close EyeCanSee too.
+    Nothing,
+}
+
+/// Esc in the viewer (#320): `step_back`, the option in the Options, as the ✕; `full`: in full
+/// screen, which it leaves first; `repeat`: the key held down.
+pub(crate) fn on_esc(step_back: bool, full: bool, repeat: bool) -> Esc {
+    match (full, step_back, repeat) {
+        (true, ..) => Esc::LeaveFullScreen,
+        (false, true, _) => Esc::Viewer,
+        (false, false, false) => Esc::Quit,
+        (false, false, true) => Esc::Nothing,
+    }
+}
+
 impl App {
     /// What the ✕ does now, over the page in front; `changes`: on that page.
     pub(crate) fn on_close(&self, changes: bool) -> Close {
@@ -99,5 +123,19 @@ mod tests {
             assert_eq!(close(false, Page::Viewer), Close { step: Step::Quit, ask: changes });
             assert_eq!(close(false, Page::Grid), Close { step: Step::Quit, ask: changes });
         }
+    }
+
+    /// Esc in the viewer: full screen first, then as the ✕; held down it never closes EyeCanSee.
+    #[test]
+    fn esc_in_the_viewer_follows_the_cross() {
+        for step_back in [true, false] {
+            for repeat in [false, true] {
+                assert_eq!(on_esc(step_back, true, repeat), Esc::LeaveFullScreen);
+            }
+        }
+        assert_eq!(on_esc(true, false, false), Esc::Viewer);
+        assert_eq!(on_esc(true, false, true), Esc::Viewer);
+        assert_eq!(on_esc(false, false, false), Esc::Quit);
+        assert_eq!(on_esc(false, false, true), Esc::Nothing);
     }
 }

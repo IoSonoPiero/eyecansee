@@ -135,11 +135,16 @@ impl App {
         if close {
             ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape));
         }
-        // Esc in full screen leaves it first, with the bars back; then the viewer.
-        if close && full_screen(ctx) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
-        } else if close {
-            self.close_viewer();
+        // Esc in full screen leaves it first, with the bars back; then as the window's ✕: the
+        // viewer, or EyeCanSee when the ✕ closes it (#320), never with the key held down.
+        if close {
+            let repeat = ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Key { key: Key::Escape, pressed: true, repeat: true, .. })));
+            match crate::window_close::on_esc(self.settings.close_to_grid, full_screen(ctx), repeat) {
+                crate::window_close::Esc::LeaveFullScreen => ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false)),
+                crate::window_close::Esc::Viewer => self.close_viewer(),
+                crate::window_close::Esc::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+                crate::window_close::Esc::Nothing => {}
+            }
         }
         if video {
             // A turned video is saved as an image (issue #125): Ctrl+S and Ctrl+Shift+S before
