@@ -240,7 +240,7 @@ impl App {
     }
 
     fn on_loaded(&mut self, ctx: &egui::Context, index: usize, thumb: bool, image: Result<ColorImage, String>, halves: Vec<ColorImage>) {
-        let image = image.map_err(|e| kept_error(&self.i18n, e));
+        let image = image.map_err(|e| kept_error(&self.i18n, e, thumb));
         let name = self.files().get(index).map(|f| f.path.clone()).unwrap_or_default();
         match &image {
             Err(e) => log!("{} {index} {name:?}: ERROR {e}", if thumb { "thumbnail" } else { "image" }),
@@ -638,7 +638,7 @@ impl App {
 
 /// The error of a picture or a thumbnail as the program keeps it: `loader::with_id`'s
 /// `id\u{1}detail` translated here, where the language is.
-fn kept_error(i18n: &crate::i18n::I18n, e: String) -> String {
+fn kept_error(i18n: &crate::i18n::I18n, e: String, _thumb: bool) -> String {
     match e.split_once('\u{1}') {
         Some((id, detail)) => i18n.error(id, detail),
         None => e,
@@ -649,6 +649,17 @@ fn kept_error(i18n: &crate::i18n::I18n, e: String) -> String {
 mod tests {
     use crate::audit_family_1::{Harness, folder, own_folder};
     use crate::loader::Msg;
+
+    /// D1: a model beyond its cap shows "Too large for a thumbnail" in the grid (Piero, 23/11:
+    /// it showed the warning, the error was translated before the grid could know it); the
+    /// picture of the viewer still says it in words.
+    #[test]
+    fn thumbnail_beyond_the_cap_keeps_its_sign() {
+        let i18n = crate::i18n::I18n::new("it");
+        let e = crate::model_limit::OBJ.error();
+        assert_eq!(crate::grid::too_large_sign(&super::kept_error(&i18n, e.clone(), true)), Some(crate::icons::Icon::Model));
+        assert!(super::kept_error(&i18n, e, false).starts_with("Il modello ha più di 10 milioni di triangoli."));
+    }
 
     /// A saved key that does not open: the server manager opens on that server with the message
     /// inside it, and the bar at the bottom is silent while that error lasts, as for a login

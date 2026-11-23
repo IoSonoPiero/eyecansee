@@ -715,7 +715,7 @@ fn engine_sign(error: &str, path: &str) -> Option<Icon> {
 
 /// The sign of a thumbnail not made because its file is too large: a picture too large for the
 /// memory (`thumb_memory::TOO_LARGE`), a 3D model beyond the cap of its format (`model_limit`).
-fn too_large_sign(error: &str) -> Option<Icon> {
+pub(crate) fn too_large_sign(error: &str) -> Option<Icon> {
     if error == crate::thumb_memory::TOO_LARGE {
         Some(Icon::Picture)
     } else {
