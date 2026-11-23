@@ -50,6 +50,12 @@ impl Buffer {
         self.fill.is_some()
     }
 
+    /// The time the bar and the clock show while a frame kept is shown or being made, in place of
+    /// mpv's position, which goes back and forward underneath.
+    pub(crate) fn held_at(&self) -> Option<f64> {
+        self.shown_at().or(self.fill.as_ref().map(|f| f.target))
+    }
+
     /// A frame kept is shown, not mpv's: the time it has.
     pub(crate) fn shown_at(&self) -> Option<f64> {
         self.shown.map(|i| self.frames[i].0)

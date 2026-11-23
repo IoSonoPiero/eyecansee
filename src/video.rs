@@ -601,15 +601,16 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, (sound, turn): ((&mut u32, &mut bool
     }
     let bar = Rect::from_min_max(pos2(rect.min.x, rect.max.y - BAR), rect.max);
     let (mut sought, mut toggle) = (false, false);
+    let held = v.back.held_at();
     if !bare {
         v.hide.reset();
-        (sought, toggle) = controls(ui, bar, player, sound, i18n);
+        (sought, toggle) = controls(ui, bar, player, sound, i18n, held);
     } else if let Some(opacity) = bar_shown(ui, &mut v.hide, bar) {
         // Over the picture: on a dark band, fading in and out.
         ui.painter().rect_filled(bar, 0.0, Color32::from_black_alpha((170.0 * opacity) as u8));
         ui.scope(|ui| {
             ui.set_opacity(opacity);
-            (sought, toggle) = controls(ui, bar, player, sound, i18n);
+            (sought, toggle) = controls(ui, bar, player, sound, i18n, held);
         });
     }
     // The timeline went elsewhere: the frames kept are no longer around it.
@@ -716,20 +717,21 @@ fn frame_sizes(video: [u32; 2], room: [f32; 2]) -> ([u32; 2], [u32; 2]) {
 
 /// Play/pause, time, position, then sound off and volume. On the viewer's dark background in both themes.
 /// What was asked: the timeline sought, and play or pause (done by the caller, after the frames
-/// kept: `video_back`).
-fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u32, &mut bool), i18n: &I18n) -> (bool, bool) {
+/// kept: `video_back`). `held`: a frame kept is shown, or being made: the time and the bar stay on
+/// it and the button on play, while mpv goes back and steps forward underneath (Piero, 23/11/2026).
+fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u32, &mut bool), i18n: &I18n, held: Option<f64>) -> (bool, bool) {
     let builder = egui::UiBuilder::new().max_rect(rect.shrink2(vec2(8.0, 0.0))).layout(egui::Layout::left_to_right(egui::Align::Center));
     ui.scope_builder(builder, |ui| {
         let (mut sought, mut toggle) = (false, false);
         crate::theme::on_dark(ui);
         let light = Color32::from_gray(225);
-        let paused = player.paused();
+        let paused = held.is_some() || player.paused();
         let (icon, tip) = if paused { (crate::icons::Line::Play, "video-play") } else { (crate::icons::Line::Pause, "video-pause") };
         if ui.add(egui::Button::image(crate::icons::line_in(ui.ctx(), icon, 18.0, light))).on_hover_text(i18n.t(tip)).clicked() {
             toggle = true;
         }
         let length = player.duration();
-        let pos = shown_position(player.position(), length, player.ended());
+        let pos = held.unwrap_or_else(|| shown_position(player.position(), length, player.ended()));
         ui.label(egui::RichText::new(format!("{} / {}", mpv::clock(pos), mpv::clock(length))).color(light).monospace());
         // Room on the right for the sound: the button (as wide as the play one), the slider and
         // the volume.
