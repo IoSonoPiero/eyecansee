@@ -5,10 +5,12 @@
 # the software renderer, PulseAudio and ALSA sound; no windows of its own, no scripts, no network.
 # libplacebo is required by mpv since 0.37: here without Vulkan, OpenGL, shader compilers or
 # LittleCMS, which the software renderer does not use.
-# Output: target/mpv-linux/libmpv-linux-x64-<mpv>.tar.gz (libmpv.so.2 and the few libraries it
+# Output: target/mpv-linux/libmpv-linux-x64-<mpv>-<rev>.tar.gz (libmpv.so.2 and the few libraries it
 # needs that a desktop may lack, with RUNPATH $ORIGIN).
 set -euo pipefail
-MPV=0.42.0 FFMPEG=9.0.2 DAV1D=1.5.4 PLACEBO=7.387.0 MESON=1.12.1
+MPV=0.42.0 FFMPEG=9.0.2 DAV1D=1.5.5 PLACEBO=7.387.0 MESON=1.12.1
+# The build of this mpv version: one more when a library inside changes (2: dav1d 1.5.5, #172).
+REV=2
 # What each source must be (tools/fetch.sh). To update a version: its new SHA-256 or commit here,
 # checked against what the project publishes. FFmpeg: the release tarball, whose signature (FFmpeg's
 # release key FCF986EA15E6E293A5644F10B4322F04D67658D8) was checked; FFmpeg publishes no SHA-256.
@@ -16,7 +18,7 @@ MPV=0.42.0 FFMPEG=9.0.2 DAV1D=1.5.4 PLACEBO=7.387.0 MESON=1.12.1
 # publishes no hash (the commit inside it is the tag's). libplacebo: the commit its tag points to.
 # meson: the SHA-256 that PyPI lists for its wheel and its source.
 FFMPEG_SHA256=8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e
-DAV1D_SHA256=686616b7c69eb88d44459391ab25cac13b6647a3b288835c5784e71c1514a5c5
+DAV1D_SHA256=ca96b1d0ba3f01f55de7231d775892b64994ba061aaeeaaa4f662a390b3abf9e
 MPV_SHA256=bcfebbfa2b65a6d88dc97ea18117831072373e38b5785a2afb874ed4df5070dd
 PLACEBO_COMMIT=275f7dea27924cdd34ab2e6c20e448b6bc4fab65
 MESON_SHA256=(930bc7542cbd9f57009e182fd014eba48cf1a0180a7b9006d2d32d8f168d8b02
@@ -131,7 +133,7 @@ for pkg in libass9:libass libfribidi0:fribidi libharfbuzz0b:harfbuzz libgraphite
       done
     } > "$OUT/LICENSE.${pkg#*:}"
 done
-NAME=libmpv-linux-x64-$MPV.tar.gz
+NAME=libmpv-linux-x64-$MPV-$REV.tar.gz
 tar -C "$OUT" --owner=0 --group=0 --sort=name --mtime=@0 -czf "/src/target/mpv-linux/$NAME" .
 ls -la "$OUT" "/src/target/mpv-linux/$NAME"
 sha256sum "/src/target/mpv-linux/$NAME"

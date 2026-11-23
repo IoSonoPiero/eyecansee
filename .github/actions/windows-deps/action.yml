@@ -15,7 +15,7 @@ runs:
       run: |
         @(
           "VCPKG_ROOT=C:\eyecansee-vcpkg"
-          "VCPKG_COMMIT=67972e92edd181d433927b42d8ab4bfa52ac164a"
+          "VCPKG_COMMIT=74f5ea45ca78988784b810ad9bbb148ea7ff76d8"
           "HEIF_PORT=libheif[core,libde265,dav1d]:x64-windows-static"
           "IM_VERSION=7.1.2-34"
           "IM_SHA256=eb32ded8b605795dfcb08b8cadbeef6732fe2252af933b54b38df586332e1007"

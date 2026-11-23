@@ -38,17 +38,18 @@ pub const VIDEO: Option<Component> = Some(Component {
 });
 
 /// libmpv for Linux, used when the system has none (the AppImage on a live system):
-/// `tools/build-mpv-linux.sh`, mpv 0.42.0 with FFmpeg 9.0.2, dav1d and libplacebo inside, built
-/// on Ubuntu 22.04 (glibc 2.35), with libass and three libraries it needs (28 MB, 12 MB compressed).
+/// `tools/build-mpv-linux.sh`, mpv 0.42.0 with FFmpeg 9.0.2, dav1d 1.5.5 and libplacebo inside,
+/// built on Ubuntu 22.04 (glibc 2.35), with libass and three libraries it needs (28 MB, 12 MB
+/// compressed). Build 2 (#172): build 1 had dav1d 1.5.4.
 #[cfg(not(windows))]
 pub const VIDEO: Option<Component> = Some(Component {
     kind: "libmpv",
-    version: "0.42.0",
+    version: "0.42.0-2",
     file: "libmpv.so.2",
-    url: "https://github.com/IoSonoPiero/eyecansee/releases/download/components/libmpv-linux-x64-0.42.0.tar.gz",
+    url: "https://github.com/IoSonoPiero/eyecansee/releases/download/components/libmpv-linux-x64-0.42.0-2.tar.gz",
     archive: true,
-    sha256: "9ccb8e17798953941bb07d1526188e4a74d78ccaf9e722a60c8b52ee817a8c32",
-    size: 11_920_684,
+    sha256: "c83044c27aa5027cdb2b82a43f936cc7ffcffb7d2f93b9e6fe7c3c2ac4a49433",
+    size: 11_926_228,
 });
 
 /// FFmpeg 9.0 of BtbN/FFmpeg-Builds (`ffmpeg-n9.0-latest-*-gpl-9.0`, built 2026-10-26), only the
