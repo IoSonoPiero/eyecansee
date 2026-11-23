@@ -398,6 +398,17 @@ fn have_in(dir: &Path, c: &Component, status: Option<crate::engine::Status>) -> 
 }
 
 /// Another version of `c` in `dir`, which `remove_old` deletes once this one is there.
+/// The text id of a download button of `c` (the red buttons, the cards, Convert's): `download`,
+/// or `update` when an older version of it is downloaded (Piero, 23/11/2026: "Update the video
+/// engine", not "Download").
+pub(crate) fn button_id<'a>(c: &Component, download: &'a str, update: &'a str) -> &'a str {
+    dir().map_or(download, |d| button_id_in(&d, c, download, update))
+}
+
+fn button_id_in<'a>(_dir: &Path, _c: &Component, download: &'a str, _update: &'a str) -> &'a str {
+    download
+}
+
 fn older_in(dir: &Path, c: &Component) -> bool {
     let (keep, prefix) = (folder(c), format!("{}-", c.kind));
     std::fs::read_dir(dir).into_iter().flatten().flatten().any(|e| {

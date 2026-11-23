@@ -277,7 +277,7 @@ pub(crate) fn download_row(ui: &mut egui::Ui, download: &mut Slot, i18n: &I18n, 
             if let Some((_, Some(Err(e)))) = failed {
                 crate::error_bar::inline(ui, &i18n.t_args("batch-video-download-failed", &[("detail", &crate::update::error_detail(i18n, &e))]));
             }
-            if ui.button(i18n.t("batch-video-download")).clicked() {
+            if ui.button(i18n.t(crate::component::button_id(&c, "batch-video-download", "batch-video-update"))).clicked() {
                 let ctx = ui.ctx().clone();
                 *download = Some(crate::component::start(c, move || ctx.request_repaint()));
             }

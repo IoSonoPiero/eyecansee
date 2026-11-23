@@ -315,7 +315,8 @@ impl App {
         let click = match &state {
             Engine::Missing | Engine::Failed(_) | Engine::TooOld { .. } | Engine::Lacks { .. } => {
                 let hover = self.engine_ask(&state, c);
-                let button = ui.add(red(t("video-component-button", &[("size", &self.human_size(c.size))]))).on_hover_text(hover);
+                let id = crate::component::button_id(&c, "video-component-button", "video-component-update-button");
+                let button = ui.add(red(t(id, &[("size", &self.human_size(c.size))]))).on_hover_text(hover);
                 button.clicked().then_some(Click::Download)
             }
             Engine::SystemOnly => None,
@@ -368,7 +369,8 @@ impl App {
                                 crate::error_bar::inline_on_dark(ui, &t("video-component-error", &[("error", &crate::update::error_detail(&self.i18n, e))]));
                             }
                             ui.add_space(14.0);
-                            if ui.add(big(t("video-component-download", &[]))).clicked() {
+                            let id = crate::component::VIDEO.as_ref().map_or("video-component-download", |c| crate::component::button_id(c, "video-component-download", "video-component-update"));
+                            if ui.add(big(t(id, &[]))).clicked() {
                                 click = Some(Click::Download);
                             }
                         }

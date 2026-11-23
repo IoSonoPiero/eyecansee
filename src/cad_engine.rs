@@ -74,7 +74,8 @@ impl App {
                                 crate::error_bar::inline_on_dark(ui, &t("video-component-error", &[("error", &crate::update::error_detail(&self.i18n, e))]));
                             }
                             ui.add_space(14.0);
-                            let big = egui::Button::new(egui::RichText::new(t("cad-engine-download", &[])).size(15.0)).min_size(egui::vec2(220.0, 34.0));
+                            let id = crate::component::button_id(&c, "cad-engine-download", "cad-engine-update");
+                            let big = egui::Button::new(egui::RichText::new(t(id, &[])).size(15.0)).min_size(egui::vec2(220.0, 34.0));
                             download = ui.add(big).clicked();
                         }
                     }
@@ -107,7 +108,8 @@ impl App {
             }
             State::Missing | State::Failed(_) => {
                 let hover = self.i18n.t_args("cad-engine-ask", &[("size", &size)]);
-                if ui.add(crate::theme::alert_button(self.i18n.t_args("cad-engine-button", &[("size", &size)]))).on_hover_text(hover).clicked() {
+                let id = crate::component::button_id(&c, "cad-engine-button", "cad-engine-update-button");
+                if ui.add(crate::theme::alert_button(self.i18n.t_args(id, &[("size", &size)]))).on_hover_text(hover).clicked() {
                     self.cad_engine_download(ui.ctx());
                 }
             }
