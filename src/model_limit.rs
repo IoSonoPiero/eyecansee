@@ -26,9 +26,9 @@ pub(crate) const OFF: Limit = Limit { max: 20_000_000, format: "off" };
 pub(crate) const COLLADA: Limit = Limit { max: 20_000_000, format: "collada" };
 pub(crate) const VRML: Limit = Limit { max: 20_000_000, format: "vrml" };
 pub(crate) const X3D: Limit = Limit { max: 20_000_000, format: "x3d" };
-pub(crate) const FBX_TEXT: Limit = Limit { max: 20_000_000, format: "fbx" };
-/// Binary FBX, measured apart (Piero decides its cap with the numbers, 22/11/2026).
-pub(crate) const FBX_BINARY: Limit = Limit { max: crate::model::MAX_TRIANGLES, format: "fbx" };
+/// FBX, binary or in text: binary measured apart, 20.2-28.5 million triangles under 8 GB, so at
+/// the same cap (Piero, 23/11/2026).
+pub(crate) const FBX: Limit = Limit { max: 20_000_000, format: "fbx" };
 pub(crate) const THREE_DS: Limit = Limit { max: 20_000_000, format: "three-ds" };
 /// A .gltf; as a GLB, each primitive is read whole before `Builder` counts its triangles
 /// (`model_gltf::gltf_mesh`): said without the why.
@@ -318,10 +318,8 @@ mod tests {
     fn caps_by_format_d1() {
         assert_eq!([PLY_BINARY, STL, GLB, OBJ, PLY_TEXT, STL_TEXT, THREE_MF, OTHER].map(|l| l.max), [50_000_000, 20_000_000, 20_000_000, 10_000_000, 10_000_000, 10_000_000, 10_000_000, 50_000_000]);
         // The formats measured after D1 (Piero, 22/11/2026).
-        assert_eq!([OFF, COLLADA, VRML, X3D, FBX_TEXT, THREE_DS, GLTF].map(|l| l.max), [20_000_000; 7]);
+        assert_eq!([OFF, COLLADA, VRML, X3D, FBX, THREE_DS, GLTF].map(|l| l.max), [20_000_000; 7]);
         assert_eq!([AMF, IFC].map(|l| l.max), [5_000_000, 5_000_000]);
-        // Binary FBX as FBX in text (Piero, 23/11/2026, after its measure: 20.2-28.5 million under 8 GB).
-        assert_eq!(FBX_BINARY.max, 20_000_000);
         let (en, it) = (I18n::new("en"), I18n::new("it"));
         assert_eq!(en.load_error(&IFC.error()).lines().nth(1), Some("EyeCanSee does not open IFC files with more than 5 million triangles."));
         assert_eq!(en.load_error(&THREE_DS.error()).lines().nth(1), Some("EyeCanSee does not open 3DS files with more than 20 million triangles, so that reading them does not fill the computer's memory."));
