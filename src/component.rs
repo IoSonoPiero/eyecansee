@@ -405,8 +405,8 @@ pub(crate) fn button_id<'a>(c: &Component, download: &'a str, update: &'a str) -
     dir().map_or(download, |d| button_id_in(&d, c, download, update))
 }
 
-fn button_id_in<'a>(_dir: &Path, _c: &Component, download: &'a str, _update: &'a str) -> &'a str {
-    download
+fn button_id_in<'a>(dir: &Path, c: &Component, download: &'a str, update: &'a str) -> &'a str {
+    if !dir.join(folder(c)).join(c.file).is_file() && older_in(dir, c) { update } else { download }
 }
 
 fn older_in(dir: &Path, c: &Component) -> bool {
