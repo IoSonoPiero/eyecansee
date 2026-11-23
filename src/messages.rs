@@ -741,21 +741,25 @@ mod tests {
         let dir = folder("trash-gone", &["a.png"]);
         std::fs::create_dir_all(dir.join("sub")).unwrap();
         let mut h = Harness::new(&dir);
-        h.until(|app| app.listing_dirs() == 1, "the subfolder listed");
+        h.until(|app| app.listing_dirs() == 1 && !app.listing_pending.contains(&app.dir), "the subfolder listed");
         let sub = format!("{}sub/", h.app.dir);
-        // Without the watcher: on Linux it would read the folder again 0.3 s after the removal, and
-        // under load that came before the message, so the reading asked by the message was not seen.
-        h.app.watcher = None;
+        // Without the watcher, nor a change it told about before: on Linux it would read the
+        // folder again 0.3 s after the removal. Only the message is left to ask for it.
+        (h.app.watcher, h.app.changed_at) = (None, None);
         std::fs::remove_dir(dir.join("sub")).unwrap();
         let raw = r#"Error during a `trash` operation: Os { code: -2147024894, description: "windows error: Impossibile trovare il file specificato. (0x80070002)" }"#;
         h.app.marked.insert(sub.clone());
         h.app.tx.send(Msg::Deleted(sub.clone(), crate::source::Deletion::SystemTrash, Err(("error-detail", raw.into())))).unwrap();
         h.frame(Vec::new());
         assert_eq!(h.app.error, Some(h.app.i18n.fault(crate::fault::Kind::NotFound, Some("sub"))));
-        // Read again by the message itself: the watcher of Linux waits 0.3 s after its event,
-        // and Windows' did not tell (#207).
-        assert!(h.app.listing_pending.contains(&h.app.dir), "the folder not read again");
         assert!(!h.app.marked.contains(&sub), "still marked: Delete would ask for it again");
-        h.until(|app| app.listing_dirs() == 0, "the folder gone from the grid");
+        // Read again by the message itself, in its own frame: the watcher of Linux waits 0.3 s
+        // after its event, and Windows' did not tell (#207). Being read, or read already: on a
+        // busy computer the loader answers while `receive` is still taking the messages, and
+        // the folder is the new one when the frame ends. Asking for the reading still on its
+        // way failed one run in ten under load.
+        let gone = |app: &crate::App| app.listing_dirs() == 0 && app.files().len() == 1;
+        assert!(h.app.listing_pending.contains(&h.app.dir) || gone(&h.app), "the folder not read again");
+        h.until(gone, "the folder gone from the grid");
     }
 }
