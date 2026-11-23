@@ -35,6 +35,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Saved servers: log in through the SSH agent ([#133](https://github.com/IoSonoPiero/eyecansee/issues/133)).
 - Merging a folder with many replaced files on phones and SFTP servers as fast as before the safe replace of 0.76.0 ([#94](https://github.com/IoSonoPiero/eyecansee/issues/94)).
 - A disk, USB stick or phone unplugged while its folder is open: the status bar says so ([#281](https://github.com/IoSonoPiero/eyecansee/issues/281)).
+- The left panel shows the folder open on a server, a phone or a device under its name, as it does for This computer ([#314](https://github.com/IoSonoPiero/eyecansee/issues/314)).
 
 ### Formats
 
