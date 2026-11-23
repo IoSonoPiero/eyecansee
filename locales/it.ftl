@@ -32,6 +32,7 @@ video-volume = Volume { $volume } (frecce su e giù, rotellina del mouse sul vid
 video-no-audio = Questo video non ha l'audio
 video-not-video = Il file non è un video, o è rovinato.
 video-no-frame = Nessun fotogramma si può mostrare: il video è rovinato.
+video-frame-back-busy = Preparo il fotogramma precedente…
 video-stalled =
     Da 20 secondi non arrivano dati: il telefono o il server non risponde.
     Il video parte appena risponde. Premi Esc per tornare alle miniature.

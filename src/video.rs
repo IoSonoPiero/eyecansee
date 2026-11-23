@@ -31,6 +31,32 @@ pub(crate) struct Playing {
     hide: crate::video_full::Hide,
     /// When it was opened: the spinner waits `SPIN_AFTER` before showing (`spin_in`).
     opened: std::time::Instant,
+    /// Frames back asked with , and not yet sent to mpv (`Back`).
+    back: Back,
+}
+
+/// Frames back asked with , one after the other: mpv drops a frame back asked while the one
+/// before is still being decoded (a 4K video took about a second each, and nine presses of ten
+/// were lost; Piero, 23/11/2026). The next is sent once the frame shown has changed, or after
+/// `BACK_WAIT` (at the start of the video it cannot change).
+#[derive(Default)]
+struct Back {
+    pending: u32,
+    /// The position when the last frame back was sent, and when.
+    sent: Option<(f64, std::time::Instant)>,
+}
+
+const BACK_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// Frames back are being made: some still asked, or the last one sent has not moved the video yet.
+fn back_busy(pending: u32, sent: Option<(f64, std::time::Instant)>, pos: f64, now: std::time::Instant) -> bool {
+    pending > 0 || sent.is_some_and(|(at, when)| pos == at && now.duration_since(when) < BACK_WAIT)
+}
+
+/// Whether the next frame back can go to mpv now: one is asked, and the last one sent has
+/// moved the video (or `BACK_WAIT` has passed).
+fn back_now(pending: u32, sent: Option<(f64, std::time::Instant)>, pos: f64, now: std::time::Instant) -> bool {
+    pending > 0 && sent.is_none_or(|(at, when)| pos != at || now.duration_since(when) >= BACK_WAIT)
 }
 
 /// How long a video may take to its first frame without a spinner: a quicker one does not flash
@@ -123,9 +149,15 @@ impl App {
     }
 
     /// . and , in the viewer of a video: one frame forward or back, paused (#165, as in mpv).
-    pub(crate) fn video_frame_step(&self, forward: bool) {
-        if let Some(Playing { player: Ok(p), .. }) = &self.video {
-            p.frame_step(forward);
+    /// The frames back go one after the other (`Back`).
+    pub(crate) fn video_frame_step(&mut self, forward: bool) {
+        if let Some(Playing { player: Ok(p), back, .. }) = &mut self.video {
+            if forward {
+                *back = Back::default();
+                p.frame_step(true);
+            } else {
+                back.pending += 1;
+            }
         }
     }
 
@@ -216,6 +248,14 @@ impl App {
         // Without the engine: over at once, as before (the card is the viewer's).
         let Some(v) = &mut self.video else { return (false, true) };
         let Ok(player) = &v.player else { return (false, true) };
+        let (pos, now) = (player.position(), std::time::Instant::now());
+        if back_now(v.back.pending, v.back.sent, pos, now) {
+            player.frame_step(false);
+            v.back = Back { pending: v.back.pending - 1, sent: Some((pos, now)) };
+        }
+        if v.back.pending > 0 {
+            painter.ctx().request_repaint_after(std::time::Duration::from_millis(30));
+        }
         (paint_fitted(painter, rect, player, &mut v.texture, Turn::default()), player.ended())
     }
 
@@ -418,7 +458,7 @@ impl App {
         if let Err(e) = &player {
             log!("motion photo {path:?}: ERROR {e}");
         }
-        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying: None, hide: Default::default(), opened: std::time::Instant::now() }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying: None, hide: Default::default(), opened: std::time::Instant::now(), back: Back::default() }
     }
 
     /// Why the video open for `path` does not play, when no card says it (the engine to
@@ -488,7 +528,7 @@ impl App {
         if let Some(at) = at {
             log!("video {path:?}: opened at {:.3} s, paused {}, at the end {}", at.time, at.paused, at.at_end);
         }
-        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying, hide: Default::default(), opened: std::time::Instant::now() }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying, hide: Default::default(), opened: std::time::Instant::now(), back: Back::default() }
     }
 }
 
@@ -539,6 +579,9 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, (sound, turn): ((&mut u32, &mut bool
     if player.stalled() {
         stalled_note(ui, area, i18n, copying);
     }
+    if back_busy(v.back.pending, v.back.sent, player.position(), std::time::Instant::now()) {
+        back_note(ui, area, i18n);
+    }
     // An audio file sends no frames (a cover is one): the time on the bar moves only if asked.
     if decode::is_audio(&v.path) && !player.paused() {
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
@@ -563,6 +606,18 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, (sound, turn): ((&mut u32, &mut bool
 
 /// The phone or the server gives no data (`mpv::Player::stalled`): said in the middle of the
 /// video, on a dark band, above the copy's bar when there is one, until data comes again (#209).
+/// While frames back are being made (`Back`), a yellow line at the foot of the picture, gone once
+/// the frame is there (Piero, 23/11/2026).
+fn back_note(ui: &egui::Ui, area: Rect, i18n: &I18n) {
+    ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+    let painter = ui.painter();
+    let yellow = Color32::from_rgb(250, 204, 21);
+    let galley = painter.layout_no_wrap(i18n.t("video-frame-back-busy"), egui::FontId::proportional(15.0), yellow);
+    let back = Rect::from_center_size(pos2(area.center().x, area.max.y - 24.0 - galley.size().y / 2.0), galley.size() + vec2(24.0, 12.0));
+    painter.rect_filled(back, 6.0, Color32::from_black_alpha(190));
+    painter.galley(back.min + vec2(12.0, 6.0), galley, yellow);
+}
+
 fn stalled_note(ui: &egui::Ui, area: Rect, i18n: &I18n, above_bar: bool) {
     // Looked at again: the note goes as soon as data comes.
     ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
@@ -788,6 +843,25 @@ fn sound_controls(ui: &mut egui::Ui, player: &mpv::Player, (volume, mute): (&mut
 
 #[cfg(test)]
 mod tests {
+
+    /// #165: frames back go one after the other, each once the one before has moved the video.
+    #[test]
+    fn frames_back_one_after_the_other_165() {
+        use super::{BACK_WAIT, back_now};
+        let t0 = std::time::Instant::now();
+        assert!(!back_now(0, None, 10.0, t0), "none asked");
+        assert!(back_now(3, None, 10.0, t0), "the first goes at once");
+        let sent = Some((10.0, t0));
+        assert!(!back_now(2, sent, 10.0, t0 + std::time::Duration::from_millis(900)), "still decoding");
+        assert!(back_now(2, sent, 9.967, t0 + std::time::Duration::from_millis(1000)), "moved: the next");
+        assert!(back_now(2, sent, 10.0, t0 + BACK_WAIT), "at the start it cannot move: not stuck");
+        // The yellow line: while asked or not yet moved; gone once moved.
+        use super::back_busy;
+        assert!(back_busy(1, None, 10.0, t0));
+        assert!(back_busy(0, sent, 10.0, t0 + std::time::Duration::from_millis(500)));
+        assert!(!back_busy(0, sent, 9.967, t0 + std::time::Duration::from_millis(600)));
+        assert!(!back_busy(0, None, 10.0, t0));
+    }
 
     /// #165: the time under the pointer, and a drag with Shift ten times finer.
     #[test]
