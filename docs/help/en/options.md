@@ -30,7 +30,7 @@ On Windows, **Tools > Create desktop icon**, just above **Options…**, puts an 
 ## Viewer
 
 - **After the last image start again from the first** (off): and from the first image, going back shows the last one. When off, the viewer stops at the first and the last image.
-- **The window's ✕ goes back to the grid** (on): the ✕ at the top right does as Esc, one step at a time: first it closes the editor, then the viewer, then EyeCanSee. When off, the ✕ closes EyeCanSee also from the viewer and the editor, and so does **Esc** in the viewer (from version 0.78; in full screen the first Esc leaves full screen, and holding Esc down does not close EyeCanSee); with changes not saved it asks once whether to save them. Esc in the editor still closes the editor only.
+- **The window's ✕ goes back to the grid** (on): the ✕ at the top right does as Esc, one step at a time: first it closes the editor, then the viewer, then EyeCanSee. When off, the ✕ closes EyeCanSee also from the viewer and the editor, and so does **Esc** in the viewer (from version 0.78; in full screen the first Esc leaves full screen, and holding Esc down does not close EyeCanSee); with changes not saved it asks once whether to save them. Esc in the editor still closes the editor only, and **Enter** in the viewer always goes back to the grid.
 - **Mouse wheel in the viewer**: **Zooms in and out** (the default) or **Shows the next or previous image**. Holding Ctrl, the wheel always zooms.
 - **Largest zoom in the viewer** (2000% at first): how far the wheel and **+** can enlarge an image, in percent of its pixels (for an SVG drawing smaller than 2048 pixels, of the 2048 pixels it is drawn at).
 

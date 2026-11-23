@@ -77,7 +77,7 @@ impl App {
         let mut items = vec![match open {
             Some(a @ Act::Open) => Some((t("menu-open-selected"), t("key-enter"), a)),
             Some(a) => Some((t("menu-open-selected"), String::new(), a)),
-            None => Some((t("menu-back-to-grid"), "Esc".into(), Act::Back)),
+            None => Some((t("menu-back-to-grid"), self.back_key(), Act::Back)),
         }];
         let Some(target) = path.clone().or_else(|| self.target()).filter(|p| self.can_change(p)) else {
             // The root of a drive, in the tree: it cannot be cut or renamed, but a folder can be

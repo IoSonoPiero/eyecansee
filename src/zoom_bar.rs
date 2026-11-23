@@ -105,7 +105,8 @@ fn field(ui: &mut egui::Ui, i18n: &I18n, salt: &str, zoom: f32) -> Option<f32> {
     // Enter ends the typing (the field lets the focus go), Esc is kept by the field and taken
     // here, so that it does not also close the viewer or the editor.
     let esc = r.has_focus() && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
-    let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+    // Taken: left in the input, the viewer read it too and went back to the grid (#320).
+    let enter = r.lost_focus() && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
     if r.has_focus() && !esc {
         ui.data_mut(|d| d.insert_temp(id, typing));
         return None;

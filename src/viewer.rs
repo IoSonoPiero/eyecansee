@@ -171,6 +171,14 @@ impl App {
             ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape));
         }
         self.viewer_esc(ctx, close);
+        // Enter goes back to the grid, as it opened the picture from there (#320): with the ✕
+        // set to close EyeCanSee, Esc closes it and this is the key left for the grid. Not held
+        // down, or the grid and the viewer would take turns.
+        let enter = ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Key { key: Key::Enter, pressed: true, repeat: false, modifiers, .. } if modifiers.is_none())));
+        if enter {
+            ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter));
+            self.close_viewer();
+        }
         if video {
             // A turned video is saved as an image (issue #125): Ctrl+S and Ctrl+Shift+S before
             // the return below, which left them unread on a video.

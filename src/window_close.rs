@@ -69,6 +69,12 @@ pub(crate) fn on_esc(step_back: bool, full: bool, repeat: bool) -> Esc {
 }
 
 impl App {
+    /// The key shown beside "Back to the grid": Esc, unless Esc closes EyeCanSee from the viewer
+    /// (the ✕ set to close it, #320); then Enter, which goes back in both cases.
+    pub(crate) fn back_key(&self) -> String {
+        if self.settings.close_to_grid { "Esc".into() } else { self.i18n.t("key-enter") }
+    }
+
     /// What the ✕ does now, over the page in front; `changes`: on that page.
     pub(crate) fn on_close(&self, changes: bool) -> Close {
         let page = if self.editor.is_some() {

@@ -73,6 +73,7 @@ Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositiv
 | Pagina giù, Pagina su (su un TIFF con più pagine) | Pagina successiva, precedente |
 | P (su un panorama a 360°) | Foto piatta, e di nuovo la vista a 360° |
 | Esc | Torna alla griglia (a schermo intero prima esce dallo schermo intero); chiude EyeCanSee quando **La X della finestra torna alla griglia** è spenta nelle [Opzioni](options.md) |
+| Invio | Torna alla griglia, anche quando Esc chiude EyeCanSee |
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce |
 | 0 | Adatta l'immagine alla finestra |
 | 1 | 100%: un pixel dell'immagine per pixel dello schermo |
@@ -100,6 +101,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | ←, Backspace, Pagina su | Elemento precedente |
 | Inizio, Fine | Primo, ultimo elemento |
 | Esc | Torna alla griglia, o chiude EyeCanSee come sopra |
+| Invio | Torna alla griglia |
 
 ## Nel visore: modelli 3D
 
@@ -115,6 +117,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | Pagina su, Backspace | Elemento precedente |
 | **Ctrl + Maiusc + S** | Salva il modello come si vede, come immagine (**Ctrl + S**, che salva sopra l'originale, su un modello è grigio) |
 | Esc | Torna alla griglia, o chiude EyeCanSee come sopra |
+| Invio | Torna alla griglia (mentre misuri, chiude un'area) |
 
 ## Nel visore: disegni CAD
 
@@ -129,6 +132,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | N, **Maiusc + N** | Modifica successiva, precedente, confrontando due disegni |
 | **Ctrl + Maiusc + S** | Salva il disegno come immagine |
 | Esc | Torna alla griglia, o chiude EyeCanSee come sopra |
+| Invio | Torna alla griglia (mentre misuri, chiude un'area) |
 
 ## Nel carosello
 
