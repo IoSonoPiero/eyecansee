@@ -198,16 +198,16 @@ impl App {
         let Some(k) = self.kept.first().cloned() else { return };
         let (text, folder) = kept_text(&self.i18n, &k);
         let t = |id| self.i18n.t(id);
-        // Esc closes; Enter does nothing here (it must not choose one of the actions).
+        // Esc closes; Enter presses the highlighted button (`confirm::buttons`).
         let mut answer = crate::confirm::answer(ctx, &mut self.key_answer, "kept").and_then(|enter| (!enter).then_some(None));
         let choices = [(t("kept-retry"), self.loader.is_some(), Some(Choice::Retry)), (t("menu-save-copy"), true, Some(Choice::SaveAs)), (t("kept-open-folder"), true, Some(Choice::Folder)), (t("notice-close"), true, None)];
         let head = crate::save_dialogs::Head { title: &t("kept-title"), warning: true };
         crate::save_dialogs::message(ctx, "kept", head, &text, &t("notice-copy"), |ui| {
             ui.horizontal(|ui| {
-                for (label, enabled, choice) in choices {
-                    if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
-                        answer = Some(choice);
-                    }
+                // Try again highlighted: it repeats a save already confirmed (#311).
+                let labels: Vec<(String, bool)> = choices.iter().map(|(l, on, _)| (l.clone(), *on)).collect();
+                if let Some(i) = crate::confirm::buttons(ui, "kept", &labels, 0) {
+                    answer = choices.into_iter().nth(i).map(|(_, _, c)| c);
                 }
             });
         });
@@ -338,8 +338,7 @@ pub(crate) mod tests {
             let rect = h.ctx.memory(|m| m.area_rect(egui::Id::unique("kept"))).expect("no window for the kept image");
             // 460 points of text and buttons at most, and the window's margins (477.5 in all).
             assert!(rect.width() >= 320.0 && rect.width() <= 480.0, "{lang}: the window is {} points wide", rect.width());
-            h.key(egui::Key::Enter);
-            assert_eq!(h.app.kept.len(), 1, "{lang}: Enter closed the window");
+            // Tab moves off Try again: Enter on Save as… leaves the window open no more than Esc.
             h.key(egui::Key::Escape);
             assert!(h.app.kept.is_empty(), "{lang}: Esc did not close the window");
         }

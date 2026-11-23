@@ -1,15 +1,20 @@
-//! Confirmation windows: a title, a text and a row of buttons, the last one cancelling. Enter and Esc
-//! reach them as `App::key_answer` (`raw_input_hook`), taken by the window on top (`App::answer`)
-//! and passed in as `answer`.
+//! Confirmation windows: a title, a text and a row of buttons, the last one cancelling. Esc
+//! reaches them as `App::key_answer` (`raw_input_hook`), taken by the window on top (`App::answer`)
+//! and passed in as `answer`. Tab, Shift+Tab and the arrows move between the buttons, Enter and
+//! Space press the one highlighted (#311): they reach the row of buttons (`buttons`) as a `Nav`.
+//! Each window opens on its default button: the main choice, or the safe one when the main choice
+//! cannot be undone (decided with Piero on 24/11: `bozze/issue-311-pulsanti-fable.md`).
 
 use eframe::egui;
 
 use crate::App;
 
 /// A modal with `text`: its title, centred, then its text (`**bold**` and paragraphs, as in message windows),
-/// one button per choice (greyed out when its flag is false) and `cancel`.
-/// `Some(Some(choice))` for a choice, `Some(None)` for cancel; otherwise `answer` (from the keys),
+/// one button per choice (greyed out when its flag is false) and `cancel`, highlighted at first on
+/// `default` (an index of `choices`; `choices.len()` is `cancel`).
+/// `Some(Some(choice))` for a choice, `Some(None)` for cancel; otherwise `answer` (Esc),
 /// `None` while the window stays open.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn choose<T>(
     ctx: &egui::Context,
     id: &str,
@@ -18,12 +23,12 @@ pub(crate) fn choose<T>(
     choices: Vec<(String, bool, T)>,
     cancel: String,
     answer: Option<Option<T>>,
+    default: usize,
 ) -> Option<Option<T>> {
-    choose_with(ctx, id, width, text, choices, cancel, answer, (false, &mut |_| {}))
+    choose_with(ctx, id, width, text, choices, cancel, answer, (default, &mut |_| {}))
 }
 
-/// `choose`, with `cancel` focused at first when `cancel_first` (it shows as the default), and
-/// what `extra` draws between the text and the buttons.
+/// `choose`, with what `extra` draws between the text and the buttons.
 #[allow(clippy::too_many_arguments)]
 fn choose_with<T>(
     ctx: &egui::Context,
@@ -33,7 +38,7 @@ fn choose_with<T>(
     choices: Vec<(String, bool, T)>,
     cancel: String,
     mut answer: Option<Option<T>>,
-    (cancel_first, extra): (bool, &mut dyn FnMut(&mut egui::Ui)),
+    (default, extra): (usize, &mut dyn FnMut(&mut egui::Ui)),
 ) -> Option<Option<T>> {
     // As every message window (`save_dialogs::message`), at its own width.
     egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
@@ -44,17 +49,10 @@ fn choose_with<T>(
         ui.add_space(8.0);
         extra(ui);
         ui.horizontal(|ui| {
-            for (label, enabled, choice) in choices {
-                if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
-                    answer = Some(Some(choice));
-                }
-            }
-            let cancel = ui.button(cancel);
-            if cancel_first && ui.memory(|m| m.focused().is_none()) {
-                cancel.request_focus();
-            }
-            if cancel.clicked() {
-                answer = Some(None);
+            let mut labels: Vec<(String, bool)> = choices.iter().map(|(l, on, _)| (l.clone(), *on)).collect();
+            labels.push((cancel, true));
+            if let Some(i) = buttons(ui, id, &labels, default) {
+                answer = Some(choices.into_iter().nth(i).map(|(_, _, c)| c));
             }
         });
     });
@@ -63,10 +61,11 @@ fn choose_with<T>(
 
 /// `yes_no` with what `extra` draws between the text and the buttons (a choice for the yes).
 pub(crate) fn yes_no_with(ctx: &egui::Context, id: &str, width: f32, text: (String, String), (yes, no): (String, String), answer: Option<bool>, extra: &mut dyn FnMut(&mut egui::Ui)) -> Option<bool> {
-    choose_with(ctx, id, width, text, vec![(yes, true, ())], no, answer.map(|yes| yes.then_some(())), (false, extra)).map(|a| a.is_some())
+    choose_with(ctx, id, width, text, vec![(yes, true, ())], no, answer.map(|yes| yes.then_some(())), (0, extra)).map(|a| a.is_some())
 }
 
-/// `choose` with one choice: `Some(true)` yes, `Some(false)` no, `None` still open.
+/// `choose` with one choice: `Some(true)` yes, `Some(false)` no, `None` still open. `safe`: the
+/// window opens on `no`, for a yes that cannot be undone (deleting for good, folders…).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn yes_no(
     ctx: &egui::Context,
@@ -77,23 +76,83 @@ pub(crate) fn yes_no(
     yes_enabled: bool,
     no: String,
     answer: Option<bool>,
+    safe: bool,
 ) -> Option<bool> {
-    choose(ctx, id, width, text, vec![(yes, yes_enabled, ())], no, answer.map(|yes| yes.then_some(()))).map(|a| a.is_some())
+    choose(ctx, id, width, text, vec![(yes, yes_enabled, ())], no, answer.map(|yes| yes.then_some(())), usize::from(safe)).map(|a| a.is_some())
 }
 
-/// `yes_no` with `no` as the default: focused at first, so it shows (deleting folders).
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn yes_no_cancel_first(
-    ctx: &egui::Context,
-    id: &str,
-    width: f32,
-    text: (String, String),
-    yes: String,
-    yes_enabled: bool,
-    no: String,
-    answer: Option<bool>,
-) -> Option<bool> {
-    choose_with(ctx, id, width, text, vec![(yes, yes_enabled, ())], no, answer.map(|yes| yes.then_some(())), (true, &mut |_| {})).map(|a| a.is_some())
+/// A key that moves between the buttons of the window on top or presses one (#311).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Nav {
+    Next,
+    Prev,
+    Press,
+}
+
+/// Where the `Nav` of this frame waits for the row of buttons of the window on top.
+fn nav_id() -> egui::Id {
+    egui::Id::unique("confirm-nav")
+}
+
+/// The keys of the buttons are not for the windows of this frame (the guide over them, #196).
+pub(crate) fn drop_nav(ctx: &egui::Context) {
+    ctx.data_mut(|d| d.remove::<Nav>(nav_id()));
+}
+
+/// The button highlighted after `nav`, and the one pressed: `on`, which buttons can be used;
+/// `focused`, the one highlighted now (none: the window just opened); `default`, the one it opens
+/// on, or the first usable after it (the last one, cancel, at worst). `None` with no usable button.
+pub(crate) fn step(on: &[bool], default: usize, focused: Option<usize>, nav: Option<Nav>) -> Option<(usize, Option<usize>)> {
+    let usable: Vec<usize> = (0..on.len()).filter(|&i| on[i]).collect();
+    let start = usable.iter().copied().find(|&i| i >= default).or_else(|| usable.last().copied())?;
+    let now = focused.filter(|f| on.get(*f) == Some(&true)).unwrap_or(start);
+    let k = usable.iter().position(|&i| i == now).unwrap_or(0);
+    Some(match nav {
+        Some(Nav::Next) => (usable[(k + 1) % usable.len()], None),
+        Some(Nav::Prev) => (usable[(k + usable.len() - 1) % usable.len()], None),
+        Some(Nav::Press) => (now, Some(now)),
+        None => (now, None),
+    })
+}
+
+/// A row of buttons of the window `id` (in the `ui` the caller lays out): `labels` with whether
+/// each can be used; the one highlighted (focused) is `default` when the window opens. The
+/// window on top takes the keys of the frame (`Nav`); the index of the button pressed, by the
+/// mouse or the keys.
+pub(crate) fn buttons(ui: &mut egui::Ui, id: &str, labels: &[(String, bool)], default: usize) -> Option<usize> {
+    buttons_hint(ui, id, labels, default, &[])
+}
+
+/// `buttons`, with `hints[i]` shown over button `i` when it is greyed out (why it cannot be used).
+pub(crate) fn buttons_hint(ui: &mut egui::Ui, id: &str, labels: &[(String, bool)], default: usize, hints: &[Option<String>]) -> Option<usize> {
+    let rows: Vec<egui::Response> = labels
+        .iter()
+        .enumerate()
+        .map(|(i, (l, on))| {
+            let r = ui.add_enabled(*on, egui::Button::new(l.as_str()));
+            match hints.get(i) {
+                Some(Some(h)) => r.on_disabled_hover_text(h),
+                _ => r,
+            }
+        })
+        .collect();
+    let clicked = rows.iter().position(egui::Response::clicked);
+    if !on_top(ui.ctx(), id) {
+        return clicked;
+    }
+    let nav = ui.ctx().data_mut(|d| {
+        let n = d.get_temp::<Nav>(nav_id());
+        d.remove::<Nav>(nav_id());
+        n
+    });
+    let on: Vec<bool> = labels.iter().map(|(_, on)| *on).collect();
+    let focused = rows.iter().position(egui::Response::has_focus);
+    let (to, pressed) = step(&on, default, focused, nav)?;
+    // Another widget of the window (a check box) may hold the focus: left to it, unless a key moved.
+    if focused != Some(to) && (nav.is_some() || ui.memory(|m| m.focused().is_none())) {
+        rows[to].request_focus();
+    }
+    clicked.or(pressed)
 }
 
 /// The layer of the modal window `id` (`egui::Modal::new(egui::Id::unique(id))`).
@@ -131,6 +190,7 @@ impl App {
     /// Open location, Convert and resize and the editor's Resize have fields to type in: there
     /// the keys go to the field. `true`: the keys were the confirmation's (`raw_input_hook`).
     pub(crate) fn asking_keys(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) -> bool {
+        ctx.data_mut(|d| d.remove::<Nav>(nav_id()));
         let fields = self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some() || self.editor.as_ref().is_some_and(crate::edit_page::Window::resizing);
         if !self.asking() || (fields && ctx.egui_wants_keyboard_input()) {
             return false;
@@ -145,14 +205,25 @@ impl App {
         // held down from before it came (Enter on Done of the first-start window) does not close it.
         let tip = self.tip.is_some() && !self.help.open;
         let mut turn = None;
+        let mut nav = None;
         raw_input.events.retain(|e| match e {
             e if crate::help::stays(typing, e) => true,
-            egui::Event::Key { key, pressed: true, repeat, .. } => {
+            egui::Event::Key { key, pressed: true, repeat, modifiers, .. } => {
+                use egui::Key::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Enter, Escape, Space, Tab};
                 match key {
-                    egui::Key::Enter | egui::Key::Escape if *repeat && tip => {}
-                    egui::Key::Enter => *answer = Some(true),
-                    egui::Key::Escape => *answer = Some(false),
-                    egui::Key::ArrowLeft | egui::Key::ArrowRight if tip => turn = Some(*key == egui::Key::ArrowRight),
+                    Enter | Escape | Space if *repeat => {}
+                    // Enter still says "yes" to the windows that read `answer` only; the rows of
+                    // buttons (`buttons`) take Press instead, the highlighted button.
+                    Enter => {
+                        *answer = Some(true);
+                        nav = Some(Nav::Press);
+                    }
+                    Space => nav = Some(Nav::Press),
+                    Escape => *answer = Some(false),
+                    ArrowLeft | ArrowRight if tip => turn = Some(*key == ArrowRight),
+                    Tab => nav = Some(if modifiers.shift { Nav::Prev } else { Nav::Next }),
+                    ArrowRight | ArrowDown => nav = Some(Nav::Next),
+                    ArrowLeft | ArrowUp => nav = Some(Nav::Prev),
                     _ => {}
                 }
                 false
@@ -160,6 +231,9 @@ impl App {
             egui::Event::Key { .. } | egui::Event::Text(_) => false,
             _ => true,
         });
+        if let Some(n) = nav {
+            ctx.data_mut(|d| d.insert_temp(nav_id(), n));
+        }
         if let (Some(next), Some(open)) = (turn, &mut self.tip) {
             open.turn(next);
         }
@@ -186,5 +260,26 @@ mod tests {
         assert!(answers(Some(modal_layer("delete")), "delete"));
         assert!(!answers(Some(modal_layer("notice")), "delete"));
         assert!(!answers(Some(modal_layer("notice")), "about"));
+    }
+
+    /// The default button at first, the first usable after it when it is greyed out; Tab and the
+    /// arrows go round the usable ones; Enter and Space press the one highlighted (#311).
+    #[test]
+    fn keys_move_between_the_buttons() {
+        let all = [true, true, true];
+        assert_eq!(step(&all, 0, None, None), Some((0, None)));
+        assert_eq!(step(&all, 2, None, None), Some((2, None)));
+        assert_eq!(step(&all, 2, None, Some(Nav::Press)), Some((2, Some(2))));
+        assert_eq!(step(&all, 0, Some(1), Some(Nav::Next)), Some((2, None)));
+        assert_eq!(step(&all, 0, Some(2), Some(Nav::Next)), Some((0, None)));
+        assert_eq!(step(&all, 0, Some(0), Some(Nav::Prev)), Some((2, None)));
+        // Delete while the folders are read: the default greyed out, Cancel instead.
+        let reading = [false, true];
+        assert_eq!(step(&reading, 0, None, Some(Nav::Press)), Some((1, Some(1))));
+        assert_eq!(step(&reading, 0, Some(1), Some(Nav::Next)), Some((1, None)));
+        // Save, Save as (off), Don't save, Cancel: Tab skips the greyed one.
+        let off = [true, false, true, true];
+        assert_eq!(step(&off, 0, Some(0), Some(Nav::Next)), Some((2, None)));
+        assert_eq!(step(&[false, false], 0, None, None), None);
     }
 }

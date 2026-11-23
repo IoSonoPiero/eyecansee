@@ -145,7 +145,9 @@ fn audit_1_6_enter_on_a_message_confirms_the_deletion_under_it() {
     eprintln!("after Enter: message open {}, deletion asked {}, a.jpg deleted {deleted}", h.app.notice.is_some(), h.app.delete_confirm.is_some());
     assert!(!deleted, "Enter on the message deleted a.jpg");
     assert!(h.app.notice.is_none() && h.app.delete_confirm.is_some(), "Enter should close the message and leave the deletion asked");
-    // The deletion is on top now: the next Enter is its answer.
+    // The deletion is on top now: the next keys are its own. Deleting for good opens on Cancel
+    // (#311): Tab to Delete, then Enter.
+    h.key(egui::Key::Tab);
     h.key(enter());
     settle(&mut h);
     assert!(!dir.join("a.jpg").exists() && h.app.delete_confirm.is_none(), "Enter on the deletion, now on top, did not delete a.jpg");
@@ -218,6 +220,12 @@ fn viewed(h: &Harness) -> Option<String> {
 fn save_turned(h: &mut Harness, file: &Path) {
     h.app.act = Some(crate::actions::Act::Save);
     h.until(|app| app.save_ready.is_some(), "the confirmation of Save");
+    // With the original deleted for good the window opens on Cancel (#311): Tab to Save first.
+    let path = h.app.save_ready.as_ref().map(|s| s.0.clone()).unwrap();
+    let how = h.app.loader.as_ref().unwrap().deletion(&path, h.app.settings.local_permanent, h.app.settings.remote_delete);
+    if how == crate::source::Deletion::Permanent {
+        h.key(egui::Key::Tab);
+    }
     h.key(enter());
     h.until(|app| app.saving.is_empty() && image::image_dimensions(file).is_ok_and(|d| d != (8, 6)), "the image written turned");
     h.until(|app| !app.turn_unsaved(), "the turn saved, not shown again over the image saved");

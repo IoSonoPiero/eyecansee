@@ -150,7 +150,7 @@ impl App {
         let (ask, ok) = if crate::update::packaged() { ("kiod-ask-flatpak", "kiod-free") } else { ("kiod-ask", "kiod-ok") };
         let (text, ok, cancel) = (self.i18n.t(ask), self.i18n.t(ok), self.i18n.t("delete-no"));
         let answer = crate::confirm::answer(ctx, &mut self.key_answer, "kiod");
-        match confirm::yes_no(ctx, "kiod", 460.0, (self.i18n.t("kiod-title"), text), ok, true, cancel, answer) {
+        match confirm::yes_no(ctx, "kiod", 460.0, (self.i18n.t("kiod-title"), text), ok, true, cancel, answer, false) {
             Some(true) => {
                 log!("kiod: allowed");
                 mtp::allow_kiod();
@@ -190,7 +190,8 @@ impl App {
         let title = self.i18n.t(if cert { "cert-title" } else { "host-title" });
         let (ok, cancel) = (self.i18n.t("host-ok"), self.i18n.t("delete-no"));
         let answer = crate::confirm::answer(ctx, &mut self.key_answer, "host");
-        match confirm::yes_no(ctx, "host", 460.0, (title, text), ok, true, cancel, answer) {
+        // Cancel highlighted: trusting a server is for good, its fingerprint is to be read (#311).
+        match confirm::yes_no(ctx, "host", 460.0, (title, text), ok, true, cancel, answer, true) {
             Some(true) => {
                 if cert {
                     crate::ftp::trust();

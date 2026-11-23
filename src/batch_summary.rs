@@ -184,7 +184,7 @@ impl App {
         let t = |id| self.i18n.t(id);
         // Enter and Esc arrive as `answer` (`raw_input_hook`).
         let id = "batch-summary";
-        let mut close = crate::confirm::answer(ctx, &mut self.key_answer, id).is_some();
+        let mut close = crate::confirm::answer(ctx, &mut self.key_answer, id) == Some(false);
         let mut go = None;
         // A page covers the thumbnails (editor, Save as, slideshow, duplicates): it would hide them.
         let covered = self.show.is_some() || self.convert.is_some() || self.editor.is_some() || self.dup_page_shown();
@@ -204,14 +204,15 @@ impl App {
             }
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                if ui.button(&close_label).clicked() {
-                    close = true;
+                // Close highlighted, then Open the folder when there is one (#311).
+                let mut labels = vec![(close_label.clone(), true)];
+                if s.open.is_some() {
+                    labels.push((open_label.clone(), !covered));
                 }
-                if let Some(address) = &s.open {
-                    let b = ui.add_enabled(!covered, egui::Button::new(&open_label)).on_disabled_hover_text(&covered_hint);
-                    if b.clicked() {
-                        go = Some(address.clone());
-                    }
+                match crate::confirm::buttons_hint(ui, id, &labels, 0, &[None, Some(covered_hint.clone())]) {
+                    Some(0) => close = true,
+                    Some(_) => go = s.open.clone(),
+                    None => {}
                 }
             });
             copy_button(ui, &tip, || s.copy.clone());

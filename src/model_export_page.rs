@@ -73,11 +73,9 @@ fn form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer> {
     ui.add_space(8.0);
     let mut answer = None;
     ui.horizontal(|ui| {
-        if ui.button(t("model-export-ok")).clicked() {
-            answer = Some(Answer::Export);
-        }
-        if ui.button(t("delete-no")).clicked() {
-            answer = Some(Answer::Cancel);
+        // Export highlighted: it makes copies, the model stays (#311).
+        if let Some(i) = crate::confirm::buttons(ui, "model-export", &[(t("model-export-ok"), true), (t("delete-no"), true)], 0) {
+            answer = Some(if i == 0 { Answer::Export } else { Answer::Cancel });
         }
     });
     answer

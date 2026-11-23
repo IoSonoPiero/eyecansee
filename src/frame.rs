@@ -259,6 +259,7 @@ impl App {
         // Enter or Esc that no window took (the one on top was not asking): forgotten, or it would
         // answer the window under it once that one is on top (#196).
         self.key_answer = None;
+        crate::confirm::drop_nav(ctx);
     }
 }
 

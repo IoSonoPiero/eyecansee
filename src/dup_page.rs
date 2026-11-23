@@ -145,11 +145,9 @@ impl App {
             }
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                if ui.button(t("dup-search")).clicked() {
-                    answer = Some(true);
-                }
-                if ui.button(t("delete-no")).clicked() {
-                    answer = Some(false);
+                // Search highlighted: it only reads, and Cancel stops it (#311).
+                if let Some(i) = crate::confirm::buttons(ui, "dup-ask", &[(t("dup-search"), true), (t("delete-no"), true)], 0) {
+                    answer = Some(i == 0);
                 }
             });
         });

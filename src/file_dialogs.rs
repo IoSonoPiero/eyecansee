@@ -113,13 +113,12 @@ impl App {
             }
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                for (label, choice) in buttons {
-                    if ui.button(label).clicked() {
-                        answer = Some(Some(choice));
-                    }
-                }
-                if ui.button(cancel).clicked() {
-                    answer = Some(None);
+                // Keep both highlighted: nothing is lost and the paste goes on (#311).
+                let mut labels: Vec<(String, bool)> = buttons.iter().map(|(l, _)| (l.clone(), true)).collect();
+                labels.push((cancel, true));
+                let keep = labels.len() - 2;
+                if let Some(i) = crate::confirm::buttons(ui, id, &labels, keep) {
+                    answer = Some(buttons.into_iter().nth(i).map(|(_, c)| c));
                 }
             });
         });
@@ -269,9 +268,10 @@ impl App {
         let yes = self.i18n.t(if how == source::Deletion::Permanent { "delete-yes" } else { "delete-move-to-trash" });
         let no = self.i18n.t("delete-no");
         let keys = crate::confirm::answer(ctx, &mut self.key_answer, "delete").map(|enter| enter && !folders);
-        let ask = if folders { confirm::yes_no_cancel_first } else { confirm::yes_no };
+        // Cancel highlighted when the deletion cannot be undone, and for folders (#311).
+        let safe = folders || how == source::Deletion::Permanent || source::is_trash(&paths[0]);
         let title = self.i18n.t(if source::is_trash(&paths[0]) && paths.len() == 1 { "delete-title-empty" } else if how == source::Deletion::Permanent { "delete-title-permanent" } else { "delete-title-trash" });
-        match ask(ctx, "delete", 420.0, (title, text), yes, !reading, no, keys) {
+        match confirm::yes_no(ctx, "delete", 420.0, (title, text), yes, !reading, no, keys, safe) {
             Some(true) => {
                 self.stop_delete_check();
                 if let Some(loader) = &self.loader {
@@ -448,7 +448,7 @@ impl App {
         let buttons = vec![(first.0, true, first.1), (t("restore-keep-both"), true, source::Conflict::KeepBoth)];
         let cancel = t("delete-no");
         let keys = crate::confirm::answer(ctx, &mut self.key_answer, "restore").and_then(|yes| (!yes).then_some(None));
-        match confirm::choose(ctx, "restore", 420.0, (t("taken-title"), text), buttons, cancel, keys) {
+        match confirm::choose(ctx, "restore", 420.0, (t("taken-title"), text), buttons, cancel, keys, 1) {
             Some(Some(conflict)) => {
                 if let Some(loader) = &self.loader {
                     self.restore_busy = true;

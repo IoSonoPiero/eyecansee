@@ -318,7 +318,7 @@ impl App {
         let text = self.i18n.t_args("view-too-large-ask", &[("need", &gigabytes(&self.i18n, need)), ("ram", &gigabytes(&self.i18n, thumb_memory::ram()))]);
         let (title, yes, no) = (self.i18n.t("view-too-large-title"), self.i18n.t("view-open-anyway"), self.i18n.t("delete-no"));
         let keys = crate::confirm::answer(ctx, &mut self.key_answer, "big-picture").map(|_| false);
-        let answer = crate::confirm::yes_no_cancel_first(ctx, "big-picture", WIDTH, (title, text), yes, true, no, keys);
+        let answer = crate::confirm::yes_no(ctx, "big-picture", WIDTH, (title, text), yes, true, no, keys, true);
         if let Some(open) = answer {
             log!("picture too large for the memory, {} MiB: {}", need >> 20, if open { "Open anyway" } else { "Cancel" });
         }

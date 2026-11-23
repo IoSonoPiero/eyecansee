@@ -414,6 +414,10 @@ impl App {
         }
         let under = self.under_guide(ctx);
         let answer = if under { self.key_answer.take() } else { None };
+        // So are Tab, the arrows, Enter and Space for the buttons of that window (#311).
+        if under {
+            crate::confirm::drop_nav(ctx);
+        }
         let pointer = ctx.input(|i| i.pointer.hover_pos());
         let over = pointer.zip(ctx.memory(|m| m.area_rect(window_id()))).is_some_and(|(p, r)| r.contains(p));
         if !over && !self.help.typing && !under {

@@ -461,7 +461,7 @@ impl App {
         let choices = vec![(i18n.t("rc-save"), !w.preparing, Leave::Save), (i18n.t("menu-save-copy"), true, Leave::SaveAs), (i18n.t("rc-discard"), true, Leave::Discard)];
         // Esc: back to the page; Enter does nothing here (no choice is safe to guess).
         let keys = crate::confirm::answer(ctx, &mut self.key_answer, "rotate-leave").filter(|yes| !yes).map(|_| None);
-        let answer = confirm::choose(ctx, "rotate-leave", 440.0, (i18n.t("leave-title"), text), choices, i18n.t("delete-no"), keys)?;
+        let answer = confirm::choose(ctx, "rotate-leave", 440.0, (i18n.t("leave-title"), text), choices, i18n.t("delete-no"), keys, 0)?;
         w.leaving = false;
         answer
     }

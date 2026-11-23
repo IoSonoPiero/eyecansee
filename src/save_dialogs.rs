@@ -85,7 +85,7 @@ impl App {
         let choices: Vec<_> = choices.into_iter().filter(|c| !(self.viewing_video() && matches!(c.2, Leave::SaveAs))).collect();
         // Esc: back to the image; Enter does nothing here (no choice is safe to guess).
         let keys = crate::confirm::answer(ctx, &mut self.key_answer, "turn-leave").filter(|yes| !yes).map(|_| None);
-        let Some(answer) = confirm::choose(ctx, "turn-leave", 440.0, (self.i18n.t("leave-title"), text), choices, self.i18n.t("delete-no"), keys) else { return };
+        let Some(answer) = confirm::choose(ctx, "turn-leave", 440.0, (self.i18n.t("leave-title"), text), choices, self.i18n.t("delete-no"), keys, 0) else { return };
         self.after_turn = None;
         match answer {
             Some(Leave::Save) => {
@@ -147,7 +147,7 @@ impl App {
         let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
         // Only Esc (as `answer`): Enter does not overwrite many images.
         let keys = crate::confirm::answer(ctx, &mut self.key_answer, "batch-turn").and_then(|yes| (!yes).then_some(false));
-        match confirm::yes_no(ctx, "batch-turn", 460.0, (label.clone(), text), yes, !ok.is_empty(), no, keys) {
+        match confirm::yes_no(ctx, "batch-turn", 460.0, (label.clone(), text), yes, !ok.is_empty(), no, keys, true) {
             Some(true) => {
                 log!("transform {op:?} on {} images, {how:?}", ok.len());
                 self.saving.extend(ok.iter().cloned());
@@ -182,7 +182,7 @@ impl App {
         let choices = single.iter().map(|p| (self.i18n.t("menu-save-copy"), true, p.clone())).collect();
         // Enter: Save as… (when there is one); Esc: cancel.
         let keys = crate::confirm::answer(ctx, &mut self.key_answer, "batch-turn").map(|yes| if yes { single.clone() } else { None });
-        match confirm::choose(ctx, "batch-turn", 460.0, (self.op_label(op), text), choices, self.i18n.t("delete-no"), keys) {
+        match confirm::choose(ctx, "batch-turn", 460.0, (self.op_label(op), text), choices, self.i18n.t("delete-no"), keys, 0) {
             Some(Some(path)) => {
                 self.batch_turn = None;
                 self.open_convert(Some(path));
@@ -263,7 +263,8 @@ impl App {
         let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
         // Enter and Esc arrive as `answer` (`raw_input_hook`).
         let answer = crate::confirm::answer(ctx, &mut self.key_answer, "save");
-        match confirm::yes_no(ctx, "save", 420.0, (self.i18n.t("save-title"), text), yes, true, no, answer) {
+        let safe = how == crate::source::Deletion::Permanent;
+        match confirm::yes_no(ctx, "save", 420.0, (self.i18n.t("save-title"), text), yes, true, no, answer, safe) {
             Some(true) => {
                 log!("save {path:?} {turn:?} {how:?}");
                 // A video: its rotation written when it is saved, nothing prepared (#125).
@@ -312,9 +313,9 @@ impl App {
         }
         // Enter and Esc arrive as `answer` (`raw_input_hook`).
         let id = "notice";
-        let mut close = crate::confirm::answer(ctx, &mut self.key_answer, id).is_some();
+        let mut close = crate::confirm::answer(ctx, &mut self.key_answer, id) == Some(false);
         if close {
-            log!("notice: closed with Enter or Esc");
+            log!("notice: closed with Esc");
         }
         let stalled = self.stall_notice.as_ref() == Some(&text);
         let (why, url) = (self.i18n.t("phone-stalled-why"), self.i18n.t("phone-stalled-url"));
@@ -325,14 +326,20 @@ impl App {
                 ui.hyperlink_to(why, url);
             }
             ui.horizontal(|ui| {
-                if let Some(a) = &save_as
-                    && ui.button(copy).clicked()
-                {
-                    self.act = Some(a.clone());
-                    close = true;
+                // Close highlighted; Save as… before it when it helps (#311).
+                let mut labels = Vec::new();
+                if save_as.is_some() {
+                    labels.push((copy, true));
                 }
-                if ui.button(close_label).clicked() {
-                    log!("notice: Close");
+                labels.push((close_label, true));
+                let last = labels.len() - 1;
+                if let Some(i) = crate::confirm::buttons(ui, id, &labels, last) {
+                    if i < last
+                        && let Some(a) = &save_as
+                    {
+                        self.act = Some(a.clone());
+                    }
+                    log!("notice: closed by its buttons");
                     close = true;
                 }
             });
