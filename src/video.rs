@@ -664,15 +664,27 @@ fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u3
         ui.spacing_mut().slider_width = (ui.available_width() - sound_width).max(40.0);
         let mut at = pos;
         let r = crate::ticked::styled(ui, |ui| ui.add(egui::Slider::new(&mut at, 0.0..=length.max(0.001)).show_value(false)));
-        // While dragging, to the nearest keyframe (fast); exact when released or clicked.
-        if r.changed() {
-            player.seek(at, !r.dragged());
+        let id = r.id.with("target");
+        let mut target = ui.data(|d| d.get_temp::<Option<f64>>(id)).flatten();
+        for (to, exact) in timeline_seeks(&mut target, r.changed(), r.dragged(), r.drag_stopped(), at) {
+            player.seek(to, exact);
         }
-        if r.drag_stopped() {
-            player.seek(at, true);
-        }
+        ui.data_mut(|d| d.insert_temp(id, target));
         sound_controls(ui, player, sound, i18n);
     });
+}
+
+/// The seeks of the timeline in one frame (`at`: the bar's value now): while dragging, to the
+/// nearest keyframe (fast); exact when released or clicked. `target` is kept between frames.
+fn timeline_seeks(_target: &mut Option<f64>, changed: bool, dragged: bool, stopped: bool, at: f64) -> Vec<(f64, bool)> {
+    let mut seeks = Vec::new();
+    if changed {
+        seeks.push((at, !dragged));
+    }
+    if stopped {
+        seeks.push((at, true));
+    }
+    seeks
 }
 
 /// Where the time and the bar stand: at the end of a video played to its end. mpv keeps the last
