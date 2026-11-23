@@ -420,6 +420,21 @@ fn older_in(dir: &Path, c: &Component) -> bool {
 
 #[cfg(test)]
 mod tests {
+    /// Piero, 23/11/2026: with an older version downloaded, the buttons say Update, not Download;
+    /// with none, or with the version wanted already there, Download (or nothing to do).
+    #[test]
+    fn button_says_update_over_an_older_version() {
+        let c = super::Component { kind: "libmpv", version: "0.42.0-2", file: "libmpv.so.2", url: "", archive: true, sha256: "", size: 1 };
+        let dir = std::env::temp_dir().join(format!("eyecansee-button-id-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let id = |d: &std::path::Path| super::button_id_in(d, &c, "download", "update");
+        assert_eq!(id(&dir), "download");
+        std::fs::create_dir_all(dir.join("libmpv-0.42.0")).unwrap();
+        assert_eq!(id(&dir), "update");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
     /// The rows of the first-start window and of Options > Add-ons: every add-on has a name and a
     /// line about it in the languages, and the sizes are those of the components.
     #[test]
