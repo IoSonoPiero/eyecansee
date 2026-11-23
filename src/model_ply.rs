@@ -5,7 +5,8 @@ use std::io::Cursor;
 
 use ply_rs_bw::{parser::Parser, ply::DefaultElement, ply::Property};
 
-use crate::model::{Builder, MAX_OFFERED, MAX_TRIANGLES, Mesh, TOO_FAR, average};
+use crate::model::{Builder, Mesh, TOO_FAR, average};
+use crate::model_limit::{Limit, PLY_BINARY, PLY_BINARY_WHOLE, PLY_TEXT};
 
 /// The mark of the PLY files `model_export` writes with Z up, as Blender expects them (tried with
 /// Blender 4.5, 2026-11-02); without it a PLY is read with Y up, as the scans have it.
@@ -33,6 +34,11 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Mesh, String> {
 /// The file read by the parser of `ply-rs-bw`: about 320 bytes for each point and face while
 /// it is read (#191), so only for ASCII files and the headers `binary` leaves to it.
 fn parsed(bytes: &[u8], z_up: bool) -> Result<Mesh, String> {
+    let limit = parsed_limit(bytes);
+    // Counted before the parser reads it all (`model_limit`).
+    if limit == PLY_TEXT {
+        PLY_TEXT.check_count(crate::model_limit::ply_text_count(bytes))?;
+    }
     let cleaned = ply_header_cleaned(bytes);
     let bytes = cleaned.as_deref().unwrap_or(bytes);
     let ply = Parser::<DefaultElement>::new().read_ply(&mut Cursor::new(bytes)).map_err(|e| e.to_string())?;
@@ -58,12 +64,23 @@ fn parsed(bytes: &[u8], z_up: bool) -> Result<Mesh, String> {
         }
     }
     if tris.is_empty() {
-        return point_cloud(pos, &rgb);
+        return point_cloud(pos, &rgb, limit);
     }
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(limit);
     let colors = |i: usize| face_rgb.get(i).copied().flatten().or_else(|| average(&rgb, tris[i])).map(|c| c.map(|v| v as u8));
     b.add(pos, tris.clone(), colors)?;
     b.finish(z_up)
+}
+
+/// The cap of a file read by the parser of `ply-rs-bw`: in text counted first, binary read whole.
+fn parsed_limit(bytes: &[u8]) -> Limit {
+    if in_text(bytes) { PLY_TEXT } else { PLY_BINARY_WHOLE }
+}
+
+/// Whether the PLY is in text (ASCII), as its header's `format` line says.
+fn in_text(bytes: &[u8]) -> bool {
+    let Some(end) = bytes.windows(10).position(|w| w == b"end_header") else { return false };
+    String::from_utf8_lossy(&bytes[..end]).lines().any(|l| l.split_whitespace().take(2).eq(["format", "ascii"]))
 }
 
 /// The type of a PLY property, and its size in the file.
@@ -240,8 +257,8 @@ impl Scan {
         let (x, y, z) = (at("x"), at("y"), at("z"));
         let colour = rgb_of(&e.props);
         // As `Builder` would refuse them, before their memory is asked for.
-        if e.count > MAX_OFFERED {
-            return Err(format!("more than {MAX_OFFERED} points and triangles"));
+        if e.count > PLY_BINARY.offered() {
+            return Err(crate::model_limit::too_many(crate::model_limit::OFFERED, PLY_BINARY.offered()));
         }
         let rows = e.count.min(d.left() / row_size(e));
         self.pos.reserve_exact(rows);
@@ -277,7 +294,7 @@ impl Scan {
         // A face with a triangle takes at least its count and three indices.
         if let Some(p) = list.map(|i| &e.props[i]).filter(|_| !strips) {
             let least = row_size(e) + 3 * p.ty.size();
-            self.tris.reserve_exact(e.count.min(d.left() / least).min(MAX_TRIANGLES + 1));
+            self.tris.reserve_exact(e.count.min(d.left() / least).min(PLY_BINARY.max + 1));
         }
         let (mut v, mut corners) = (vec![0.0; e.props.len()], Vec::new());
         for _ in 0..e.count {
@@ -298,9 +315,7 @@ impl Scan {
                     None => v[k] = d.value(p.ty)?,
                 }
             }
-            if self.tris.len() + self.strips.len() > MAX_TRIANGLES {
-                return Err(format!("more than {MAX_TRIANGLES} triangles"));
-            }
+            PLY_BINARY.check(self.tris.len() + self.strips.len())?;
             if strips {
                 for strip in corners.split(|&v| v == u32::MAX) {
                     self.strips.extend(strip.windows(3).enumerate().map(|(i, w)| if i % 2 == 0 { [w[0], w[1], w[2]] } else { [w[1], w[0], w[2]] }));
@@ -373,9 +388,9 @@ impl Scan {
         let Scan { pos, rgb, mut tris, face_rgb, strips } = self;
         tris.extend(strips);
         if tris.is_empty() {
-            return point_cloud(pos, &rgb);
+            return point_cloud(pos, &rgb, PLY_BINARY);
         }
-        let mut b = Builder::default();
+        let mut b = Builder::up_to(PLY_BINARY);
         if rgb.is_empty() && face_rgb.is_empty() {
             b.add(pos, tris, |_| None)?;
         } else {
@@ -390,8 +405,10 @@ impl Scan {
 
 /// Points without faces (3D scans): each one a small tetrahedron, as large as the space between
 /// points on a surface, so that the cloud looks like a surface of dots.
-fn point_cloud(pos: Vec<[f32; 3]>, rgb: &[[f32; 3]]) -> Result<Mesh, String> {
+fn point_cloud(pos: Vec<[f32; 3]>, rgb: &[[f32; 3]], limit: Limit) -> Result<Mesh, String> {
     let pos: Vec<([f32; 3], Option<[u8; 3]>)> = pos.into_iter().enumerate().filter(|(_, p)| p.iter().all(|c| c.is_finite())).map(|(i, p)| (p, rgb.get(i).map(|c| c.map(|v| v as u8)))).collect();
+    // Said as points, before the 4 triangles of each are made (Piero, 22/11/2026).
+    limit.check_points(pos.len())?;
     let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
     for (p, _) in &pos {
         for k in 0..3 {
@@ -401,7 +418,7 @@ fn point_cloud(pos: Vec<[f32; 3]>, rgb: &[[f32; 3]]) -> Result<Mesh, String> {
     let diag = (0..3).map(|k| (hi[k] - lo[k]).powi(2)).sum::<f32>().sqrt();
     let s = (diag / (pos.len() as f32).sqrt() * 0.6).clamp(diag / 2000.0, diag / 100.0) / 3f32.sqrt();
     let corners = [[1.0, 1.0, 1.0], [1.0, -1.0, -1.0], [-1.0, 1.0, -1.0], [-1.0, -1.0, 1.0f32]];
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(limit);
     let tris: Vec<[u32; 3]> = (0..pos.len() as u32).flat_map(|i| [[0, 1, 2], [0, 3, 1], [0, 2, 3], [1, 3, 2]].map(|t| t.map(|v| i * 4 + v))).collect();
     let colors: Vec<Option<[u8; 3]>> = pos.iter().map(|(_, c)| *c).collect();
     let points = pos.iter().flat_map(|(p, _)| corners.map(|c| std::array::from_fn(|k| p[k] + c[k] * s))).collect();
@@ -523,6 +540,25 @@ mod tests {
                 _ => v.to_le_bytes().to_vec(),
             })
             .collect()
+    }
+
+    /// A binary PLY left to the parser (two elements of the same name) is read whole before its
+    /// triangles or points can be counted: refused without the why (Piero, 22/11/2026), as the
+    /// other formats read whole.
+    #[test]
+    fn binary_left_to_the_parser_without_the_why() {
+        let head = "element vertex 1\nproperty float x\nproperty float y\nproperty float z\nelement vertex 1\nproperty float x\nproperty float y\nproperty float z\n";
+        let bytes = ply("binary_little_endian", head, &le(&[(0.0, "f"); 6]));
+        assert!(binary(&bytes, false).is_none() && !in_text(&bytes));
+        let limit = parsed_limit(&bytes);
+        let (en, it) = (crate::i18n::I18n::new("en"), crate::i18n::I18n::new("it"));
+        assert_eq!(en.load_error(&limit.error()).lines().nth(1), Some("EyeCanSee does not open binary PLY files with more than 50 million triangles."));
+        assert_eq!(it.load_error(&limit.error()).lines().nth(1), Some("EyeCanSee non apre i file PLY binari con più di 50 milioni di triangoli."));
+        let points = limit.check_points(usize::MAX).unwrap_err();
+        assert_eq!(en.load_error(&points).lines().nth(1), Some("EyeCanSee does not open binary PLY files with more than 12.5 million points."));
+        assert_eq!(it.load_error(&points).lines().nth(1), Some("EyeCanSee non apre i file PLY binari con più di 12,5 milioni di punti."));
+        // EyeCanSee's own reader counts before it reads: the why stays.
+        assert_eq!(en.load_error(&PLY_BINARY.error()).lines().nth(1), Some("EyeCanSee does not open binary PLY files with more than 50 million triangles, so that reading them does not fill the computer's memory."));
     }
 
     /// #191: the reader of the binary files gives what the parser gave, on every kind the files

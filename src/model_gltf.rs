@@ -79,9 +79,11 @@ pub fn read(bytes: &[u8], sibling: Sibling, unpacked: &crate::model_3mf::Unpacke
     if let Some(e) = cut(bytes) {
         return Err(e);
     }
+    // A GLB by its first bytes, also when its data is first made plain.
+    let limit = if bytes.starts_with(b"glTF") { crate::model_limit::GLB } else { crate::model_limit::GLTF };
     match crate::model_gltf_unpack::plain(bytes, sibling, unpacked)? {
-        Some(glb) => read_plain(&glb, sibling),
-        None => read_plain(bytes, sibling),
+        Some(glb) => read_plain(&glb, sibling, limit),
+        None => read_plain(bytes, sibling, limit),
     }
 }
 
@@ -127,8 +129,10 @@ pub(crate) fn cut_text(i18n: &crate::i18n::I18n, id: &str, detail: &str) -> Opti
     Some(if expected == actual { i18n.t_args(CUT, &[("detail", rest)]) } else { i18n.t_args(CUT_SIZES, &[("expected", &expected), ("actual", &actual), ("detail", rest)]) })
 }
 
-fn read_plain(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
+fn read_plain(bytes: &[u8], sibling: Sibling, limit: crate::model_limit::Limit) -> Result<Mesh, String> {
     let g = gltf::Gltf::from_slice(bytes).map_err(|e| gltf_error(e.to_string()))?;
+    // Counted from the accessors before the data is read (T5, Piero 22/11/2026).
+    limit.check(triangles(&g.document))?;
     let inside: Vec<Option<Vec<u8>>> = g
         .document
         .buffers()
@@ -145,7 +149,7 @@ fn read_plain(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     if let Some(b) = g.document.buffers().find(|b| data(b.clone()).is_none()) {
         return Err(unread_buffer(b.source()));
     }
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(limit);
     let mut extra: Extra = (Vec::new(), Vec::new(), HashMap::new(), HashSet::new(), 0);
     // The materials' pictures, read once: in the file, in base64, or next to it; decoded in
     // parallel (a 2048² picture takes ~30 ms).
@@ -192,6 +196,39 @@ fn read_plain(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     b.finish(false)
 }
 
+/// The triangles the reading makes (`gltf_node`, `gltf_mesh`), from the accessors' counts alone:
+/// every node of the scene once, each mesh at every node that places it, primitives without
+/// points left out as the reading leaves them. Triangles the reading drops (indices that point
+/// nowhere) still count: never fewer than the reading's.
+fn triangles(doc: &gltf::Document) -> usize {
+    fn mesh(m: &gltf::Mesh) -> usize {
+        use gltf::mesh::Mode;
+        m.primitives()
+            .filter_map(|p| {
+                let pos = p.get(&gltf::Semantic::Positions)?;
+                let n = p.indices().map_or(pos.count(), |i| i.count());
+                match p.mode() {
+                    Mode::Triangles => Some(n / 3),
+                    Mode::TriangleStrip | Mode::TriangleFan => Some(n.saturating_sub(2)),
+                    _ => None,
+                }
+            })
+            .fold(0, usize::saturating_add)
+    }
+    fn node(n: &gltf::Node, seen: &mut HashSet<usize>, depth: u32) -> usize {
+        // As `gltf_node`: too deep is refused by the reading, a node met again placed once.
+        if depth > 64 || !seen.insert(n.index()) {
+            return 0;
+        }
+        n.children().map(|c| node(&c, seen, depth + 1)).fold(n.mesh().map_or(0, |m| mesh(&m)), usize::saturating_add)
+    }
+    let mut seen = HashSet::new();
+    match doc.default_scene().or_else(|| doc.scenes().next()) {
+        Some(scene) => scene.nodes().map(|n| node(&n, &mut seen, 0)).fold(0, usize::saturating_add),
+        None => doc.meshes().map(|m| mesh(&m)).fold(0, usize::saturating_add),
+    }
+}
+
 /// Line segments and points of a glTF, made solid at the end (`model_lines`), the number of
 /// each image's picture in the model (`Builder::texture`, 0 when it could not be read), the
 /// nodes already placed, and how many times one of them was met again.
@@ -220,7 +257,7 @@ fn gltf_node<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>
     let m = mul(parent, &node.transform().matrix());
     if let Some(mesh) = node.mesh() {
         gltf_mesh(b, extra, &mesh, &m, data)?;
-        crate::model_lines::fits(extra.0.len() + extra.1.len())?;
+        crate::model_lines::fits(extra.0.len() + extra.1.len(), b.limit())?;
     }
     for child in node.children() {
         gltf_node(b, extra, &child, &m, data, depth + 1)?;
@@ -620,6 +657,82 @@ mod tests {
         let line = |lang| crate::model::saved_lines(&crate::i18n::I18n::new(lang), "a.gltf", &[super::NODE_AGAIN]);
         assert_eq!(line("en"), ["a.gltf: a part of the model appeared more than once in its hierarchy; the new file has it only once"]);
         assert_eq!(line("it"), ["a.gltf: una parte del modello compariva più volte nella sua gerarchia; il file nuovo la contiene una volta sola"]);
+    }
+
+    /// T5 (Piero, 22/11/2026): a .gltf with more triangles than its cap, as its accessors give
+    /// them, is refused before its data file is read, with the why; and a GLB the same (its
+    /// data is in the file: refused before a triangle is made).
+    #[test]
+    fn counted_before_the_reading_t5() {
+        let n = crate::model_limit::GLTF.max * 3 + 3;
+        let body = format!(
+            r#""buffers":[{{"uri":"big.bin","byteLength":{len}}}],"bufferViews":[{{"buffer":0,"byteLength":36}},{{"buffer":0,"byteOffset":36,"byteLength":{idx}}}],"accessors":[{{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","max":[1,1,0],"min":[0,0,0]}},{{"bufferView":1,"componentType":5125,"count":{n},"type":"SCALAR"}}],"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0}},"indices":1}}]}}],"nodes":[{{"mesh":0}}],"scenes":[{{"nodes":[0]}}],"scene":0"#,
+            len = 36 + 4 * n,
+            idx = 4 * n
+        );
+        let gltf = format!(r#"{{"asset":{{"version":"2.0"}},{body}}}"#);
+        let asked = std::cell::Cell::new(0);
+        let sibling = |_: &str| {
+            asked.set(asked.get() + 1);
+            None
+        };
+        let e = super::read(gltf.as_bytes(), &sibling, &Default::default()).unwrap_err();
+        assert_eq!((e, asked.get()), (crate::model_limit::GLTF.error(), 0));
+        assert_eq!(said(&crate::model_limit::GLTF.error())[0].lines().nth(1), Some("EyeCanSee does not open glTF files with more than 20 million triangles, so that reading them does not fill the computer's memory."));
+        assert_eq!(said(&crate::model_limit::GLB.error())[1].lines().nth(1), Some("EyeCanSee non apre i file GLB con più di 20 milioni di triangoli, perché la lettura non riempia la memoria del computer."));
+    }
+
+    /// T5: the count from the accessors gives what the reading makes: a node met again, strips
+    /// and fans, no scene; and on every glTF and GLB under `EYECANSEE_GLTF` (`counted_live`).
+    #[test]
+    fn counted_as_read_t5() {
+        let count = |bytes: &[u8]| super::triangles(&gltf::Gltf::from_slice(bytes).unwrap().document);
+        for (what, gltf) in [
+            ("twice", triangle("0,1")),
+            ("strip", triangle("0").replace(r#""attributes":{"POSITION":0}"#, r#""attributes":{"POSITION":0},"mode":5"#)),
+            ("fan", triangle("0").replace(r#""attributes":{"POSITION":0}"#, r#""attributes":{"POSITION":0},"mode":6"#)),
+            ("lines", triangle("0").replace(r#""attributes":{"POSITION":0}"#, r#""attributes":{"POSITION":0},"mode":1"#)),
+            ("no scene", triangle("0").replace(r#","scenes":[{"nodes":[0]}],"scene":0"#, "")),
+        ] {
+            let read = crate::model::parse(gltf.as_bytes(), "a.gltf").map_or(0, |m| m.tris.len());
+            let lines = what == "lines";
+            assert_eq!(count(gltf.as_bytes()), if lines { 0 } else { read }, "{what}");
+        }
+    }
+
+    /// `counted_as_read_t5` on real files: every .glb and .gltf under `EYECANSEE_GLTF`, the count
+    /// never below the triangles read (dropped ones only make it higher) when the file has only
+    /// triangles.
+    #[test]
+    #[ignore]
+    fn counted_live() {
+        let root = std::path::PathBuf::from(std::env::var("EYECANSEE_GLTF").expect("EYECANSEE_GLTF"));
+        let mut dirs = vec![root];
+        while let Some(dir) = dirs.pop() {
+            for e in std::fs::read_dir(&dir).unwrap().flatten() {
+                let path = e.path();
+                if path.is_dir() {
+                    dirs.push(path);
+                    continue;
+                }
+                let ext = path.extension().and_then(|x| x.to_str()).unwrap_or("").to_ascii_lowercase();
+                if !["glb", "gltf"].contains(&ext.as_str()) {
+                    continue;
+                }
+                let bytes = std::fs::read(&path).unwrap();
+                let folder = path.parent().unwrap().to_path_buf();
+                let sibling = move |uri: &str| std::fs::read(folder.join(crate::model::percent_decoded(uri).unwrap_or_else(|| uri.to_string()))).ok();
+                let plain = crate::model_gltf_unpack::plain(&bytes, &sibling, &Default::default()).ok().flatten().unwrap_or_else(|| bytes.clone());
+                let Ok(g) = gltf::Gltf::from_slice(&plain) else { continue };
+                let read = super::read(&bytes, &sibling, &Default::default()).map_or(0, |m| m.tris.len());
+                let counted = super::triangles(&g.document);
+                println!("{}: counted {counted}, read {read}", path.display());
+                // Lines and points are made solid too, under a cap of their own (`model_lines::fits`).
+                use gltf::mesh::Mode;
+                let only_triangles = g.document.meshes().flat_map(|m| m.primitives().collect::<Vec<_>>()).all(|p| matches!(p.mode(), Mode::Triangles | Mode::TriangleStrip | Mode::TriangleFan));
+                assert!(counted >= read || !only_triangles, "{}", path.display());
+            }
+        }
     }
 
     /// Audit 6.6: a chain of 60 nodes, each one with the next as its child twice, none with a

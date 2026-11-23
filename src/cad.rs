@@ -307,7 +307,7 @@ impl<'a> Walk<'a> {
     pub(crate) fn line(&mut self, pts: Vec<P>, t: &Affine, color: [u8; 3], fill: Option<f32>, stroke: Stroke) -> Result<(), String> {
         self.out.points += pts.len();
         if self.out.points > MAX_POINTS {
-            return Err(format!("more than {MAX_POINTS} points"));
+            return Err(crate::model_limit::too_many(crate::model_limit::DRAWING_POINTS, MAX_POINTS));
         }
         let pts: Vec<P> = pts.into_iter().map(|p| t.apply(p)).filter(|p| p[0].is_finite() && p[1].is_finite()).collect();
         let pieces = match (self.clip, fill) {
@@ -353,14 +353,14 @@ impl<'a> Walk<'a> {
         // Also those that draw nothing (empty texts, hidden ones) take time, placed in many blocks.
         self.met += 1;
         if self.met > MAX_POINTS {
-            return Err(format!("more than {MAX_POINTS} entities"));
+            return Err(crate::model_limit::too_many(crate::model_limit::DRAWING_ENTITIES, MAX_POINTS));
         }
         if e.common().invisible {
             return Ok(());
         }
         // Texts and pictures add their points without the check of `line`.
         if self.out.points > MAX_POINTS {
-            return Err(format!("more than {MAX_POINTS} points"));
+            return Err(crate::model_limit::too_many(crate::model_limit::DRAWING_POINTS, MAX_POINTS));
         }
         let Some(layer) = self.layer(e, ctx) else { return Ok(()) };
         let number = self.index.get(&layer.to_lowercase()).copied();
@@ -462,7 +462,7 @@ impl<'a> Walk<'a> {
         let (cols, rows) = (i.column_count.max(1), i.row_count.max(1));
         // An array of up to 65535 × 65535 copies: refused before placing them one by one.
         if cols as usize * rows as usize > crate::model::MAX_VISITS {
-            return Err(format!("more than {} blocks placed", crate::model::MAX_VISITS));
+            return Err(crate::model_limit::too_many(crate::model_limit::DRAWING_PLACED, crate::model::MAX_VISITS));
         }
         for r in 0..rows {
             for c in 0..cols {
@@ -490,7 +490,7 @@ impl<'a> Walk<'a> {
         // Blocks inside blocks, each placed many times, must not take forever.
         self.placed += 1;
         if self.placed > crate::model::MAX_VISITS {
-            return Err(format!("more than {} blocks placed", crate::model::MAX_VISITS));
+            return Err(crate::model_limit::too_many(crate::model_limit::DRAWING_PLACED, crate::model::MAX_VISITS));
         }
         let doc = self.doc;
         for e in doc.entities_in_block(name) {
@@ -663,7 +663,7 @@ impl<'a> Walk<'a> {
             }
         }
         if self.out.points > MAX_POINTS {
-            return Err(format!("more than {MAX_POINTS} points"));
+            return Err(crate::model_limit::too_many(crate::model_limit::DRAWING_POINTS, MAX_POINTS));
         }
         if !pts.is_empty() {
             self.put(Item::Line { pts, color, fill, stroke });

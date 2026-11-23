@@ -21,9 +21,15 @@ const MAX_INLINE_READS: usize = 1000;
 const SEGMENTS: usize = 32;
 const RINGS: usize = 16;
 
+#[cfg(test)]
 pub fn read(bytes: &[u8], sibling: Sibling, unpacked: &Unpacked) -> Result<Mesh, String> {
+    read_as(bytes, sibling, unpacked, crate::model_limit::X3D)
+}
+
+/// `read`, with the cap of its format: X3D, or VRML (`model::parse_with`, by the extension).
+pub fn read_as(bytes: &[u8], sibling: Sibling, unpacked: &Unpacked, limit: crate::model_limit::Limit) -> Result<Mesh, String> {
     let scene = crate::model_vrml::parse(bytes, unpacked)?;
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(limit);
     let mut w = Walk { b: &mut b, sibling, unpacked, visits: 0, inlined: HashMap::new(), reads: 0, lines: Vec::new(), points: Vec::new() };
     w.node(&scene, &IDENTITY, 0)?;
     let (lines, points) = (std::mem::take(&mut w.lines), std::mem::take(&mut w.points));
@@ -50,7 +56,7 @@ impl Walk<'_, '_> {
     fn node(&mut self, n: &SceneNode, m: &Mat4, inline: u32) -> Result<(), String> {
         self.visits += 1;
         if self.visits > MAX_VISITS {
-            return Err("too many nodes in the scene".into());
+            return Err(crate::model_limit::too_many(crate::model_limit::PLACED, MAX_VISITS));
         }
         match n.kind.as_str() {
             "Transform" => {
@@ -88,7 +94,7 @@ impl Walk<'_, '_> {
                 };
                 let bytes = urls.iter().filter(|u| !u.contains("://")).find_map(&mut read);
                 if self.reads > MAX_INLINE_READS {
-                    return Err(format!("more than {MAX_INLINE_READS} inlined files"));
+                    return Err(crate::model_limit::too_many(crate::model_limit::INLINED, MAX_INLINE_READS));
                 }
                 // An inlined file counts in what the model's file may unpack.
                 bytes.iter().for_each(|b| self.unpacked.read_too(b.len()));
@@ -109,10 +115,11 @@ impl Walk<'_, '_> {
         });
         if let Some(g) = n.children().find(|g| matches!(g.kind.as_str(), "IndexedLineSet" | "LineSet" | "PointSet")) {
             self.line_set(g, m, color);
-            return crate::model_lines::fits(self.lines.len() + self.points.len());
+            return crate::model_lines::fits(self.lines.len() + self.points.len(), self.b.limit());
         }
         let Some(part) = n.children().find_map(geometry) else { return Ok(()) };
-        let part = part?;
+        // An extrusion beyond the cap, said with the format's (`extrusion`).
+        let part = part.map_err(|e| if e == crate::model_limit::X3D.error() { self.b.limit().error() } else { e })?;
         let image = appearance.and_then(|a| a.children().find(|c| c.kind == "ImageTexture"));
         let urls = image.map_or(&[][..], |i| i.strs("url"));
         let tex = if part.uv.is_empty() { 0 } else { urls.iter().filter(|u| !u.contains("://")).map(|u| self.b.texture_file(u, self.sibling)).find(|&k| k > 0).unwrap_or(0) };
@@ -399,8 +406,9 @@ fn extrusion(n: &SceneNode) -> Result<Part, String> {
         spine = vec![[0.0; 3], [0.0, 1.0, 0.0]];
     }
     // Two triangles per section point at each spine point: a small file can name billions.
-    if (cs.len() as u64).saturating_mul(spine.len() as u64).saturating_mul(2) > crate::model::MAX_TRIANGLES as u64 {
-        return Err(format!("more than {} triangles", crate::model::MAX_TRIANGLES));
+    // X3D's cap, as VRML's (`Walk::shape` says it with the format's).
+    if (cs.len() as u64).saturating_mul(spine.len() as u64).saturating_mul(2) > crate::model_limit::X3D.max as u64 {
+        return Err(crate::model_limit::X3D.error());
     }
     let orient = n.nums("orientation").as_chunks::<4>().0;
     let last = spine.len() - 1;
@@ -552,6 +560,6 @@ mod tests {
         let one = "#VRML V2.0 utf8\nInline { url \"a.wrz\" }";
         assert!(read(one.as_bytes(), &next, &Unpacked::new(96 << 10)).is_ok());
         let two = "#VRML V2.0 utf8\nInline { url \"a.wrz\" } Inline { url \"b.wrz\" }";
-        assert!(read(two.as_bytes(), &next, &Unpacked::new(96 << 10)).is_err_and(|e| e.contains("unpacks")));
+        assert!(read(two.as_bytes(), &next, &Unpacked::new(96 << 10)).is_err_and(|e| e.starts_with(crate::model_limit::UNPACKED)));
     }
 }

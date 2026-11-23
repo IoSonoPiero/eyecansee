@@ -79,9 +79,9 @@ impl Unpacked {
         }
         self.over.set(true);
         if self.made.get().saturating_add(n) > self.limit {
-            Err(format!("the file unpacks to more than {} MB", self.limit >> 20))
+            Err(crate::model_limit::too_many(crate::model_limit::UNPACKED, self.limit >> 20))
         } else {
-            Err(format!("the file unpacks to more than {MAX_RATIO} times its size"))
+            Err(crate::model_limit::too_many(crate::model_limit::UNPACKED_TIMES, MAX_RATIO))
         }
     }
 
@@ -133,10 +133,10 @@ pub fn read(bytes: &[u8], unpacked: &Unpacked) -> Result<Mesh, String> {
         .ok()
         .and_then(|d| d.descendants().find(|n| n.attribute("Type").is_some_and(|t| t.ends_with("/3dmodel"))).and_then(|n| n.attribute("Target")).map(str::to_string))
         .unwrap_or_else(|| "/3D/3dmodel.model".into());
-    let mut files = Files { zip, unpacked, texts: HashMap::new(), pictures: HashMap::new() };
+    let mut files = Files { zip, unpacked, texts: HashMap::new(), pictures: HashMap::new(), written: 0 };
     let text = files.text(&main)?;
     let doc = Document::parse(&text).map_err(|e| e.to_string())?;
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(crate::model_limit::THREE_MF);
     let model = Model::new(&doc);
     for item in doc.descendants().filter(|n| n.has_tag_name_local("item")) {
         let Some(id) = item.attribute("objectid") else { continue };
@@ -156,6 +156,8 @@ struct Files<'b, 'u> {
     /// Texts and pictures by their place in the zip.
     texts: HashMap<usize, Rc<String>>,
     pictures: HashMap<usize, u16>,
+    /// The triangles written in the texts read so far, counted before they are parsed (`model_limit`).
+    written: usize,
 }
 
 impl Files<'_, '_> {
@@ -170,6 +172,8 @@ impl Files<'_, '_> {
             return Ok(t.clone());
         }
         let t = Rc::new(utf8(self.unpacked.read(self.zip.by_index(i).map_err(|e| e.to_string())?)?, path)?);
+        self.written = self.written.saturating_add(crate::model_limit::xml_triangles(&t));
+        crate::model_limit::THREE_MF.check(self.written)?;
         self.texts.insert(i, t.clone());
         Ok(t)
     }
@@ -352,6 +356,22 @@ mod tests {
         w.finish().unwrap().into_inner()
     }
 
+    /// D1: the triangles counted before the XML is parsed (`model_limit::xml_triangles`) are the
+    /// ones read, with and without the prefix of the namespace; a triangle outside the points is
+    /// counted, as written in the file, and dropped by the reading.
+    #[test]
+    fn counted_before_parsing_d1() {
+        let model = r#"<model xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:m="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><resources>
+            <object id="1"><mesh><vertices><vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/></vertices>
+            <triangles><triangle v1="0" v2="1" v3="2"/><m:triangle v1="0" v2="2" v3="1"/></triangles></mesh></object>
+            </resources><build><item objectid="1"/></build></model>"#;
+        assert_eq!(crate::model_limit::xml_triangles(model), 2);
+        assert_eq!(read(&zip(model), &Unpacked::default()).unwrap().tris.len(), 2);
+        let outside = model.replace(r#"v3="1""#, r#"v3="9""#);
+        assert_eq!(crate::model_limit::xml_triangles(&outside), 2);
+        assert_eq!(read(&zip(&outside), &Unpacked::default()).unwrap().tris.len(), 1);
+    }
+
     #[test]
     fn components_build_transforms_and_colours() {
         let model = r##"<model xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><resources>
@@ -445,7 +465,7 @@ mod tests {
         let limit = 512 << 10;
         assert_eq!(read(&parts(&paths(4), &"A".repeat(64 << 10)), &Unpacked::new(limit)).unwrap().tris.len(), 4);
         let r = read(&parts(&paths(12), &"A".repeat(64 << 10)), &Unpacked::new(limit));
-        assert!(r.as_ref().is_err_and(|e| e.contains("unpacks")), "{:?}", r.map(|m| m.tris.len()));
+        assert!(r.as_ref().is_err_and(|e| e.starts_with(crate::model_limit::UNPACKED)), "{:?}", r.map(|m| m.tris.len()));
     }
 
     /// One model file named in four spellings (`/3D/a.model`, `//3D/a.model`...) is one file of
@@ -467,7 +487,7 @@ mod tests {
         let paths: Vec<String> = (0..4).map(|k| format!("/3D/part{k}.model")).collect();
         let ratio = |bytes: &[u8]| Unpacked::with(bytes.len(), MAX_UNPACKED, 64 << 10);
         let packed = parts(&paths, &"A".repeat(64 << 10));
-        assert!(read(&packed, &ratio(&packed)).is_err_and(|e| e.contains("times its size")));
+        assert!(read(&packed, &ratio(&packed)).is_err_and(|e| e.starts_with(crate::model_limit::UNPACKED_TIMES)));
         let mut seed = 1u32;
         let numbers: String = (0..8000)
             .map(|_| {

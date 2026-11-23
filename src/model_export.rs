@@ -33,6 +33,11 @@ impl Kind {
         }
     }
 
+    /// The format of a file written with the extension `ext`.
+    pub fn of_ext(ext: &str) -> Option<Kind> {
+        Kind::ALL.into_iter().find(|k| ext.eq_ignore_ascii_case(k.ext()))
+    }
+
     pub fn label(self) -> &'static str {
         match self {
             Kind::Stl => "STL",
@@ -129,10 +134,15 @@ fn unit(n: [f32; 3]) -> [f32; 3] {
 
 /// The model in `bytes` (named `name`, the files next to it read through `sibling`) written as
 /// `kind`, with what was read differently from its file (`Mesh::warnings`): the export says the
-/// new file has it so (#179).
+/// new file has it so (#179); and `model_limit::BEYOND_EXPORT` when the new file has more
+/// triangles than EyeCanSee opens in its format.
 pub fn export_file(bytes: &[u8], name: &str, sibling: crate::model::Sibling, kind: Kind) -> Result<(Vec<u8>, Vec<&'static str>), String> {
     let mesh = crate::model::parse_with(bytes, name, sibling)?;
-    Ok((export(&mesh, kind), mesh.warnings))
+    let mut notes = mesh.warnings.clone();
+    if crate::model_limit::of_export(kind).check(mesh.tris.len()).is_err() {
+        notes.push(crate::model_limit::BEYOND_EXPORT);
+    }
+    Ok((export(&mesh, kind), notes))
 }
 
 /// How many metres a unit of `model::Mesh::unit` is.

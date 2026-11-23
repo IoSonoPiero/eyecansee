@@ -24,11 +24,11 @@ fn unit(a: [f32; 3]) -> Option<[f32; 3]> {
 }
 
 /// Segments and points gathered so far, checked while a scene is walked: each becomes 8
-/// triangles, so beyond `MAX_TRIANGLES` / 8 the model would be refused anyway, after a scene that
-/// places them many times had filled the memory.
-pub(crate) fn fits(n: usize) -> Result<(), String> {
-    let max = crate::model::MAX_TRIANGLES / 8;
-    if n > max { Err(format!("more than {max} lines and points")) } else { Ok(()) }
+/// triangles, so beyond the format's cap / 8 the model would be refused anyway, after a scene
+/// that places them many times had filled the memory.
+pub(crate) fn fits(n: usize, limit: crate::model_limit::Limit) -> Result<(), String> {
+    let max = limit.max / 8;
+    if n > max { Err(crate::model_limit::too_many(crate::model_limit::LINES, max)) } else { Ok(()) }
 }
 
 /// Adds the lines and points to `b`, sized on everything in it and in them.

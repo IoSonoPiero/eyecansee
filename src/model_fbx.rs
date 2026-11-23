@@ -8,7 +8,7 @@ use crate::model::{Builder, Mesh, Sibling, Surface};
 pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     let opts = ufbx::LoadOpts { target_axes: ufbx::CoordinateAxes::right_handed_y_up(), ignore_animation: true, ..Default::default() };
     let scene = ufbx::load_memory(bytes, opts).map_err(|e| e.description.to_string())?;
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(crate::model_limit::FBX);
     let mut idx = Vec::new();
     // Picture and surface of each material, made once.
     let mut looks: std::collections::HashMap<u32, (u16, u16)> = std::collections::HashMap::new();

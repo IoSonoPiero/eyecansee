@@ -609,6 +609,65 @@ error-glb-cut = Il file è incompleto{ $detail }
 # { $expected }, { $actual }: sizes ("12.4 MB"), the one the file's header gives and the file's.
 error-glb-cut-sizes = Il file è incompleto{ $detail }: dovrebbe essere di { $expected } ma è di { $actual }.
     Forse lo scaricamento o la copia si è interrotta: prova a scaricarlo o copiarlo di nuovo.
+# A 3D model with more triangles than EyeCanSee opens in its format: { $max } in millions (10, 20, 50), { $format } the kind of file.
+# The formats read whole before the cap is met (OFF, Collada, VRML, X3D, FBX, IFC, a binary PLY left to the old parser, the CAD engine's) do not say why.
+error-model-too-many-triangles = Il modello ha più di { $max } milioni di triangoli.
+    EyeCanSee non apre { $format ->
+        [obj] i file OBJ
+        [three-mf] i file 3MF
+        [ply-text] i file PLY in testo
+        [ply-binary] i file PLY binari
+        [ply-binary-whole] i file PLY binari
+        [stl] i file STL
+        [stl-text] i file STL in testo
+        [glb] i file GLB
+        [gltf] i file glTF
+        [three-ds] i file 3DS
+        [off] i file OFF
+        [collada] i file Collada
+        [vrml] i file VRML
+        [x3d] i file X3D
+        [fbx] i file FBX
+        [amf] i file AMF
+        [ifc] i file IFC
+       *[other] i modelli 3D
+    } con più di { $max } milioni di triangoli{ $format ->
+        [off] .
+        [collada] .
+        [vrml] .
+        [x3d] .
+        [fbx] .
+        [ply-binary-whole] .
+        [ifc] .
+        [other] .
+       *[read] , perché la lettura non riempia la memoria del computer.
+    }
+# A point cloud (PLY) with more points than EyeCanSee opens: { $max } in millions (2.5, 12.5), { $format } the kind of file.
+error-model-too-many-points = La nuvola di punti ha più di { $max } milioni di punti.
+    EyeCanSee non apre { $format ->
+        [ply-binary] i file PLY binari
+        [ply-binary-whole] i file PLY binari
+       *[ply-text] i file PLY in testo
+    } con più di { $max } milioni di punti{ $format ->
+        [ply-binary-whole] .
+       *[read] , perché la lettura non riempia la memoria del computer.
+    }
+# The rarer refusals of a model or a drawing too large: { $max } in millions (1, 1.25, 200) where the sentence says "million", else as it is (1000 files, "2 GB" with its unit, 100 times).
+error-model-too-many-offered = Il modello ha più di { $max } milioni di punti e triangoli, troppi per aprirlo.
+error-model-too-many-lines = Il modello ha più di { $max } milioni di linee e punti, troppi per aprirlo.
+error-model-too-many-placed = Il modello ripete le sue parti più di { $max } { $max ->
+        [one] milione
+       *[other] milioni
+    } di volte, troppe per aprirlo.
+error-model-too-many-inlined = Il modello include altri file più di { $max } volte, troppe per aprirlo.
+error-model-unpacks-too-large = Decompresso, il file occuperebbe più di { $max }, troppo per aprirlo.
+error-model-unpacks-too-many-times = Decompresso, il file sarebbe più di { $max } volte più grande, troppo per aprirlo.
+error-drawing-too-many-points = Il disegno ha più di { $max } milioni di punti, troppi per aprirlo.
+error-drawing-too-many-entities = Il disegno ha più di { $max } milioni di elementi, troppi per aprirlo.
+error-drawing-too-many-placed = Il disegno ripete i suoi blocchi più di { $max } { $max ->
+        [one] milione
+       *[other] milioni
+    } di volte, troppe per aprirlo.
 # A few words after a file's name in the list of a message ("a.gltf: manca il file a.bin"): no capital, no full stop.
 error-gltf-bin-missing-brief = manca il file { $detail }
 error-gltf-bin-outside-brief = i dati sono fuori dalla cartella del modello ({ $detail })
@@ -616,6 +675,23 @@ error-gltf-data-damaged-brief = i dati scritti dentro il file sono rovinati
 error-glb-incomplete-brief = manca il blocco con i dati
 error-glb-cut-brief = il file è incompleto
 error-glb-cut-sizes-brief = il file è incompleto
+error-model-too-many-triangles-brief = più di { $max } milioni di triangoli
+error-model-too-many-points-brief = più di { $max } milioni di punti
+error-model-too-many-offered-brief = più di { $max } milioni di punti e triangoli
+error-model-too-many-lines-brief = più di { $max } milioni di linee e punti
+error-model-too-many-placed-brief = parti ripetute più di { $max } { $max ->
+        [one] milione
+       *[other] milioni
+    } di volte
+error-model-too-many-inlined-brief = altri file inclusi più di { $max } volte
+error-model-unpacks-too-large-brief = decompresso, più di { $max }
+error-model-unpacks-too-many-times-brief = decompresso, più di { $max } volte più grande
+error-drawing-too-many-points-brief = più di { $max } milioni di punti
+error-drawing-too-many-entities-brief = più di { $max } milioni di elementi
+error-drawing-too-many-placed-brief = blocchi ripetuti più di { $max } { $max ->
+        [one] milione
+       *[other] milioni
+    } di volte
 # The keys of the viewer, under the status bar.
 hint-cad = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | Ctrl + L: livelli | M: misura | N, Maiusc + N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: successivo | ←, Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | Ctrl + Maiusc + S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
 hint-cad-layouts = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | L, Maiusc + L: layout successivo, precedente | Ctrl + L: livelli | M: misura | N, Maiusc + N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: file successivo | ←, Backspace, Pag↑: file precedente | Inizio, Fine: primo, ultimo file | Ctrl + Maiusc + S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
@@ -694,6 +770,25 @@ model-export-again-heading = { $n ->
 model-export-again-why = { $n ->
     [one] Metteva una sua parte più volte nella gerarchia, cosa che glTF non permette: nel file nuovo c'è una volta sola.
    *[other] Mettevano una loro parte più volte nella gerarchia, cosa che glTF non permette: nei file nuovi c'è una volta sola.
+}
+# The window of Export, when models already read have more triangles than EyeCanSee opens in the format chosen: { $n } of them, { $all } yes when they are all the models chosen, { $max } the cap in millions, { $format } the format ("OBJ").
+model-export-beyond = { $n ->
+    [one] { $all ->
+        [yes] Il modello ha
+       *[no] Uno dei modelli ha
+    }
+   *[other] { $n } dei modelli hanno
+} più di { $max } milioni di triangoli: EyeCanSee non potrà aprire { $n ->
+    [one] il nuovo file { $format }. Puoi esportarlo lo stesso.
+   *[other] i nuovi file { $format }. Puoi esportarli lo stesso.
+}
+model-export-beyond-heading = { $n ->
+    [one] 1 modello esportato in un file che EyeCanSee non potrà aprire:
+   *[other] { $n } modelli esportati in file che EyeCanSee non potrà aprire:
+}
+model-export-beyond-why = { $n ->
+    [one] Ha più triangoli di quanti EyeCanSee ne possa aprire in quel formato.
+   *[other] Hanno più triangoli di quanti EyeCanSee ne possa aprire in quel formato.
 }
 hint-model = Frecce o trascinare: ruotare | Maiusc + trascinare: spostare | Rotellina, + e −: zoom | 0: vista di partenza | M: misura | S: sezione | Spazio, Pag↓: successivo | Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | Ctrl + Maiusc + S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
 hint-edit-select = Clic: seleziona un oggetto | Trascinare: lo sposta | Trascinare un angolo o un capo: ridimensiona (Maiusc: un riquadro mantiene le proporzioni; un pezzo incollato le mantiene, Maiusc le libera) | Trascinare la maniglia tonda sopra l'oggetto: lo ruota (Maiusc: a scatti di 15°) | Doppio clic su un testo o un fumetto: cambia le lettere | Canc: elimina | Ctrl + C: copia il risultato | Esc: lascia l'oggetto

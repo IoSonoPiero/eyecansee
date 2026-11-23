@@ -44,7 +44,7 @@ pub fn read(bytes: &[u8]) -> Result<Mesh, String> {
             colors.push(face.or_else(|| vcolor.get(t[0] as usize).copied().flatten()));
         }
     }
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(crate::model_limit::OFF);
     b.add(pos, tris, |i| colors[i])?;
     b.finish(false)
 }

@@ -12,11 +12,13 @@ const MAX_DEPTH: u32 = 32;
 
 pub fn read(bytes: &[u8], unpacked: &crate::model_3mf::Unpacked) -> Result<Mesh, String> {
     let text = if bytes.starts_with(b"PK") { crate::model_3mf::unzipped(bytes, ".amf", unpacked)? } else { crate::model_3mf::text(bytes) };
+    // Counted before the XML is parsed (`model_limit`).
+    crate::model_limit::AMF.check(crate::model_limit::xml_triangles(&text))?;
     let doc = Document::parse_with_options(&text, crate::model_3mf::xml_options()).map_err(|e| e.to_string())?;
     let root = doc.root_element();
     let ids = |tag: &str| -> HashMap<&str, Node> { root.children().filter(|n| n.has_tag_name(tag)).filter_map(|n| Some((n.attribute("id")?, n))).collect() };
     let (objects, materials, constellations) = (ids("object"), ids("material"), ids("constellation"));
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(crate::model_limit::AMF);
     let mut amf = Amf { b: &mut b, objects: &objects, materials: &materials, constellations: &constellations };
     match root.children().find(|n| n.has_tag_name("constellation")) {
         Some(c) => amf.constellation(c, &IDENTITY, 0)?,

@@ -50,7 +50,7 @@ fn name(d: &[u8]) -> (String, &[u8]) {
 pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     let main = chunks(bytes).find(|c| c.0 == MAIN).ok_or("not a 3DS file")?.1;
     let editor = chunks(main).find(|c| c.0 == EDITOR).ok_or("no 3D data in the file")?.1;
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(crate::model_limit::THREE_DS);
     let mut materials: HashMap<String, Look> = HashMap::new();
     for (_, d) in chunks(editor).filter(|c| c.0 == MATERIAL) {
         let Some((mat, color, map)) = material(d) else { continue };

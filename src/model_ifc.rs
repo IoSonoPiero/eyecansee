@@ -13,7 +13,7 @@ pub fn read(bytes: &[u8]) -> Result<Mesh, String> {
         return Err("not an IFC file".into());
     }
     let result = ifc_lite_processing::process_geometry(bytes);
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(crate::model_limit::IFC);
     for m in result.meshes {
         if m.color[3] < MIN_ALPHA || m.ifc_type.eq_ignore_ascii_case("IfcSpace") {
             continue;
