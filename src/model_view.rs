@@ -52,6 +52,7 @@ impl App {
         if let Some(rs) = &cc.wgpu_render_state {
             let i = rs.adapter.get_info();
             log!("graphics card: {} ({:?}, {:?}, driver {} {})", i.name, i.device_type, i.backend, i.driver, i.driver_info);
+            crate::render_gpu::keep_card(i);
         }
         self.model.gpu = cc.wgpu_render_state.clone().map(Gpu::new);
         // Pictures shown smaller than their pixels, filtered on the card.

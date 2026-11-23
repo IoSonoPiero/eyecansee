@@ -153,12 +153,50 @@ pub fn adapter_selector(graphics: Graphics) -> eframe::egui_wgpu::NativeAdapterS
             Graphics::Vulkan => wgpu::Backend::Vulkan,
         });
         let cards: Vec<_> = usable.iter().map(|a| a.get_info()).map(|i| (i.device_type, i.backend)).collect();
+        // Every card found, for whoever reads the log of a computer that draws badly (#319).
+        for a in adapters {
+            let i = a.get_info();
+            let can = usable.iter().any(|u| std::ptr::eq(*u, a));
+            log!("graphics card found: {} ({:?}, {:?}, driver {}){}", i.name, i.device_type, i.backend, i.driver, if can { "" } else { ", cannot draw this window" });
+        }
         let chosen = pick(&cards, wanted, first).map(|i| usable[i]).ok_or("no graphics card can draw this window")?;
         let mailbox = surface.is_some_and(|s| s.get_capabilities(chosen).present_modes.contains(&wgpu::PresentMode::Mailbox));
         MAILBOX.store(mailbox, std::sync::atomic::Ordering::Relaxed);
         STRETCHES.store(chosen.get_info().backend == wgpu::Backend::Dx12, std::sync::atomic::Ordering::Relaxed);
         Ok((*chosen).clone())
     })
+}
+
+/// The card the window is drawn with, for Help > About (#319).
+static CARD: std::sync::OnceLock<wgpu::AdapterInfo> = std::sync::OnceLock::new();
+
+/// Keeps the card the window is drawn with (`App::with_gpu`).
+pub(crate) fn keep_card(info: wgpu::AdapterInfo) {
+    let _ = CARD.set(info);
+}
+
+/// The card the window is drawn with, in words: its name, then its kind, the kind of drawing and
+/// the driver ("Intel(R) Iris(R) Xe Graphics · integrated card · Vulkan · Mesa 26.2.6"). `None`
+/// before the window is made.
+pub(crate) fn card_text(i18n: &crate::i18n::I18n) -> Option<String> {
+    let i = CARD.get()?;
+    let kind = match i.device_type {
+        wgpu::DeviceType::DiscreteGpu => "gpu-discrete",
+        wgpu::DeviceType::IntegratedGpu => "gpu-integrated",
+        wgpu::DeviceType::VirtualGpu => "gpu-virtual",
+        wgpu::DeviceType::Cpu => "gpu-cpu",
+        wgpu::DeviceType::Other => "gpu-other",
+    };
+    let backend = match i.backend {
+        wgpu::Backend::Vulkan => "Vulkan",
+        wgpu::Backend::Gl => "OpenGL",
+        wgpu::Backend::Dx12 => "DirectX 12",
+        wgpu::Backend::Metal => "Metal",
+        _ => "",
+    };
+    let driver = format!("{} {}", i.driver, i.driver_info);
+    let parts = [i.name.as_str(), &i18n.t(kind), backend, driver.trim()];
+    Some(parts.iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join(" · "))
 }
 
 /// The card to draw with, by kind: the one `wanted`, then a dedicated card, an integrated one, a

@@ -164,8 +164,18 @@ pub(crate) fn no_window(language: Option<&str>, error: &eframe::Error) {
         // SAFETY: two strings ending with a zero, alive for the call; no owner window.
         unsafe { MessageBoxW(std::ptr::null_mut(), text.as_ptr(), title.as_ptr(), MB_OK | MB_ICONERROR) };
     }
+    // Linux: the desktop's own message window, GNOME's (zenity) or KDE's (kdialog), whichever is
+    // there; with neither, only the terminal. Before, the program closed without a word (#319).
     #[cfg(not(windows))]
-    let _ = language;
+    {
+        let i18n = crate::i18n::I18n::detect(language);
+        let text = format!("{}\n\n{error}", i18n.t("graphics-no-window"));
+        eprintln!("EyeCanSee: {text}");
+        let shown = |cmd: &str, args: &[&str]| std::process::Command::new(cmd).args(args).status().is_ok_and(|s| s.success());
+        // ponytail: two common programs, no D-Bus portal; a desktop without either gets the terminal.
+        let _ = shown("zenity", &["--error", "--title=EyeCanSee", "--no-markup", &format!("--text={text}")])
+            || shown("kdialog", &["--title", "EyeCanSee", "--error", &text]);
+    }
 }
 
 /// At every frame: the mark goes away once the first frame has been drawn and shown (`frames`

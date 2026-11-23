@@ -215,6 +215,7 @@ impl App {
             ctx.load_texture("about-icon", decode::to_color_image(img.into()), TextureOptions::LINEAR)
         });
         let t = |id| self.i18n.t(id);
+        let card = crate::render_gpu::card_text(&self.i18n);
         egui::Window::new(t("menu-about"))
             .open(&mut open)
             .collapsible(false)
@@ -232,6 +233,15 @@ impl App {
                     ui.hyperlink_to(t("about-source"), env!("CARGO_PKG_REPOSITORY"));
                     ui.add_space(8.0);
                     ui.weak(t("about-third-party"));
+                    // The card the window is drawn with, to copy into a report of a problem (#319).
+                    if let Some(card) = &card {
+                        ui.add_space(8.0);
+                        ui.label(t("about-gpu"));
+                        ui.label(card);
+                        if ui.button(t("about-gpu-copy")).clicked() {
+                            ui.ctx().copy_text(card.clone());
+                        }
+                    }
                 });
             });
         self.about = open;
