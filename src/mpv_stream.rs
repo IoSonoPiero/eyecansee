@@ -40,7 +40,12 @@ impl Flow {
         Flow { last: now, waiting: 0, received: 0 }
     }
 
-    fn read_started(&mut self) {
+    /// A read starts: when none was waiting, the time without data counts from now, not from the
+    /// last data (a paused video asks nothing for minutes; Piero, 23/11/2026).
+    fn read_started(&mut self, now: Instant) {
+        if self.waiting == 0 {
+            self.last = self.last.max(now);
+        }
         self.waiting += 1;
     }
 
@@ -124,7 +129,7 @@ impl Stream {
         if self.closed.load(Ordering::Relaxed) {
             return Err("closed".into());
         }
-        self.flow.lock().unwrap().read_started();
+        self.flow.lock().unwrap().read_started(Instant::now());
         let r = self.reader.read(offset, len).and_then(|d| if d.is_empty() { Err("empty read".into()) } else { Ok(d) });
         self.flow.lock().unwrap().read_ended(Instant::now(), r.is_ok());
         *self.failed.lock().unwrap() = r.as_ref().err().cloned();
@@ -279,11 +284,11 @@ mod tests {
         let at = |s: u64| t0 + Duration::from_secs(s);
         let mut f = Flow::new(t0);
         assert!(!f.stalled(at(60)), "no read waiting: nothing to say");
-        f.read_started();
+        f.read_started(t0);
         assert!(!f.stalled(at(19)));
         assert!(f.stalled(at(20)));
         f.read_ended(at(21), true);
-        f.read_started();
+        f.read_started(at(21));
         assert!(!f.stalled(at(40)), "data at 21 s: 19 s without");
         assert!(f.stalled(at(41)));
         // A whole copy that goes on: the phone answers.
@@ -304,10 +309,10 @@ mod tests {
         let t0 = Instant::now();
         let at = |s: u64| t0 + Duration::from_secs(s);
         let mut f = Flow::new(t0);
-        f.read_started();
+        f.read_started(t0);
         f.read_ended(at(1), true);
         // Paused: no read for 29 s, then the seek reads.
-        f.read_started();
+        f.read_started(at(30));
         assert!(!f.stalled(at(30)), "the read has just started");
         assert!(!f.stalled(at(49)));
         assert!(f.stalled(at(50)), "20 s waiting without data");
