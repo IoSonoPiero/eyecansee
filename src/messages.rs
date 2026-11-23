@@ -637,8 +637,13 @@ impl App {
 }
 
 /// The error of a picture or a thumbnail as the program keeps it: `loader::with_id`'s
-/// `id\u{1}detail` translated here, where the language is.
-fn kept_error(i18n: &crate::i18n::I18n, e: String, _thumb: bool) -> String {
+/// `id\u{1}detail` translated here, where the language is; a thumbnail's error that the grid
+/// draws as a sign (`grid::too_large_sign`: a model beyond its cap) kept as it is, for the grid
+/// to know it.
+fn kept_error(i18n: &crate::i18n::I18n, e: String, thumb: bool) -> String {
+    if thumb && crate::grid::too_large_sign(&e).is_some() {
+        return e;
+    }
     match e.split_once('\u{1}') {
         Some((id, detail)) => i18n.error(id, detail),
         None => e,
