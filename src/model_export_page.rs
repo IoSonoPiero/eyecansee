@@ -34,10 +34,11 @@ impl App {
 
     pub(crate) fn model_export_window(&mut self, ctx: &egui::Context) {
         let Some(mut f) = self.model_export.take() else { return };
-        let mut answer = None;
+        // Enter exports and Esc cancels (`App::asking`), never reaching the viewer under it.
+        let mut answer = crate::confirm::answer(ctx, &mut self.key_answer, "model-export").map(|yes| if yes { Answer::Export } else { Answer::Cancel });
         let window = egui::Window::new(self.i18n.t("model-export-title")).collapsible(false).resizable(false);
         window.anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO).show(ctx, |ui| {
-            answer = form(ui, &mut f, &self.i18n);
+            answer = form(ui, &mut f, &self.i18n).or(answer.take());
         });
         match answer {
             Some(Answer::Export) => {

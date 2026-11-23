@@ -6,7 +6,7 @@ EyeCanSee can save a 3D model in another 3D format, for example to open a model 
 
 1. Select one or more 3D models in the grid (or open one in the viewer).
 2. Right-click and choose **Export as a 3D model…**, or use **File > Export as a 3D model…**.
-3. In the window, choose the **format**: **STL**, **OBJ**, **PLY** or **glTF (GLB)** (the last one used is proposed), then click **Export**.
+3. In the window, choose the **format**: **STL**, **OBJ**, **PLY** or **glTF (GLB)** (the last one used is proposed), then click **Export**. Enter does the same; Esc or **Cancel** closes the window without exporting.
 
 Each new file is saved next to its original, with the same name and the new extension. If that name is already taken, " (2)" is added, for example `bracket (2).stl`. The status bar says the name it got. If a model cannot be exported, or the new file is not quite like the original (a glTF that places one of its parts more than once in its hierarchy, which the format does not allow: the new file has it once), a message says so when the export is done, **Export finished**: one message for all the models, which says how many were not exported and how many with a change, with their names in order (the first ten, then how many more) and, next to each model not exported, why in a few words when it is known. ![Copy the message](icon://copy) copies it with every name and the whole reason.
 
