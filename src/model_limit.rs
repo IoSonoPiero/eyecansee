@@ -319,7 +319,9 @@ mod tests {
         assert_eq!([PLY_BINARY, STL, GLB, OBJ, PLY_TEXT, STL_TEXT, THREE_MF, OTHER].map(|l| l.max), [50_000_000, 20_000_000, 20_000_000, 10_000_000, 10_000_000, 10_000_000, 10_000_000, 50_000_000]);
         // The formats measured after D1 (Piero, 22/11/2026).
         assert_eq!([OFF, COLLADA, VRML, X3D, FBX_TEXT, THREE_DS, GLTF].map(|l| l.max), [20_000_000; 7]);
-        assert_eq!([AMF, IFC, FBX_BINARY].map(|l| l.max), [5_000_000, 5_000_000, 50_000_000]);
+        assert_eq!([AMF, IFC].map(|l| l.max), [5_000_000, 5_000_000]);
+        // Binary FBX as FBX in text (Piero, 23/11/2026, after its measure: 20.2-28.5 million under 8 GB).
+        assert_eq!(FBX_BINARY.max, 20_000_000);
         let (en, it) = (I18n::new("en"), I18n::new("it"));
         assert_eq!(en.load_error(&IFC.error()).lines().nth(1), Some("EyeCanSee does not open IFC files with more than 5 million triangles."));
         assert_eq!(en.load_error(&THREE_DS.error()).lines().nth(1), Some("EyeCanSee does not open 3DS files with more than 20 million triangles, so that reading them does not fill the computer's memory."));
