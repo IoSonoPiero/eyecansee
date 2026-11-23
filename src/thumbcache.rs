@@ -23,9 +23,11 @@ pub(crate) fn dir_in(base: &std::path::Path) -> PathBuf {
     base.join(crate::test_copy::NAME)
 }
 
-fn db_path() -> Option<&'static PathBuf> {
-    static PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
-    PATH.get_or_init(|| {
+/// The app's cache folder (`~/.cache/eyecansee`, `%LOCALAPPDATA%\eyecansee`, the test copy's own),
+/// made if missing: the thumbnails, and the copies of the pictures open (`open_copy`).
+pub(crate) fn cache_dir() -> Option<&'static PathBuf> {
+    static DIR: OnceLock<Option<PathBuf>> = OnceLock::new();
+    DIR.get_or_init(|| {
         // Tests never open the user's cache: one of their own for each run of the test binary.
         // Opening the user's wrote its WAL at every `cargo test`, and a test saved a row there
         // (2026-11-21). ponytail: left in the temporary folder, which the system clears.
@@ -40,9 +42,14 @@ fn db_path() -> Option<&'static PathBuf> {
         };
         let dir = dir_in(&base?);
         std::fs::create_dir_all(&dir).ok()?;
-        Some(dir.join("thumbs.db"))
+        Some(dir)
     })
     .as_ref()
+}
+
+fn db_path() -> Option<&'static PathBuf> {
+    static PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
+    PATH.get_or_init(|| cache_dir().map(|d| d.join("thumbs.db"))).as_ref()
 }
 
 fn open() -> rusqlite::Result<Connection> {
