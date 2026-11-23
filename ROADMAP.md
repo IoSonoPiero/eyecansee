@@ -20,6 +20,9 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Convert: keep the FFmpeg encoder check between starts instead of running it again each time ([#112](https://github.com/IoSonoPiero/eyecansee/issues/112)).
 - Windows: the Convert window narrow the first time, while FFmpeg checks the encoders ([#136](https://github.com/IoSonoPiero/eyecansee/issues/136)).
 - Crop a video and rotate it by any angle, as a photo ([#129](https://github.com/IoSonoPiero/eyecansee/issues/129)).
+- Video: frame by frame with the keys and a finer timeline, to reach a precise moment ([#165](https://github.com/IoSonoPiero/eyecansee/issues/165)).
+- Video: subtitles, with a choice of the track ([#193](https://github.com/IoSonoPiero/eyecansee/issues/193)).
+- 360° videos played as a sphere to look around in ([#308](https://github.com/IoSonoPiero/eyecansee/issues/308)).
 
 ### Devices and servers
 
@@ -30,6 +33,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Side panel: the folders of the open server, down to the one open, as for This computer ([#110](https://github.com/IoSonoPiero/eyecansee/issues/110)).
 - Saved servers: log in through the SSH agent ([#133](https://github.com/IoSonoPiero/eyecansee/issues/133)).
 - Merging a folder with many replaced files on phones and SFTP servers as fast as before the safe replace of 0.76.0 ([#94](https://github.com/IoSonoPiero/eyecansee/issues/94)).
+- A disk, USB stick or phone unplugged while its folder is open: the status bar says so ([#281](https://github.com/IoSonoPiero/eyecansee/issues/281)).
 
 ### Formats
 
@@ -38,10 +42,12 @@ The order is indicative: features arrive when they are ready and tested on real 
 - 3D models and CAD drawings: materials beyond the base colour and its texture ([#23](https://github.com/IoSonoPiero/eyecansee/issues/23)).
 - Viewer: show HDR photos in HDR on screens that support it ([#124](https://github.com/IoSonoPiero/eyecansee/issues/124)).
 - Viewer: play animated AVIF ([#131](https://github.com/IoSonoPiero/eyecansee/issues/131)).
+- Viewer: 360° panoramas shown as a sphere to look around in ([#188](https://github.com/IoSonoPiero/eyecansee/issues/188)).
 
 ### CAD drawings and 3D models
 
 - CAD drawings: export the sheets (layouts) to PDF, to scale ([#140](https://github.com/IoSonoPiero/eyecansee/issues/140)).
+- STEP, IGES and BREP models: a file too heavy for the CAD engine stops after a time limit, without blocking the other files or closing EyeCanSee ([#175](https://github.com/IoSonoPiero/eyecansee/issues/175)).
 
 ### Browsing and editing
 
@@ -65,6 +71,14 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Set as wallpaper ([#32](https://github.com/IoSonoPiero/eyecansee/issues/32)).
 - Copy files from the grid to other file managers ([#64](https://github.com/IoSonoPiero/eyecansee/issues/64)).
 - Options: download the add-on engines (video engine, FFmpeg, CAD engine) in advance, and remove them ([#50](https://github.com/IoSonoPiero/eyecansee/issues/50)).
+- A window at the first start to choose the add-on engines to download (and, on Windows, the desktop icon) ([#212](https://github.com/IoSonoPiero/eyecansee/issues/212)).
+- Windows: a desktop icon for the Microsoft Store and zip copies too ([#210](https://github.com/IoSonoPiero/eyecansee/issues/210)).
+- Window at startup: EyeCanSee reopens at the size it had when closed, by default ([#221](https://github.com/IoSonoPiero/eyecansee/issues/221)).
+- Options: a switch to write a diagnostic log, to attach to a problem report ([#189](https://github.com/IoSonoPiero/eyecansee/issues/189)).
+- Slideshow: a key to start it ([#208](https://github.com/IoSonoPiero/eyecansee/issues/208)).
+- Names sorted the natural way: img2 before img10 ([#272](https://github.com/IoSonoPiero/eyecansee/issues/272)).
+- Image editor: select several objects at once ([#277](https://github.com/IoSonoPiero/eyecansee/issues/277)).
+- Image editor: lock an object, so that a click reaches what is under it ([#278](https://github.com/IoSonoPiero/eyecansee/issues/278)).
 
 ## Later, if requested
 
