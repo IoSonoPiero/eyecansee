@@ -26,6 +26,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 ### Devices and servers
 
+- A picture open from a phone or a server kept on this computer, so that saving does not download it again ([#313](https://github.com/IoSonoPiero/eyecansee/issues/313)).
 - Options per saved server in the server manager (FTP active mode, text encoding, ciphers) when a server needs them ([#18](https://github.com/IoSonoPiero/eyecansee/issues/18)).
 - Encrypting files and folders with a password ([#19](https://github.com/IoSonoPiero/eyecansee/issues/19)).
 - Faster HEIC thumbnails from the preview stored in the file ([#20](https://github.com/IoSonoPiero/eyecansee/issues/20)).
