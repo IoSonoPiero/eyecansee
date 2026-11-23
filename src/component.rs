@@ -22,6 +22,9 @@ pub struct Component {
     pub sha256: &'static str,
     /// Bytes downloaded.
     pub size: u64,
+    /// The version people see, next to its name in the add-ons (Piero, 23/11/2026): EyeCanSee's
+    /// own number for the engines (1.0, then 1.1 at the first update), FFmpeg's for FFmpeg.
+    pub shown: &'static str,
 }
 
 /// libmpv for Windows: `libmpv-2.dll` of mpv-winbuild-cmake (shinchiro) 20261021, mpv git
@@ -35,6 +38,7 @@ pub const VIDEO: Option<Component> = Some(Component {
     archive: false,
     sha256: "f9cd5b1783024cb09bb5feb713166fdf822f3dee87d6adf8ad2aa52a29405c12",
     size: 46_998_894,
+    shown: "1.0",
 });
 
 /// libmpv for Linux, used when the system has none (the AppImage on a live system):
@@ -50,6 +54,7 @@ pub const VIDEO: Option<Component> = Some(Component {
     archive: true,
     sha256: "c83044c27aa5027cdb2b82a43f936cc7ffcffb7d2f93b9e6fe7c3c2ac4a49433",
     size: 11_926_228,
+    shown: "1.1",
 });
 
 /// FFmpeg 9.0 of BtbN/FFmpeg-Builds (`ffmpeg-n9.0-latest-*-gpl-9.0`, built 2026-10-26), only the
@@ -63,6 +68,7 @@ pub const FFMPEG: Option<Component> = Some(Component {
     archive: true,
     sha256: "45e0fcc058ada98efa54abd1fa08e13ab3398b81003bbd39803c55b05998fcb2",
     size: 63_690_885,
+    shown: "9.0",
 });
 
 #[cfg(not(windows))]
@@ -74,6 +80,7 @@ pub const FFMPEG: Option<Component> = Some(Component {
     archive: true,
     sha256: "869db08c1b8220c382759b0dd966667d2885462a7fbbf4913cd45e3f20e695b9",
     size: 67_805_579,
+    shown: "9.0",
 });
 
 /// The CAD engine (`occt.rs`): Open CASCADE Technology 8.0.1 with our C interface
@@ -88,6 +95,7 @@ pub const OCCT: Option<Component> = Some(Component {
     archive: true,
     sha256: "55559a64aa3e9297ac2f9131d890ab76a0696e065ce2fde4b671f7f4c0e9d0d9",
     size: 11_197_731,
+    shown: "1.0",
 });
 
 /// The same on Windows, built by `tools/build-occt-windows.ps1` (static C runtime, only system DLLs:
@@ -101,6 +109,7 @@ pub const OCCT: Option<Component> = Some(Component {
     archive: true,
     sha256: "e61cbecbba1804efe897b171710efe58e9dd48ecd5effa7ca4dc3e74c57db66b",
     size: 7_822_247,
+    shown: "1.0",
 });
 
 /// Where components go: the app's data folder (`%LOCALAPPDATA%\eyecansee\components` on Windows,
@@ -424,7 +433,7 @@ mod tests {
     /// with none, or with the version wanted already there, Download (or nothing to do).
     #[test]
     fn button_says_update_over_an_older_version() {
-        let c = super::Component { kind: "libmpv", version: "0.42.0-2", file: "libmpv.so.2", url: "", archive: true, sha256: "", size: 1 };
+        let c = super::Component { kind: "libmpv", version: "0.42.0-2", file: "libmpv.so.2", url: "", archive: true, sha256: "", size: 1, shown: "1.1" };
         let dir = std::env::temp_dir().join(format!("eyecansee-button-id-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
@@ -454,7 +463,7 @@ mod tests {
     fn have_by_what_is_on_disk_and_system() {
         use crate::engine::{Source, Status};
         let dir = scratch("have");
-        let c = Component { kind: "thing", version: "2", file: "thing.so", url: "", archive: false, sha256: "", size: 1 };
+        let c = Component { kind: "thing", version: "2", file: "thing.so", url: "", archive: false, sha256: "", size: 1, shown: "1.0" };
         assert_eq!(have_in(dir.as_path(), &c, None), Have::Missing);
         assert_eq!(have_in(dir.as_path(), &c, Some(Status::Missing)), Have::Missing);
         let lacks = Status::Lacks { found: "8.1".into(), missing: "HEVC".into() };
@@ -489,7 +498,7 @@ mod tests {
             std::fs::create_dir_all(dir.join(d)).unwrap();
         }
         std::fs::write(dir.join("libmpv-2.dll"), b"0.59.0").unwrap();
-        let c = Component { kind: "libmpv", version: "2", file: "x", url: "", archive: false, sha256: "", size: 0 };
+        let c = Component { kind: "libmpv", version: "2", file: "x", url: "", archive: false, sha256: "", size: 0, shown: "1.0" };
         remove_old(&dir, &c);
         let mut left: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
         left.sort();
@@ -502,7 +511,7 @@ mod tests {
     #[test]
     fn staging_per_component() {
         let dir = std::env::temp_dir().join(format!("eyecansee-staging-{}", std::process::id()));
-        let video = Component { kind: "libmpv", version: "2", file: "x", url: "", archive: false, sha256: "", size: 0 };
+        let video = Component { kind: "libmpv", version: "2", file: "x", url: "", archive: false, sha256: "", size: 0, shown: "1.0" };
         let ffmpeg = Component { kind: "ffmpeg", ..video };
         assert_ne!(staging(&dir, &video), staging(&dir, &ffmpeg));
         std::fs::create_dir_all(staging(&dir, &ffmpeg)).unwrap();
@@ -587,7 +596,7 @@ mod tests {
         let sha256: String = ring::digest::digest(&ring::digest::SHA256, &body).as_ref().iter().map(|b| format!("{b:02x}")).collect();
         let size = body.len() as u64;
         let url = crate::update::tests::serve_once(body, sent, hold).leak();
-        Component { kind, version: "1", file, url, archive, sha256: sha256.leak(), size }
+        Component { kind, version: "1", file, url, archive, sha256: sha256.leak(), size, shown: "1.0" }
     }
 
     fn gzip(fill: impl FnOnce(&mut dyn std::io::Write)) -> Vec<u8> {

@@ -132,7 +132,7 @@ pub(crate) fn row(ui: &mut egui::Ui, (a, have): (&Addon, &Have), dl: &Slot, i18n
     let at = |size: egui::Vec2| egui::Rect::from_center_size(egui::pos2(inner.right() - size.x / 2.0, inner.center().y), size);
     match (right, control) {
         (Right::Tick(ticked), Control::Tick(value)) => {
-            let name = i18n.t(a.name);
+            let name = title(i18n, a);
             let response = ui.interact(card.response.rect, id, egui::Sense::click());
             response.widget_info(|| egui::WidgetInfo::selected(egui::Role::CheckBox, true, ticked, &name));
             tick(ui, at(egui::Vec2::splat(MARK)), ticked);
@@ -155,12 +155,18 @@ pub(crate) fn row(ui: &mut egui::Ui, (a, have): (&Addon, &Have), dl: &Slot, i18n
     false
 }
 
+/// The add-on's name with the version people see (`Component::shown`): "Video engine 1.1",
+/// "FFmpeg 9.0", "CAD engine 1.0" (Piero, 23/11/2026).
+fn title(i18n: &I18n, a: &Addon) -> String {
+    format!("{} {}", i18n.t(a.name), a.component.shown)
+}
+
 /// Name and size, the line about it, and where it is.
 fn texts(ui: &mut egui::Ui, (a, have): (&Addon, &Have), state: &State, i18n: &I18n) {
     ui.spacing_mut().item_spacing.y = 3.0;
     ui.horizontal(|ui| {
         let bold = egui::FontId::new(14.5, egui::FontFamily::Name(crate::BOLD.into()));
-        ui.label(egui::RichText::new(i18n.t(a.name)).font(bold).strong());
+        ui.label(egui::RichText::new(title(i18n, a)).font(bold).strong());
         ui.add_space(4.0);
         ui.weak(crate::human::size(i18n, a.component.size));
     });
@@ -265,6 +271,15 @@ impl Tab {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    /// Each add-on shows its version next to its name (Piero, 23/11/2026).
+    #[test]
+    fn titles_with_their_version() {
+        let it = crate::i18n::I18n::new("it");
+        let titles: Vec<String> = crate::component::addons().iter().map(|a| super::title(&it, a)).collect();
+        let video = if cfg!(windows) { "Motore video 1.0" } else { "Motore video 1.1" };
+        assert_eq!(titles, vec![video.to_string(), "FFmpeg 9.0".to_string(), "Motore CAD 1.0".to_string()]);
+    }
+
     use super::*;
 
     /// Where a download of Download and close is, from its slot: under way, failed, arrived; a slot

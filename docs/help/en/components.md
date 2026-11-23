@@ -24,7 +24,7 @@ Pointing at a red button says what the component is and how large it is.
 
 The first time EyeCanSee starts, after the page where you choose the language and the colors (on Windows a page then asks whether you want an EyeCanSee icon on the desktop: choose **Yes**, which makes it at once, or **No**, which also takes away the icon **Yes** has just made, and then **Next**), a page lists the components, one card each with what it is for and its size. Nothing is ticked: click the cards of the ones you want and press **Download**, or **Done** to go on without them. If you close the window with cards ticked and not downloaded, also with **Skip** from the first page, EyeCanSee asks first: **Download and close**, **Close without downloading**, or **Back** to the page you were on. **Download and close** downloads them in the window, each with its bar, and closes it by itself once they have all arrived. A download that fails says why in its card, which stays ticked: press **Download** to try again, or **Done** to close. Each download shows its progress in its card and goes on after the window is closed. A component already on this computer has a green mark. The window comes back by itself only when a later version of EyeCanSee brings a new component, and then it shows only that one.
 
-The same list is always in **Tools > Options… > Add-ons**, with **Download** or **Update** on each component (see [Options](options.md)).
+The same list is always in **Tools > Options… > Add-ons**, with **Download** or **Update** on each component (see [Options](options.md)). Each one shows its version next to its name: **Video engine 1.1**, **FFmpeg 9.0**, **CAD engine 1.0** (on Windows the video engine is 1.0).
 
 ## Where they go
 
@@ -37,6 +37,6 @@ Each component comes from EyeCanSee's own releases on GitHub. Its SHA-256 finger
 ## Things to know
 
 - Which libmpv and FFmpeg to use, the system's or the downloaded ones, is chosen in **Tools > Options… > Video** (see [Options](options.md)). The change applies the next time EyeCanSee starts.
-- When a new version of EyeCanSee needs a newer component, it asks again, and the old one is removed once the new one is there.
+- When a new version of EyeCanSee needs a newer component, it asks again: the buttons then say **Update the video engine**, **Update the CAD engine** or **Update FFmpeg**, and the old one is removed once the new one is there.
 - On Windows, uninstalling EyeCanSee also removes the downloaded components.
 - To remove a component, close EyeCanSee and delete its folder: it is offered again when needed.
