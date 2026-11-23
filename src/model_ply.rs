@@ -34,7 +34,7 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Mesh, String> {
 /// The file read by the parser of `ply-rs-bw`: about 320 bytes for each point and face while
 /// it is read (#191), so only for ASCII files and the headers `binary` leaves to it.
 fn parsed(bytes: &[u8], z_up: bool) -> Result<Mesh, String> {
-    let limit = if in_text(bytes) { PLY_TEXT } else { PLY_BINARY };
+    let limit = parsed_limit(bytes);
     // Counted before the parser reads it all (`model_limit`).
     if limit == PLY_TEXT {
         PLY_TEXT.check_count(crate::model_limit::ply_text_count(bytes))?;
@@ -70,6 +70,11 @@ fn parsed(bytes: &[u8], z_up: bool) -> Result<Mesh, String> {
     let colors = |i: usize| face_rgb.get(i).copied().flatten().or_else(|| average(&rgb, tris[i])).map(|c| c.map(|v| v as u8));
     b.add(pos, tris.clone(), colors)?;
     b.finish(z_up)
+}
+
+/// The cap of a file read by the parser of `ply-rs-bw`.
+fn parsed_limit(bytes: &[u8]) -> Limit {
+    if in_text(bytes) { PLY_TEXT } else { PLY_BINARY }
 }
 
 /// Whether the PLY is in text (ASCII), as its header's `format` line says.
