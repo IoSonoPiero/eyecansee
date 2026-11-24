@@ -45,10 +45,13 @@ pub(super) fn hidden(doc: &Doc, editing: Option<usize>) -> Doc {
 }
 
 /// The field over the text `i`, centred on `centre` (on the screen), `k` points a pixel of the
-/// image. Ends when it loses the keys or the object is no longer the selected one.
-pub(super) fn overlay(ui: &mut egui::Ui, w: &mut Window, i: usize, centre: Pos2, k: f32) {
+/// image; `on_image`: the image was pressed or clicked in this frame (off the field). Ends when the object
+/// is no longer the selected one, and when it loses the keys (Esc, a press on the image), but to
+/// a control of the bars (`paused`).
+pub(super) fn overlay(ui: &mut egui::Ui, w: &mut Window, i: usize, (centre, on_image): (Pos2, bool), k: f32) {
     if w.selected != Some(i) || !can(&w.doc, i) {
         w.editing = None;
+        w.typing_paused = false;
         return;
     }
     let o = &mut w.doc.objects[i];
@@ -93,8 +96,34 @@ pub(super) fn overlay(ui: &mut egui::Ui, w: &mut Window, i: usize, centre: Pos2,
     if std::mem::take(&mut w.focus_text) {
         response.request_focus();
     }
-    if response.lost_focus() {
-        w.editing = None;
+    paused(ui.ctx(), w, &response, on_image);
+}
+
+/// The field lost the keys to a control of the bars (the list of fonts, a size, a colour): the
+/// typing goes on, and the field takes the keys back, with its cursor where it was, once that
+/// control is done with (no button held, no list open, no other field typed in). Until 0.77.0
+/// it ended there, and choosing a font meant a click on the text again (#310). Lost otherwise
+/// (Esc, a press on the image off the field: `on_image`), or the image pressed while paused: it
+/// ends.
+fn paused(ctx: &egui::Context, w: &mut Window, field: &egui::Response, on_image: bool) {
+    // egui takes the keys from a field at a press or a click elsewhere.
+    let pressed = ctx.input(|i| i.pointer.any_pressed() || i.pointer.any_released());
+    // `lost_focus` holds for two frames: only the first one decides.
+    if field.lost_focus() && !w.typing_paused {
+        w.typing_paused = pressed && !on_image;
+        if !w.typing_paused {
+            w.editing = None;
+        }
+    } else if w.typing_paused {
+        if on_image {
+            w.editing = None;
+            w.typing_paused = false;
+        } else if field.has_focus() {
+            w.typing_paused = false;
+        } else if !ctx.input(|i| i.pointer.any_down()) && !egui::Popup::is_any_open(ctx) && !ctx.text_edit_focused() {
+            field.request_focus();
+            w.typing_paused = false;
+        }
     }
 }
 
@@ -132,7 +161,7 @@ mod tests {
             let input = egui::RawInput { time: Some(time), events, screen_rect: Some(egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(400.0, 300.0))), ..Default::default() };
             let i = w.selected.unwrap();
             w.editing = Some(i);
-            ctx.run_ui(input, |ui| overlay(ui, w, i, Pos2::new(200.0, 150.0), 1.0)).textures_delta.clear();
+            ctx.run_ui(input, |ui| overlay(ui, w, i, (Pos2::new(200.0, 150.0), false), 1.0)).textures_delta.clear();
         };
         let typed = |s: &str| vec![egui::Event::Text(s.into())];
         let undo = vec![egui::Event::Key { key: egui::Key::Z, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::COMMAND }];

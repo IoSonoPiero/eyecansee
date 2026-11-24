@@ -85,7 +85,9 @@ pub(super) fn canvas(ui: &mut egui::Ui, w: &mut Window, tex: &Picture, size: Vec
             _ => crate::edit::doc::Pt::default(),
         };
         let angle = w.doc.angle;
-        super::typing::overlay(ui, w, i, view.of(centre, angle), k);
+        // The image itself pressed or clicked in this frame, not a list or a window over it.
+        let pressed = response.clicked() || response.drag_stopped() || (response.is_pointer_button_down_on() && ui.input(|i| i.pointer.any_pressed()));
+        super::typing::overlay(ui, w, i, (view.of(centre, angle), pressed), k);
     }
 }
 

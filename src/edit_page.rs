@@ -212,6 +212,8 @@ pub struct Window {
     keys_open: bool,
     /// The text (or bubble) being typed on the image itself (`typing`).
     editing: Option<usize>,
+    /// A control of the bars took the keys from it (a font, a size): it takes them back once done.
+    typing_paused: bool,
     /// The object whose letters the text fields have their undo of (`typing::fresh_fields`).
     letters_of: Option<usize>,
     /// The original's bytes, read at the first save: every save starts from them.
@@ -312,6 +314,7 @@ impl Window {
             hiders: 0,
             keys_open: false,
             editing: None,
+            typing_paused: false,
             letters_of: None,
             bytes: None,
             copy: save::Marks::default(),
@@ -514,6 +517,8 @@ impl Window {
         if tool == Tool::Crop {
             self.before_crop = self.tool;
         }
+        // The text being typed is done, as in the photo editors.
+        self.editing = None;
         if tool != Tool::Marquee {
             self.marquee = None;
         }

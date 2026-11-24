@@ -7,7 +7,9 @@
 1. Choose ![Text](icon://type) **Text**.
 2. Click the image where the text goes.
 3. Type. The letters appear on the image itself; Enter starts a new line.
-4. Press Esc, or click elsewhere, when you are done.
+4. Press Esc, or click elsewhere on the image, when you are done.
+
+While you type you can choose the font, the size or the colour in the properties bar: the typing goes on where it was.
 
 A text left empty goes away when you are done with it. A click outside the image places no text. While you type, the letters are shown in the interface's font; they take their own font when you are done.
 

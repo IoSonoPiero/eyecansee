@@ -7,7 +7,9 @@
 1. Scegli ![Testo](icon://type) **Testo**.
 2. Fai clic sull'immagine dove va il testo.
 3. Scrivi. Le lettere compaiono sull'immagine stessa; Invio va a capo.
-4. Quando hai finito premi Esc, o fai clic altrove.
+4. Quando hai finito premi Esc, o fai clic altrove sull'immagine.
+
+Mentre scrivi puoi scegliere il font, la dimensione o il colore nella barra delle proprietà: la scrittura continua da dove era.
 
 Un testo lasciato vuoto sparisce quando hai finito. Un clic fuori dall'immagine non mette nessun testo. Mentre scrivi, le lettere sono nel font dell'interfaccia; prendono il loro font quando hai finito.
 
