@@ -750,4 +750,26 @@ mod tests {
         println!("ended in {:.2?}: {:?}", t.elapsed(), r.as_ref().map(|m| m.tris.len()));
         assert!(r.is_err());
     }
+    /// Audit 6.16: a "specular-glossiness" material (KHR_materials_pbrSpecularGlossiness, older
+    /// exporters) gives its colour and its picture (`diffuse`), and how glossy it is; they were
+    /// left out, the model grey and matte.
+    #[test]
+    fn audit_6_16_specular_glossiness() {
+        let floats: Vec<u8> = [0f32, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0].iter().flat_map(|f| f.to_le_bytes()).collect();
+        let data = base64::engine::general_purpose::STANDARD.encode(floats);
+        let mut png = Vec::new();
+        image::RgbaImage::from_pixel(2, 2, image::Rgba([0, 0, 255, 255])).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let png = base64::engine::general_purpose::STANDARD.encode(png);
+        let gltf = |diffuse: &str| {
+            format!(
+                r#"{{"asset":{{"version":"2.0"}},"extensionsUsed":["KHR_materials_pbrSpecularGlossiness"],"buffers":[{{"uri":"data:application/octet-stream;base64,{data}","byteLength":60}}],"bufferViews":[{{"buffer":0,"byteLength":36}},{{"buffer":0,"byteOffset":36,"byteLength":24}}],"accessors":[{{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","max":[1,1,0],"min":[0,0,0]}},{{"bufferView":1,"componentType":5126,"count":3,"type":"VEC2"}}],"images":[{{"uri":"data:image/png;base64,{png}"}}],"textures":[{{"source":0}}],"materials":[{{"extensions":{{"KHR_materials_pbrSpecularGlossiness":{{{diffuse},"glossinessFactor":0.75}}}}}}],"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0,"TEXCOORD_0":1}},"material":0}}]}}],"nodes":[{{"mesh":0}}],"scenes":[{{"nodes":[0]}}],"scene":0}}"#
+            )
+        };
+        let red = crate::model::parse(gltf(r#""diffuseFactor":[1,0,0,1]"#).as_bytes(), "a.gltf").unwrap();
+        assert_eq!(red.colors, [[255, 0, 0]], "the diffuse colour");
+        let s = red.surfaces.get(red.surface.first().map_or(0, |&k| k as usize).wrapping_sub(1)).copied().unwrap_or_default();
+        assert!((s.roughness - 0.25).abs() < 1e-6 && s.metallic == 0.0, "glossiness 0.75 is roughness 0.25: {s:?}");
+        let pictured = crate::model::parse(gltf(r#""diffuseTexture":{"index":0}"#).as_bytes(), "a.gltf").unwrap();
+        assert_eq!((pictured.textures.len(), pictured.tex.clone()), (1, vec![1]), "the diffuse picture");
+    }
 }
