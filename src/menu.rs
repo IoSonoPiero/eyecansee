@@ -394,6 +394,26 @@ fn version_text(built: Option<&str>) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// #330: the status bar line of a phone Windows stopped answering also says what to do, in
+    /// the window's words, and it fits the bar of a window 1280 px wide with the counts after it.
+    #[test]
+    fn stalled_phone_line_says_what_to_do_and_fits() {
+        let ctx = eframe::egui::Context::default();
+        for lang in ["en", "it"] {
+            let i18n = crate::i18n::I18n::new(lang);
+            let line = i18n.t_args("status-phone-stalled", &[("s", "15")]);
+            let (unplug, wait) = if lang == "en" { ("unplug the cable and plug it in again", "or wait") } else { ("stacca e ricollega il cavo", "oppure aspetta") };
+            assert!(line.contains(unplug) && line.ends_with(wait), "{lang}: {line}");
+            let mut width = 0.0;
+            let _ = ctx.run_ui(Default::default(), |ui| {
+                let font = eframe::egui::TextStyle::Body.resolve(ui.style());
+                width = ui.painter().layout_no_wrap(line.clone(), font, eframe::egui::Color32::WHITE).size().x;
+            });
+            // The spinner and the separator before it, the counts and the selected file after it.
+            assert!(width < 1280.0 - 420.0, "{lang}: {width} px, too wide for the bar at 1280 px");
+        }
+    }
+
     /// The test copy shows when it was built next to the version; the published app only the version.
     #[test]
     fn version_with_build_time() {
