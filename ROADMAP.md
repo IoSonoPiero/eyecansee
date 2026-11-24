@@ -50,6 +50,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 - CAD drawings: export the sheets (layouts) to PDF, to scale ([#140](https://github.com/IoSonoPiero/eyecansee/issues/140)).
 - STEP, IGES and BREP models: a file too heavy for the CAD engine stops after a time limit, without blocking the other files or closing EyeCanSee ([#175](https://github.com/IoSonoPiero/eyecansee/issues/175)).
+- 3D models keep the names, groups, hierarchy and transparency of their parts when opened and exported ([#347](https://github.com/IoSonoPiero/eyecansee/issues/347)).
 
 ### Browsing and editing
 
