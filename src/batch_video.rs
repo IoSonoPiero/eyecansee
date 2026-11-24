@@ -266,22 +266,30 @@ fn better_download(ui: &mut egui::Ui, dl: &mut Slot, i18n: &I18n) {
 
 /// The progress of the download, or its button (with the error of the last try): true once done.
 pub(crate) fn download_row(ui: &mut egui::Ui, download: &mut Slot, i18n: &I18n, c: crate::component::Component) -> bool {
+    let (done, button) = download_button(ui, download, i18n, c);
+    if button.is_some_and(|b| b.clicked()) {
+        let ctx = ui.ctx().clone();
+        *download = Some(crate::component::start(c, move || ctx.request_repaint()));
+    }
+    done
+}
+
+/// `download_row` without starting the download: true once done, and the button when it is shown
+/// (the FFmpeg question takes its keys, `ffmpeg_ask.rs`).
+pub(crate) fn download_button(ui: &mut egui::Ui, download: &Slot, i18n: &I18n, c: crate::component::Component) -> (bool, Option<egui::Response>) {
     let state = download.as_ref().map(|d| (d.done.load(Ordering::Relaxed), d.result.lock().unwrap().clone()));
     match state {
         Some((done, None)) => {
             ui.add(egui::ProgressBar::new(done as f32 / c.size as f32).show_percentage());
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(300));
+            (false, None)
         }
-        Some((_, Some(Ok(())))) => return true,
+        Some((_, Some(Ok(())))) => (true, None),
         failed => {
             if let Some((_, Some(Err(e)))) = failed {
                 crate::error_bar::inline(ui, &i18n.t_args("batch-video-download-failed", &[("detail", &crate::update::error_detail(i18n, &e))]));
             }
-            if ui.button(i18n.t(crate::component::button_id(&c, "batch-video-download", "batch-video-update"))).clicked() {
-                let ctx = ui.ctx().clone();
-                *download = Some(crate::component::start(c, move || ctx.request_repaint()));
-            }
+            (false, Some(ui.button(i18n.t(crate::component::button_id(&c, "batch-video-download", "batch-video-update")))))
         }
     }
-    false
 }

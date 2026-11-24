@@ -47,35 +47,39 @@ impl App {
         true
     }
 
-    /// The window: Esc and Close leave the turn unsaved; Enter starts the download.
+    /// The window: Esc and Close leave the turn unsaved. Download and Close are one row of
+    /// buttons (#311): it opens on Download when there is one to start, on Close otherwise.
     pub(crate) fn ffmpeg_window(&mut self, ctx: &egui::Context) {
         if self.ffmpeg_ask.is_none() {
             return;
         }
-        let download = &mut self.downloads.ffmpeg;
+        let download = &self.downloads.ffmpeg;
         let (id, offered) = text_of(&crate::ffmpeg::status());
         let component = crate::component::FFMPEG.filter(|_| offered);
         let size = component.map_or(String::new(), |c| format!("{} MB", c.size / 1_000_000));
         let i18n = &self.i18n;
-        // Enter and Esc arrive as `answer` (`raw_input_hook`).
+        // Esc arrives as `answer` (`raw_input_hook`); Enter and Space press the highlighted button.
         let modal = "ffmpeg-ask";
-        let mut close = match (crate::confirm::answer(ctx, &mut self.key_answer, modal), component) {
-            (Some(true), Some(c)) if download.is_none() => {
-                let ctx = ctx.clone();
-                *download = Some(crate::component::start(c, move || ctx.request_repaint()));
-                false
-            }
-            (Some(true), Some(_)) | (None, _) => false,
-            (Some(_), _) => true,
-        };
-        let mut done = false;
+        let mut close = crate::confirm::answer(ctx, &mut self.key_answer, modal) == Some(false);
+        let (mut done, mut start) = (false, false);
         message(ctx, modal, Head::new(&i18n.t("ffmpeg-ask-title")), &i18n.t_args(id, &[("size", &size)]), &i18n.t("notice-copy"), |ui| {
+            let mut rows = Vec::new();
             if let Some(c) = component {
-                done = crate::batch_video::download_row(ui, download, i18n, c);
+                let (ended, button) = crate::batch_video::download_button(ui, download, i18n, c);
+                done = ended;
+                rows.extend(button);
             }
             ui.add_space(4.0);
-            close |= ui.button(i18n.t("notice-close")).clicked();
+            rows.push(ui.button(i18n.t("notice-close")));
+            match crate::confirm::keys(ui, modal, &rows, 0) {
+                Some(i) if i + 1 == rows.len() => close = true,
+                Some(_) => start = true,
+                None => {}
+            }
         });
+        if let (true, Some(c)) = (start, component) {
+            self.downloads.start(c, ctx);
+        }
         if done {
             log!("ffmpeg asked for: downloaded");
             match self.ffmpeg_ask.take().map(|a| a.then) {
@@ -107,5 +111,40 @@ mod tests {
         for status in [Status::Missing, old, lacks, Status::Ready(Source::System, "8.1".into())] {
             assert_eq!(text_of(&status), ("turn-video-need-ffmpeg", true), "{status:?}");
         }
+    }
+
+    /// #311: Download and Close are one row of buttons. The window opens on Download, which Enter
+    /// presses; Tab goes to Close, and Enter there closes the window without downloading (before,
+    /// Enter always started the download, whatever was highlighted).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn enter_presses_the_highlighted_button() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("ffmpeg_ask::tests::enter_presses_the_highlighted_button") {
+            return;
+        }
+        let mut h = Harness::new(&folder("ffmpeg-ask", &["a.png"]));
+        if crate::component::FFMPEG.is_none() || !text_of(&crate::ffmpeg::status()).1 {
+            return;
+        }
+        // A frame without the window first: it opens anew, not on the button of the last time.
+        let open = |h: &mut Harness| {
+            h.frame(Vec::new());
+            h.app.downloads.ffmpeg = None;
+            h.app.ffmpeg_ask = Some(Ask { then: Then::Save });
+            h.frame(Vec::new());
+            h.frame(Vec::new());
+        };
+        open(&mut h);
+        h.key(egui::Key::Tab);
+        h.key(egui::Key::Enter);
+        assert!(h.app.ffmpeg_ask.is_none(), "Enter on Close leaves the window open");
+        assert!(h.app.downloads.ffmpeg.is_none(), "Enter on Close started the download");
+        open(&mut h);
+        h.key(egui::Key::Enter);
+        assert!(h.app.downloads.ffmpeg.is_some(), "Enter on Download, highlighted at first, did not start it");
+        assert!(h.app.ffmpeg_ask.is_some(), "the window stays while it downloads");
+        h.key(egui::Key::Escape);
+        assert!(h.app.ffmpeg_ask.is_none(), "Esc closes it");
     }
 }

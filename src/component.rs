@@ -270,7 +270,13 @@ pub struct Download {
 
 /// `install` in a thread of its own; `repaint` when it ends.
 pub fn start(c: Component, repaint: impl Fn() + Send + 'static) -> std::sync::Arc<Download> {
-    begin(c.kind, move |done| install(&c, done), repaint)
+    // The tests that press a Download button never reach the network: the download fails at once
+    // (the `*_live` tests call `install` directly).
+    #[cfg(test)]
+    let work = |_: &AtomicU64| Err("no downloads in tests".to_string());
+    #[cfg(not(test))]
+    let work = move |done: &AtomicU64| install(&c, done);
+    begin(c.kind, work, repaint)
 }
 
 /// The downloads started, by component: a second start of one under way gives it back (audit
