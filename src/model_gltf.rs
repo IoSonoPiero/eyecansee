@@ -156,7 +156,7 @@ fn read_plain(bytes: &[u8], sibling: Sibling, limit: crate::model_limit::Limit) 
     let mut wanted: Vec<gltf::Image> = Vec::new();
     for mat in g.document.materials() {
         let pbr = mat.pbr_metallic_roughness();
-        let textures = [pbr.base_color_texture().map(|t| t.texture()), pbr.metallic_roughness_texture().map(|t| t.texture()), mat.normal_texture().map(|t| t.texture()), mat.occlusion_texture().map(|t| t.texture()), mat.emissive_texture().map(|t| t.texture())];
+        let textures = [base(&mat).0.map(|t| t.texture()), pbr.metallic_roughness_texture().map(|t| t.texture()), mat.normal_texture().map(|t| t.texture()), mat.occlusion_texture().map(|t| t.texture()), mat.emissive_texture().map(|t| t.texture())];
         for img in textures.into_iter().flatten().map(|t| t.source()) {
             if !wanted.iter().any(|w| w.index() == img.index()) {
                 wanted.push(img);
@@ -297,7 +297,7 @@ fn gltf_mesh<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>
             _ => idx.as_chunks::<3>().0.to_vec(),
         };
         let vc: Vec<[f32; 3]> = r.read_colors(0).map(|c| c.into_rgb_f32().collect()).unwrap_or_default();
-        let base = prim.material().pbr_metallic_roughness().base_color_factor();
+        let base = base(&prim.material()).1;
         let base = [base[0], base[1], base[2]];
         // glTF colours are linear: brought to sRGB for the screen.
         let srgb = |c: [f32; 3]| c.map(|v| (v.clamp(0.0, 1.0).powf(1.0 / 2.2) * 255.0) as u8);
@@ -321,6 +321,19 @@ fn gltf_mesh<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>
     Ok(())
 }
 
+/// The base colour's picture and factor: metallic-roughness's, or the diffuse of a
+/// specular-glossiness material (KHR_materials_pbrSpecularGlossiness, written by older
+/// exporters; audit 6.16), which takes its place as Blender and three.js read it.
+fn base<'a>(mat: &gltf::Material<'a>) -> (Option<gltf::texture::Info<'a>>, [f32; 4]) {
+    match mat.pbr_specular_glossiness() {
+        Some(sg) => (sg.diffuse_texture(), sg.diffuse_factor()),
+        None => {
+            let pbr = mat.pbr_metallic_roughness();
+            (pbr.base_color_texture(), pbr.base_color_factor())
+        }
+    }
+}
+
 /// The material's surface: factors, and the pictures (`Builder::texture`) read on the base
 /// colour's texture coordinates `set`; one on another set is left out (an occlusion baked on a
 /// second set would darken the wrong places), and so is a glow whose picture is missing.
@@ -333,9 +346,11 @@ fn surface(mat: &gltf::Material, tex: &HashMap<usize, u16>, set: u32) -> Surface
     let lost = mat.emissive_texture().is_some() && glow_map == 0;
     let glow = mat.emissive_factor().map(|v| if lost { 0.0 } else { (v * mat.emissive_strength().unwrap_or(1.0)).clamp(0.0, 1.0).powf(1.0 / 2.2) });
     let occlusion_map = pic(occlusion.clone());
+    // Specular-glossiness: not metal, as rough as it is not glossy.
+    let gloss = mat.pbr_specular_glossiness().map(|sg| sg.glossiness_factor());
     Surface {
-        metallic: pbr.metallic_factor(),
-        roughness: pbr.roughness_factor(),
+        metallic: if gloss.is_some() { 0.0 } else { pbr.metallic_factor() },
+        roughness: gloss.map_or(pbr.roughness_factor(), |g| 1.0 - g),
         occlusion: if occlusion_map > 0 { mat.occlusion_texture().map_or(0.0, |o| o.strength()) } else { 0.0 },
         glow,
         bumps: pic(mat.normal_texture().map(|t| (t.texture(), t.tex_coord()))),
@@ -348,7 +363,7 @@ fn surface(mat: &gltf::Material, tex: &HashMap<usize, u16>, set: u32) -> Surface
 /// The picture of a primitive's base colour (0 without one) and the texture coordinates, of its
 /// set (else the first), moved, turned and scaled as KHR_texture_transform says; and that set.
 fn texture_coords<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>>(prim: &gltf::Primitive<'a>, r: &gltf::mesh::Reader<'a, 's, F>, tex: &HashMap<usize, u16>) -> (u16, Vec<[f32; 2]>, u32) {
-    let info = prim.material().pbr_metallic_roughness().base_color_texture();
+    let info = base(&prim.material()).0;
     let k = info.as_ref().and_then(|i| tex.get(&i.texture().source().index()).copied()).unwrap_or(0);
     let transform = info.as_ref().and_then(|i| i.texture_transform());
     let set = transform.as_ref().and_then(|t| t.tex_coord()).or(info.as_ref().map(|i| i.tex_coord())).unwrap_or(0);
