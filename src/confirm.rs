@@ -237,6 +237,9 @@ impl App {
         if self.tip.is_some() && ctx.memory(|m| m.top_modal_layer()).is_none() {
             raw_input.events.retain(|e| !matches!(e, egui::Event::PointerButton { .. }));
         }
+        // Options read no `Nav` (no row of buttons): Tab goes to egui, which gives the keyboard to the
+        // window's first control (`app_dialogs::in_ring`).
+        let free_tab = self.options && !self.form_asks() && ctx.memory(|m| m.top_modal_layer()).is_none();
         let (answer, typing) = (&mut self.key_answer, self.help.in_field());
         // The tip of the day (audit 1.13, D6): ← and → turn it, unless the guide is over it. A key
         // held down from before it came (Enter on Done of the first-start window) does not close it.
@@ -246,6 +249,7 @@ impl App {
         let mut nav = None;
         raw_input.events.retain(|e| match e {
             e if crate::help::stays(typing, e) => true,
+            egui::Event::Key { key: egui::Key::Tab, pressed: true, .. } if free_tab => true,
             egui::Event::Key { key, pressed: true, repeat, modifiers, .. } => {
                 use egui::Key::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Enter, Escape, Space, Tab};
                 match key {
