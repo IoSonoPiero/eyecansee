@@ -356,8 +356,9 @@ mod tests {
         copy_ends(&mut h, true, Ok(()));
         let r = h.app.jobs_report.clone().expect("no jobs report");
         let titles: Vec<&str> = r.parts.iter().map(|p| p.title.as_str()).collect();
-        assert_eq!(titles, ["Converti", "Copia finita"], "the parts and their order");
-        assert!(r.copied().contains("Converti\n") && r.copied().contains("collegamenti/self"), "{}", r.copied());
+        let t = |id| h.app.i18n.t(id);
+        assert_eq!(titles, [t("batch-title"), t("transfer-copied")], "the parts and their order");
+        assert!(r.copied().contains(&format!("{}\n", t("batch-title"))) && r.copied().contains("collegamenti/self"), "{}", r.copied());
         assert_eq!(h.app.help_spot(&h.ctx), "help:copy-move", "F1: the copy's page, which a part names");
         crate::window_keys::tab_goes_through(&mut h, crate::window_keys::modal("jobs-report"), |a| a.jobs_report.is_some(), 1, true);
         h.key(egui::Key::Enter);
@@ -392,8 +393,12 @@ mod tests {
         convert_ends(&mut h, &p);
         let r = h.app.jobs_report.clone().expect("no jobs report");
         let titles: Vec<&str> = r.parts.iter().map(|p| p.title.as_str()).collect();
-        assert_eq!(titles, ["Copia finita", "Copia annullata", "Converti"], "the quiet copies at the top");
-        assert!(r.parts[1].text.starts_with("**2 file su 5** copiati in ") && r.parts[1].text.ends_with(" prima di Annulla."), "{}", r.parts[1].text);
+        let t = |id| h.app.i18n.t(id);
+        assert_eq!(titles, [t("transfer-copied"), t("transfer-copy-cancelled"), t("batch-title")], "the quiet copies at the top");
+        // The line with the counts, whatever the folder: what comes before and after it.
+        let line = h.app.i18n.t_args("transfer-done-before-cancel", &[("n", "2"), ("total", "5"), ("dir", "\u{1}")]);
+        let (before, after) = line.split_once('\u{1}').unwrap();
+        assert!(r.parts[1].text.starts_with(before) && r.parts[1].text.ends_with(after), "{}", r.parts[1].text);
         h.key(egui::Key::Enter);
         h.frame(Vec::new());
         assert!(h.app.jobs_quiet.is_empty() && h.app.jobs_report.is_none());
@@ -414,7 +419,7 @@ mod tests {
         h.key(egui::Key::Enter);
         h.frame(Vec::new());
         copy_ends(&mut h, true, Ok(()));
-        assert!(h.app.notice.as_ref().is_some_and(|n| n.title == "Copia finita") && h.app.jobs_report.is_none(), "the copy's message alone");
+        assert!(h.app.notice.as_ref().is_some_and(|n| n.title == h.app.i18n.t("transfer-copied")) && h.app.jobs_report.is_none(), "the copy's message alone");
         h.key(egui::Key::Enter);
         h.frame(Vec::new());
         copy_ends(&mut h, false, Ok(()));
@@ -436,10 +441,10 @@ mod tests {
         h.frame(Vec::new());
         let shown = |h: &Harness| h.app.notice.as_ref().map(|n| n.title.clone());
         assert_eq!(shown(&h).as_deref(), Some("First message"));
-        for next in ["Copia finita", "Third message"] {
+        for next in [h.app.i18n.t("transfer-copied"), "Third message".to_string()] {
             h.key(egui::Key::Enter);
             h.frame(Vec::new());
-            assert_eq!(shown(&h).as_deref(), Some(next), "after Enter");
+            assert_eq!(shown(&h).as_deref(), Some(next.as_str()), "after Enter");
         }
         h.key(egui::Key::Enter);
         h.frame(Vec::new());
