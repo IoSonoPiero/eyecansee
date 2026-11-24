@@ -794,10 +794,16 @@ fn tab_goes_into_the_guide_over_about() {
     assert!(focused(&h).is_some(), "Tab in About reached nothing");
     h.key(Key::F1);
     assert!(h.app.help.open, "F1 did not open the guide over About");
+    h.frame(Vec::new());
+    // The guide opens with its search field focused: Tab must move on from it, inside the guide.
+    let start = focused(&h).map(|(id, _)| id);
+    let mut seen = std::collections::HashSet::new();
     for _ in 0..3 {
         h.key(Key::Tab);
         h.frame(Vec::new());
+        assert!(focused(&h).is_some_and(|(_, l)| guide(l)), "Tab over About left the guide");
+        seen.extend(focused(&h).map(|(id, _)| id));
     }
-    assert!(focused(&h).is_some_and(|(_, l)| guide(l)), "Tab over About did not go into the guide");
+    assert!(seen.iter().any(|id| Some(*id) != start), "Tab over About did not move inside the guide (Piero's test W1.4)");
     assert!(h.app.about, "About closed");
 }
