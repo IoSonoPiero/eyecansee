@@ -461,13 +461,7 @@ impl App {
             return Some("hint-model");
         }
         let path = &self.files().get(current)?.path;
-        Some(match () {
-            _ if crate::cad::is_cad(path) => if self.cad_has_sheets(current) { "hint-cad-layouts" } else { "hint-cad" },
-            _ if crate::decode::is_played(path) => "hint-video",
-            // A 360° panorama seen from inside (#188).
-            _ if self.sphere_shown() => "hint-pano",
-            _ => "hint-image",
-        })
+        Some(file_keys(path, self.cad_has_sheets(current), self.sphere_shown()))
     }
 
     /// Value of a metadata field as shown: Fluent ids translated, dates in the language's format.
@@ -515,6 +509,17 @@ fn boxes(alone: bool, drawing: bool, shown: impl Fn(Group) -> bool) -> Vec<Group
         _ => !drawing,
     };
     Group::ALL.into_iter().filter(|&g| shown(g) && fits(g)).collect()
+}
+
+/// The Fluent id of the keys of the file at `path` in the viewer (not a model, not measuring):
+/// `sheets`, a drawing with layouts; `sphere`, a 360° panorama seen from inside (#188).
+fn file_keys(path: &str, sheets: bool, sphere: bool) -> &'static str {
+    match () {
+        _ if crate::cad::is_cad(path) => if sheets { "hint-cad-layouts" } else { "hint-cad" },
+        _ if crate::decode::is_played(path) => "hint-video",
+        _ if sphere => "hint-pano",
+        _ => "hint-image",
+    }
 }
 
 /// "Wheel: zoom | Drag: move" → ("Wheel", "zoom"), ("Drag", "move"): the keys and what they do,
