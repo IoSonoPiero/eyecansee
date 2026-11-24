@@ -751,3 +751,27 @@ fn the_viewer_keys_work_with_a_bar_button_focused() {
     h.key(Key::Escape);
     h.until(|app| app.viewing.is_none(), "Esc with a button focused went back to the grid");
 }
+
+/// #311: with the keyboard inside the guide (reached with Tab) and the pointer elsewhere, two Esc
+/// close it, as everywhere; they were lost (Piero's test L1.5, 24/11).
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn two_esc_close_the_guide_with_the_keyboard_inside() {
+    if own_folder("window_keys::two_esc_close_the_guide_with_the_keyboard_inside") {
+        return;
+    }
+    let guide = modal("help-window");
+    let mut h = on_grid("keys-guide-esc");
+    h.key(Key::F1);
+    assert!(h.app.help.open, "F1 did not open the guide");
+    for _ in 0..3 {
+        h.key(Key::Tab);
+        h.frame(Vec::new());
+    }
+    assert!(focused(&h).is_some_and(|(_, l)| guide(l)), "Tab did not go into the guide");
+    let esc = egui::Event::Key { key: Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE };
+    h.frame(vec![esc.clone()]);
+    h.frame(vec![esc]);
+    h.frame(Vec::new());
+    assert!(!h.app.help.open, "two Esc with the keyboard in the guide did not close it");
+}
