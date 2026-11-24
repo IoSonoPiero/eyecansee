@@ -504,3 +504,38 @@ fn tab_goes_through_the_rows_of_buttons() {
     h.key(Key::Escape);
     assert!(!h.app.kiod_ask, "Esc did not cancel");
 }
+
+/// #311: the editor's page and the viewer, with nothing focused: Tab and Shift+Tab go through
+/// their bars and do not stop. The zoom slider of the status bar let the keyboard go when it
+/// had it, so Tab was lost there and started again from the first button: what comes after it
+/// (the image of the editor, its Keys) could not be reached, and Shift+Tab went round three
+/// controls only.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn tab_goes_through_the_editor_and_the_viewer() {
+    if own_folder("window_keys::tab_goes_through_the_editor_and_the_viewer") {
+        return;
+    }
+    let mut h = in_editor("keys-editor");
+    tab_round(&mut h);
+    tab_goes_through(&mut h, page, |a| a.editor.is_some() && a.convert.is_none(), 3, true);
+
+    let mut h = on_grid("keys-viewer");
+    h.app.activate(1);
+    h.until(|a| a.zoom_of == Some(1), "b.png shown");
+    tab_round(&mut h);
+    tab_and_arrows(&mut h, page, &|a: &App| a.viewing == Some(1), 3, false);
+}
+
+/// Tab, then Shift+Tab, pressed many times from nothing focused: the keyboard is never lost.
+fn tab_round(h: &mut Harness) {
+    for modifiers in [Modifiers::NONE, Modifiers::SHIFT] {
+        h.blur();
+        h.frame(Vec::new());
+        for i in 1..=60 {
+            h.key_with(Key::Tab, modifiers);
+            h.frame(Vec::new());
+            assert!(focused(h).is_some(), "Tab {modifiers:?} pressed {i} times: the keyboard was lost");
+        }
+    }
+}
