@@ -47,6 +47,8 @@ pub(crate) struct Open {
     closing: Option<Vec<&'static str>>,
     /// Where the desktop icon page is (Windows, #210): Back and Next keep its answer.
     desktop: Desktop,
+    /// The page whose main button was given the keyboard (#311): a page shown anew gives it again.
+    shown: Option<usize>,
 }
 
 /// What a button at the bottom does.
@@ -74,7 +76,7 @@ impl Open {
             Some("failed") => Desktop::Failed("debug".into()),
             _ => Desktop::Ask,
         };
-        Open { plan, page, rows, running: Vec::new(), asking: false, closing: None, desktop }
+        Open { plan, page, rows, running: Vec::new(), asking: false, closing: None, desktop, shown: None }
     }
 
     /// The question on closing is open: Enter and Esc are its own (`App::asking`).
@@ -115,6 +117,24 @@ impl App {
         true
     }
 
+    /// The keys while the pages are open (#311), before egui reads them: the main button of the
+    /// page has the keyboard and egui presses it with Enter or Space. Held down, they press it
+    /// once, not at every repeat (Next would run through the pages); in a frame where nothing in
+    /// the window has the keyboard yet (a page or the question just gone) the keys are dropped,
+    /// not left to the grid under it. Esc and F1 stay: they close the window and open the guide.
+    pub(crate) fn first_start_keys(&self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        if self.first_start.is_none() {
+            return;
+        }
+        let free = !ctx.egui_wants_keyboard_input();
+        raw_input.events.retain(|e| match e {
+            egui::Event::Key { key: egui::Key::Escape | egui::Key::F1, .. } => true,
+            egui::Event::Key { key: egui::Key::Enter | egui::Key::Space, repeat: true, .. } => false,
+            egui::Event::Key { .. } | egui::Event::Text(_) => !free,
+            _ => true,
+        });
+    }
+
     /// Before the pages read the keys: Esc closes the window, as Skip and Done. With the question
     /// on closing open Esc is the question's (Back): it comes as `key_answer`, not here.
     pub(crate) fn first_start_esc(&mut self, ctx: &egui::Context) {
@@ -149,7 +169,8 @@ impl App {
     }
 
     /// The question when closing would leave ticked cards not downloaded: Download and close
-    /// (Enter too), Close without downloading, or Back to the page with its ticks (Esc too). The
+    /// (highlighted when it opens, #311), Close without downloading, or Back to the page with its
+    /// ticks (Esc too). The
     /// downloads start as Download starts them, and go on after the window is closed.
     fn first_start_ask(&mut self, ctx: &egui::Context) {
         let Some(open) = self.first_start.as_mut().filter(|open| open.asking) else { return };
@@ -161,8 +182,8 @@ impl App {
             text: self.i18n.t_args("first-start-leave", &[("n", &waiting.len().to_string())]),
             buttons: [(t("first-start-back"), Answer::Back), (t("first-start-leave-close"), Answer::Close), (t("first-start-leave-download"), Answer::Download)],
         };
-        // Enter is the main button, Esc is Back.
-        let keys = crate::confirm::answer(ctx, &mut self.key_answer, ASK_ID).map(|enter| if enter { Answer::Download } else { Answer::Back });
+        // Esc is Back; Enter and Space press the highlighted button (`ask`).
+        let keys = (crate::confirm::answer(ctx, &mut self.key_answer, ASK_ID) == Some(false)).then_some(Answer::Back);
         let Some(answer) = ask(ctx, &question).or(keys) else { return };
         open.asking = false;
         log!("first start: {answer:?} answered");
@@ -272,7 +293,7 @@ impl App {
         let mut press = None;
         // No margin of the window's: the band of the buttons reaches its edges.
         let frame = egui::Frame::popup(&ctx.global_style()).inner_margin(0);
-        egui::Modal::new(egui::Id::unique("first-start")).frame(frame).show(ctx, |ui| {
+        egui::Modal::new(egui::Id::unique(PAGES_ID)).frame(frame).show(ctx, |ui| {
             ui.set_width(WIDTH);
             ui.spacing_mut().item_spacing.y = 0.0;
             egui::Frame::new().inner_margin(egui::Margin::symmetric(SIDE, 0)).show(ui, |ui| {
@@ -482,7 +503,9 @@ fn band(ui: &mut egui::Ui, row: impl FnOnce(&mut egui::Ui)) {
 }
 
 /// The band at the bottom: the pages' dots and "1 of 2" on the left, the buttons on the right.
-fn footer(ui: &mut egui::Ui, open: &Open, i18n: &crate::i18n::I18n) -> Option<Press> {
+/// Each page opens with its main button highlighted (#311): Enter and Space press the one
+/// highlighted, Tab and the arrows move as egui moves them, also to the choices of the page.
+fn footer(ui: &mut egui::Ui, open: &mut Open, i18n: &crate::i18n::I18n) -> Option<Press> {
     let (n, of) = (open.page + 1, open.plan.pages.len());
     let mut press = None;
     band(ui, |ui| {
@@ -492,17 +515,25 @@ fn footer(ui: &mut egui::Ui, open: &Open, i18n: &crate::i18n::I18n) -> Option<Pr
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let waits = crate::first_start::waits(open.plan.pages[open.page], &open.desktop);
-            for b in buttons(n, of, open.rows.iter().any(|r| r.2), waits).into_iter().rev() {
-                let text = i18n.t(b.text);
-                let button = if b.main { crate::theme::main_button(ui, text) } else { egui::Button::new(text) };
-                let mut response = ui.add_enabled(b.enabled, button.min_size(BUTTON));
-                if let Some(hint) = b.hint {
-                    response = response.on_disabled_hover_text(i18n.t(hint));
-                }
-                if response.clicked() {
-                    press = Some(b.press);
+            let drawn: Vec<Button> = buttons(n, of, open.rows.iter().any(|r| r.2), waits).into_iter().rev().collect();
+            let rows: Vec<egui::Response> = drawn
+                .iter()
+                .map(|b| {
+                    let text = i18n.t(b.text);
+                    let button = if b.main { crate::theme::main_button(ui, text) } else { egui::Button::new(text) };
+                    let response = ui.add_enabled(b.enabled, button.min_size(BUTTON));
+                    if let Some(hint) = b.hint { response.on_disabled_hover_text(i18n.t(hint)) } else { response }
+                })
+                .collect();
+            // A page shown anew: the button of the page before had the keyboard, its main one takes it.
+            if open.shown != Some(open.page) {
+                open.shown = Some(open.page);
+                if let Some(focused) = ui.memory(egui::Memory::focused) {
+                    ui.memory_mut(|m| m.surrender_focus(focused));
                 }
             }
+            let main = drawn.iter().position(|b| b.main).unwrap_or(0);
+            press = crate::confirm::keys(ui, PAGES_ID, &rows, main).map(|i| drawn[i].press);
         });
     });
     press
@@ -510,6 +541,8 @@ fn footer(ui: &mut egui::Ui, open: &Open, i18n: &crate::i18n::I18n) -> Option<Pr
 
 /// The modal of the question on closing: Enter and Esc reach it by this name (`confirm::answer`).
 const ASK_ID: &str = "first-start-leave";
+/// The modal of the pages.
+const PAGES_ID: &str = "first-start";
 
 /// What the question on closing shows: the icons of the add-ons chosen and not downloaded, its
 /// title and sentence, and its buttons from the left, the last one the main one.
@@ -523,7 +556,7 @@ struct Question {
 /// The question on closing, over the window and of its family: the icons of the add-ons chosen,
 /// the title and the sentence in the middle, and the band of the buttons, Back at its left, the
 /// two that close at its right. As wide as its buttons need in any language: no text is cut.
-/// The button pressed.
+/// The button pressed, by the mouse or the keys (`confirm::keys`: the main one highlighted).
 fn ask(ctx: &egui::Context, q: &Question) -> Option<Answer> {
     let mut answer = None;
     let frame = egui::Frame::popup(&ctx.global_style()).inner_margin(0);
@@ -551,19 +584,15 @@ fn ask(ctx: &egui::Context, q: &Question) -> Option<Answer> {
             });
         });
         let [back, close, main] = &q.buttons;
+        let mut rows = Vec::new();
         band(ui, |ui| {
-            if ui.add(egui::Button::new(&back.0).min_size(BUTTON)).clicked() {
-                answer = Some(back.1);
-            }
+            rows.push(ui.add(egui::Button::new(&back.0).min_size(BUTTON)));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.add(crate::theme::main_button(ui, main.0.clone()).min_size(BUTTON)).clicked() {
-                    answer = Some(main.1);
-                }
-                if ui.add(egui::Button::new(&close.0).min_size(BUTTON)).clicked() {
-                    answer = Some(close.1);
-                }
+                rows.push(ui.add(crate::theme::main_button(ui, main.0.clone()).min_size(BUTTON)));
+                rows.push(ui.add(egui::Button::new(&close.0).min_size(BUTTON)));
             });
         });
+        answer = crate::confirm::keys(ui, ASK_ID, &rows, 1).map(|i| [back.1, main.1, close.1][i]);
     });
     answer
 }
@@ -665,7 +694,7 @@ mod tests {
         let rows: Vec<_> = crate::component::addons().into_iter().map(|a| (a, Have::Missing, false)).collect();
         let Some(kind) = rows.first().map(|r| r.0.component.kind) else { return };
         let plan = Plan { pages: vec![Page::Welcome, Page::Addons], addons: rows.iter().map(|r| r.0.component.kind).collect() };
-        let mut open = Open { plan, page: 1, rows, running: Vec::new(), asking: false, closing: None, desktop: Desktop::Ask };
+        let mut open = Open { plan, page: 1, rows, running: Vec::new(), asking: false, closing: None, desktop: Desktop::Ask, shown: None };
         let mut downloads = Downloads::default();
         assert!(open.leave(&downloads), "nothing ticked");
         open.rows[0].2 = true;
@@ -712,5 +741,129 @@ mod tests {
         for (n, of, ticked) in [(1, 2, false), (2, 2, false), (2, 2, true), (1, 1, true), (2, 3, false), (3, 3, false)] {
             assert_eq!(buttons(n, of, ticked, None).iter().filter(|b| b.main).count(), 1);
         }
+    }
+
+    /// #311: the question on closing opens on Download and close, which Enter presses. Tab goes
+    /// round to Back (the question closes, the window stays), Shift+Tab to Close without
+    /// downloading (the window closes, nothing downloaded); Esc is Back.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn the_question_presses_the_highlighted_button() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("first_start_ui::tests::the_question_presses_the_highlighted_button") {
+            return;
+        }
+        let mut h = Harness::new(&folder("first-start-ask", &["a.png"]));
+        let Some(kind) = crate::component::addons().first().map(|a| a.component.kind) else { return };
+        // The add-ons page with the first card ticked, then Esc: the question opens over it.
+        let ask = |h: &mut Harness| {
+            h.frame(Vec::new());
+            h.app.downloads = Downloads::default();
+            let mut rows: Vec<_> = crate::component::addons().into_iter().map(|a| (a, Have::Missing, false)).collect();
+            rows[0].2 = true;
+            let plan = Plan { pages: vec![Page::Welcome, Page::Addons], addons: rows.iter().map(|r| r.0.component.kind).collect() };
+            let open = Open { plan, page: 1, rows, running: Vec::new(), asking: false, closing: None, desktop: Desktop::Ask, shown: None };
+            h.app.first_start = Some(open);
+            h.frame(Vec::new());
+            h.key(egui::Key::Escape);
+            assert!(h.app.first_start.as_ref().is_some_and(Open::asking), "Esc with a card ticked asks");
+            h.frame(Vec::new());
+            h.frame(Vec::new());
+        };
+        let asking = |h: &Harness| h.app.first_start.as_ref().map(Open::asking);
+        let grid = |a: &crate::App| (a.selected, a.cursor, a.up_selected, a.dir.clone(), a.viewing);
+        let before = grid(&h.app);
+        ask(&mut h);
+        h.key(egui::Key::Tab);
+        h.key(egui::Key::Enter);
+        assert_eq!(asking(&h), Some(false), "Tab from Download and close goes to Back: the window stays");
+        assert!(h.app.downloads.get(kind).is_none(), "Back downloaded");
+        // The frames after the question, before the page's button has the keyboard again.
+        for _ in 0..3 {
+            h.key(egui::Key::ArrowRight);
+            assert_eq!(grid(&h.app), before, "a key after Back reached the grid");
+        }
+        ask(&mut h);
+        h.key_with(egui::Key::Tab, egui::Modifiers::SHIFT);
+        h.key(egui::Key::Enter);
+        assert_eq!(asking(&h), None, "Shift+Tab goes to Close without downloading: the window closes");
+        assert!(h.app.downloads.get(kind).is_none(), "Close without downloading downloaded");
+        ask(&mut h);
+        h.key(egui::Key::Escape);
+        assert_eq!(asking(&h), Some(false), "Esc is Back");
+        ask(&mut h);
+        h.key(egui::Key::Enter);
+        assert!(h.app.downloads.get(kind).is_some(), "Enter on Download and close, highlighted, did not download");
+    }
+
+    /// #311: each page opens with its main button highlighted (Next, then Done or Download), which
+    /// Enter and Space press, once even when the key is held down; the keys never reach the grid
+    /// under the window, also those of the grid (before, with nothing highlighted, Enter opened the
+    /// picture behind the window and the arrows moved the selection).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn the_pages_press_their_main_button() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("first_start_ui::tests::the_pages_press_their_main_button") {
+            return;
+        }
+        let mut h = Harness::new(&folder("first-start-pages/inner", &["a.png", "b.png", "c.png"]));
+        let rows: Vec<_> = crate::component::addons().into_iter().map(|a| (a, Have::Missing, false)).collect();
+        let plan = Plan { pages: vec![Page::Welcome, Page::Addons], addons: rows.iter().map(|r| r.0.component.kind).collect() };
+        h.app.first_start = Some(Open { plan, page: 0, rows, running: Vec::new(), asking: false, closing: None, desktop: Desktop::Ask, shown: None });
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+        let grid = |a: &crate::App| (a.selected, a.cursor, a.up_selected, a.marked.len(), a.dir.clone(), a.viewing, a.delete_confirm.is_some(), a.rename.is_some());
+        let before = grid(&h.app);
+        let page = |h: &Harness| h.app.first_start.as_ref().map(|o| o.page);
+        // Enter held down on Next: one page on, not through the pages.
+        let enter = |pressed, repeat| egui::Event::Key { key: egui::Key::Enter, physical_key: None, pressed, repeat, modifiers: egui::Modifiers::NONE };
+        h.frame(vec![enter(true, false)]);
+        for _ in 0..4 {
+            h.frame(vec![enter(true, true)]);
+        }
+        h.frame(vec![enter(false, false)]);
+        h.frame(Vec::new());
+        assert_eq!(page(&h), Some(1), "Enter on Next, highlighted when the window opens, shows the next page once");
+        assert_eq!(grid(&h.app), before, "Enter reached the grid");
+        let keys = [
+            (egui::Key::ArrowDown, egui::Modifiers::NONE),
+            (egui::Key::ArrowRight, egui::Modifiers::NONE),
+            (egui::Key::End, egui::Modifiers::NONE),
+            (egui::Key::Backspace, egui::Modifiers::NONE),
+            (egui::Key::ArrowUp, egui::Modifiers::ALT),
+            (egui::Key::A, egui::Modifiers::COMMAND),
+            (egui::Key::Delete, egui::Modifiers::NONE),
+            (egui::Key::F2, egui::Modifiers::NONE),
+            (egui::Key::F5, egui::Modifiers::NONE),
+        ];
+        for (key, modifiers) in keys {
+            h.key_with(key, modifiers);
+            h.frame(Vec::new());
+            assert_eq!(grid(&h.app), before, "{key:?} reached the grid");
+        }
+        assert_eq!(page(&h), Some(1), "a key of the grid turned the page");
+        // The last page, nothing ticked: Done highlighted, Space presses it.
+        h.frame(Vec::new());
+        h.key_with(egui::Key::Tab, egui::Modifiers::NONE);
+        h.key_with(egui::Key::Tab, egui::Modifiers::SHIFT);
+        h.key(egui::Key::Space);
+        h.frame(Vec::new());
+        assert_eq!(page(&h), None, "Space on Done closes the window");
+        assert_eq!(grid(&h.app), before, "Space reached the grid");
+        // The choices of the page stay where Tab reaches them: Shift+Tab from Next goes to the last
+        // colours, Space takes them.
+        h.app.tip = None;
+        h.app.settings.theme = ThemeChoice::System;
+        let rows: Vec<_> = crate::component::addons().into_iter().map(|a| (a, Have::Missing, false)).collect();
+        let plan = Plan { pages: vec![Page::Welcome, Page::Addons], addons: rows.iter().map(|r| r.0.component.kind).collect() };
+        h.app.first_start = Some(Open { plan, page: 0, rows, running: Vec::new(), asking: false, closing: None, desktop: Desktop::Ask, shown: None });
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+        h.key_with(egui::Key::Tab, egui::Modifiers::SHIFT);
+        h.frame(Vec::new());
+        h.key(egui::Key::Space);
+        h.frame(Vec::new());
+        assert_eq!((h.app.settings.theme, page(&h)), (ThemeChoice::Dark, Some(0)), "Shift+Tab and Space from Next took the dark colours");
     }
 }

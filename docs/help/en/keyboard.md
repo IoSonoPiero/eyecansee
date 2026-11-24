@@ -23,6 +23,8 @@ In the windows that tell how an operation went, **Enter** or **Esc** closes them
 
 In the tip at startup, → and ← show the next and the previous tip; **Close** is highlighted when it opens, **Tab** and **Shift + Tab** move between **Back**, **Next** and **Close**, **Enter** or **Space** presses the highlighted one, **Esc** closes it; the other keys do nothing, except **F1**, which opens this guide (see [Getting started](start.md)).
 
+In the first-start window each page opens with its main button highlighted (**Next**, then **Done**, or **Download** with an add-on ticked); **Enter** or **Space** presses the highlighted button, **Tab**, **Shift + Tab** and the arrows also reach the choices of the page, **Esc** closes the window. When it asks before closing, **Download and close** is highlighted and **Esc** goes **Back**.
+
 ## In the grid
 
 | Key | Action |

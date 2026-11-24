@@ -598,6 +598,7 @@ impl eframe::App for App {
         if self.asking_keys(ctx, raw_input) {
             return;
         }
+        self.first_start_keys(ctx, raw_input);
         if ctx.egui_wants_keyboard_input() || egui::Popup::is_any_open(ctx) || self.rename.is_some() || self.new_folder.is_some() {
             return;
         }
