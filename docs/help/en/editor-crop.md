@@ -39,7 +39,7 @@ Where the crop goes past the image, the corners are **Transparent** (shown as gr
 
 ## Good to know
 
-- Esc with this tool closes the page (asking first if there are changes not saved).
+- Esc during a drag puts the crop back as it was; otherwise Esc with this tool closes the page (asking first if there are changes not saved).
 - You can come back to this tool and change the rotation and the crop at any time.
 - An Ultra HDR photo stays HDR: its HDR part is rotated and cropped together with the photo.
 - To only turn or flip an image in the viewer, without the editor, see [Rotating and flipping](rotate.md).

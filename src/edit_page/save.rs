@@ -410,9 +410,13 @@ impl App {
                 let preview = crate::decode::preview(&o.image);
                 (o, preview)
             });
-            if let Ok((o, preview)) = made.await
-                && tx.send(crate::loader::Msg::Original(asked, Ok((Arc::new(o), preview, size)))).is_ok()
-            {
+            // A fault while it is made goes to the page as its error: it was left loading for
+            // ever (audit 5.15); it closes, the bar says why, the editor is back.
+            let r = match made.await {
+                Ok((o, preview)) => Ok((Arc::new(o), preview, size)),
+                Err(e) => Err(format!("{}\u{1}{}", super::RESULT_FAILED, e.try_into_panic().map_or_else(|e| e.to_string(), |p| super::fault_text(p.as_ref())))),
+            };
+            if tx.send(crate::loader::Msg::Original(asked, r)).is_ok() {
                 ctx.request_repaint();
             }
         });
@@ -459,10 +463,15 @@ impl App {
             "edit-leave"
         };
         let text = i18n.t_args(id, &[("name", &crate::save_dialogs::md(source::name(&w.path)))]);
-        let choices = vec![(i18n.t("rc-save"), !w.preparing, Leave::Save), (i18n.t("menu-save-copy"), true, Leave::SaveAs), (i18n.t("rc-discard"), true, Leave::Discard)];
+        // Off while a save is prepared, or while the one before is still being sent (a phone, a
+        // server): Save did nothing then, and nothing said why (audit 5.15). A new image's Save
+        // is Save as…, which does not wait for it.
+        let off = if w.new { w.preparing.then_some("edit-off-preparing") } else { super::tools::save_off(w.preparing, self.edit_sending(w), true) };
+        let choices = vec![(i18n.t("rc-save"), off.is_none(), Leave::Save), (i18n.t("menu-save-copy"), true, Leave::SaveAs), (i18n.t("rc-discard"), true, Leave::Discard)];
+        let hints = [off.map(|id| i18n.t(id))];
         // Esc: back to the page; Enter does nothing here (no choice is safe to guess).
         let keys = crate::confirm::answer(ctx, &mut self.key_answer, "rotate-leave").filter(|yes| !yes).map(|_| None);
-        let answer = confirm::choose(ctx, "rotate-leave", 440.0, (i18n.t("leave-title"), text), choices, i18n.t("delete-no"), keys, 0)?;
+        let answer = confirm::choose_hint(ctx, "rotate-leave", 440.0, (i18n.t("leave-title"), text), (choices, &hints), i18n.t("delete-no"), keys, 0)?;
         w.leaving = false;
         answer
     }

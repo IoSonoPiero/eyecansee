@@ -61,11 +61,19 @@ fn sub(a: Pt, b: Pt) -> Pt {
     Pt::new(a.x - b.x, a.y - b.y)
 }
 
-/// The box a text takes, about: letters 0.6 of their height wide, lines 1.2 apart.
-pub fn text_area(at: Pt, text: &str, size: f32, rot: f32) -> Area {
+/// The box a text takes: where its letters drawn in `font` begin and end (`text_size`, #174),
+/// a 20th of their height more on each side, turned with the text round its anchor `at`; lines
+/// 1.2 apart. Without letters to measure (none yet, or no font to draw them) 0.6 of the height
+/// a character round `at`, as it was for all until 0.77.0.
+pub fn text_area(at: Pt, text: &str, size: f32, rot: f32, font: Option<&str>) -> Area {
     let lines = text.lines().count().max(1);
-    let chars = text.lines().map(|l| l.chars().count()).max().unwrap_or(0).max(1);
-    Area { centre: at, w: 0.6 * size * chars as f32, h: 1.2 * size * lines as f32, rot }
+    let (l, r) = super::text_size::extent(text, font).unwrap_or_else(|| {
+        let half = 0.3 * text.lines().map(|l| l.chars().count()).max().unwrap_or(0).max(1) as f32;
+        (-half, half)
+    });
+    let shift = turned(Pt::new((l + r) / 2.0 * size, 0.0), rot);
+    let margin = if text.trim().is_empty() { 0.0 } else { 0.1 };
+    Area { centre: Pt::new(at.x + shift.x, at.y + shift.y), w: (r - l + margin) * size, h: 1.2 * size * lines as f32, rot }
 }
 
 fn inside(a: &Area, p: Pt, tol: f32) -> bool {
@@ -139,7 +147,7 @@ pub fn hit(o: &Obj, p: Pt, tol: f32) -> bool {
         Shape::Arrow(a, b, c) => curve_distance(p, *a, *b, *c) <= (2.0 * o.style.width + 2.0).max(o.style.width / 2.0) + tol,
         Shape::Text { path: Some((a, b, c)), size, .. } => curve_distance(p, *a, *b, *c) <= 0.6 * size + tol,
         Shape::Pen(points) => points.windows(2).map(|s| segment_distance(p, s[0], s[1])).chain(points.first().map(|q| (p.x - q.x).hypot(p.y - q.y))).fold(f32::INFINITY, f32::min) <= o.style.width / 2.0 + tol,
-        Shape::Text { at, text, size, rot, .. } => inside(&text_area(*at, text, *size, *rot), p, tol),
+        Shape::Text { at, text, size, rot, font, .. } => inside(&text_area(*at, text, *size, *rot, font.as_deref()), p, tol),
         // Without a fill, only their border: a click in their empty inside is not on them.
         Shape::Ellipse(r) if o.style.fill.is_none() => on_ellipse(r, p, o.style.width, tol),
         Shape::Ellipse(r) => inside_ellipse(r, p, o.style.width / 2.0 + tol),
@@ -326,7 +334,7 @@ pub fn outside(o: &Obj, angle: f32, crop: crate::rotate::Crop) -> bool {
         Shape::Pen(points) => (points.clone(), w / 2.0),
         Shape::Bubble { area, tail, .. } => (corners(area).into_iter().chain([*tail]).collect(), w / 2.0),
         Shape::Text { path: Some((a, b, c)), size, .. } => (line(*a, *b, *c), *size),
-        Shape::Text { at, text, size, rot, .. } => (corners(&text_area(*at, text, *size, *rot)).to_vec(), 0.0),
+        Shape::Text { at, text, size, rot, font, .. } => (corners(&text_area(*at, text, *size, *rot, font.as_deref())).to_vec(), 0.0),
         Shape::Rect(a) | Shape::Ellipse(a) | Shape::Lens { area: a, .. } => (corners(a).to_vec(), w / 2.0),
         shape => (shape.area().map_or_else(Vec::new, |a| corners(a).to_vec()), 0.0),
     };
@@ -360,7 +368,10 @@ mod tests {
         // Turned upright: 10 wide, 20 high around 10, 5.
         assert!(hit(&rect(90.0), Pt::new(10.0, 14.0), 0.0) && !hit(&rect(90.0), Pt::new(19.0, 5.0), 0.0));
         let text = Obj { shape: Shape::Text { at: Pt::new(0.0, 0.0), text: "abcd".into(), size: 10.0, rot: 0.0, font: None, path: None }, style: Style::default() };
-        assert!(hit(&text, Pt::new(11.0, 5.0), 0.0) && !hit(&text, Pt::new(13.0, 0.0), 0.0));
+        // As wide as its letters (`text_area`), 12 high.
+        let a = text_area(Pt::new(0.0, 0.0), "abcd", 10.0, 0.0, None);
+        let right = a.centre.x + a.w / 2.0;
+        assert!(hit(&text, Pt::new(right - 1.0, 5.0), 0.0) && !hit(&text, Pt::new(right + 1.0, 0.0), 0.0) && !hit(&text, Pt::new(0.0, 7.0), 0.0));
         assert_eq!(under(&[rect(0.0), rect(0.0), line], Pt::new(10.0, 5.0), 0.0), Some(1));
         assert_eq!(under(&[rect(0.0)], Pt::new(-50.0, 5.0), 0.0), None);
         // A filled ellipse by its inside: not the corners of its box.
@@ -562,5 +573,58 @@ mod curves {
         let size = |o: &Obj| { let a = o.shape.area().unwrap(); (a.w, a.h) };
         assert_eq!(size(&with_handle_kept(&o, 2, Pt::new(60.0, 12.0), true)), (60.0, 30.0));
         assert_eq!(size(&with_handle_kept(&o, 2, Pt::new(60.0, 12.0), false)), (60.0, 12.0));
+    }
+
+    /// Where the letters of the text `shape` are drawn on a white photo 1600 × 600 (as saved):
+    /// the leftmost and rightmost columns and the top and bottom rows with ink, in the document's
+    /// pixels (from the middle of the image); `None` without a font to draw them.
+    fn ink(shape: &Shape) -> Option<(f32, f32, f32, f32)> {
+        let mut doc = crate::edit::doc::Doc::new(1600, 600, None);
+        doc.objects.push(Obj { shape: shape.clone(), style: Style { color: [0, 0, 0], ..Style::default() } });
+        let photo = image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(1600, 600, image::Rgb([255, 255, 255])));
+        let img = crate::edit::save::result(&doc, &crate::encode::Original::with_meta(photo, &[]), &crate::decode::usvg_options()).to_rgb8();
+        let dark: Vec<(u32, u32)> = img.enumerate_pixels().filter(|(_, _, p)| p.0[0] < 128).map(|(x, y, _)| (x, y)).collect();
+        let xs = dark.iter().map(|p| p.0 as f32 - 800.0);
+        let ys = dark.iter().map(|p| p.1 as f32 - 300.0);
+        let (l, r) = xs.fold((f32::INFINITY, f32::NEG_INFINITY), |(a, b), x| (a.min(x), b.max(x + 1.0)));
+        let (t, b) = ys.fold((f32::INFINITY, f32::NEG_INFINITY), |(a, b), y| (a.min(y), b.max(y + 1.0)));
+        (!dark.is_empty()).then_some((l, r, t, b))
+    }
+
+    /// #174: the box of a text (its frame when selected, where a click takes it, its turn handle,
+    /// whether it is outside the result) holds its letters as they are drawn, in its font, and is
+    /// not much wider: capitals, small letters, two lines, a font chosen, turned. Until 0.77.0 it
+    /// was 0.6 of the height a character whatever the font: capitals came out of it ("ORDER
+    /// NUMBER" at 96 px, 412 px of letters in a frame of 366), small letters left it half empty,
+    /// and a click on the first or last letter missed the text.
+    #[test]
+    fn text_box_follows_the_letters() {
+        let families = crate::decode::font_families();
+        let chosen = [families.first(), families.get(families.len() / 2), families.last()].into_iter().flatten().cloned().map(Some);
+        let mut measured = 0;
+        for font in std::iter::once(None).chain(chosen) {
+            for text in ["ORDER NUMBER", "Order number", "iiii\nWWWWWW"] {
+                let shape = Shape::Text { at: Pt::new(0.0, 0.0), text: text.into(), size: 96.0, rot: 0.0, font: font.clone(), path: None };
+                let Some((l, r, t, b)) = ink(&shape) else { continue };
+                measured += 1;
+                let a = crate::edit::turn::turn_box(&shape).unwrap();
+                let (bl, br) = (a.centre.x - a.w / 2.0, a.centre.x + a.w / 2.0);
+                let what = format!("{text:?} in {font:?}: letters {l}..{r}, frame {bl}..{br}");
+                assert!(bl <= l + 1.0 && br >= r - 1.0, "letters out of the frame: {what}");
+                assert!(br - bl <= r - l + 0.25 * 96.0, "frame much wider than the letters: {what}");
+                let o = Obj { shape: shape.clone(), style: Style::default() };
+                let middle = (t + b) / 2.0;
+                assert!(hit(&o, Pt::new(l + 1.0, middle), 0.0) && hit(&o, Pt::new(r - 1.0, middle), 0.0), "a click on the first or last letter misses: {what}");
+                assert!(!hit(&o, Pt::new(br + 2.0, middle), 0.0), "a click past the frame takes it: {what}");
+            }
+        }
+        assert!(measured > 0 || families.is_empty(), "no text drawn with the fonts of this system");
+        // Turned by 90°: the letters go down, the frame with them.
+        let shape = Shape::Text { at: Pt::new(0.0, 0.0), text: "ORDER NUMBER".into(), size: 60.0, rot: 90.0, font: None, path: None };
+        if let Some((_, _, t, b)) = ink(&shape) {
+            let a = crate::edit::turn::turn_box(&shape).unwrap();
+            let (top, bottom) = (a.centre.y - a.w / 2.0, a.centre.y + a.w / 2.0);
+            assert!(top <= t + 1.0 && bottom >= b - 1.0, "letters {t}..{b} out of a frame {top}..{bottom}");
+        }
     }
 }

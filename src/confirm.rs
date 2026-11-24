@@ -25,6 +25,24 @@ pub(crate) fn choose<T>(
     answer: Option<Option<T>>,
     default: usize,
 ) -> Option<Option<T>> {
+    choose_with(ctx, id, width, text, (choices, &[]), cancel, answer, (default, &mut |_| {}))
+}
+
+/// The choices of a question (label, usable, answer), and over a greyed one why it is greyed.
+type Choices<'a, T> = (Vec<(String, bool, T)>, &'a [Option<String>]);
+
+/// `choose` with, over a choice greyed out, why it cannot be used (`hints`, by choice).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn choose_hint<T>(
+    ctx: &egui::Context,
+    id: &str,
+    width: f32,
+    text: (String, String),
+    choices: Choices<T>,
+    cancel: String,
+    answer: Option<Option<T>>,
+    default: usize,
+) -> Option<Option<T>> {
     choose_with(ctx, id, width, text, choices, cancel, answer, (default, &mut |_| {}))
 }
 
@@ -35,7 +53,7 @@ fn choose_with<T>(
     id: &str,
     width: f32,
     (title, text): (String, String),
-    choices: Vec<(String, bool, T)>,
+    (choices, hints): Choices<T>,
     cancel: String,
     mut answer: Option<Option<T>>,
     (default, extra): (usize, &mut dyn FnMut(&mut egui::Ui)),
@@ -51,7 +69,7 @@ fn choose_with<T>(
         ui.horizontal(|ui| {
             let mut labels: Vec<(String, bool)> = choices.iter().map(|(l, on, _)| (l.clone(), *on)).collect();
             labels.push((cancel, true));
-            if let Some(i) = buttons(ui, id, &labels, default) {
+            if let Some(i) = buttons_hint(ui, id, &labels, default, hints) {
                 answer = Some(choices.into_iter().nth(i).map(|(_, _, c)| c));
             }
         });
@@ -61,7 +79,7 @@ fn choose_with<T>(
 
 /// `yes_no` with what `extra` draws between the text and the buttons (a choice for the yes).
 pub(crate) fn yes_no_with(ctx: &egui::Context, id: &str, width: f32, text: (String, String), (yes, no): (String, String), answer: Option<bool>, extra: &mut dyn FnMut(&mut egui::Ui)) -> Option<bool> {
-    choose_with(ctx, id, width, text, vec![(yes, true, ())], no, answer.map(|yes| yes.then_some(())), (0, extra)).map(|a| a.is_some())
+    choose_with(ctx, id, width, text, (vec![(yes, true, ())], &[]), no, answer.map(|yes| yes.then_some(())), (0, extra)).map(|a| a.is_some())
 }
 
 /// `choose` with one choice: `Some(true)` yes, `Some(false)` no, `None` still open. `safe`: the

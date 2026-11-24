@@ -7,13 +7,15 @@
 1. Choose ![Text](icon://type) **Text**.
 2. Click the image where the text goes.
 3. Type. The letters appear on the image itself; Enter starts a new line.
-4. Press Esc, or click elsewhere, when you are done.
+4. Press Esc, or click elsewhere on the image, when you are done.
 
-A text left empty goes away when you are done with it. A click outside the image places no text. While you type, the letters are shown in the interface's font; they take their own font when you are done.
+While you type you can choose the font, the size or the colour in the properties bar: the typing goes on where it was.
+
+A text left empty goes away when you are done with it. A click outside the image places no text. While you type, the letters are already in their own font, size and colour.
 
 To change a text already written, double-click it (with Text or Select), or select it and change it in the field of the properties bar. Undo takes back the whole change at once.
 
-A text has no corner handles: its size is in the properties bar. It has the round handle above it to rotate it, as the other objects (see [Selecting and changing objects](editor.md)). To move it, use ![Select](icon://mouse-pointer-2) **Select** and drag it. With the Text tool, dragging moves the view instead.
+When selected, a text shows a frame round its letters, as wide as they are in its font; a click on any of its letters selects it. A text has no corner handles: its size is in the properties bar. It has the round handle above it to rotate it, as the other objects (see [Selecting and changing objects](editor.md)). To move it, use ![Select](icon://mouse-pointer-2) **Select** and drag it. With the Text tool, dragging moves the view instead.
 
 ## Options of a text
 

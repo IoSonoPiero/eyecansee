@@ -283,7 +283,12 @@ impl crate::App {
         if let Some(Err(e)) = &w.original
             && crate::view_memory::need_of(e).is_none()
         {
-            self.error = Some(self.i18n.cannot_load(crate::source::name(&w.path), e));
+            // The editor's result that could not be made (audit 5.15): said as such, not as a
+            // file that does not open.
+            self.error = Some(match e.split_once('\u{1}').filter(|(id, _)| *id == crate::edit_page::RESULT_FAILED) {
+                Some((_, detail)) => crate::edit_page::result_failed(&self.i18n, detail),
+                None => self.i18n.cannot_load(crate::source::name(&w.path), e),
+            });
             return;
         }
         // A file of the grid or the viewer, not the editor's result: animated or with pages?

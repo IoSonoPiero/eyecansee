@@ -54,6 +54,19 @@ impl Window {
         }
     }
 
+    /// After Undo or Redo: the lenses made again at once. A step keeps the previews of the frame
+    /// it was taken in, and the step of a cover is taken as the mouse lets go of it, before the
+    /// lenses are made again with it: back to that step, a lens showed what the cover hides
+    /// (audit 5.8), and nothing made it again, as the covers were the same as before Undo.
+    pub(super) fn lenses_again(&mut self) {
+        for o in &mut self.doc.objects {
+            if let Shape::Lens { preview, .. } = &mut o.shape {
+                *preview = crate::edit::doc::Preview::default();
+            }
+        }
+        self.refresh_previews();
+    }
+
     /// A filter from the menu: on the part chosen with Selection, or on the whole image; selected,
     /// with Select chosen to move it or change its amount.
     pub(super) fn add_filter(&mut self, filter: crate::edit::filter::Filter) {

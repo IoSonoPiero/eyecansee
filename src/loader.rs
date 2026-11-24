@@ -72,7 +72,8 @@ pub enum Msg {
     /// with (`convert::ask`): the original decoded, its preview and file size.
     Original(u64, Result<(Arc<crate::encode::Original>, ColorImage, u64), String>),
     /// The editor's result for the clipboard.
-    EditCopy(ColorImage),
+    /// The result for Copy, or why it could not be made (audit 5.15).
+    EditCopy(Result<ColorImage, String>),
     /// The colour the editor's eyedropper took from the screen (`eyedropper::pick`).
     EditPicked(Result<[u8; 3], String>),
     /// File > Open from clipboard: the image read, or why there is none (`clip_open`).

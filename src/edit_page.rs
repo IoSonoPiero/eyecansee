@@ -21,9 +21,13 @@ use crate::transform::Turn;
 use crate::{App, source};
 
 mod bar_fit;
+mod cancel;
 mod canvas;
 mod clip;
 mod crop;
+#[cfg(test)]
+mod defects;
+mod field_font;
 mod keys;
 mod open;
 mod patch;
@@ -62,6 +66,20 @@ pub(crate) struct Place {
 const GRAB: f32 = 12.0;
 /// The error of `Loader::load_original` for an image the editor does not take.
 pub(crate) const ANIMATED: &str = "edit-animated";
+/// The Fluent id of the result (for Copy, Save as…) that could not be made: a fault while it
+/// was made (audit 5.15).
+pub(crate) const RESULT_FAILED: &str = "edit-result-failed";
+
+/// The sentence of a result that could not be made, with the detail of the fault when there is
+/// one: without it the sentence ends there, not with a colon and nothing after it (#334).
+pub(crate) fn result_failed(i18n: &crate::i18n::I18n, detail: &str) -> String {
+    if detail.trim().is_empty() { i18n.t("edit-result-failed-alone") } else { i18n.error(RESULT_FAILED, detail) }
+}
+
+/// What a panic said, for the error bar.
+fn fault_text(payload: &(dyn std::any::Any + Send)) -> String {
+    payload.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| payload.downcast_ref::<String>().cloned()).unwrap_or_default()
+}
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Aspect {
@@ -113,8 +131,9 @@ enum Hold {
     /// The object drawn is at `index` once the drag is long enough.
     Draw { kind: Kind, from: Pt, index: Option<usize> },
     Pan { at: Vec2, k: f32, from: Pos2 },
-    /// The selection being drawn, from where the drag started.
-    Marquee { from: Pt },
+    /// The selection being drawn, from where the drag started; the one there was before, which
+    /// Esc puts back (#332).
+    Marquee { from: Pt, before: Option<crate::edit::doc::Area> },
 }
 
 /// What the texture of the objects was drawn for.
@@ -201,6 +220,8 @@ pub struct Window {
     keys_open: bool,
     /// The text (or bubble) being typed on the image itself (`typing`).
     editing: Option<usize>,
+    /// A control of the bars took the keys from it (a font, a size): it takes them back once done.
+    typing_paused: bool,
     /// The object whose letters the text fields have their undo of (`typing::fresh_fields`).
     letters_of: Option<usize>,
     /// The original's bytes, read at the first save: every save starts from them.
@@ -301,6 +322,7 @@ impl Window {
             hiders: 0,
             keys_open: false,
             editing: None,
+            typing_paused: false,
             letters_of: None,
             bytes: None,
             copy: save::Marks::default(),
@@ -456,19 +478,18 @@ impl Window {
         if let Some([r, g, b]) = self.doc.fill {
             self.color = Color32::from_rgb(r, g, b);
         }
+        self.lenses_again();
     }
 
     /// Esc, one thing at a time (Esc after placing a text closed the page): the
-    /// eyedropper or a drag stops, a text being typed or just placed is done (and goes if empty),
+    /// eyedropper or a drag stops (`cancel_drag`), a text being typed or just placed is done (and goes if empty),
     /// the selection goes. `false` when there was nothing of it: Esc closes the page then.
     fn escape(&mut self) -> bool {
         if std::mem::take(&mut self.picking) {
             return true;
         }
-        if self.hold.take().is_some() {
-            if let Some(h) = &self.history {
-                self.doc = h.doc().clone();
-            }
+        // Only what the drag did goes back (audit 5.6).
+        if self.cancel_drag() {
             return true;
         }
         if self.marquee.take().is_some() {
@@ -504,6 +525,8 @@ impl Window {
         if tool == Tool::Crop {
             self.before_crop = self.tool;
         }
+        // The text being typed is done, as in the photo editors.
+        self.editing = None;
         if tool != Tool::Marquee {
             self.marquee = None;
         }

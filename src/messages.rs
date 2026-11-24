@@ -58,7 +58,7 @@ impl App {
                 // Shown in a window only when asked from the Help menu (the window is open).
                 // To the page that asked for it, the editor or Save as… (#200).
                 Msg::Original(asked, r) => self.on_original(ctx, asked, r),
-                Msg::EditCopy(img) => self.on_edit_copy(ctx, img),
+                Msg::EditCopy(r) => self.on_edit_copy(ctx, r),
                 Msg::EditPicked(r) => self.on_edit_picked(ctx, r),
                 Msg::ClipImage(r) => self.on_clip_image(ctx, r),
                 Msg::Animated(path) => {

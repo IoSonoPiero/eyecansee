@@ -280,7 +280,7 @@ fn main_save(new: bool, over_main: bool, copied: bool) -> (Ask, &'static str, &'
 
 /// Why Save copy (and Overwrite in the menu) is off, as a Fluent id: a save being prepared, the
 /// last one still being sent (a phone, a server: the next one waits for it), nothing changed.
-fn save_off(preparing: bool, sending: bool, changed: bool) -> Option<&'static str> {
+pub(super) fn save_off(preparing: bool, sending: bool, changed: bool) -> Option<&'static str> {
     match () {
         _ if preparing => Some("edit-off-preparing"),
         _ if sending => Some("edit-off-sending"),

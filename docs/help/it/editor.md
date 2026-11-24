@@ -101,7 +101,7 @@ Il pulsante **Tasti** nella barra di stato elenca i tasti e i movimenti del mous
 - **Ctrl + C** (o ![Copia](icon://copy) **Copia**) mette negli appunti tutto il risultato, a piena grandezza, da incollare in un altro programma. Con Selezione copia solo la zona scelta.
 - **Ctrl + R** e **Ctrl + Maiusc + R** girano l'immagine di un quarto a destra o a sinistra.
 - **Ctrl + Alt + I** apre Ridimensiona.
-- **Esc** fa una cosa alla volta: ferma il contagocce o un trascinamento, finisce il testo che stai scrivendo, lascia la zona o l'oggetto selezionati. Quando non c'è più niente da fermare, chiude la pagina.
+- **Esc** fa una cosa alla volta: ferma il contagocce o un trascinamento (ciò che il trascinamento ha fatto torna com'era: l'oggetto dov'era, la vista com'era; ciò che hai fatto prima resta), finisce il testo che stai scrivendo, lascia la zona o l'oggetto selezionati. Quando non c'è più niente da fermare, chiude la pagina.
 
 ## Chiudere
 

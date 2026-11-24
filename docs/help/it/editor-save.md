@@ -70,6 +70,6 @@ Su X11 gli altri programmi non ricevono una copia oltre circa 16 MB, e nemmeno s
 
 ## Telefoni e server
 
-Un'immagine su un telefono o su un server si modifica in una copia su questo computer, e la barra di stato lo dice. Il file nuovo viene prima conservato sul computer, poi inviato. Se l'invio non riesce, resta sul computer e una finestra offre **Riprova**, **Salva come…** e **Apri la cartella**. Vedi [Telefoni Android](phone.md) e [Server (FTP e SFTP)](servers.md).
+Un'immagine su un telefono o su un server si modifica in una copia su questo computer, e la barra di stato lo dice. Il file nuovo viene prima conservato sul computer, poi inviato. Se l'invio non riesce, resta sul computer e una finestra offre **Riprova**, **Salva come…** e **Apri la cartella**. Finché un file si sta ancora inviando, il salvataggio dopo lo aspetta: Salva è grigio, anche nella domanda alla chiusura, e puntandolo dice perché. Vedi [Telefoni Android](phone.md) e [Server (FTP e SFTP)](servers.md).
 
 Una foto del telefono aperta da Esplora file su Windows è una copia temporanea fatta da Windows: lì Salva copia passa direttamente a Salva come….

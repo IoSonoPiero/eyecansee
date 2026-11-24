@@ -271,8 +271,8 @@ fn dashed(kind: Kind) -> bool {
 
 /// The line a text is put on by "On a curve": as long as the text and a size more, through its
 /// anchor `at`, along its angle `rot`.
-fn curve_line(at: Pt, text: &str, size: f32, rot: f32) -> (Pt, Pt) {
-    let half = crate::edit::geom::text_area(at, text, size, rot).w / 2.0 + size;
+fn curve_line(at: Pt, text: &str, size: f32, rot: f32, font: Option<&str>) -> (Pt, Pt) {
+    let half = crate::edit::geom::text_area(at, text, size, rot, font).w / 2.0 + size;
     let (s, c) = rot.to_radians().sin_cos();
     (Pt::new(at.x - c * half, at.y - s * half), Pt::new(at.x + c * half, at.y + s * half))
 }
@@ -353,7 +353,7 @@ fn font_choice(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
 /// On a curve or not: on, the text gets a line as long as it is, along its angle, to bend by its
 /// middle handle; off, it is upright again where the middle of the line was.
 fn text_curve(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
-    let Some(Shape::Text { at, text, size, rot, path, .. }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
+    let Some(Shape::Text { at, text, size, rot, path, font }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
     if !ui.add(egui::Button::new(i18n.t("edit-text-curve")).selected(path.is_some())).on_hover_text(i18n.t("edit-text-curve-hint")).clicked() {
         return;
     }
@@ -363,7 +363,7 @@ fn text_curve(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
             None
         }
         None => {
-            let (a, b) = curve_line(*at, text, *size, *rot);
+            let (a, b) = curve_line(*at, text, *size, *rot, font.as_deref());
             Some((a, b, None))
         }
     };
@@ -532,13 +532,14 @@ mod tests {
     fn curve_through_the_text() {
         let close = |a: Pt, b: Pt| (a.x - b.x).abs() < 1e-3 && (a.y - b.y).abs() < 1e-3;
         let at = Pt::new(100.0, 50.0);
-        // "abcd" at size 10: 24 wide, so 12 + 10 on each side.
-        let (a, b) = curve_line(at, "abcd", 10.0, 0.0);
-        assert!(close(a, Pt::new(78.0, 50.0)) && close(b, Pt::new(122.0, 50.0)), "{a:?} {b:?}");
-        let (a, b) = curve_line(at, "abcd", 10.0, 90.0);
-        assert!(close(a, Pt::new(100.0, 28.0)) && close(b, Pt::new(100.0, 72.0)), "{a:?} {b:?}");
+        // "abcd" at size 10: as wide as its letters (`text_area`), and 10 more on each side.
+        let half = crate::edit::geom::text_area(at, "abcd", 10.0, 0.0, None).w / 2.0 + 10.0;
+        let (a, b) = curve_line(at, "abcd", 10.0, 0.0, None);
+        assert!(close(a, Pt::new(100.0 - half, 50.0)) && close(b, Pt::new(100.0 + half, 50.0)), "{a:?} {b:?}");
+        let (a, b) = curve_line(at, "abcd", 10.0, 90.0, None);
+        assert!(close(a, Pt::new(100.0, 50.0 - half)) && close(b, Pt::new(100.0, 50.0 + half)), "{a:?} {b:?}");
         for rot in [0.0, 37.0, -120.0] {
-            let (a, b) = curve_line(at, "two\nlines", 24.0, rot);
+            let (a, b) = curve_line(at, "two\nlines", 24.0, rot, None);
             assert!(close(crate::edit::geom::bend_handle(a, b, None), at), "{rot}");
         }
     }

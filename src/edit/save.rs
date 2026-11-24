@@ -199,9 +199,18 @@ pub fn result(doc: &Doc, original: &Original, options: &usvg::Options) -> Dynami
     result_with_holes(doc, original, options).0
 }
 
+/// Tests: the result panics, as a fault in a filter would (audit 5.15). Set only by a test run in
+/// a process of its own (`audit_family_1::own_folder`).
+#[cfg(test)]
+pub(crate) static FAULT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// As `result`, with the boxes that hide what was under them (`paint`): for the gain map of an
 /// Ultra HDR photo (`ultrahdr::Source`).
 pub fn result_with_holes(doc: &Doc, original: &Original, options: &usvg::Options) -> (DynamicImage, Vec<[f32; 4]>) {
+    #[cfg(test)]
+    if FAULT.load(std::sync::atomic::Ordering::Relaxed) {
+        panic!("a fault made by a test");
+    }
     let original = super::resize::at_size(original, doc.scale);
     let mut img = original.image.clone();
     let holes = edited(doc, &original.image, &mut img, options);

@@ -75,17 +75,26 @@ pub(super) fn canvas(ui: &mut egui::Ui, w: &mut Window, tex: &Picture, size: Vec
     // A text or bubble that takes the keys is typed on the image.
     if w.focus_text && let Some(i) = w.selected.filter(|&i| super::typing::can(&w.doc, i)) {
         w.editing = Some(i);
+        // A typing that starts has no pause of the one before (`typing::paused`).
+        w.typing_paused = false;
     }
     let view = View { centre: rect.center(), at, k };
     paint(ui, w, tex, &view, rect);
-    if let Some(i) = w.editing.filter(|_| !crop_tool) {
+    // While the list of fonts is open the letters drawn show the font pointed at, and the field
+    // waits for the list to close, which took its keys: every font pointed at would be given to
+    // egui (#310).
+    // Paused only while there is a text being typed (`typing::paused`).
+    w.typing_paused = w.editing.is_some() && (w.typing_paused || w.font_preview.is_some());
+    if let Some(i) = w.editing.filter(|_| !crop_tool && w.font_preview.is_none()) {
         let centre = match &w.doc.objects.get(i).map(|o| &o.shape) {
             Some(Shape::Text { at, .. }) => *at,
             Some(Shape::Bubble { area, .. }) => area.centre,
             _ => crate::edit::doc::Pt::default(),
         };
         let angle = w.doc.angle;
-        super::typing::overlay(ui, w, i, view.of(centre, angle), k);
+        // The image itself pressed or clicked in this frame, not a list or a window over it.
+        let pressed = response.clicked() || response.drag_stopped() || (response.is_pointer_button_down_on() && ui.input(|i| i.pointer.any_pressed()));
+        super::typing::overlay(ui, w, i, (view.of(centre, angle), pressed), k);
     }
 }
 
@@ -209,8 +218,8 @@ fn selection(painter: &egui::Painter, o: &Obj, view: &View, angle: f32) {
         Shape::Line(a, b, c) | Shape::Arrow(a, b, c) => geom::curve(*a, *b, *c).into_iter().map(|p| view.of(p, angle)).collect(),
         Shape::Text { path: Some((a, b, c)), .. } => geom::curve(*a, *b, *c).into_iter().map(|p| view.of(p, angle)).collect(),
         Shape::Bubble { area, .. } => geom::handles(&Obj { shape: Shape::Rect(*area), style: o.style }).into_iter().map(|p| view.of(p, angle)).collect(),
-        Shape::Text { at, text, size, rot, .. } => {
-            let area = geom::text_area(*at, text, *size, *rot);
+        Shape::Text { at, text, size, rot, font, .. } => {
+            let area = geom::text_area(*at, text, *size, *rot, font.as_deref());
             let box_ = crate::edit::doc::Obj { shape: Shape::Rect(area), style: o.style };
             geom::handles(&box_).into_iter().map(|p| view.of(p, angle)).collect()
         }
@@ -237,7 +246,7 @@ fn objects_texture(ui: &egui::Ui, w: &mut Window, view: &View, rect: Rect) -> Op
     }
     let ppp = ui.ctx().pixels_per_point();
     // The letters being typed on the image are hidden: the field over them shows them.
-    let doc = super::typing::hidden(&w.doc, w.editing);
+    let doc = super::typing::hidden(&w.doc, w.editing.filter(|_| w.font_preview.is_none()));
     let key = Drawn { doc, made: w.filters_made, at: view.at, k: view.k, rect, ppp };
     if let Some((drawn, tex)) = &w.objects
         && *drawn == key
@@ -538,11 +547,11 @@ fn marquee_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
     if response.drag_started()
         && let Some(s) = ui.input(|i| i.pointer.press_origin()).or(response.interact_pointer_pos())
     {
-        w.hold = Some(if pan { Hold::Pan { at: view.at, k: view.k, from: s } } else { Hold::Marquee { from: view.doc(s, w.doc.angle) } });
+        w.hold = Some(if pan { Hold::Pan { at: view.at, k: view.k, from: s } } else { Hold::Marquee { from: view.doc(s, w.doc.angle), before: w.marquee } });
     }
     if let Some(s) = response.interact_pointer_pos() {
         match &w.hold {
-            Some(Hold::Marquee { from }) => {
+            Some(Hold::Marquee { from, .. }) => {
                 let square = ui.input(|i| i.modifiers.shift);
                 let drawn = geom::drawn(Kind::Rect, *from, view.doc(s, w.doc.angle), w.doc.angle, crate::edit::doc::Style::default(), square);
                 // On whole pixels, as Copy takes it.
