@@ -573,6 +573,11 @@ mod tests {
         let text = crate::save_dialogs::plain(&export_notice(&en, &said, None).unwrap().text);
         assert!(text.starts_with("1 model exported without its pictures:\nIts new format cannot hold pictures"), "{text}");
         assert!(text.contains("\n\n2 models exported without all of their materials:\n") && !text.contains("plain.stl"), "{text}");
+        // The materials said as Fable proposed and Piero chose (24/11, #340), in both languages.
+        for (lang, line) in [("en", "Their new format cannot hold everything about their materials (how smooth or metallic they are, bumps, shadows in the creases, their own light). glTF (GLB) keeps it all."), ("it", "Il loro nuovo formato non sa contenere tutto dei loro materiali (quanto sono lisci o metallici, il rilievo, le ombre nelle pieghe, la luce propria). glTF (GLB) tiene tutto.")] {
+            let text = crate::save_dialogs::plain(&export_notice(&I18n::new(lang), &said, None).unwrap().text);
+            assert!(text.contains(&format!(":\n{line}\n")), "{lang}: {text}");
+        }
         // Pictures read smaller (#340), in both languages.
         let mut s = ExportSaid::default();
         s.start(1);
