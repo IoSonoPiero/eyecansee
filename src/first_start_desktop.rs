@@ -68,13 +68,14 @@ fn look<'a>(d: &'a Desktop, base: &'a str) -> Look<'a> {
 }
 
 /// The page: title and question, the picture, Yes and No side by side, and the line about what
-/// was answered in the middle of what is left. `logo`: the app's icon, 96 pixels.
-pub(crate) fn page(ui: &mut egui::Ui, logo: egui::TextureId, d: &mut Desktop, i18n: &I18n) {
-    page_with(ui, logo, d, i18n, crate::desktop_icon::create, crate::desktop_icon::remove);
+/// was answered in the middle of what is left. `logo`: the app's icon, 96 pixels. `reminded`:
+/// Next was pressed before an answer, the line says to choose (D9).
+pub(crate) fn page(ui: &mut egui::Ui, logo: egui::TextureId, d: &mut Desktop, reminded: bool, i18n: &I18n) {
+    page_with(ui, logo, (d, reminded), i18n, crate::desktop_icon::create, crate::desktop_icon::remove);
 }
 
 /// `page`, with what Yes and No do given: the tests make and take away no icon.
-fn page_with(ui: &mut egui::Ui, logo: egui::TextureId, d: &mut Desktop, i18n: &I18n, create: impl FnOnce() -> Result<crate::desktop_icon::Made, String>, remove: impl FnOnce(&str) -> Result<(), String>) {
+fn page_with(ui: &mut egui::Ui, logo: egui::TextureId, (d, reminded): (&mut Desktop, bool), i18n: &I18n, create: impl FnOnce() -> Result<crate::desktop_icon::Made, String>, remove: impl FnOnce(&str) -> Result<(), String>) {
     ui.vertical_centered(|ui| {
         ui.add_space(24.0);
         ui.label(crate::first_start_ui::title(i18n.t("desktop-icon-title")));
@@ -97,7 +98,9 @@ fn page_with(ui: &mut egui::Ui, logo: egui::TextureId, d: &mut Desktop, i18n: &I
             }
         }
     });
-    line(ui, shown.line, i18n);
+    // Next before an answer: the line under the choices says to give one, plain, not faint.
+    let asked = reminded && *d == Desktop::Ask;
+    line(ui, if asked { Line::Plain("desktop-icon-choose") } else { shown.line }, i18n);
     if let Some(yes) = pressed {
         *d = crate::first_start::chosen(std::mem::replace(d, Desktop::Ask), yes, create, remove);
         log!("first start: desktop icon {}: {d:?}", if yes { "Yes" } else { "No" });
@@ -314,14 +317,15 @@ mod tests {
         let states = [Desktop::Ask, Desktop::No, Desktop::Made("EyeCanSee".into()), Desktop::There, Desktop::Failed("x".into()), Desktop::Kept("EyeCanSee".into(), "x".into())];
         for lang in ["en", "it"] {
             let i18n = I18n::new(lang);
-            for state in &states {
+            // The question also after Next without an answer, with its line to choose (D9).
+            for (state, reminded) in states.iter().map(|s| (s, false)).chain([(&Desktop::Ask, true)]) {
                 let mut used = egui::Rect::NOTHING;
                 for _ in 0..2 {
                     crate::addons_ui::tests::frame(&ctx, Vec::new(), |ui| {
-                        used = ui.allocate_ui(body, |ui| page_with(ui, logo, &mut state.clone(), &i18n, || unreachable!(), |_| unreachable!())).response.rect;
+                        used = ui.allocate_ui(body, |ui| page_with(ui, logo, (&mut state.clone(), reminded), &i18n, || unreachable!(), |_| unreachable!())).response.rect;
                     });
                 }
-                assert!(used.height() <= body.y && used.width() <= body.x, "{lang} {state:?}: {:?}", used.size());
+                assert!(used.height() <= body.y && used.width() <= body.x, "{lang} {state:?} {reminded}: {:?}", used.size());
             }
         }
         // A click down the right half reaches No, down the left half Yes: the tests' Yes fails.
@@ -330,7 +334,7 @@ mod tests {
         let answer_at = |x: f32, d: &mut Desktop| {
             let before = d.clone();
             for y in (0..body.y as usize).step_by(20) {
-                click(&ctx, area.min + egui::vec2(x, y as f32), |ui| drop(ui.allocate_ui(body, |ui| page_with(ui, logo, d, &i18n, || Err("no desktop here".into()), |_| unreachable!()))));
+                click(&ctx, area.min + egui::vec2(x, y as f32), |ui| drop(ui.allocate_ui(body, |ui| page_with(ui, logo, (d, false), &i18n, || Err("no desktop here".into()), |_| unreachable!()))));
                 if *d != before {
                     break;
                 }

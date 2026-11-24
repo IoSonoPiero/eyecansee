@@ -154,7 +154,7 @@ pub(crate) fn keys(ui: &egui::Ui, id: &str, rows: &[egui::Response], default: us
         d.remove::<Nav>(nav_id());
         n
     });
-    let order = on_screen(&rows.iter().map(|r| r.rect.left()).collect::<Vec<_>>());
+    let order = on_screen(&rows.iter().map(|r| r.rect).collect::<Vec<_>>());
     let place = |i: usize| order.iter().position(|&o| o == i);
     let on: Vec<bool> = order.iter().map(|&i| rows[i].enabled()).collect();
     let focused = rows.iter().position(egui::Response::has_focus);
@@ -169,11 +169,29 @@ pub(crate) fn keys(ui: &egui::Ui, id: &str, rows: &[egui::Response], default: us
     clicked.or(pressed)
 }
 
-/// The order of buttons on screen, from the left, by the left edge of each (`lefts`, as drawn).
-fn on_screen(lefts: &[f32]) -> Vec<usize> {
-    let mut order: Vec<usize> = (0..lefts.len()).collect();
-    order.sort_by(|&a, &b| lefts[a].total_cmp(&lefts[b]));
-    order
+/// The order of the widgets on screen (`rects`, as drawn): by rows from the top, a new row when one
+/// starts under the bottom of the row before; in a row from the left, by the left edge of each.
+fn on_screen(rects: &[egui::Rect]) -> Vec<usize> {
+    let mut by_top: Vec<usize> = (0..rects.len()).collect();
+    by_top.sort_by(|&a, &b| rects[a].top().total_cmp(&rects[b].top()));
+    let mut rows: Vec<Vec<usize>> = Vec::new();
+    let mut bottom = f32::NEG_INFINITY;
+    for i in by_top {
+        match rows.last_mut() {
+            Some(row) if rects[i].top() < bottom => {
+                row.push(i);
+                bottom = bottom.max(rects[i].bottom());
+            }
+            _ => {
+                rows.push(vec![i]);
+                bottom = rects[i].bottom();
+            }
+        }
+    }
+    for row in &mut rows {
+        row.sort_by(|&a, &b| rects[a].left().total_cmp(&rects[b].left()));
+    }
+    rows.concat()
 }
 
 /// The row of buttons of `id` was not drawn in the frame before: its window has just opened.
@@ -339,6 +357,12 @@ mod tests {
         assert_eq!(step(&off, 0, Some(0), Some(Nav::Next)), Some((2, None)));
         assert_eq!(step(&[false, false], 0, None, None), None);
         // Drawn from the right (Close, Next, Back): Tab still goes from the left.
-        assert_eq!(on_screen(&[300.0, 200.0, 100.0]), [2, 1, 0]);
+        let at = |x: f32, y: f32| egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(80.0, 30.0));
+        assert_eq!(on_screen(&[at(300.0, 100.0), at(200.0, 100.0), at(100.0, 100.0)]), [2, 1, 0]);
+        // The tip: the link above the buttons, the check box under them, at the left; a smaller
+        // widget in the middle of the row stays in it.
+        let small = egui::Rect::from_min_size(egui::pos2(150.0, 110.0), egui::vec2(20.0, 10.0));
+        let rects = [at(0.0, 50.0), at(300.0, 100.0), at(200.0, 100.0), at(0.0, 140.0), small];
+        assert_eq!(on_screen(&rects), [0, 4, 2, 1, 3]);
     }
 }

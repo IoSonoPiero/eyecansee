@@ -232,23 +232,28 @@ impl App {
             if !fits {
                 open.fit = Some(Fit { lang, width, below: measure(ui, width, &texts, &link) });
             }
-            if tip_body(ui, open, &picture_uri(lang, tip.key), &text, &link) {
-                choice = Some(Choice::Guide);
-            }
+            let guide = tip_body(ui, open, &picture_uri(lang, tip.key), &text, &link);
             ui.separator();
-            ui.horizontal(|ui| {
-                ui.weak(&count);
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // Close highlighted when the tip opens (#311); Tab goes along them as on screen.
-                    let buttons = [(&close, Choice::Close), (&next, Choice::Next), (&back, Choice::Back)];
-                    let rows: Vec<egui::Response> = buttons.iter().map(|(label, _)| ui.button(label.as_str())).collect();
-                    if let Some(i) = crate::confirm::keys(ui, "tip", &rows, 0) {
-                        choice = buttons.into_iter().nth(i).map(|(_, c)| c);
-                    }
-                });
-            });
+            let [close, next, back] = ui
+                .horizontal(|ui| {
+                    ui.weak(&count);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| [&close, &next, &back].map(|label| ui.button(label.as_str()))).inner
+                })
+                .inner;
             ui.add_space(4.0);
-            ui.checkbox(&mut off, off_text).on_hover_text(off_hint);
+            let tick = ui.checkbox(&mut off, off_text).on_hover_text(off_hint);
+            // Close highlighted when the tip opens (#311); Tab goes along the link, the buttons and
+            // the check box as they are on screen. A click ticks the box by itself, the keys here.
+            let clicked = tick.clicked();
+            let rows = [guide, back, next, close, tick];
+            match crate::confirm::keys(ui, "tip", &rows, 3) {
+                Some(0) => choice = Some(Choice::Guide),
+                Some(1) => choice = Some(Choice::Back),
+                Some(2) => choice = Some(Choice::Next),
+                Some(3) => choice = Some(Choice::Close),
+                Some(4) if !clicked => off = !off,
+                _ => {}
+            }
         });
         // Esc closes it, ← and → turn it, only with the tip on top (D6); Enter and Space press the
         // highlighted button.
@@ -298,11 +303,11 @@ fn measure(ui: &mut egui::Ui, width: f32, texts: &[String], link: &str) -> Vec<f
         .collect()
 }
 
-/// Under the picture: the text and the link to the guide. `true`: the link was clicked.
-fn below(ui: &mut egui::Ui, text: &str, link: &str) -> bool {
+/// Under the picture: the text and the link to the guide, whose answer this is.
+fn below(ui: &mut egui::Ui, text: &str, link: &str) -> egui::Response {
     crate::save_dialogs::notice_text(ui, text);
     ui.add_space(4.0);
-    ui.link(link).clicked()
+    ui.link(link)
 }
 
 /// The picture, as large as `ui`, with a thin border: in the dark theme a dark picture would not
@@ -315,8 +320,8 @@ fn picture_box(ui: &mut egui::Ui, cache: &mut CommonMarkCache, uri: &str) {
 }
 
 /// Picture, text and link of the tip, in a box of fixed size (`body_height`); after Back or Next
-/// it slides in from that side while it fades in. `true`: the link was clicked.
-fn tip_body(ui: &mut egui::Ui, open: &mut Open, uri: &str, text: &str, link: &str) -> bool {
+/// it slides in from that side while it fades in. The answer of the link to the guide.
+fn tip_body(ui: &mut egui::Ui, open: &mut Open, uri: &str, text: &str, link: &str) -> egui::Response {
     let width = ui.available_width();
     let height = body_height(width, open.fit.as_ref().map_or(&[], |f| &f.below));
     let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
@@ -624,11 +629,12 @@ mod tests {
             h.frame(Vec::new());
             h.frame(Vec::new());
         };
-        // Close, then Tab round to Back: Enter shows the tip before.
+        // Close, then Shift+Tab twice to Back: Enter shows the tip before.
         open(&mut h, 2);
-        h.key(egui::Key::Tab);
+        h.key_with(egui::Key::Tab, egui::Modifiers::SHIFT);
+        h.key_with(egui::Key::Tab, egui::Modifiers::SHIFT);
         h.key(egui::Key::Enter);
-        assert_eq!(tip(&h), Some(1), "Tab from Close goes to Back, and Enter presses it");
+        assert_eq!(tip(&h), Some(1), "Shift+Tab twice from Close goes to Back, and Enter presses it");
         // Shift+Tab from Close to Next: Space shows the tip after.
         open(&mut h, 2);
         h.key_with(egui::Key::Tab, egui::Modifiers::SHIFT);
@@ -642,6 +648,41 @@ mod tests {
         assert_eq!(tip(&h), Some(2), "↑ and ↓ turned the tip");
         h.key(egui::Key::Enter);
         assert_eq!(tip(&h), None, "Close, highlighted, closes the tip");
+    }
+
+    /// #311: Tab reaches the check box under the buttons and the link above them, in the order
+    /// they are on screen: Tab from Close is the check box, which Space ticks (once, the tip stays;
+    /// a click too); Tab from there goes round to the link, which Enter follows to the guide.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn tab_reaches_the_check_box_and_the_link() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("tips::tests::tab_reaches_the_check_box_and_the_link") {
+            return;
+        }
+        let mut h = Harness::new(&folder("tip-tab", &["a.png"]));
+        h.frame(Vec::new());
+        h.app.settings.tips = true;
+        h.app.tip_show(2);
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+        h.key(egui::Key::Tab);
+        h.key(egui::Key::Space);
+        assert!(!h.app.settings.tips, "Tab from Close goes to Don't show at startup, and Space ticks it");
+        assert_eq!(h.app.tip.as_ref().map(|t| t.i), Some(2), "the tip stays");
+        h.key(egui::Key::Space);
+        assert!(h.app.settings.tips, "Space again takes the tick away");
+        // A click ticks it once: the box by itself, not the keys again.
+        let at = h.ctx.memory(egui::Memory::focused).and_then(|id| h.ctx.read_response(id)).expect("the check box highlighted").rect.left_center() + egui::vec2(6.0, 0.0);
+        let click = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+        h.frame(vec![egui::Event::PointerMoved(at)]);
+        h.frame(vec![click(true)]);
+        h.frame(vec![click(false)]);
+        h.frame(Vec::new());
+        assert!(!h.app.settings.tips, "a click on the check box ticks it once");
+        h.key(egui::Key::Tab);
+        h.key(egui::Key::Enter);
+        assert!(h.app.tip.is_none() && h.app.help.open, "Tab from the check box goes round to the link, and Enter opens the guide");
     }
 
     /// #311: ↑ and ↓ do nothing in the tip, but a message over it keeps them for its buttons: ↑

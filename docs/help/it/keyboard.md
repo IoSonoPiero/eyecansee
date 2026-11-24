@@ -23,9 +23,9 @@ Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** le ch
 
 In **Nuova immagine** e **Opzioni**, **Tab** e **Maiusc + Tab** fanno il giro dei loro controlli: dall'ultimo si torna al primo, e al contrario; non arrivano mai ai menu o alla griglia sotto la finestra.
 
-Nel suggerimento all'avvio, → e ← mostrano il suggerimento successivo e quello precedente; all'apertura è evidenziato **Chiudi**, **Tab** e **Maiusc + Tab** passano tra **Indietro**, **Avanti** e **Chiudi**, **Invio** o **Spazio** premono quello evidenziato, **Esc** lo chiude; gli altri tasti non fanno niente, tranne **F1**, che apre questa guida (vedi [Per cominciare](start.md)).
+Nel suggerimento all'avvio, → e ← mostrano il suggerimento successivo e quello precedente; all'apertura è evidenziato **Chiudi**, **Tab** e **Maiusc + Tab** passano, nell'ordine che hanno sullo schermo, tra **Leggi di più nella guida**, **Indietro**, **Avanti**, **Chiudi** e **Non mostrare più all'avvio**, **Invio** o **Spazio** premono quello evidenziato, **Esc** lo chiude; gli altri tasti non fanno niente, tranne **F1**, che apre questa guida (vedi [Per cominciare](start.md)).
 
-Nella finestra del primo avvio ogni pagina si apre col suo pulsante principale evidenziato (**Avanti**, poi **Fine**, oppure **Scarica** con un componente spuntato); **Invio** o **Spazio** premono il pulsante evidenziato, **Tab**, **Maiusc + Tab** e le frecce raggiungono anche le scelte della pagina, **Esc** chiude la finestra. Quando chiede prima di chiudere, è evidenziato **Scarica e chiudi** e **Esc** torna **Indietro**.
+Nella finestra del primo avvio ogni pagina si apre col suo pulsante principale evidenziato (**Avanti**, poi **Fine**, oppure **Scarica** con un componente spuntato; nella pagina dell'icona sul desktop **Avanti** prima di **Sì** o **No** dice solo di scegliere); **Invio** o **Spazio** premono il pulsante evidenziato, **Tab**, **Maiusc + Tab** e le frecce passano tra i pulsanti nell'ordine che hanno sullo schermo e raggiungono anche le scelte della pagina, **Esc** chiude la finestra. Quando chiede prima di chiudere, è evidenziato **Scarica e chiudi** e **Esc** torna **Indietro**.
 
 ## Nella griglia
 
