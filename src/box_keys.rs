@@ -35,10 +35,16 @@ pub(crate) fn focus(ctx: &egui::Context, id: egui::Id) {
 }
 
 impl App {
-    /// Before the frame: with the keyboard on a control of a box, Tab goes to the next one, or
+    /// Before the frame, on the grid: with the keyboard on a control of a box, Tab goes to the next one, or
     /// from the last one to the first item of the grid; Shift+Tab to the one before, or from the
     /// first one to the tree; the arrows do nothing. `true` when the keys were the boxes'.
     pub(crate) fn box_keys(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) -> bool {
+        // Over a page (the viewer, the editor, Save as, the duplicates, the slideshow) Tab goes
+        // through the box as egui gives it: the round of the grid moved what the page hides.
+        let page = self.viewing.is_some() || self.convert.is_some() || self.editor.is_some() || self.show.is_some() || self.dup_page_shown();
+        if page {
+            return false;
+        }
         let boxes = controls(ctx);
         let Some(at) = ctx.memory(|m| m.focused()).and_then(|f| boxes.iter().position(|b| *b == f)) else { return false };
         let mut tab = None;
