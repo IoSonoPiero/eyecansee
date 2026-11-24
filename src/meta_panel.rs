@@ -442,8 +442,10 @@ impl App {
                 // A row for each key, in alternating stripes, so a key stays with what it does. The
                 // dark theme's stripe was the popup's own grey, the light one too faint.
                 ui.visuals_mut().faint_bg_color = if ui.visuals().dark_mode { Color32::from_gray(60) } else { Color32::from_gray(228) };
-                // Its own scroll for each list: another one opens at its top.
-                ScrollArea::vertical().id_salt(ids).max_height(room).show(ui, |ui| {
+                // Its own scroll for each list: another one opens at its top. As tall as the list
+                // or the room: the area alone would keep the size of the list shown before (the
+                // first time egui's 400 points), and a longer one scrolled in it.
+                ScrollArea::vertical().id_salt(ids).max_height(room).min_scrolled_height(room).show(ui, |ui| {
                     egui::Grid::new("viewer-keys-grid").num_columns(2).spacing([18.0, 6.0]).striped(true).show(ui, |ui| {
                         for (keys, what) in key_rows(&text) {
                             ui.label(egui::RichText::new(keys).strong());
@@ -622,7 +624,8 @@ mod tests {
     }
 
     /// A list of keys taller than the window scrolls (#331): on a screen 600 points high the
-    /// longest list of the viewer stays on it, title included, above the status bar.
+    /// longest list of the viewer stays on it, title included, above the status bar, and uses the
+    /// room there; on a tall screen it is whole, also after a short list.
     #[test]
     #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
     fn keys_scroll_on_a_low_screen() {
@@ -632,14 +635,20 @@ mod tests {
             return;
         }
         let h = Harness::new(&folder("keys-scroll", &["a.png"]));
-        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 600.0));
-        for _ in 0..3 {
-            let raw = egui::RawInput { screen_rect: Some(screen), ..Default::default() };
-            // No painter: the textures are dropped as handled.
-            h.ctx.run_ui(raw, |ui| h.app.keys_window(ui.ctx(), &["hint-image"], 30.0)).textures_delta.clear();
-        }
-        let rect = h.ctx.memory(|m| m.area_rect(egui::Id::unique("viewer-keys"))).expect("the keys window drawn");
-        assert!(rect.top() >= 0.0 && rect.bottom() <= 600.0 - 30.0, "{rect:?}");
+        let shown = |high: f32, ids: &[&str]| {
+            let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, high));
+            for _ in 0..3 {
+                let raw = egui::RawInput { screen_rect: Some(screen), ..Default::default() };
+                // No painter: the textures are dropped as handled.
+                h.ctx.run_ui(raw, |ui| h.app.keys_window(ui.ctx(), ids, 30.0)).textures_delta.clear();
+            }
+            h.ctx.memory(|m| m.area_rect(egui::Id::unique("viewer-keys"))).expect("the keys window drawn")
+        };
+        let low = shown(600.0, &["hint-image"]);
+        assert!(low.top() >= 0.0 && low.bottom() <= 600.0 - 30.0 && low.height() > 450.0, "{low:?}");
+        shown(1000.0, &["hint-dup"]);
+        let tall = shown(1000.0, &["hint-image"]);
+        assert!(tall.top() >= 0.0 && tall.height() > 600.0, "{tall:?}");
     }
 
     /// The grid's tooltip on a file: full name, size, date, and the pixels only once known.
