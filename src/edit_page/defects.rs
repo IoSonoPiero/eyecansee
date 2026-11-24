@@ -5,6 +5,7 @@
 use eframe::egui::{self, Event, Key, Modifiers, PointerButton, Pos2, pos2, vec2};
 
 use super::Tool;
+use crate::edit::geom::Kind;
 use crate::audit_family_1::{Harness, own_folder};
 
 /// The editor open on `name`, a picture of the folder of this run, with `tool`, the image read.
@@ -70,7 +71,7 @@ fn audit_5_6_esc_during_a_pan_keeps_the_text() {
         return;
     }
     let mut h = Harness::new(&white("five-six"));
-    editor(&mut h, "a.png", Tool::Draw(crate::edit::geom::Kind::Text));
+    editor(&mut h, "a.png", Tool::Draw(Kind::Text));
     click(&mut h, MIDDLE);
     typed(&mut h, "xyz");
     assert_eq!(texts(&h), ["xyz"], "the text typed");
@@ -84,4 +85,53 @@ fn audit_5_6_esc_during_a_pan_keeps_the_text() {
     h.key(Key::Delete);
     h.frame(Vec::new());
     assert!(h.app.editor.is_some(), "the editor open");
+}
+
+/// A drag of the left button from `from` to `to`, let go there.
+fn drag(h: &mut Harness, from: Pos2, to: Pos2) {
+    press_and_move(h, from, to - from);
+    h.frame(vec![button(to, false)]);
+    for _ in 0..3 {
+        h.frame(Vec::new());
+    }
+}
+
+/// The middle pixel of the preview of the first lens, if made.
+fn lens_middle(h: &Harness) -> Option<[u8; 4]> {
+    let w = h.app.editor.as_ref().unwrap();
+    w.doc.objects.iter().find_map(|o| match &o.shape {
+        crate::edit::doc::Shape::Lens { preview, .. } => preview.0.as_ref().map(|(_, _, p)| {
+            let img = p.image();
+            img.get_pixel(img.width() / 2, img.height() / 2).0
+        }),
+        _ => None,
+    })
+}
+
+/// Audit 5.8 (L3 of 23/11): a lens, a cover in the middle of it (the lens shows it enlarged), an
+/// arrow elsewhere, Ctrl+Z (the arrow goes). The step of the cover was kept in the frame the
+/// mouse let go of it, before the lens was made again with it: after Undo the lens showed what
+/// the cover hides, until a cover or a filter changed. The file saved was right.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn audit_5_8_lens_after_undo_shows_what_a_cover_hides() {
+    if own_folder("edit_page::defects::audit_5_8_lens_after_undo_shows_what_a_cover_hides") {
+        return;
+    }
+    let mut h = Harness::new(&white("five-eight"));
+    editor(&mut h, "a.png", Tool::Draw(Kind::Lens));
+    drag(&mut h, MIDDLE - vec2(80.0, 80.0), MIDDLE + vec2(80.0, 80.0));
+    assert_eq!(lens_middle(&h).map(|p| p[0]), Some(250), "the lens made, on the white photo");
+    h.app.editor.as_mut().unwrap().choose(Tool::Draw(Kind::Cover));
+    drag(&mut h, MIDDLE - vec2(15.0, 15.0), MIDDLE + vec2(15.0, 15.0));
+    assert_eq!(lens_middle(&h).map(|p| p[0]), Some(0), "the cover enlarged in the lens");
+    h.app.editor.as_mut().unwrap().choose(Tool::Draw(Kind::Arrow));
+    drag(&mut h, MIDDLE + vec2(250.0, 150.0), MIDDLE + vec2(320.0, 200.0));
+    h.key_with(Key::Z, Modifiers::COMMAND);
+    for _ in 0..3 {
+        h.frame(Vec::new());
+    }
+    let w = h.app.editor.as_ref().unwrap();
+    assert_eq!(w.doc.objects.len(), 2, "the arrow undone, the lens and the cover left");
+    assert_eq!(lens_middle(&h).map(|p| p[0]), Some(0), "after Undo the lens shows what the cover hides");
 }
