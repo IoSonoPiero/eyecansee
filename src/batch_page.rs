@@ -506,7 +506,9 @@ impl App {
             form.picker = Some(Picker::open(&start, &rt, ctx));
         }
         let ready = form.why_not().is_none();
-        let answer = answer.or(keys).filter(|&yes| !yes || ready);
+        // With a control focused Esc reaches the window, not `keys` (#311).
+        let esc = ctx.input(|i| i.key_pressed(egui::Key::Escape)).then_some(false);
+        let answer = answer.or(keys).or(esc).filter(|&yes| !yes || ready);
         let keep = match answer {
             Some(true) => match self.batch_dest(&form, &w.dir) {
                 Ok((to, dest)) => {
