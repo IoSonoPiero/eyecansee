@@ -161,7 +161,7 @@ impl App {
             }
             Err(e) => {
                 log!("edit: copy failed: {e}");
-                self.error = Some(self.i18n.error(super::RESULT_FAILED, &e));
+                self.error = Some(super::result_failed(&self.i18n, &e));
             }
         }
     }

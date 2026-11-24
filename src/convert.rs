@@ -286,7 +286,7 @@ impl crate::App {
             // The editor's result that could not be made (audit 5.15): said as such, not as a
             // file that does not open.
             self.error = Some(match e.split_once('\u{1}').filter(|(id, _)| *id == crate::edit_page::RESULT_FAILED) {
-                Some((id, detail)) => self.i18n.error(id, detail),
+                Some((_, detail)) => crate::edit_page::result_failed(&self.i18n, detail),
                 None => self.i18n.cannot_load(crate::source::name(&w.path), e),
             });
             return;

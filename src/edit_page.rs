@@ -70,6 +70,12 @@ pub(crate) const ANIMATED: &str = "edit-animated";
 /// was made (audit 5.15).
 pub(crate) const RESULT_FAILED: &str = "edit-result-failed";
 
+/// The sentence of a result that could not be made, with the detail of the fault when there is
+/// one: without it the sentence ends there, not with a colon and nothing after it (#334).
+pub(crate) fn result_failed(i18n: &crate::i18n::I18n, detail: &str) -> String {
+    if detail.trim().is_empty() { i18n.t("edit-result-failed-alone") } else { i18n.error(RESULT_FAILED, detail) }
+}
+
 /// What a panic said, for the error bar.
 fn fault_text(payload: &(dyn std::any::Any + Send)) -> String {
     payload.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| payload.downcast_ref::<String>().cloned()).unwrap_or_default()

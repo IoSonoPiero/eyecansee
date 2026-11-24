@@ -1125,6 +1125,7 @@ edit-pick-size = One pixel, or the average of the pixels around it
 edit-pick-screen-busy = Choose the point of the screen in the system's window.
 edit-pick-failed = The system did not give the colour: { $detail }
 edit-result-failed = The edited image could not be made: { $detail }
+edit-result-failed-alone = The edited image could not be made.
 edit-tip-pick = Click the image to take its colour; Esc cancels.
 edit-props-next = Next object:
 edit-props-next-hint = Colour, width and opacity are those of the next object you draw with this tool. To change one already drawn, select it.
