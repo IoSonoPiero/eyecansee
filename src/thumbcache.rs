@@ -117,6 +117,8 @@ enum Write {
     /// from the file when wanted.
     SaveInfo { source: String, file: File, json: String },
     Touch { source: String, path: String },
+    /// A file's rows saved under the date key `from` now under `to` (#335).
+    Rekey { source: String, path: String, from: String, to: String },
     Delete { source: String, path: String },
     Trim { limit: u64 },
     /// Deleted like `Delete`, then `done` is called once they are committed.
@@ -162,6 +164,9 @@ fn write_loop(mut conn: Connection, rx: Receiver<Write>) {
                     "UPDATE thumbs SET accessed = ?3 WHERE source = ?1 AND path = ?2 AND accessed < ?3 - 86400",
                     params![source, path, now()],
                 ),
+                Write::Rekey { source, path, from, to } => ["thumbs", "meta", "info"].iter().try_fold(0, |n, table| {
+                    tx.execute(&format!("UPDATE {table} SET modified = ?4 WHERE source = ?1 AND path = ?2 AND modified = ?3"), params![source, path, from, to]).map(|m| n + m)
+                }),
                 Write::Delete { source, path } => forget_row(&tx, &source, &path),
                 // Emptying the cache empties the metadata too.
                 Write::Trim { limit } => trim_rows(&tx, limit)
@@ -256,8 +261,46 @@ thread_local! {
     static READ: Option<Connection> = open().ok();
 }
 
+/// The key a phone's date without its zone had before #335: Unix seconds, the phone's clock time
+/// read in `tz`. `None` for any other date (seconds, RFC 3339, none).
+pub(crate) fn old_phone_key_in(modified: &str, tz: &jiff::tz::TimeZone) -> Option<String> {
+    if modified.parse::<i64>().is_ok() || modified.parse::<jiff::Timestamp>().is_ok() {
+        return None;
+    }
+    let civil = modified.parse::<jiff::civil::DateTime>().ok()?;
+    Some(civil.to_zoned(tz.clone()).ok()?.timestamp().as_second().to_string())
+}
+
+/// `old_phone_key_in` the computer's time zone: the key the same file had before #335 if the zone
+/// has not changed since. Its thumbnail is the same file's; after a change of zone it is not
+/// found, and the thumbnail is made again (the dates of that phone really moved).
+pub(crate) fn old_phone_key(modified: &str) -> Option<String> {
+    old_phone_key_in(modified, &jiff::tz::TimeZone::system())
+}
+
+/// The rows of `path` saved under the date `from`, moved to `to` (#335): kept, not made again.
+pub fn rekey(source: &str, path: &str, from: &str, to: &str) {
+    send(Write::Rekey { source: source.to_string(), path: path.to_string(), from: from.to_string(), to: to.to_string() });
+}
+
+/// `query` for `file`; for a phone's date missing, under the key it had before #335 (then moved
+/// to the new one).
+fn found<T>(source: &str, file: &File, query: impl Fn(&File) -> Option<T>) -> Option<T> {
+    if let Some(r) = query(file) {
+        return Some(r);
+    }
+    let old = old_phone_key(&file.modified)?;
+    let r = query(&File { modified: old.clone(), ..file.clone() })?;
+    rekey(source, &file.path, &old, &file.modified);
+    Some(r)
+}
+
 /// The metadata saved for this version of the file (`meta::Meta::to_json`).
 pub fn load_meta(source: &str, file: &File) -> Option<String> {
+    found(source, file, |file| load_meta_exact(source, file))
+}
+
+fn load_meta_exact(source: &str, file: &File) -> Option<String> {
     READ.with(|conn| {
         conn.as_ref()?
             .query_row(
@@ -272,6 +315,10 @@ pub fn load_meta(source: &str, file: &File) -> Option<String> {
 /// The details saved for this version of the file (`thumb_details::Info`); `None` for a file
 /// changed since, or never read (a cache made before them).
 pub fn load_info(source: &str, file: &File) -> Option<crate::thumb_details::Info> {
+    found(source, file, |file| load_info_exact(source, file))
+}
+
+fn load_info_exact(source: &str, file: &File) -> Option<crate::thumb_details::Info> {
     READ.with(|conn| {
         conn.as_ref()?
             .query_row(
@@ -330,14 +377,16 @@ pub fn stored(source: &str, path: &str) -> Option<(u64, Vec<u8>)> {
 }
 
 pub fn load(source: &str, file: &File) -> Option<DynamicImage> {
-    let data: Vec<u8> = READ.with(|conn| {
-        conn.as_ref()?
-            .query_row(
-                "SELECT data FROM thumbs WHERE source = ?1 AND path = ?2 AND size = ?3 AND modified = ?4",
-                params![source, file.path, file.size as i64, file.modified],
-                |r| r.get(0),
-            )
-            .ok()
+    let data: Vec<u8> = found(source, file, |file| {
+        READ.with(|conn| {
+            conn.as_ref()?
+                .query_row(
+                    "SELECT data FROM thumbs WHERE source = ?1 AND path = ?2 AND size = ?3 AND modified = ?4",
+                    params![source, file.path, file.size as i64, file.modified],
+                    |r| r.get(0),
+                )
+                .ok()
+        })
     })?;
     send(Write::Touch { source: source.to_string(), path: file.path.clone() });
     image::load_from_memory(&data).ok()
@@ -492,6 +541,28 @@ mod tests {
         assert!(load(&source, &now).is_some(), "the thumbnail is made again from the phone");
         assert!(load_info(&source, &now).is_some(), "the details are read again from the phone");
         assert!(load_meta(&source, &now).is_some(), "the metadata are read again from the phone");
+        // Kept under the new key from now on.
+        for _ in 0..100 {
+            if entries(&source).iter().all(|f| f.modified == clock) {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(entries(&source).iter().map(|f| f.modified.as_str()).collect::<Vec<_>>(), [clock]);
+    }
+
+    /// #335: the old key of a phone's date is the same only in the same time zone; any other
+    /// date has none.
+    #[test]
+    fn old_phone_key_only_in_the_same_zone() {
+        use jiff::tz::{Offset, TimeZone};
+        let rome = TimeZone::fixed(Offset::constant(1));
+        let old = (jiff::civil::date(2026, 11, 24).at(10, 30, 5, 0).to_zoned(rome.clone()).unwrap().timestamp().as_second()).to_string();
+        assert_eq!(old_phone_key_in("2026-11-24T10:30:05", &rome), Some(old.clone()));
+        assert_ne!(old_phone_key_in("2026-11-24T10:30:05", &TimeZone::fixed(Offset::constant(-5))), Some(old));
+        for other in ["1795516205", "2026-04-16T10:00:00Z", "2026-04-16T10:00:00+02:00", ""] {
+            assert_eq!(old_phone_key_in(other, &rome), None, "{other}");
+        }
     }
 
     /// A float image with alpha (what OpenEXR decodes to) must be cached too (issue #2).
