@@ -239,19 +239,21 @@ impl App {
             ui.horizontal(|ui| {
                 ui.weak(&count);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    for (label, c) in [(&close, Choice::Close), (&next, Choice::Next), (&back, Choice::Back)] {
-                        if ui.button(label).clicked() {
-                            choice = Some(c);
-                        }
+                    // Close highlighted when the tip opens (#311); Tab goes along them as on screen.
+                    let buttons = [(&close, Choice::Close), (&next, Choice::Next), (&back, Choice::Back)];
+                    let rows: Vec<egui::Response> = buttons.iter().map(|(label, _)| ui.button(label.as_str())).collect();
+                    if let Some(i) = crate::confirm::keys(ui, "tip", &rows, 0) {
+                        choice = buttons.into_iter().nth(i).map(|(_, c)| c);
                     }
                 });
             });
             ui.add_space(4.0);
             ui.checkbox(&mut off, off_text).on_hover_text(off_hint);
         });
-        // Enter and Esc close it, ← and → turn it, only with the tip on top (D6).
+        // Esc closes it, ← and → turn it, only with the tip on top (D6); Enter and Space press the
+        // highlighted button.
         let turn = open.turn.take().filter(|_| crate::confirm::on_top(ctx, "tip"));
-        let close = crate::confirm::answer(ctx, &mut self.key_answer, "tip").map(|_| Choice::Close);
+        let close = (crate::confirm::answer(ctx, &mut self.key_answer, "tip") == Some(false)).then_some(Choice::Close);
         choice = choice.or(close).or(turn.map(|next| if next { Choice::Next } else { Choice::Back }));
         if off == self.settings.tips {
             self.settings.tips = !off;
@@ -602,5 +604,43 @@ mod tests {
         h.frame(Vec::new());
         h.frame(Vec::new());
         assert_eq!(after_hook(&mut h), 2, "once the tip is on top, egui keeps the click from what is behind");
+    }
+
+    /// #311: Back, Next and Close are one row of buttons, Close highlighted when the tip opens.
+    /// Tab and Shift+Tab go along them as they are on screen, Enter and Space press the one
+    /// highlighted; ↑ and ↓ do nothing here (← and → turn the tip, as before).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn enter_presses_the_highlighted_button() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("tips::tests::enter_presses_the_highlighted_button") {
+            return;
+        }
+        let mut h = Harness::new(&folder("tip-buttons", &["a.png"]));
+        let tip = |h: &Harness| h.app.tip.as_ref().map(|t| t.i);
+        let open = |h: &mut Harness, i| {
+            h.frame(Vec::new());
+            h.app.tip_show(i);
+            h.frame(Vec::new());
+            h.frame(Vec::new());
+        };
+        // Close, then Tab round to Back: Enter shows the tip before.
+        open(&mut h, 2);
+        h.key(egui::Key::Tab);
+        h.key(egui::Key::Enter);
+        assert_eq!(tip(&h), Some(1), "Tab from Close goes to Back, and Enter presses it");
+        // Shift+Tab from Close to Next: Space shows the tip after.
+        open(&mut h, 2);
+        h.key_with(egui::Key::Tab, egui::Modifiers::SHIFT);
+        h.key(egui::Key::Space);
+        assert_eq!(tip(&h), Some(3), "Shift+Tab from Close goes to Next, and Space presses it");
+        // ↑ and ↓ leave Close highlighted: Enter closes.
+        open(&mut h, 2);
+        h.key(egui::Key::ArrowDown);
+        h.key(egui::Key::ArrowUp);
+        h.key(egui::Key::ArrowDown);
+        assert_eq!(tip(&h), Some(2), "↑ and ↓ turned the tip");
+        h.key(egui::Key::Enter);
+        assert_eq!(tip(&h), None, "Close, highlighted, closes the tip");
     }
 }

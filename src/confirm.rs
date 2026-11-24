@@ -253,6 +253,8 @@ impl App {
                     Space => nav = Some(Nav::Press),
                     Escape => *answer = Some(false),
                     ArrowLeft | ArrowRight if tip => turn = Some(*key == ArrowRight),
+                    // ← and → turn the tip: ↑ and ↓ move nothing there (#311).
+                    ArrowUp | ArrowDown if tip => {}
                     Tab => nav = Some(if modifiers.shift { Nav::Prev } else { Nav::Next }),
                     ArrowRight | ArrowDown => nav = Some(Nav::Next),
                     ArrowLeft | ArrowUp => nav = Some(Nav::Prev),
