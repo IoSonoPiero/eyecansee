@@ -861,6 +861,19 @@ pub(crate) mod tests {
         assert_eq!((back.textures.len(), back.tex.clone()), (1, vec![1, 1]), "the .mtl or the picture not found");
     }
 
+    /// #340: next to an OBJ only the pictures its `.mtl` names: those of roughness and metal and
+    /// of the shadows in the creases have no place there, and were written without use.
+    #[test]
+    fn obj_only_the_pictures_named() {
+        let mut m = pictured();
+        let plain = |c| std::sync::Arc::new(image::RgbaImage::from_pixel(2, 2, image::Rgba(c)));
+        m.textures.extend([plain([0, 128, 255, 255]), plain([200, 200, 200, 255])]);
+        (m.surfaces[0].rough_metal, m.surfaces[0].occlusion_map) = (2, 3);
+        let made = export_made(&m, Kind::Obj);
+        let names: Vec<&str> = made.beside.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, ["x.png", "x.mtl"]);
+    }
+
     /// #312: every writer stops when told to, also on a model of one material (glTF wrote a
     /// material's triangles before asking), and says how far it is on the way.
     #[test]
