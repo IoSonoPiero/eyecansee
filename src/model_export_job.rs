@@ -316,11 +316,13 @@ mod tests {
     fn obj_files_beside_free_and_removed_at_cancel() {
         let glb = crate::model_export::export(&crate::model_export::tests::pictured(), Kind::Glb);
         let mine = b"the user's picture".to_vec();
-        let files = || vec![("a.glb".to_string(), glb.clone()), ("a.png".to_string(), mine.clone())];
-        let jobs = || vec![("a.glb".to_string(), "a.obj".to_string())];
+        // The name with a space: the files next to it with "_", and "_2" for a name taken
+        // (Piero, 24/11, #340).
+        let files = || vec![("my a.glb".to_string(), glb.clone()), ("my_a.png".to_string(), mine.clone())];
+        let jobs = || vec![("my a.glb".to_string(), "my a.obj".to_string())];
         let (got, names, _) = export_in("beside", files(), jobs(), |_| {});
         assert!(got[0].is_ok(), "{got:?}");
-        assert_eq!(names, ["a (2).png", "a.glb", "a.mtl", "a.obj", "a.png"]);
+        assert_eq!(names, ["my a.glb", "my a.obj", "my_a.mtl", "my_a.png", "my_a_2.png"]);
         // Stopped after the picture and the `.mtl` (a piece each), before the OBJ.
         let pieces = AtomicUsize::new(0);
         let (got, names, _) = export_in("beside-cancel", files(), jobs(), move |p| {
@@ -328,7 +330,7 @@ mod tests {
                 p.cancel.store(true, Ordering::Relaxed);
             }
         });
-        assert_eq!(names, ["a.glb", "a.png"], "{got:?}");
+        assert_eq!(names, ["my a.glb", "my_a.png"], "{got:?}");
     }
 
     /// #312: a new name already taken in the folder (the grid had not read it yet: the PLY

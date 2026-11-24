@@ -748,10 +748,10 @@ pub(crate) mod tests {
     #[test]
     fn audit_6_16_obj_names_beside_free() {
         let taken = ["x.png"];
-        let free = |n: &str| if taken.contains(&n) { n.replace(".png", " (2).png") } else { n.to_string() };
+        let free = |n: &str| if taken.contains(&n) { n.replace(".png", "_2.png") } else { n.to_string() };
         let made = export_with(&pictured(), Kind::Obj, &|_| true, &Beside { stem: "x", free: &free }).unwrap();
-        assert_eq!(made.beside[0].0, "x (2).png");
-        assert!(String::from_utf8_lossy(&made.beside[1].1).contains("\nmap_Kd x (2).png\n"));
+        assert_eq!(made.beside[0].0, "x_2.png");
+        assert!(String::from_utf8_lossy(&made.beside[1].1).contains("\nmap_Kd x_2.png\n"));
     }
     /// Audit 6.16: PLY keeps the normals and puts the colours on the points too, where Blender
     /// reads them (it leaves the faces' out).
@@ -846,16 +846,18 @@ pub(crate) mod tests {
         println!("{} written in {:?}: {} MB", kind.label(), start.elapsed(), made.main.len() >> 20);
     }
 
-    /// Audit 6.16: a model whose name has spaces, the picture's name taken ("my model.png"):
-    /// read back with the files next to it, the `.mtl` and the picture are found.
+    /// Audit 6.16 (#340): a model whose name has spaces: the files next to it have none (spaces
+    /// become "_", as `mtllib` and many readers split names at spaces; Piero, 24/11), and read
+    /// back with them, the `.mtl` and the picture are found.
     #[test]
     fn audit_6_16_obj_names_with_spaces_read_back() {
-        let free = |n: &str| if n == "my model.png" { "my model (2).png".to_string() } else { n.to_string() };
-        let made = export_with(&pictured(), Kind::Obj, &|_| true, &Beside { stem: "my model", free: &free }).unwrap();
+        let free = |n: &str| n.to_string();
+        let made = export_with(&pictured(), Kind::Obj, &|_| true, &Beside { stem: "my  model\tx", free: &free }).unwrap();
         let names: Vec<&str> = made.beside.iter().map(|(n, _)| n.as_str()).collect();
-        assert_eq!(names, ["my model (2).png", "my model.mtl"]);
+        assert_eq!(names, ["my__model_x.png", "my__model_x.mtl"]);
+        assert!(String::from_utf8_lossy(&made.main).contains("\nmtllib my__model_x.mtl\n"));
         let beside = |rel: &str| made.beside.iter().find(|(n, _)| n == rel).map(|(_, d)| d.clone());
-        let back = crate::model::parse_with(&made.main, "my model.obj", &beside).unwrap();
+        let back = crate::model::parse_with(&made.main, "my  model\tx.obj", &beside).unwrap();
         assert_eq!((back.textures.len(), back.tex.clone()), (1, vec![1, 1]), "the .mtl or the picture not found");
     }
 
