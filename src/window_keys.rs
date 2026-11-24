@@ -381,3 +381,26 @@ fn tab_goes_through_about() {
     h.key(Key::Escape);
     assert!(!h.app.about, "Esc did not close About");
 }
+
+/// #311: the guide (F1) open over the grid or the viewer, with nothing focused: Tab moved the grid
+/// under it. It goes into the guide, its search field, contents and page (Piero, 24/11).
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn tab_goes_into_the_guide() {
+    if own_folder("window_keys::tab_goes_into_the_guide") {
+        return;
+    }
+    // The guide's window is on the layer of its id, over the others (`help::window_id`).
+    let guide = modal("help-window");
+    let mut h = on_grid("keys-guide");
+    h.key(Key::F1);
+    assert!(h.app.help.open, "F1 did not open the guide");
+    tab_goes_through(&mut h, &guide, |a| a.help.open, 3, true);
+
+    let mut h = on_grid("keys-guide-viewer");
+    h.app.activate(1);
+    h.until(|a| a.zoom_of == Some(1), "b.png shown");
+    h.key(Key::F1);
+    assert!(h.app.help.open, "F1 did not open the guide");
+    tab_goes_through(&mut h, &guide, |a| a.help.open && a.viewing == Some(1), 3, true);
+}
