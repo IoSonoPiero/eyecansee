@@ -11,23 +11,51 @@ use std::fmt::Write;
 
 use crate::model_export::{Beside, Made, Tick, View, ticked, unit_line};
 
-/// The pictures as PNG files next to the model, named after it: the name of each (index in
-/// `textures`), `None` for one that could not be written.
-fn pictures(v: &View, stem: &str, beside: &Beside, files: &mut Vec<(String, Vec<u8>)>) -> Vec<Option<String>> {
-    let many = v.mesh.textures.len() > 1;
+/// The pictures the `.mtl` names (`named`) as PNG files next to the model, named after it
+/// (`stem`): the name of each (index in `textures`), `None` for one not written.
+fn pictures(v: &View, named: &[bool], stem: &str, beside: &Beside, files: &mut Vec<(String, Vec<u8>)>) -> Vec<Option<String>> {
+    let many = named.iter().filter(|&&n| n).count() > 1;
+    let mut number = 0;
     v.mesh
         .textures
         .iter()
-        .enumerate()
-        .map(|(i, img)| {
+        .zip(named)
+        .map(|(img, &named)| {
+            if !named {
+                return None;
+            }
             let mut png = Vec::new();
             img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).ok()?;
-            let wanted = if many { format!("{stem}-{}.png", i + 1) } else { format!("{stem}.png") };
+            number += 1;
+            let wanted = if many { format!("{stem}-{number}.png") } else { format!("{stem}.png") };
             let name = (beside.free)(&wanted);
             files.push((name.clone(), png));
             Some(name)
         })
         .collect()
+}
+
+/// Which pictures a `.mtl` names: those on triangles with their coordinates, and the bumps and
+/// the glow of the shiny surfaces (`shiny`); not those of roughness and metal or of the shadows
+/// in the creases, which have no place there (#340).
+fn named(v: &View, shiny: impl Fn(u16) -> bool) -> Vec<bool> {
+    let m = v.mesh;
+    let mut named = vec![false; m.textures.len()];
+    let mut mark = |k: u16| {
+        if let Some(n) = (k as usize).checked_sub(1).and_then(|i| named.get_mut(i)) {
+            *n = true;
+        }
+    };
+    for &k in m.tex.iter().take(m.uv.len()) {
+        mark(k);
+    }
+    for (i, s) in m.surfaces.iter().enumerate() {
+        if shiny(i as u16 + 1) && m.surface.contains(&(i as u16 + 1)) {
+            mark(s.bumps);
+            mark(s.glow_map);
+        }
+    }
+    named
 }
 
 /// A value seen once, numbered from 1 as OBJ counts: the points, the coordinates, the normals.
@@ -54,12 +82,12 @@ pub(crate) fn obj(v: &View, tick: Tick, beside: &Beside) -> Option<Made> {
     // No spaces in the names next to it: `mtllib` is a list split at spaces, and many readers
     // cut a name there (Piero, 24/11, #340). The OBJ keeps its own name.
     let stem: String = beside.stem.chars().map(|c| if c.is_whitespace() { '_' } else { c }).collect();
-    let names = pictures(v, &stem, beside, &mut files);
+    // A matte surface (the one every model without its own gets) needs no material.
+    let shiny = |k: u16| (k as usize).checked_sub(1).and_then(|i| m.surfaces.get(i)).is_some_and(|s| *s != crate::model::Surface::default());
+    let names = pictures(v, &named(v, shiny), &stem, beside, &mut files);
     let pic = |t: usize| m.tex.get(t).and_then(|&k| (k as usize).checked_sub(1)).and_then(|i| names.get(i).cloned().flatten());
     // A triangle keeps its picture when the picture was written and it has its coordinates.
     let kept = |t: usize| m.uv.get(t).is_some() && pic(t).is_some();
-    // A matte surface (the one every model without its own gets) needs no material.
-    let shiny = |k: u16| (k as usize).checked_sub(1).and_then(|i| m.surfaces.get(i)).is_some_and(|s| *s != crate::model::Surface::default());
     let mut groups: BTreeMap<(u16, u16), Vec<usize>> = BTreeMap::new();
     for t in 0..m.tris.len() {
         let tex = if kept(t) { m.tex[t] } else { 0 };
