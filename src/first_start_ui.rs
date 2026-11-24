@@ -925,6 +925,10 @@ mod tests {
         h.key(egui::Key::Tab);
         h.key(egui::Key::Enter);
         assert_eq!((page(&h), desktop(&h)), (Some(1), Some(Desktop::No)), "Tab from Next reaches Yes, then No, which Enter chooses");
+        // Once answered, Next has the keyboard again (Piero, 24/11, W1): Enter goes on.
+        h.frame(Vec::new());
+        h.key(egui::Key::Enter);
+        assert_eq!(page(&h), Some(2), "after the answer Enter presses Next");
     }
 
     /// #311: Tab goes along the buttons as they are on screen, from the left: Shift+Tab from Next
