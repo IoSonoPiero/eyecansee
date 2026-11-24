@@ -318,7 +318,14 @@ impl App {
                 }
                 match page {
                     Page::Welcome => welcome(ui, logo, s, i18n, languages),
-                    Page::Desktop => crate::first_start_desktop::page(ui, logo, &mut open.desktop, open.reminded, i18n),
+                    Page::Desktop => {
+                        let before = open.desktop.clone();
+                        crate::first_start_desktop::page(ui, logo, &mut open.desktop, open.reminded, i18n);
+                        // Answered: Next takes the keyboard back, as on a page shown anew (Piero, 24/11).
+                        if open.desktop != before {
+                            open.shown = None;
+                        }
+                    }
                     Page::Addons => addons(ui, &mut open.rows, downloads, i18n, paged),
                 }
             });
