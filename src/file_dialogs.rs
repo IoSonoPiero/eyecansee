@@ -768,4 +768,22 @@ mod tests {
         h.key(Key::Escape);
         assert!(h.app.new_folder.is_none(), "Esc did not close New folder");
     }
+
+    /// #311: F5 typed in the field of Rename (and of every window with fields: the field has
+    /// the keys) did not stay there: the folder under the window was read again.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn f5_in_a_field_stays_in_the_window() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("file_dialogs::tests::f5_in_a_field_stays_in_the_window") {
+            return;
+        }
+        let mut h = Harness::new(&folder("f5-field", &["a.png"]));
+        (h.app.cursor, h.app.selected, h.app.focus) = (true, 0, crate::Focus::Grid);
+        h.app.ask_rename(None);
+        h.frame(Vec::new());
+        assert!(h.ctx.text_edit_focused(), "the name field has the keys");
+        h.key(eframe::egui::Key::F5);
+        assert!(h.app.rename.is_some() && h.app.listings.contains_key(&h.app.dir), "F5 in the field read the folder under the window again");
+    }
 }

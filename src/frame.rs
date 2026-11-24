@@ -69,7 +69,8 @@ impl App {
         self.options_esc(ctx);
         self.first_start_esc(ctx);
         // "Save in another format" and the duplicates cover the window: the keys must not reach the grid under them.
-        if self.convert.is_none() && self.editor.is_none() && self.show.is_none() && !self.dup_page_shown() {
+        // Nor those of a window that asks: typed in its field, F5 and F11 went past it (#311).
+        if self.convert.is_none() && self.editor.is_none() && self.show.is_none() && !self.dup_page_shown() && !self.asking() {
             self.global_keys(ctx);
             if self.viewing.is_some() {
                 self.viewer_keys(ctx);
