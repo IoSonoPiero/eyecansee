@@ -1,4 +1,4 @@
-//! The boxes of a work under way in a corner (a copy, Convert): the program is used meanwhile, so
+//! The boxes of a work under way in a corner (a copy, Convert, an export of 3D models): the program is used meanwhile, so
 //! they take no keys of their own; their controls (Cancel) come in the round of Tab of the main
 //! window, after the folders of the tree and before the grid (#311, Piero 24/11). Enter and Space
 //! press the one highlighted, as egui does.

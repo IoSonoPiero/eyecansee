@@ -153,13 +153,15 @@ impl App {
         }
     }
 
-    /// A copy ended with nothing to say alone (`part`): in the job report up, else remembered
+    /// A copy or an export ended with nothing to say alone (`part`): in the job report up, else remembered
     /// while another job runs, else nothing, as before.
     pub(crate) fn quiet_job(&mut self, part: Part) {
         if self.join_report(part.clone(), None) {
             return;
         }
-        if self.batch.as_ref().is_some_and(crate::batch_page::Window::running) {
+        // Another job still under way: a Convert, a copy or an export (#312).
+        let running = self.batch.as_ref().is_some_and(crate::batch_page::Window::running) || self.transfer.is_some() || self.export_said.running();
+        if running {
             self.jobs_quiet.push(part);
         } else {
             self.jobs_quiet.clear();
@@ -339,6 +341,32 @@ mod tests {
             }
             let open = [h.app.notice.is_some(), h.app.batch_summary.is_some()];
             assert!(open != [true, true], "convert first {convert_first}: two windows, the copy's and Convert's");
+        }
+    }
+
+    /// #312: an export that ends while a Convert runs joins its report, as a copy does: with
+    /// nothing to say, its line (remembered until the Convert ends); with a model not exported,
+    /// its message as a part.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn an_export_joins_the_report_of_a_convert() {
+        if own_folder("jobs_report::tests::an_export_joins_the_report_of_a_convert") {
+            return;
+        }
+        for failed in [false, true] {
+            let mut h = Harness::new(&folder(if failed { "export-convert-failed" } else { "export-convert-quiet" }, &["a.png"]));
+            let p = convert_runs(&mut h);
+            h.app.export_said.start(1);
+            let dir = h.app.dir.clone();
+            let r = if failed { Err((format!("{dir}a.ply"), "boom".to_string())) } else { Ok((format!("{dir}a.obj"), format!("{dir}a.ply"), Vec::new())) };
+            h.app.tx.send(Msg::Exported(r)).unwrap();
+            h.frame(Vec::new());
+            convert_ends(&mut h, &p);
+            let r = h.app.jobs_report.clone().unwrap_or_else(|| panic!("failed {failed}: no report of the two jobs"));
+            assert_eq!(r.parts.len(), 2, "failed {failed}");
+            let title = h.app.i18n.t("model-export-done-title");
+            assert!(r.parts.iter().any(|p| p.title == title), "failed {failed}: no part of the export");
+            assert!(h.app.notice.is_none() && h.app.batch_summary.is_none(), "failed {failed}: a window besides the report");
         }
     }
 

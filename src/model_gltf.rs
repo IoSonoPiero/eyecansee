@@ -156,7 +156,7 @@ fn read_plain(bytes: &[u8], sibling: Sibling, limit: crate::model_limit::Limit) 
     let mut wanted: Vec<gltf::Image> = Vec::new();
     for mat in g.document.materials() {
         let pbr = mat.pbr_metallic_roughness();
-        let textures = [pbr.base_color_texture().map(|t| t.texture()), pbr.metallic_roughness_texture().map(|t| t.texture()), mat.normal_texture().map(|t| t.texture()), mat.occlusion_texture().map(|t| t.texture()), mat.emissive_texture().map(|t| t.texture())];
+        let textures = [base(&mat).0.map(|t| t.texture()), pbr.metallic_roughness_texture().map(|t| t.texture()), mat.normal_texture().map(|t| t.texture()), mat.occlusion_texture().map(|t| t.texture()), mat.emissive_texture().map(|t| t.texture())];
         for img in textures.into_iter().flatten().map(|t| t.source()) {
             if !wanted.iter().any(|w| w.index() == img.index()) {
                 wanted.push(img);
@@ -297,7 +297,7 @@ fn gltf_mesh<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>
             _ => idx.as_chunks::<3>().0.to_vec(),
         };
         let vc: Vec<[f32; 3]> = r.read_colors(0).map(|c| c.into_rgb_f32().collect()).unwrap_or_default();
-        let base = prim.material().pbr_metallic_roughness().base_color_factor();
+        let base = base(&prim.material()).1;
         let base = [base[0], base[1], base[2]];
         // glTF colours are linear: brought to sRGB for the screen.
         let srgb = |c: [f32; 3]| c.map(|v| (v.clamp(0.0, 1.0).powf(1.0 / 2.2) * 255.0) as u8);
@@ -321,6 +321,19 @@ fn gltf_mesh<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>
     Ok(())
 }
 
+/// The base colour's picture and factor: metallic-roughness's, or the diffuse of a
+/// specular-glossiness material (KHR_materials_pbrSpecularGlossiness, written by older
+/// exporters; audit 6.16), which takes its place as Blender reads it.
+fn base<'a>(mat: &gltf::Material<'a>) -> (Option<gltf::texture::Info<'a>>, [f32; 4]) {
+    match mat.pbr_specular_glossiness() {
+        Some(sg) => (sg.diffuse_texture(), sg.diffuse_factor()),
+        None => {
+            let pbr = mat.pbr_metallic_roughness();
+            (pbr.base_color_texture(), pbr.base_color_factor())
+        }
+    }
+}
+
 /// The material's surface: factors, and the pictures (`Builder::texture`) read on the base
 /// colour's texture coordinates `set`; one on another set is left out (an occlusion baked on a
 /// second set would darken the wrong places), and so is a glow whose picture is missing.
@@ -333,9 +346,11 @@ fn surface(mat: &gltf::Material, tex: &HashMap<usize, u16>, set: u32) -> Surface
     let lost = mat.emissive_texture().is_some() && glow_map == 0;
     let glow = mat.emissive_factor().map(|v| if lost { 0.0 } else { (v * mat.emissive_strength().unwrap_or(1.0)).clamp(0.0, 1.0).powf(1.0 / 2.2) });
     let occlusion_map = pic(occlusion.clone());
+    // Specular-glossiness: not metal, as rough as it is not glossy.
+    let gloss = mat.pbr_specular_glossiness().map(|sg| sg.glossiness_factor());
     Surface {
-        metallic: pbr.metallic_factor(),
-        roughness: pbr.roughness_factor(),
+        metallic: if gloss.is_some() { 0.0 } else { pbr.metallic_factor() },
+        roughness: gloss.map_or(pbr.roughness_factor(), |g| 1.0 - g),
         occlusion: if occlusion_map > 0 { mat.occlusion_texture().map_or(0.0, |o| o.strength()) } else { 0.0 },
         glow,
         bumps: pic(mat.normal_texture().map(|t| (t.texture(), t.tex_coord()))),
@@ -348,7 +363,7 @@ fn surface(mat: &gltf::Material, tex: &HashMap<usize, u16>, set: u32) -> Surface
 /// The picture of a primitive's base colour (0 without one) and the texture coordinates, of its
 /// set (else the first), moved, turned and scaled as KHR_texture_transform says; and that set.
 fn texture_coords<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>>(prim: &gltf::Primitive<'a>, r: &gltf::mesh::Reader<'a, 's, F>, tex: &HashMap<usize, u16>) -> (u16, Vec<[f32; 2]>, u32) {
-    let info = prim.material().pbr_metallic_roughness().base_color_texture();
+    let info = base(&prim.material()).0;
     let k = info.as_ref().and_then(|i| tex.get(&i.texture().source().index()).copied()).unwrap_or(0);
     let transform = info.as_ref().and_then(|i| i.texture_transform());
     let set = transform.as_ref().and_then(|t| t.tex_coord()).or(info.as_ref().map(|i| i.tex_coord())).unwrap_or(0);
@@ -537,7 +552,7 @@ mod tests {
         // Save as… and Export as a 3D model… read it the same way, and say it with `load_error`.
         let none: crate::model::Sibling = &|_| None;
         assert_eq!(crate::decode::decode_full_noted(&glb, "a.glb", none).unwrap_err(), e);
-        assert_eq!(crate::model_export::export_file(&glb, "a.glb", none, crate::model_export::Kind::Stl).unwrap_err(), e);
+        assert_eq!(crate::model_export::export_file(&glb, "a.glb", none, crate::model_export::Kind::Stl, &|_| true, &crate::model_export::Beside { stem: "b", free: &|n| n.to_string() }).unwrap_err(), e);
         assert_eq!(en, "The file is incomplete: it should be 12.4 MB but it is 3.1 MB.\nPerhaps the download or the copy stopped: try downloading or copying it again.");
         assert_eq!(it, "Il file è incompleto: dovrebbe essere di 12,4 MB ma è di 3,1 MB.\nForse lo scaricamento o la copia si è interrotta: prova a scaricarlo o copiarlo di nuovo.");
         assert_eq!(converted(&glb, "a b.glb"), "The file is incomplete (a b.glb): it should be 12.4 MB but it is 3.1 MB.\nPerhaps the download or the copy stopped: try downloading or copying it again.");
@@ -648,11 +663,11 @@ mod tests {
         original.notes = notes;
         assert_eq!(original.alone().turned(Default::default()).notes, vec![super::NODE_AGAIN]);
         for kind in Kind::ALL {
-            let (data, notes) = export_file(twice.as_bytes(), "a.gltf", none, kind).unwrap();
+            let (data, notes) = export_file(twice.as_bytes(), "a.gltf", none, kind, &|_| true, &crate::model_export::Beside { stem: "b", free: &|n| n.to_string() }).unwrap();
             assert_eq!(notes, vec![super::NODE_AGAIN], "{kind:?}");
-            let back = crate::model::parse(&data, &format!("b.{}", kind.ext())).unwrap();
+            let back = crate::model::parse(&data.main, &format!("b.{}", kind.ext())).unwrap();
             assert_eq!((back.tris.len(), back.warnings.len()), (1, 0), "{kind:?}");
-            assert!(export_file(once.as_bytes(), "a.gltf", none, kind).unwrap().1.is_empty(), "{kind:?}");
+            assert!(export_file(once.as_bytes(), "a.gltf", none, kind, &|_| true, &crate::model_export::Beside { stem: "b", free: &|n| n.to_string() }).unwrap().1.is_empty(), "{kind:?}");
         }
         let line = |lang| crate::model::saved_lines(&crate::i18n::I18n::new(lang), "a.gltf", &[super::NODE_AGAIN]);
         assert_eq!(line("en"), ["a.gltf: a part of the model appeared more than once in its hierarchy; the new file has it only once"]);
@@ -749,5 +764,27 @@ mod tests {
         let r = crate::model::parse(gltf.as_bytes(), "a.gltf");
         println!("ended in {:.2?}: {:?}", t.elapsed(), r.as_ref().map(|m| m.tris.len()));
         assert!(r.is_err());
+    }
+    /// Audit 6.16: a "specular-glossiness" material (KHR_materials_pbrSpecularGlossiness, older
+    /// exporters) gives its colour and its picture (`diffuse`), and how glossy it is; they were
+    /// left out, the model grey and matte.
+    #[test]
+    fn audit_6_16_specular_glossiness() {
+        let floats: Vec<u8> = [0f32, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0].iter().flat_map(|f| f.to_le_bytes()).collect();
+        let data = base64::engine::general_purpose::STANDARD.encode(floats);
+        let mut png = Vec::new();
+        image::RgbaImage::from_pixel(2, 2, image::Rgba([0, 0, 255, 255])).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let png = base64::engine::general_purpose::STANDARD.encode(png);
+        let gltf = |diffuse: &str| {
+            format!(
+                r#"{{"asset":{{"version":"2.0"}},"extensionsUsed":["KHR_materials_pbrSpecularGlossiness"],"buffers":[{{"uri":"data:application/octet-stream;base64,{data}","byteLength":60}}],"bufferViews":[{{"buffer":0,"byteLength":36}},{{"buffer":0,"byteOffset":36,"byteLength":24}}],"accessors":[{{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","max":[1,1,0],"min":[0,0,0]}},{{"bufferView":1,"componentType":5126,"count":3,"type":"VEC2"}}],"images":[{{"uri":"data:image/png;base64,{png}"}}],"textures":[{{"source":0}}],"materials":[{{"extensions":{{"KHR_materials_pbrSpecularGlossiness":{{{diffuse},"glossinessFactor":0.75}}}}}}],"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0,"TEXCOORD_0":1}},"material":0}}]}}],"nodes":[{{"mesh":0}}],"scenes":[{{"nodes":[0]}}],"scene":0}}"#
+            )
+        };
+        let red = crate::model::parse(gltf(r#""diffuseFactor":[1,0,0,1]"#).as_bytes(), "a.gltf").unwrap();
+        assert_eq!(red.colors, [[255, 0, 0]], "the diffuse colour");
+        let s = red.surfaces.get(red.surface.first().map_or(0, |&k| k as usize).wrapping_sub(1)).copied().unwrap_or_default();
+        assert!((s.roughness - 0.25).abs() < 1e-6 && s.metallic == 0.0, "glossiness 0.75 is roughness 0.25: {s:?}");
+        let pictured = crate::model::parse(gltf(r#""diffuseTexture":{"index":0}"#).as_bytes(), "a.gltf").unwrap();
+        assert_eq!((pictured.textures.len(), pictured.tex.clone()), (1, vec![1]), "the diffuse picture");
     }
 }

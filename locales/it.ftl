@@ -783,6 +783,49 @@ model-export-format = Formato:
 model-export-where = Ogni copia va accanto al suo modello, con lo stesso nome; un nome già preso riceve " (2)".
 model-export-ok = Esporta
 model-export-done-title = Esportazione finita
+model-export-cancelled = Esportazione annullata
+model-export-pictures-heading = { $n ->
+    [one] 1 modello esportato senza le sue immagini:
+   *[other] { $n } modelli esportati senza le loro immagini:
+}
+model-export-pictures-why = { $n ->
+    [one] Il suo nuovo formato non sa contenere immagini: i loro colori sono stati messi sul modello. glTF (GLB) e OBJ le tengono.
+   *[other] Il loro nuovo formato non sa contenere immagini: i loro colori sono stati messi sui modelli. glTF (GLB) e OBJ le tengono.
+}
+model-export-surfaces-heading = { $n ->
+    [one] 1 modello esportato senza tutti i suoi materiali:
+   *[other] { $n } modelli esportati senza tutti i loro materiali:
+}
+model-export-surfaces-why = { $n ->
+    [one] Il suo nuovo formato non sa contenere tutto dei suoi materiali (quanto sono lisci o metallici, il rilievo, le ombre nelle pieghe, la luce propria). glTF (GLB) tiene tutto.
+   *[other] Il loro nuovo formato non sa contenere tutto dei loro materiali (quanto sono lisci o metallici, il rilievo, le ombre nelle pieghe, la luce propria). glTF (GLB) tiene tutto.
+}
+model-export-smaller-heading = { $n ->
+    [one] 1 modello esportato con immagini più piccole:
+   *[other] { $n } modelli esportati con immagini più piccole:
+}
+model-export-smaller-why = { $n ->
+    [one] EyeCanSee legge le immagini più grandi di 2048 pixel a 2048, e le salva così.
+   *[other] EyeCanSee legge le immagini più grandi di 2048 pixel a 2048, e le salva così.
+}
+model-export-left-out-heading = { $n ->
+    [one] 1 modello esportato senza alcune delle sue immagini:
+   *[other] { $n } modelli esportati senza alcune delle loro immagini:
+}
+model-export-left-out-why = { $n ->
+    [one] Ha più di 64 immagini: EyeCanSee legge le prime 64, e salva quelle.
+   *[other] Hanno più di 64 immagini: EyeCanSee legge le prime 64, e salva quelle.
+}
+model-export-running = Esportazione dei modelli 3D
+model-export-counts = Modello { $n } di { $total }
+model-export-files = { $n ->
+    [one] **1 modello** esportato.
+   *[other] **{ $n } modelli** esportati.
+}
+model-export-before-cancel = { $n ->
+    [one] **1 modello su { $total }** esportato prima di Annulla.
+   *[other] **{ $n } modelli su { $total }** esportati prima di Annulla.
+}
 model-export-failed-heading = { $n ->
     [one] 1 modello non esportato:
    *[other] { $n } modelli non esportati:
@@ -1980,6 +2023,13 @@ batch-sound-keeps-tags = I tag (titolo, artista, album…) restano; questo forma
 batch-sound-not-ready = Scegli come convertire i file audio.
 drawing-skip-not-autocad = { $detail }: non è un disegno AutoCAD (DWG o DXF), quindi non si può salvare come tale.
 drawing-skip-would-lose = { $detail }: nell'altro formato una parte del disegno andrebbe persa, quindi non è stato salvato.
+# What a drawing would lose in the other format, in brackets after its name (`cad_convert::said`).
+drawing-lost-totals = { $before } → { $after } elementi, { $layouts_before } → { $layouts_after } layout
+drawing-lost-layout = layout { $name }: { $before } → { $after } elementi
+drawing-lost-layers = { $n ->
+    [one] livello { $names }
+   *[other] livelli { $names }
+}
 batch-no-audio = { $detail }: il video non ha audio.
 
 video-codec-h264 = Si apre ovunque: telefoni, TV, browser, computer vecchi. File più grandi di HEVC e AV1.

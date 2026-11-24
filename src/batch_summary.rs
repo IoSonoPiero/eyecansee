@@ -116,6 +116,8 @@ pub(crate) fn item(i18n: &I18n, id: &str, detail: &str, names: bool) -> (String,
     let line = |text: &str| md(text).replace('\n', " ");
     // "EXIF and XMP" in the language of the summary (#217).
     let detail = &detail.replace(crate::encoders::AND, &i18n.t("list-and"));
+    // What a drawing would lose in the other format, in the language of the summary (#340).
+    let detail = &if id == SKIP_WOULD_LOSE { crate::cad_convert::said(i18n, detail) } else { detail.clone() };
     match detail.split_once('\u{1}').filter(|_| id == NOT_OPENED) {
         _ if names => (md(detail), md(detail)),
         Some((name, raw)) => {

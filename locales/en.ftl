@@ -773,6 +773,46 @@ model-export-format = Format:
 model-export-where = Each copy goes next to its model, with the same name; a name already taken gets " (2)".
 model-export-ok = Export
 model-export-done-title = Export finished
+model-export-cancelled = Export cancelled
+model-export-pictures-heading = { $n ->
+    [one] 1 model exported without its pictures:
+   *[other] { $n } models exported without their pictures:
+}
+model-export-pictures-why = { $n ->
+    [one] Its new format cannot hold pictures: their colours were put on the model instead. glTF (GLB) and OBJ keep them.
+   *[other] Their new format cannot hold pictures: their colours were put on the models instead. glTF (GLB) and OBJ keep them.
+}
+model-export-surfaces-heading = { $n ->
+    [one] 1 model exported without all of its materials:
+   *[other] { $n } models exported without all of their materials:
+}
+model-export-surfaces-why = { $n ->
+    [one] Its new format cannot hold everything about its materials (how smooth or metallic they are, bumps, shadows in the creases, their own light). glTF (GLB) keeps it all.
+   *[other] Their new format cannot hold everything about their materials (how smooth or metallic they are, bumps, shadows in the creases, their own light). glTF (GLB) keeps it all.
+}
+model-export-smaller-heading = { $n ->
+    [one] 1 model exported with smaller pictures:
+   *[other] { $n } models exported with smaller pictures:
+}
+model-export-smaller-why = { $n ->
+    [one] EyeCanSee reads pictures larger than 2048 pixels at 2048, and saves them so.
+   *[other] EyeCanSee reads pictures larger than 2048 pixels at 2048, and saves them so.
+}
+model-export-left-out-heading = { $n ->
+    [one] 1 model exported without some of its pictures:
+   *[other] { $n } models exported without some of their pictures:
+}
+model-export-left-out-why = { $n ->
+    [one] It has more than 64 pictures: EyeCanSee reads the first 64, and saves those.
+   *[other] They have more than 64 pictures: EyeCanSee reads the first 64, and saves those.
+}
+model-export-running = Exporting 3D models
+model-export-counts = Model { $n } of { $total }
+model-export-files = { $n ->
+    [one] **1 model** exported.
+   *[other] **{ $n } models** exported.
+}
+model-export-before-cancel = **{ $n } of { $total } models** exported before Cancel.
 model-export-failed-heading = { $n ->
     [one] 1 model not exported:
    *[other] { $n } models not exported:
@@ -1970,6 +2010,13 @@ batch-sound-keeps-tags = The tags (title, artist, album…) are kept; this forma
 batch-sound-not-ready = Choose how to convert the audio files.
 drawing-skip-not-autocad = { $detail }: not an AutoCAD drawing (DWG or DXF), so it cannot be saved as one.
 drawing-skip-would-lose = { $detail }: in the other format part of the drawing would be lost, so it was not saved.
+# What a drawing would lose in the other format, in brackets after its name (`cad_convert::said`).
+drawing-lost-totals = { $before } → { $after } elements, { $layouts_before } → { $layouts_after } layouts
+drawing-lost-layout = layout { $name }: { $before } → { $after } elements
+drawing-lost-layers = { $n ->
+    [one] layer { $names }
+   *[other] layers { $names }
+}
 batch-no-audio = { $detail }: the video has no audio.
 
 video-codec-h264 = Plays everywhere: phones, TVs, browsers, old computers. Larger files than HEVC and AV1.

@@ -1,14 +1,16 @@
 //! A 3D model saved in another 3D format, with as much of the original as the format holds:
 //! GLB (glTF) keeps the pictures, their coordinates, the normals and the
 //! surfaces (metal, roughness, bumps, occlusion, glow); OBJ the normals and colours on the
-//! vertices; PLY (binary) and STL (binary, VisCAM colours) a colour per triangle. Where the
+//! vertices, and the pictures and materials in a `.mtl` next to it (`model_export_obj`); PLY
+//! (binary) the normals and the colours on the points and on the triangles; STL (binary, VisCAM
+//! colours) a colour per triangle. Where the
 //! format cannot hold a picture, its colours are taken from it. Each is written with the up axis
 //! other programs expect, so that it opens standing (tried with Blender 4.5, 2026-11-02): Z for
 //! STL and PLY (with a mark EyeCanSee reads, `model_ply::PLY_Z_UP`), Y for OBJ and glTF. glTF counts
 //! in metres: a model whose unit is known is converted; the others keep their numbers and say the
 //! unit in their header (`unit_line`), which other programs take as a comment.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
 use crate::model::{DEFAULT, Mesh};
@@ -50,16 +52,16 @@ impl Kind {
 
 /// The model as an exporter sees it: turned to the format's up axis, and the colours of the
 /// triangles with their pictures in them.
-struct View<'a> {
-    mesh: &'a Mesh,
+pub(crate) struct View<'a> {
+    pub(crate) mesh: &'a Mesh,
     /// Z up (STL, PLY), else Y up (OBJ, glTF).
     z_up: bool,
     /// What the positions are multiplied by: to metres for glTF, else 1.
-    scale: f32,
+    pub(crate) scale: f32,
 }
 
 impl View<'_> {
-    fn turn(&self, p: [f32; 3]) -> [f32; 3] {
+    pub(crate) fn turn(&self, p: [f32; 3]) -> [f32; 3] {
         match (self.z_up, self.mesh.z_up) {
             (true, false) => [p[0], -p[2], p[1]],
             (false, true) => [p[0], p[2], -p[1]],
@@ -67,35 +69,35 @@ impl View<'_> {
         }
     }
 
-    fn corner(&self, t: usize, k: usize) -> [f32; 3] {
+    pub(crate) fn corner(&self, t: usize, k: usize) -> [f32; 3] {
         self.turn(self.mesh.pos[self.mesh.tris[t][k] as usize]).map(|c| c * self.scale)
     }
 
     /// Normals at the corners: the file's, else the face's own.
-    fn normals(&self, t: usize) -> [[f32; 3]; 3] {
+    pub(crate) fn normals(&self, t: usize) -> [[f32; 3]; 3] {
         let face = face_normal([0, 1, 2].map(|k| self.corner(t, k)));
         let given = self.mesh.normals.get(t).copied().unwrap_or_default();
         given.map(|n| if n == [0.0; 3] { face } else { unit(self.turn(n)) })
     }
 
     /// Whether the colours are worth writing: the model has some, or pictures to take them from.
-    fn colored(&self) -> bool {
+    pub(crate) fn colored(&self) -> bool {
         !self.mesh.colors.is_empty() || self.mesh.tex.iter().any(|&k| k > 0)
     }
 
-    fn picture(&self, t: usize) -> Option<&image::RgbaImage> {
+    pub(crate) fn picture(&self, t: usize) -> Option<&image::RgbaImage> {
         let k = *self.mesh.tex.get(t)?;
         (k > 0).then(|| self.mesh.textures.get(k as usize - 1).map(|a| a.as_ref())).flatten()
     }
 
     /// The triangle's own colour, which tints its picture: white under a picture without one.
-    fn tint(&self, t: usize) -> [u8; 3] {
+    pub(crate) fn tint(&self, t: usize) -> [u8; 3] {
         let white = self.picture(t).is_some();
         self.mesh.colors.get(t).copied().unwrap_or(if white { [255; 3] } else { DEFAULT })
     }
 
     /// The colour seen at `uv` of the triangle: its tint, times its picture there.
-    fn seen(&self, t: usize, uv: [f32; 2]) -> [u8; 3] {
+    pub(crate) fn seen(&self, t: usize, uv: [f32; 2]) -> [u8; 3] {
         let c = self.tint(t);
         match self.picture(t) {
             Some(img) => {
@@ -106,7 +108,7 @@ impl View<'_> {
         }
     }
 
-    fn corner_colors(&self, t: usize) -> [[u8; 3]; 3] {
+    pub(crate) fn corner_colors(&self, t: usize) -> [[u8; 3]; 3] {
         match self.mesh.uv.get(t) {
             Some(uv) if self.picture(t).is_some() => uv.map(|c| self.seen(t, c)),
             _ => [self.tint(t); 3],
@@ -114,7 +116,7 @@ impl View<'_> {
     }
 
     /// One colour for the whole triangle: its corners and its middle averaged.
-    fn face_color(&self, t: usize) -> [u8; 3] {
+    pub(crate) fn face_color(&self, t: usize) -> [u8; 3] {
         let Some(uv) = self.mesh.uv.get(t).filter(|_| self.picture(t).is_some()) else { return self.tint(t) };
         let middle = [0, 1].map(|j| (uv[0][j] + uv[1][j] + uv[2][j]) / 3.0);
         let samples = [uv[0], uv[1], uv[2], middle].map(|c| self.seen(t, c));
@@ -136,13 +138,78 @@ fn unit(n: [f32; 3]) -> [f32; 3] {
 /// `kind`, with what was read differently from its file (`Mesh::warnings`): the export says the
 /// new file has it so (#179); and `model_limit::BEYOND_EXPORT` when the new file has more
 /// triangles than EyeCanSee opens in its format.
-pub fn export_file(bytes: &[u8], name: &str, sibling: crate::model::Sibling, kind: Kind) -> Result<(Vec<u8>, Vec<&'static str>), String> {
+/// `tick` is told how far the writing is (0 to 1, from 0 once the model is read) and stops it
+/// with `false`: then the error is `model_export_job::CANCELLED` (#312).
+pub fn export_file(bytes: &[u8], name: &str, sibling: crate::model::Sibling, kind: Kind, tick: Tick, beside: &Beside) -> Result<(Made, Vec<&'static str>), String> {
     let mesh = crate::model::parse_with(bytes, name, sibling)?;
     let mut notes = mesh.warnings.clone();
     if crate::model_limit::of_export(kind).check(mesh.tris.len()).is_err() {
         notes.push(crate::model_limit::BEYOND_EXPORT);
     }
-    Ok((export(&mesh, kind), notes))
+    notes.extend(lost(&mesh, kind));
+    let cancelled = || crate::model_export_job::CANCELLED.to_string();
+    if !tick(0.0) {
+        return Err(cancelled());
+    }
+    Ok((export_with(&mesh, kind, tick, beside).ok_or_else(cancelled)?, notes))
+}
+
+/// The files an export makes: the model, and the files next to it (an OBJ's `.mtl` and
+/// pictures), each with its name.
+#[derive(Debug)]
+pub struct Made {
+    pub main: Vec<u8>,
+    pub beside: Vec<(String, Vec<u8>)>,
+}
+
+/// How the files next to the new one are named: after it (`stem`, its name without the
+/// extension), each with a free name for the one wanted (`free`).
+pub struct Beside<'a> {
+    pub stem: &'a str,
+    pub free: &'a dyn Fn(&str) -> String,
+}
+
+/// A model exported into a format that cannot hold its pictures: their colours are on it instead.
+pub(crate) const LOST_PICTURES: &str = "model-export-lost-pictures";
+/// A model exported into a format that cannot hold all of how its surfaces take the light.
+pub(crate) const LOST_SURFACES: &str = "model-export-lost-surfaces";
+/// A model whose pictures beyond `model::TEXTURE_SIDE` were read, and so exported, smaller.
+pub(crate) const LOST_SMALLER: &str = "model-export-lost-smaller";
+/// A model whose pictures beyond `model::MAX_TEXTURES` were left out at reading.
+pub(crate) const LOST_LEFT_OUT: &str = "model-export-lost-left-out";
+
+/// What `kind` cannot hold of `mesh`, said at the end of the export (audit 6.16, the project's
+/// rule): STL and PLY have no place for pictures (their colours are put on the model) nor for
+/// surfaces; a `.mtl` has none for the pictures of roughness and metal and of the shadows in the
+/// creases. glTF holds all a `Mesh` has, but not what the reading left behind of the pictures
+/// (`Mesh::pictures_cut`).
+/// A surface counts when it shows: smoother than matte, glowing, or with pictures; a glTF
+/// without a material (metal, as rough as matte, by the format's default) is not named.
+pub(crate) fn lost(mesh: &Mesh, kind: Kind) -> Vec<&'static str> {
+    let s = &mesh.surfaces;
+    let shiny = s.iter().any(|s| s.roughness < 1.0 || s.glow != [0.0; 3] || s.bumps > 0 || s.rough_metal > 0 || s.occlusion_map > 0 || s.glow_map > 0);
+    let maps = s.iter().any(|s| s.rough_metal > 0 || s.occlusion_map > 0);
+    let pictures = mesh.tex.iter().any(|&k| k > 0);
+    match kind {
+        Kind::Stl | Kind::Ply => [(pictures, LOST_PICTURES), (shiny, LOST_SURFACES)].into_iter().filter_map(|(lost, id)| lost.then_some(id)).collect(),
+        Kind::Obj | Kind::Glb => {
+            let mut out: Vec<&'static str> = (kind == Kind::Obj && maps).then_some(LOST_SURFACES).into_iter().collect();
+            // The pictures read smaller or left out (#340): a format that keeps pictures keeps them so.
+            out.extend(&mesh.pictures_cut);
+            out
+        }
+    }
+}
+
+/// Told how far an export is, 0 to 1; `false` stops it (`export_file`).
+pub type Tick<'a> = &'a dyn Fn(f32) -> bool;
+
+/// How often the writers tell how far they are: every this many triangles.
+pub(crate) const TICK_EVERY: usize = 1 << 16;
+
+/// `tick` at the triangle `t` of `n`, every `TICK_EVERY`: `false` when it says to stop.
+pub(crate) fn ticked(tick: Tick, t: usize, n: usize) -> bool {
+    !t.is_multiple_of(TICK_EVERY) || tick(t as f32 / n.max(1) as f32)
 }
 
 /// How many metres a unit of `model::Mesh::unit` is.
@@ -160,36 +227,52 @@ fn metres(unit: &str) -> Option<f32> {
 
 /// The unit in the header of a format without a place for it (STL, OBJ, PLY), after its mark of
 /// comment; nothing when the model does not say it.
-fn unit_line(mesh: &Mesh, comment: &str) -> String {
+pub(crate) fn unit_line(mesh: &Mesh, comment: &str) -> String {
     mesh.unit.map(|u| format!("{comment} unit: {u}\n")).unwrap_or_default()
 }
 
-/// The file's bytes.
+/// The file's bytes (tests).
+#[cfg(test)]
 pub fn export(mesh: &Mesh, kind: Kind) -> Vec<u8> {
+    export_made(mesh, kind).main
+}
+
+/// The files, those next to it named after "x" (tests).
+#[cfg(test)]
+pub fn export_made(mesh: &Mesh, kind: Kind) -> Made {
+    export_with(mesh, kind, &|_| true, &Beside { stem: "x", free: &|n| n.to_string() }).unwrap()
+}
+
+/// The files of `mesh` as `kind`, telling `tick` how far it is; `None` when `tick` stopped it.
+pub fn export_with(mesh: &Mesh, kind: Kind, tick: Tick, beside: &Beside) -> Option<Made> {
     let scale = match (kind, mesh.unit) {
         (Kind::Glb, Some(u)) => metres(u).unwrap_or(1.0),
         _ => 1.0,
     };
     let v = View { mesh, z_up: matches!(kind, Kind::Stl | Kind::Ply), scale };
+    let alone = |main: Option<Vec<u8>>| main.map(|main| Made { main, beside: Vec::new() });
     match kind {
-        Kind::Stl => stl(&v),
-        Kind::Obj => obj(&v),
-        Kind::Ply => ply(&v),
-        Kind::Glb => glb(&v),
+        Kind::Stl => alone(stl(&v, tick)),
+        Kind::Obj => crate::model_export_obj::obj(&v, tick, beside),
+        Kind::Ply => alone(ply(&v, tick)),
+        Kind::Glb => alone(glb(&v, tick)),
     }
 }
 
-fn floats(out: &mut Vec<u8>, v: &[f32]) {
+pub(crate) fn floats(out: &mut Vec<u8>, v: &[f32]) {
     out.extend(v.iter().flat_map(|f| f.to_le_bytes()));
 }
 
-fn stl(v: &View) -> Vec<u8> {
+fn stl(v: &View, tick: Tick) -> Option<Vec<u8>> {
     // The header is free text: the unit in it, as in OBJ and PLY.
     let mut out = format!("EyeCanSee{}", v.mesh.unit.map(|u| format!(", unit: {u}")).unwrap_or_default()).into_bytes();
     out.resize(80, 0);
     out.extend((v.mesh.tris.len() as u32).to_le_bytes());
     let colored = v.colored();
     for t in 0..v.mesh.tris.len() {
+        if !ticked(tick, t, v.mesh.tris.len()) {
+            return None;
+        }
         let corners = [0, 1, 2].map(|k| v.corner(t, k));
         floats(&mut out, &face_normal(corners));
         for p in corners {
@@ -204,55 +287,84 @@ fn stl(v: &View) -> Vec<u8> {
         };
         out.extend(attr.to_le_bytes());
     }
-    out
+    Some(out)
 }
 
-fn obj(v: &View) -> Vec<u8> {
-    let mut s = format!("# EyeCanSee\n{}", unit_line(v.mesh, "#"));
-    let (colored, smooth) = (v.colored(), !v.mesh.normals.is_empty());
-    // Each triangle its own corners: colours and normals are per corner.
-    for t in 0..v.mesh.tris.len() {
-        let colors = v.corner_colors(t);
-        for (k, c) in colors.iter().enumerate() {
-            let p = v.corner(t, k);
-            let c = c.map(|x| f32::from(x) / 255.0);
-            let _ = if colored { writeln!(s, "v {} {} {} {:.4} {:.4} {:.4}", p[0], p[1], p[2], c[0], c[1], c[2]) } else { writeln!(s, "v {} {} {}", p[0], p[1], p[2]) };
-        }
-        if smooth {
-            for n in v.normals(t) {
-                let _ = writeln!(s, "vn {:.5} {:.5} {:.5}", n[0], n[1], n[2]);
+/// Binary PLY (audit 6.16): the points shared by the triangles, split only where their normals
+/// differ; normals on the points when the model has them; colours on the points (the average of
+/// what its corners show, which Blender reads) and on the faces (each triangle's own, which
+/// EyeCanSee and MeshLab read).
+fn ply(v: &View, tick: Tick) -> Option<Vec<u8>> {
+    let m = v.mesh;
+    let n = m.tris.len();
+    let (colored, smooth) = (v.colored(), !m.normals.is_empty());
+    // Three rounds over the triangles: the points, their colours, the faces; each a third of the way.
+    let third = |t: usize, round: u8| !t.is_multiple_of(TICK_EVERY) || tick((t as f32 / n.max(1) as f32 + f32::from(round)) / 3.0);
+    // Each point: its position (an index in `pos`) and its normal.
+    let mut points: Vec<(u32, [f32; 3])> = Vec::new();
+    let mut corners: Vec<[u32; 3]> = Vec::new();
+    if smooth {
+        let mut seen: HashMap<(u32, [u32; 3]), u32> = HashMap::new();
+        corners.reserve(n);
+        for (t, tri) in m.tris.iter().enumerate() {
+            if !third(t, 0) {
+                return None;
             }
+            let normals = v.normals(t);
+            corners.push(std::array::from_fn(|k| {
+                let key = (tri[k], normals[k].map(f32::to_bits));
+                *seen.entry(key).or_insert_with(|| {
+                    points.push((key.0, normals[k]));
+                    points.len() as u32 - 1
+                })
+            }));
         }
     }
-    for t in 0..v.mesh.tris.len() {
-        let [a, b, c] = [1, 2, 3].map(|k| t * 3 + k);
-        let _ = if smooth { writeln!(s, "f {a}//{a} {b}//{b} {c}//{c}") } else { writeln!(s, "f {a} {b} {c}") };
+    let count = if smooth { points.len() } else { m.pos.len() };
+    let corner = |t: usize| if smooth { corners[t] } else { m.tris[t] };
+    let mut sums = if colored { vec![[0u32; 4]; count] } else { Vec::new() };
+    for t in (0..n).filter(|_| colored) {
+        if !third(t, 1) {
+            return None;
+        }
+        for (k, c) in v.corner_colors(t).into_iter().enumerate() {
+            let s = &mut sums[corner(t)[k] as usize];
+            *s = [s[0] + u32::from(c[0]), s[1] + u32::from(c[1]), s[2] + u32::from(c[2]), s[3] + 1];
+        }
     }
-    s.into_bytes()
-}
-
-fn ply(v: &View) -> Vec<u8> {
-    let colored = v.colored();
+    let rgb = "property uchar red\nproperty uchar green\nproperty uchar blue\n";
     let mut out = format!(
-        "ply\nformat binary_little_endian 1.0\n{}\n{}element vertex {}\nproperty float x\nproperty float y\nproperty float z\nelement face {}\nproperty list uchar uint vertex_indices\n{}end_header\n",
+        "ply\nformat binary_little_endian 1.0\n{}\n{}element vertex {count}\nproperty float x\nproperty float y\nproperty float z\n{}{}element face {n}\nproperty list uchar uint vertex_indices\n{}end_header\n",
         crate::model_ply::PLY_Z_UP,
-        unit_line(v.mesh, "comment"),
-        v.mesh.pos.len(),
-        v.mesh.tris.len(),
-        if colored { "property uchar red\nproperty uchar green\nproperty uchar blue\n" } else { "" }
+        unit_line(m, "comment"),
+        if smooth { "property float nx\nproperty float ny\nproperty float nz\n" } else { "" },
+        if colored { rgb } else { "" },
+        if colored { rgb } else { "" },
     )
     .into_bytes();
-    for p in &v.mesh.pos {
-        floats(&mut out, &v.turn(*p).map(|c| c * v.scale));
+    for i in 0..count {
+        let (at, normal) = if smooth { points[i] } else { (i as u32, [0.0; 3]) };
+        floats(&mut out, &v.turn(m.pos[at as usize]).map(|c| c * v.scale));
+        if smooth {
+            // Turned already (`View::normals`).
+            floats(&mut out, &normal);
+        }
+        if colored {
+            let s = sums[i];
+            out.extend((0..3).map(|j| (s[j] / s[3].max(1)) as u8));
+        }
     }
-    for (t, tri) in v.mesh.tris.iter().enumerate() {
+    for t in 0..n {
+        if !third(t, 2) {
+            return None;
+        }
         out.push(3);
-        out.extend(tri.iter().flat_map(|i| i.to_le_bytes()));
+        out.extend(corner(t).iter().flat_map(|i| i.to_le_bytes()));
         if colored {
             out.extend(v.face_color(t));
         }
     }
-    out
+    Some(out)
 }
 
 /// The binary part of a GLB and what points into it.
@@ -296,7 +408,7 @@ impl Bin {
 }
 
 /// The triangles grouped by picture and surface: one glTF primitive each, with its material.
-fn glb(v: &View) -> Vec<u8> {
+fn glb(v: &View, tick: Tick) -> Option<Vec<u8>> {
     let m = v.mesh;
     let mut groups: BTreeMap<(u16, u16), Vec<usize>> = BTreeMap::new();
     for t in 0..m.tris.len() {
@@ -304,8 +416,10 @@ fn glb(v: &View) -> Vec<u8> {
     }
     let mut bin = Bin::default();
     let (mut primitives, mut materials) = (Vec::new(), Vec::new());
+    let mut written = 0;
     for (&(tex, surface), tris) in &groups {
-        let attributes = glb_attributes(v, &mut bin, tris);
+        let attributes = glb_attributes(v, &mut bin, tris, (written, tick))?;
+        written += tris.len();
         let material = if tex > 0 || surface > 0 {
             materials.push(glb_material(m, tex, surface));
             format!(r#","material":{}"#, materials.len() - 1)
@@ -353,15 +467,19 @@ fn glb(v: &View) -> Vec<u8> {
     out.extend((bin.bytes.len() as u32).to_le_bytes());
     out.extend(b"BIN\0");
     out.extend(bin.bytes);
-    out
+    Some(out)
 }
 
 /// Positions, normals, picture coordinates and colours of the triangles `tris`, each its own
 /// corners: the `attributes` of their primitive.
-fn glb_attributes(v: &View, bin: &mut Bin, tris: &[usize]) -> String {
+/// `tick` told how far, the triangles before these being `before`; `None` when it stops.
+fn glb_attributes(v: &View, bin: &mut Bin, tris: &[usize], (before, tick): (usize, Tick)) -> Option<String> {
     let m = v.mesh;
     let (mut pos, mut normals, mut uvs, mut colors) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-    for &t in tris {
+    for (i, &t) in tris.iter().enumerate() {
+        if !ticked(tick, before + i, m.tris.len()) {
+            return None;
+        }
         pos.extend((0..3).flat_map(|k| v.corner(t, k)));
         if !m.normals.is_empty() {
             normals.extend(v.normals(t).into_iter().flatten());
@@ -381,7 +499,7 @@ fn glb_attributes(v: &View, bin: &mut Bin, tris: &[usize]) -> String {
             let _ = write!(a, r#","{name}":{}"#, bin.accessor(data, n, false));
         }
     }
-    a
+    Some(a)
 }
 
 /// The material of a picture (`tex`, 0 = none) and a surface (0 = matte): glTF's metallic-roughness.
@@ -415,7 +533,7 @@ fn glb_material(m: &Mesh, tex: u16, surface: u16) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     /// Audit 6.5: glTF counts in metres. A 3MF in millimetres, a triangle 100 mm wide, exported as
@@ -515,7 +633,9 @@ mod tests {
                 let colored = |m: &Mesh| m.colors.iter().filter(|c| **c != DEFAULT).count();
                 print!("{}: {} tris, {} pictures, {} coloured", f.file_name().to_string_lossy(), m.tris.len(), m.textures.len(), colored(&m));
                 for kind in Kind::ALL {
-                    match crate::model::parse(&export(&m, kind), &format!("x.{}", kind.ext())) {
+                    let made = export_made(&m, kind);
+                    let beside = |rel: &str| made.beside.iter().find(|(n, _)| n == rel).map(|(_, d)| d.clone());
+                    match crate::model::parse_with(&made.main, &format!("x.{}", kind.ext()), &beside) {
                         Ok(b) => print!(" | {}: {} tris, {} pictures, {} coloured", kind.ext(), b.tris.len(), b.textures.len(), colored(&b)),
                         Err(e) => print!(" | {}: ERROR {e}", kind.ext()),
                     }
@@ -557,7 +677,7 @@ mod tests {
     }
 
     /// A model with a picture (the avocado, 2026-11-02): GLB keeps it, with its coordinates and
-    /// the surface; the other formats get its colours.
+    /// the surface; STL and PLY get its colours (OBJ keeps it: `audit_6_16_obj_keeps_the_picture`).
     #[test]
     fn a_picture_kept_or_turned_into_colours() {
         let obj = b"v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nf 1 2 3\nf 1 3 4\n";
@@ -575,10 +695,245 @@ mod tests {
         assert_eq!(back.uv, m.uv);
         assert_eq!(back.textures[0].get_pixel(3, 0).0, [200, 0, 0, 255]);
         assert_eq!(back.surfaces[back.surface[0] as usize - 1].roughness, 0.25);
-        for kind in [Kind::Stl, Kind::Obj, Kind::Ply] {
+        for kind in [Kind::Stl, Kind::Ply] {
             let back = crate::model::parse(&export(&m, kind), &format!("x.{}", kind.ext())).unwrap();
             let [green, red] = [back.colors[0], back.colors[1]];
             assert!(green[1] > 150 && green[0] < 30 && red[0] > 150 && red[1] < 30, "{kind:?} {:?}", back.colors);
+        }
+    }
+
+    /// The quad of `a_picture_kept_or_turned_into_colours`: a picture, green on the left and red
+    /// on the right, a shiny surface and the normals.
+    pub(crate) fn pictured() -> Mesh {
+        let obj = b"v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nf 1 2 3\nf 1 3 4\n";
+        let mut m = crate::model::parse(obj, "q.obj").unwrap();
+        let pic = image::RgbaImage::from_fn(4, 4, |x, _| if x < 2 { image::Rgba([0, 200, 0, 255]) } else { image::Rgba([200, 0, 0, 255]) });
+        m.textures = vec![std::sync::Arc::new(pic)];
+        m.tex = vec![1, 1];
+        m.uv = vec![[[0.1, 0.1], [0.2, 0.1], [0.2, 0.9]], [[0.8, 0.1], [0.9, 0.1], [0.9, 0.9]]];
+        m.surfaces = vec![crate::model::Surface { metallic: 0.5, roughness: 0.25, ..Default::default() }];
+        m.surface = vec![1, 1];
+        m.normals = vec![[[0.0, 0.0, 1.0]; 3]; 2];
+        m
+    }
+
+    /// Audit 6.16: OBJ keeps the picture as other programs read it, with its coordinates (`vt`)
+    /// and a `.mtl` that names it; the points the triangles share are written once (each
+    /// triangle had its own: the surface came apart).
+    #[test]
+    fn audit_6_16_obj_keeps_the_picture() {
+        let text = String::from_utf8(export(&pictured(), Kind::Obj)).unwrap();
+        for line in ["\nmtllib ", "\nvt ", "\nusemtl "] {
+            assert!(text.contains(line), "no {line:?} in\n{text}");
+        }
+        assert_eq!(text.lines().filter(|l| l.starts_with("v ")).count(), 4, "a quad has 4 points:\n{text}");
+        // Read back with the files next to it: the picture, its coordinates and the surface.
+        let m = pictured();
+        let made = export_made(&m, Kind::Obj);
+        let names: Vec<&str> = made.beside.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, ["x.png", "x.mtl"]);
+        let mtl = String::from_utf8_lossy(&made.beside[1].1).to_string();
+        for line in ["\nmap_Kd x.png\n", "\nPr 0.25\n", "\nPm 0.5\n"] {
+            assert!(mtl.contains(line), "no {line:?} in\n{mtl}");
+        }
+        let beside = |rel: &str| made.beside.iter().find(|(n, _)| n == rel).map(|(_, d)| d.clone());
+        let back = crate::model::parse_with(&made.main, "x.obj", &beside).unwrap();
+        assert_eq!((back.textures.len(), back.tex.clone()), (1, vec![1, 1]));
+        assert_eq!(back.textures[0].get_pixel(3, 0).0, [200, 0, 0, 255]);
+        let near = |a: &[[[f32; 2]; 3]], b: &[[[f32; 2]; 3]]| a.iter().flatten().flatten().zip(b.iter().flatten().flatten()).all(|(x, y)| (x - y).abs() < 1e-6);
+        assert!(back.uv.len() == 2 && near(&back.uv, &m.uv), "{:?}", back.uv);
+        assert_eq!(back.surfaces[back.surface[0] as usize - 1].roughness, 0.25);
+        // Coloured triangles without a picture: their colours exactly, each on its points.
+        let mut plain = crate::model::parse(b"v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nf 1 2 3\nf 1 3 4\n", "q.obj").unwrap();
+        plain.colors = vec![[255, 0, 0], [0, 0, 255]];
+        let made = export_made(&plain, Kind::Obj);
+        assert!(made.beside.is_empty(), "a model without pictures or surfaces needs no .mtl");
+        let back = crate::model::parse(&made.main, "x.obj").unwrap();
+        assert_eq!(back.colors, plain.colors);
+    }
+
+    /// Audit 6.16: the files next to an OBJ never take the name of one already there: "x.png"
+    /// taken, the picture is "x (2).png", and the `.mtl` names it.
+    #[test]
+    fn audit_6_16_obj_names_beside_free() {
+        let taken = ["x.png"];
+        let free = |n: &str| if taken.contains(&n) { n.replace(".png", "_2.png") } else { n.to_string() };
+        let made = export_with(&pictured(), Kind::Obj, &|_| true, &Beside { stem: "x", free: &free }).unwrap();
+        assert_eq!(made.beside[0].0, "x_2.png");
+        assert!(String::from_utf8_lossy(&made.beside[1].1).contains("\nmap_Kd x_2.png\n"));
+    }
+    /// Audit 6.16: PLY keeps the normals and puts the colours on the points too, where Blender
+    /// reads them (it leaves the faces' out).
+    #[test]
+    fn audit_6_16_ply_normals_and_point_colours() {
+        let out = export(&pictured(), Kind::Ply);
+        let end = out.windows(10).position(|w| w == b"end_header").unwrap();
+        let head = String::from_utf8_lossy(&out[..end]).to_string();
+        let points = &head[head.find("element vertex").unwrap()..head.find("element face").unwrap()];
+        for p in ["property float nx", "property float ny", "property float nz", "property uchar red"] {
+            assert!(points.contains(p), "no {p:?} on the points:\n{head}");
+        }
+        // The quad's four points, shared: its normals are the same at each.
+        assert!(points.starts_with("element vertex 4\n"), "{head}");
+        // Each point: x y z, nx ny nz, red green blue; the normal +Z of the model (Y up) is -Y with Z up.
+        let body = &out[end + "end_header\n".len()..];
+        let point = |i: usize| &body[i * 27..(i + 1) * 27];
+        let f = |b: &[u8], k: usize| f32::from_le_bytes(b[k * 4..k * 4 + 4].try_into().unwrap());
+        assert_eq!([3, 4, 5].map(|k| f(point(0), k)), [0.0, -1.0, 0.0]);
+        // The first point is on the green triangle and on the red one: its colour is between.
+        let [r, g, _] = [24, 25, 26].map(|k| point(0)[k]);
+        assert!(r > 50 && g > 50, "{:?}", &point(0)[24..]);
+        // Read back by EyeCanSee: the faces' own colours.
+        let back = crate::model::parse(&out, "x.ply").unwrap();
+        assert!(back.colors[0][1] > 150 && back.colors[1][0] > 150, "{:?}", back.colors);
+    }
+    /// A bent sheet of `n` × `n` squares as OBJ text: a curved surface, read with the normals
+    /// EyeCanSee works out.
+    fn bent(n: usize) -> String {
+        let mut s = String::new();
+        for i in 0..=n {
+            for j in 0..=n {
+                let (x, y) = (i as f32 / n as f32, j as f32 / n as f32);
+                s += &format!("v {x} {y} {}\n", (x * 3.0).sin() * (y * 2.0).cos() * 0.3);
+            }
+        }
+        let at = |i: usize, j: usize| i * (n + 1) + j + 1;
+        for i in 0..n {
+            for j in 0..n {
+                s += &format!("f {} {} {}\nf {} {} {}\n", at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j), at(i + 1, j + 1), at(i, j + 1));
+            }
+        }
+        s
+    }
+
+    /// Audit 6.16: on a curved model read from a file (normals worked out by EyeCanSee), PLY and
+    /// OBJ write each point once, not once per triangle.
+    #[test]
+    fn audit_6_16_curved_points_shared() {
+        let m = crate::model::parse(bent(16).as_bytes(), "s.obj").unwrap();
+        assert!(!m.normals.is_empty());
+        let out = export(&m, Kind::Ply);
+        let head = String::from_utf8_lossy(&out[..out.windows(10).position(|w| w == b"end_header").unwrap()]).to_string();
+        let points: usize = head.lines().find_map(|l| l.strip_prefix("element vertex ")).unwrap().parse().unwrap();
+        assert_eq!(points, m.pos.len(), "PLY: {points} points for {} in the model, {} triangles", m.pos.len(), m.tris.len());
+        let text = String::from_utf8(export(&m, Kind::Obj)).unwrap();
+        let normals = text.lines().filter(|l| l.starts_with("vn ")).count();
+        assert!(normals <= m.pos.len(), "OBJ: {normals} normals for {} points", m.pos.len());
+    }
+
+    /// #312: a scan of about 10 million triangles (a binary PLY of 190 MB, as the one of the
+    /// issue) read and exported as `EYECANSEE_BIG_KIND` (obj, ply…): the time of each step and
+    /// the size of the new file; the peak of memory from outside (`/usr/bin/time -v`).
+    #[test]
+    #[ignore]
+    fn export_big_live() {
+        let Some(kind) = std::env::var("EYECANSEE_BIG_KIND").ok().and_then(|k| Kind::of_ext(&k)) else { return };
+        let n = 2236u32;
+        let mut ply = format!("ply\nformat binary_little_endian 1.0\nelement vertex {}\nproperty float x\nproperty float y\nproperty float z\nelement face {}\nproperty list uchar uint vertex_indices\nend_header\n", (n + 1) * (n + 1), 2 * n * n).into_bytes();
+        for i in 0..=n {
+            for j in 0..=n {
+                let (x, y) = (i as f32 / n as f32, j as f32 / n as f32);
+                floats(&mut ply, &[x, y, (x * 3.0).sin() * (y * 2.0).cos() * 0.3]);
+            }
+        }
+        let at = |i: u32, j: u32| i * (n + 1) + j;
+        for i in 0..n {
+            for j in 0..n {
+                for t in [[at(i, j), at(i + 1, j), at(i + 1, j + 1)], [at(i, j), at(i + 1, j + 1), at(i, j + 1)]] {
+                    ply.push(3);
+                    ply.extend(t.iter().flat_map(|v| v.to_le_bytes()));
+                }
+            }
+        }
+        println!("PLY of {} MB, {} triangles", ply.len() >> 20, 2 * n * n);
+        let start = std::time::Instant::now();
+        let m = crate::model::parse(&ply, "big.ply").unwrap();
+        drop(ply);
+        println!("read in {:?}", start.elapsed());
+        let start = std::time::Instant::now();
+        let made = export_made(&m, kind);
+        println!("{} written in {:?}: {} MB", kind.label(), start.elapsed(), made.main.len() >> 20);
+    }
+
+    /// Audit 6.16 (#340): a model whose name has spaces: the files next to it have none (spaces
+    /// become "_", as `mtllib` and many readers split names at spaces; Piero, 24/11), and read
+    /// back with them, the `.mtl` and the picture are found.
+    #[test]
+    fn audit_6_16_obj_names_with_spaces_read_back() {
+        let free = |n: &str| n.to_string();
+        let made = export_with(&pictured(), Kind::Obj, &|_| true, &Beside { stem: "my  model\tx", free: &free }).unwrap();
+        let names: Vec<&str> = made.beside.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, ["my__model_x.png", "my__model_x.mtl"]);
+        assert!(String::from_utf8_lossy(&made.main).contains("\nmtllib my__model_x.mtl\n"));
+        let beside = |rel: &str| made.beside.iter().find(|(n, _)| n == rel).map(|(_, d)| d.clone());
+        let back = crate::model::parse_with(&made.main, "my  model\tx.obj", &beside).unwrap();
+        assert_eq!((back.textures.len(), back.tex.clone()), (1, vec![1, 1]), "the .mtl or the picture not found");
+    }
+
+    /// #340: next to an OBJ only the pictures its `.mtl` names: those of roughness and metal and
+    /// of the shadows in the creases have no place there, and were written without use.
+    #[test]
+    fn obj_only_the_pictures_named() {
+        let mut m = pictured();
+        let plain = |c| std::sync::Arc::new(image::RgbaImage::from_pixel(2, 2, image::Rgba(c)));
+        m.textures.extend([plain([0, 128, 255, 255]), plain([200, 200, 200, 255])]);
+        (m.surfaces[0].rough_metal, m.surfaces[0].occlusion_map) = (2, 3);
+        let made = export_made(&m, Kind::Obj);
+        let names: Vec<&str> = made.beside.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, ["x.png", "x.mtl"]);
+    }
+
+    /// #340: pictures read smaller (beyond 2048 pixels) or left out (beyond 64) are said at the
+    /// end of an export into a format that keeps pictures (glTF, OBJ): there it is not "all".
+    #[test]
+    fn pictures_smaller_or_left_out_said() {
+        let none: crate::model::Sibling = &|_| None;
+        let notes = |m: &Mesh, kind| export_file(&export(m, Kind::Glb), "q.glb", none, kind, &|_| true, &Beside { stem: "q", free: &|n| n.to_string() }).unwrap().1;
+        let mut big = pictured();
+        big.textures[0] = std::sync::Arc::new(image::RgbaImage::from_pixel(3000, 4, image::Rgba([0, 200, 0, 255])));
+        for kind in [Kind::Glb, Kind::Obj] {
+            assert!(notes(&big, kind).contains(&"model-export-lost-smaller"), "{kind:?}: {:?}", notes(&big, kind));
+        }
+        assert!(!notes(&pictured(), Kind::Glb).contains(&"model-export-lost-smaller"));
+        // 65 triangles, each with a picture of its own.
+        let obj: String = (0..65).map(|i| format!("v {i} 0 0\nv {i}.5 0 0\nv {i} 1 0\n")).chain((0..65).map(|i| format!("f {} {} {}\n", 3 * i + 1, 3 * i + 2, 3 * i + 3))).collect();
+        let mut many = crate::model::parse(obj.as_bytes(), "m.obj").unwrap();
+        many.textures = (0..65).map(|i| std::sync::Arc::new(image::RgbaImage::from_pixel(2, 2, image::Rgba([i as u8, 0, 0, 255])))).collect();
+        many.tex = (1..=65).collect();
+        many.uv = vec![[[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]; 65];
+        assert!(notes(&many, Kind::Glb).contains(&"model-export-lost-left-out"), "{:?}", notes(&many, Kind::Glb));
+    }
+
+    /// #312: every writer stops when told to, also on a model of one material (glTF wrote a
+    /// material's triangles before asking), and says how far it is on the way.
+    #[test]
+    fn every_writer_stops_and_tells() {
+        let m = crate::model::parse(bent(300).as_bytes(), "s.obj").unwrap();
+        assert!(m.tris.len() > 2 * TICK_EVERY);
+        for kind in Kind::ALL {
+            let seen = std::cell::RefCell::new(Vec::new());
+            let stop = |f: f32| {
+                seen.borrow_mut().push(f);
+                f < 0.3
+            };
+            assert!(export_with(&m, kind, &stop, &Beside { stem: "x", free: &|n| n.to_string() }).is_none(), "{kind:?} did not stop");
+            assert!(seen.borrow().len() >= 2, "{kind:?}: {:?}", seen.borrow());
+        }
+    }
+
+    /// Audit 6.16: what the new format cannot hold is said (project rule): a model with a
+    /// picture and a shiny surface, as STL and PLY, says the picture became colours and the
+    /// surface is lost; as OBJ and glTF, which hold them, nothing.
+    #[test]
+    fn audit_6_16_losses_said() {
+        let glb = export(&pictured(), Kind::Glb);
+        let none: crate::model::Sibling = &|_| None;
+        let notes = |kind| export_file(&glb, "q.glb", none, kind, &|_| true, &Beside { stem: "q", free: &|n| n.to_string() }).unwrap().1;
+        for kind in [Kind::Stl, Kind::Ply] {
+            assert_eq!(notes(kind), ["model-export-lost-pictures", "model-export-lost-surfaces"], "{kind:?}");
+        }
+        for kind in [Kind::Obj, Kind::Glb] {
+            assert!(notes(kind).is_empty(), "{kind:?}: {:?}", notes(kind));
         }
     }
 }
