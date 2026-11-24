@@ -1055,6 +1055,20 @@ mod tests {
         });
     }
 
+    /// Audit 2.29 (h): another computer is saving `shared/a.jpg` on the server, and its new
+    /// version is on its way as `.a.jpg.eyecansee-new`. This computer opens the folder: the hidden
+    /// file looked like the rest of a save cut short, and was deleted (the other computer's save
+    /// failed). `SAVING` knows only the saves of this process. Its date cannot tell: it is the
+    /// server's clock (LIST: in the server's time zone, to the minute), not this computer's.
+    #[test]
+    fn audit_2_29_h_upload_of_another_computer_left_alone() {
+        let (target, seen) = fake::start();
+        let op = crate::source::Store::Ftp(super::Server::shared(target));
+        let l = tokio::runtime::Runtime::new().unwrap().block_on(op.list("shared/")).unwrap();
+        assert_eq!(l.files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["shared/a.jpg"]);
+        assert!(!seen.deleted("shared", ".a.jpg.eyecansee-new"), "the file another computer is sending was deleted");
+    }
+
     /// Audit 2.23 (a): on a server too, an upload whose chunks bring fewer bytes than the size is
     /// an error, and the file is deleted.
     #[test]
