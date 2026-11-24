@@ -25,7 +25,8 @@ impl App {
         } else if undo {
             w.undo();
         }
-        if delete && let Some(i) = w.selected.take() {
+        // Only an object that is there (audit 5.6: an index left selected closed the program).
+        if delete && let Some(i) = w.selected.take().filter(|&i| i < w.doc.objects.len()) {
             w.doc.objects.remove(i);
         }
         if w.tool == Tool::Crop && ctx.input_mut(|i| i.consume_key(M::NONE, Key::Enter)) {

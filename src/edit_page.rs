@@ -21,6 +21,7 @@ use crate::transform::Turn;
 use crate::{App, source};
 
 mod bar_fit;
+mod cancel;
 mod canvas;
 mod clip;
 mod crop;
@@ -461,16 +462,14 @@ impl Window {
     }
 
     /// Esc, one thing at a time (Esc after placing a text closed the page): the
-    /// eyedropper or a drag stops, a text being typed or just placed is done (and goes if empty),
+    /// eyedropper or a drag stops (`cancel_drag`), a text being typed or just placed is done (and goes if empty),
     /// the selection goes. `false` when there was nothing of it: Esc closes the page then.
     fn escape(&mut self) -> bool {
         if std::mem::take(&mut self.picking) {
             return true;
         }
-        if self.hold.take().is_some() {
-            if let Some(h) = &self.history {
-                self.doc = h.doc().clone();
-            }
+        // Only what the drag did goes back (audit 5.6).
+        if self.cancel_drag() {
             return true;
         }
         if self.marquee.take().is_some() {

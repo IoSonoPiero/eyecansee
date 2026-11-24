@@ -39,7 +39,7 @@ Dove il ritaglio va oltre l'immagine, gli angoli sono **Trasparenti** (si vedono
 
 ## Da sapere
 
-- Con questo strumento Esc chiude la pagina (chiedendo prima, se ci sono modifiche non salvate).
+- Esc durante un trascinamento rimette il ritaglio com'era; altrimenti con questo strumento Esc chiude la pagina (chiedendo prima, se ci sono modifiche non salvate).
 - Puoi tornare a questo strumento e cambiare rotazione e ritaglio in qualsiasi momento.
 - Una foto Ultra HDR resta HDR: la sua parte HDR viene ruotata e ritagliata insieme alla foto.
 - Per girare o riflettere un'immagine nel visore, senza l'editor, vedi [Ruotare e riflettere](rotate.md).
