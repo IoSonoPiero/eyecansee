@@ -773,6 +773,14 @@ model-export-format = Format:
 model-export-where = Each copy goes next to its model, with the same name; a name already taken gets " (2)".
 model-export-ok = Export
 model-export-done-title = Export finished
+model-export-cancelled = Export cancelled
+model-export-running = Exporting 3D models
+model-export-counts = Model { $n } of { $total }
+model-export-files = { $n ->
+    [one] **1 model** exported.
+   *[other] **{ $n } models** exported.
+}
+model-export-before-cancel = **{ $n } of { $total } models** exported before Cancel.
 model-export-failed-heading = { $n ->
     [one] 1 model not exported:
    *[other] { $n } models not exported:

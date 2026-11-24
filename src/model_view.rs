@@ -281,8 +281,8 @@ impl App {
         let limit = crate::model_limit::of_export(kind);
         let read = |p: &String| self.model.meshes.get(p).is_some_and(|m| limit.check(m.tris.len()).is_err());
         self.export_said.told.extend(jobs.iter().map(|(p, _)| p).filter(|p| read(p)).cloned());
-        self.export_said.start(jobs.len());
-        loader.export_models(jobs, kind);
+        let progress = self.export_said.start(jobs.len());
+        loader.export_models(jobs, kind, progress);
     }
 
     /// The exported model: its new name in the status bar for a while, the folder read again. What
@@ -290,9 +290,14 @@ impl App {
     /// not exported (it was a line in the status bar that went after six seconds, and with
     /// several models only the last one's), and a glTF that placed a part more than once (#179:
     /// a line in the status bar stayed on the other files, Piero, 21/11).
-    pub(crate) fn on_exported(&mut self, ctx: &egui::Context, r: Result<(String, String, Vec<&'static str>), (String, String)>) {
+    pub(crate) fn on_exported(&mut self, ctx: &egui::Context, r: crate::model_export_job::Exported) {
         let (mut again, mut failed) = (None, None);
         match &r {
+            // Left out by Cancel: not a failure (#312).
+            Err((from, e)) if e == crate::model_export_job::CANCELLED => {
+                log!("export {from:?}: cancelled");
+                self.export_said.cancelled += 1;
+            }
             Ok((to, from, notes)) => {
                 self.relist(crate::source::parent(to));
                 if !notes.is_empty() {
@@ -304,16 +309,39 @@ impl App {
                 }
                 self.status_note = Some(self.i18n.t_args("status-exported", &[("name", crate::source::name(to))]));
                 self.note_until = Some(ctx.input(|i| i.time) + 6.0);
+                self.export_said.exported += 1;
             }
             Err((from, e)) => {
                 log!("export {from:?}: ERROR {e}");
                 failed = Some((crate::source::name(from).to_string(), e.clone()));
             }
         }
-        if let Some(n) = self.export_said.done(again, failed).and_then(|said| export_notice(&self.i18n, &said)) {
-            self.tell_notice(n);
+        let said = self.export_said.done(again, failed);
+        if self.export_said.running() {
+            return;
+        }
+        // The box is gone: what there is to say joins the report of the jobs that ended, as
+        // a copy's (#328); with nothing to say, a line for that report only.
+        let (exported, cancelled, total) = self.export_said.end();
+        let stopped = (cancelled > 0).then(|| self.i18n.t_args("model-export-before-cancel", &[("n", &exported.to_string()), ("total", &total.to_string())]));
+        match said.and_then(|said| export_notice(&self.i18n, &said, stopped.as_deref())) {
+            Some(n) => {
+                let n = crate::save_dialogs::Notice { job: true, ..n };
+                self.job_ended(crate::jobs_report::Part::of_notice(&n), None, crate::jobs_report::Waiting::Notice(n));
+            }
+            None => self.quiet_job(quiet_export(&self.i18n, exported, stopped)),
         }
     }
+}
+
+/// The part of an export that ended with nothing to say alone, for a report with more jobs:
+/// how many models were exported, or how many before Cancel (`stopped`).
+fn quiet_export(i18n: &crate::i18n::I18n, exported: usize, stopped: Option<String>) -> crate::jobs_report::Part {
+    let (title, text) = match stopped {
+        Some(line) => (i18n.t("model-export-cancelled"), line),
+        None => (i18n.t("model-export-done-title"), i18n.t_args("model-export-files", &[("n", &exported.to_string())])),
+    };
+    crate::jobs_report::Part { title, copy: crate::save_dialogs::plain(&text), text, groups: Vec::new(), warning: false, help: Some("help:model-export") }
 }
 
 /// The models of an export still to come, and what there is to say of those done (`Said`): said
@@ -324,6 +352,11 @@ pub(crate) struct ExportSaid {
     left: usize,
     said: Said,
     told: std::collections::HashSet<String>,
+    /// How far it is, for the box (#312), and the models exported and left out by Cancel so far.
+    progress: Option<std::sync::Arc<crate::model_export_job::Progress>>,
+    pub(crate) exported: usize,
+    pub(crate) cancelled: usize,
+    total: usize,
 }
 
 /// What the end of an export says: the models not exported, each with its error as the loader
@@ -338,9 +371,38 @@ pub(crate) struct Said {
 }
 
 impl ExportSaid {
-    /// `n` models more to export; with an export still running, one message at the end of both.
-    pub(crate) fn start(&mut self, n: usize) {
+    /// `n` models more to export; with an export still running, one message at the end of both,
+    /// and one box: the second export waits for the first (`model_export_job::run`) and joins its
+    /// count, unless the first is stopping, whose Cancel it must not take.
+    pub(crate) fn start(&mut self, n: usize) -> std::sync::Arc<crate::model_export_job::Progress> {
+        use std::sync::atomic::Ordering;
         self.left += n;
+        self.total += n;
+        let p = match self.progress.take().filter(|p| !p.cancel.load(Ordering::Relaxed)) {
+            Some(p) => p,
+            None => std::sync::Arc::new(crate::model_export_job::Progress::default()),
+        };
+        p.total.fetch_add(n, Ordering::Relaxed);
+        self.progress = Some(p.clone());
+        p
+    }
+
+    /// An export is under way: its box is on screen.
+    pub(crate) fn running(&self) -> bool {
+        self.left > 0
+    }
+
+    /// How far the export is, while one runs.
+    pub(crate) fn progress(&self) -> Option<std::sync::Arc<crate::model_export_job::Progress>> {
+        self.progress.clone().filter(|_| self.running())
+    }
+
+    /// The export ended: the models exported, those left out by Cancel, and all; counted anew.
+    pub(crate) fn end(&mut self) -> (usize, usize, usize) {
+        self.progress = None;
+        let counts = (self.exported, self.cancelled, self.total);
+        (self.exported, self.cancelled, self.total) = (0, 0, 0);
+        counts
     }
 
     /// The model `from` exported into `to`, a file beyond the cap of its format: said at the end,
@@ -367,7 +429,8 @@ impl ExportSaid {
 /// the whole sentence, as the viewer says a file that does not open, and the library's text
 /// only in Copy: `batch_summary::item`), and the glTF models that placed a part more than once
 /// (#179); both in one window, each under its heading.
-pub(crate) fn export_notice(i18n: &crate::i18n::I18n, said: &Said) -> Option<crate::save_dialogs::Notice> {
+/// `stopped`: the line of an export stopped by Cancel, above the rest, and in the title.
+pub(crate) fn export_notice(i18n: &crate::i18n::I18n, said: &Said, stopped: Option<&str>) -> Option<crate::save_dialogs::Notice> {
     use crate::notice_list::{Entry, Part};
     let failed = said.failed.iter().map(|(name, e)| {
         let whole = crate::batch_summary::item(i18n, crate::fault::NOT_OPENED, &format!("{name}\u{1}{e}"), false).1;
@@ -379,7 +442,8 @@ pub(crate) fn export_notice(i18n: &crate::i18n::I18n, said: &Said) -> Option<cra
         Part::named(i18n, "model-export-again-heading", "model-export-again-why", &said.again),
         Part::of(i18n, "model-export-beyond-heading", "model-export-beyond-why", beyond.collect()),
     ];
-    (*said != Said::default()).then(|| crate::notice_list::told(i18n, i18n.t("model-export-done-title"), "", parts))
+    let title = i18n.t(if stopped.is_some() { "model-export-cancelled" } else { "model-export-done-title" });
+    (*said != Said::default()).then(|| crate::notice_list::told(i18n, title, stopped.unwrap_or_default(), parts))
 }
 
 /// The axes of the file in the top right corner, as CAD programs show them: X red, Y green, Z
@@ -409,6 +473,7 @@ mod tests {
 
     /// #312: while models are exported a box in the corner says so, with its Cancel among the
     /// controls of the boxes (F6, Tab), as a copy's; it stays until the last model is done.
+    /// F6 and Enter press its Cancel.
     #[test]
     #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
     fn an_export_shows_its_box_until_done() {
@@ -418,20 +483,52 @@ mod tests {
         }
         let mut h = Harness::new(&folder("export-box", &["a.png"]));
         let dir = h.app.dir.clone();
-        h.app.export_said.start(2);
-        h.frame(Vec::new());
-        h.frame(Vec::new());
-        assert_eq!(crate::box_keys::controls(&h.ctx).len(), 1, "nothing on screen says that the export is running");
+        // Frames until `n` boxes are ready (a window is sized in its first frames), 10 at most.
+        let boxes = |h: &mut Harness, n: usize| (0..10).any(|_| {
+            h.frame(Vec::new());
+            crate::box_keys::controls(&h.ctx).len() == n
+        });
+        let progress = h.app.export_said.start(2);
+        assert!(boxes(&mut h, 1), "nothing on screen says that the export is running");
         let exported = |name: &str| crate::loader::Msg::Exported(Ok((format!("{dir}{name}.obj"), format!("{dir}{name}.ply"), Vec::new())));
         h.app.tx.send(exported("a")).unwrap();
         h.frame(Vec::new());
+        assert!(boxes(&mut h, 1), "the box went before the last model");
+        // Enter on its Cancel, reached with F6, stops the export.
+        let f6 = |pressed| egui::Event::Key { key: egui::Key::F6, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::NONE };
+        h.frame(vec![f6(true)]);
+        h.frame(vec![f6(false)]);
+        h.key(egui::Key::Enter);
         h.frame(Vec::new());
-        assert_eq!(crate::box_keys::controls(&h.ctx).len(), 1, "the box went before the last model");
-        h.app.tx.send(exported("b")).unwrap();
+        assert!(progress.cancel.load(std::sync::atomic::Ordering::Relaxed), "F6 and Enter did not press Cancel of the export");
+        // The last model left out by Cancel: the box goes, and a cancel alone says nothing, as
+        // a copy's.
+        h.app.tx.send(crate::loader::Msg::Exported(Err((format!("{dir}b.ply"), crate::model_export_job::CANCELLED.into())))).unwrap();
         h.frame(Vec::new());
-        h.frame(Vec::new());
-        h.frame(Vec::new());
-        assert!(crate::box_keys::controls(&h.ctx).is_empty(), "the box stayed after the export");
+        assert!(!h.app.export_said.running() && h.app.export_said.progress().is_none(), "the box stayed after the export");
+        assert!(boxes(&mut h, 0));
+        assert!(h.app.notice.is_none() && h.app.jobs_report.is_none(), "a cancel alone was told in a window");
+    }
+
+    /// #312: a second export while the first runs joins its box and its count; one started
+    /// while the first is stopping gets a box of its own, not the first one's Cancel.
+    #[test]
+    fn a_second_export_and_cancel() {
+        use std::sync::atomic::Ordering;
+        let mut s = ExportSaid::default();
+        let first = s.start(2);
+        let second = s.start(3);
+        assert!(std::sync::Arc::ptr_eq(&first, &second));
+        assert_eq!(first.total.load(Ordering::Relaxed), 5);
+        first.cancel.store(true, Ordering::Relaxed);
+        let third = s.start(1);
+        assert!(!std::sync::Arc::ptr_eq(&first, &third) && !third.cancel.load(Ordering::Relaxed));
+        assert_eq!(third.total.load(Ordering::Relaxed), 1);
+        assert!(s.progress().is_some_and(|p| std::sync::Arc::ptr_eq(&p, &third)));
+        for _ in 0..6 {
+            s.done(None, None);
+        }
+        assert!(!s.running() && s.progress().is_none());
     }
 
     /// Three models, the second failed: the names of the first and the third, in their order, and
@@ -469,23 +566,23 @@ mod tests {
         let (en, it) = (I18n::new("en"), I18n::new("it"));
         let md = crate::save_dialogs::md;
         let again = |names: &[String]| Said { failed: Vec::new(), again: names.to_vec(), ..Default::default() };
-        let one = export_notice(&it, &again(&["nodo_doppio.gltf".to_string()])).unwrap();
+        let one = export_notice(&it, &again(&["nodo_doppio.gltf".to_string()]), None).unwrap();
         assert!(one.warning);
         assert_eq!(one.title, "Esportazione finita");
         let why = "Metteva una sua parte più volte nella gerarchia, cosa che glTF non permette: nel file nuovo c'è una volta sola.";
         assert_eq!(one.text, format!("**1 modello esportato con una modifica{}**\n{why}\n- {}", md(":"), crate::notice_list::item("nodo_doppio.gltf")));
         assert_eq!(one.copy.as_deref(), Some(format!("1 modello esportato con una modifica:\n{why}\n- nodo_doppio.gltf").as_str()));
-        assert_eq!(export_notice(&en, &again(&["a.gltf".to_string()])).unwrap().title, "Export finished");
+        assert_eq!(export_notice(&en, &again(&["a.gltf".to_string()]), None).unwrap().title, "Export finished");
         let names: Vec<String> = (1..=12).rev().map(|i| format!("m{i}.gltf")).collect();
         for (i18n, heading, more) in [(&en, "12 models exported with a change:", "and 2 more"), (&it, "12 modelli esportati con una modifica:", "e altri 2")] {
-            let many = export_notice(i18n, &again(&names)).unwrap();
+            let many = export_notice(i18n, &again(&names), None).unwrap();
             assert!(many.text.starts_with(&format!("**{}**\n", md(heading))), "{}", many.text);
             assert!(many.text.ends_with(&format!("\n- {}\n- {}\n- {more}", md("m9.gltf"), md("m10.gltf"))) && !many.text.contains("m11"), "{}", many.text);
             let copy = many.copy.unwrap();
             assert!(copy.starts_with(heading) && copy.ends_with("- m10.gltf\n- m11.gltf\n- m12.gltf") && !copy.contains(more), "{copy}");
         }
-        assert!(export_notice(&en, &again(&names)).unwrap().text.contains("\nThey placed one of their parts more than once in their hierarchy, which glTF does not allow: the new files have it only once.\n"));
-        assert_eq!(export_notice(&en, &Said::default()).map(|n| n.title), None);
+        assert!(export_notice(&en, &again(&names), None).unwrap().text.contains("\nThey placed one of their parts more than once in their hierarchy, which glTF does not allow: the new files have it only once.\n"));
+        assert_eq!(export_notice(&en, &Said::default(), None).map(|n| n.title), None);
     }
 
     /// Exported from the grid into files beyond the cap of their format (Piero, 22/11/2026): said
@@ -505,11 +602,11 @@ mod tests {
         let said = s.done(None, None).unwrap();
         assert_eq!(said.beyond, [("big.ply".to_string(), crate::model_limit::OBJ.error()), ("huge.ply".to_string(), crate::model_limit::GLB.error())]);
         assert!(s.told.is_empty());
-        let n = export_notice(&en, &said).unwrap();
+        let n = export_notice(&en, &said, None).unwrap();
         assert!(n.warning);
         assert_eq!(plain(&n.text), "2 models exported to files that EyeCanSee will not be able to open:\nThey have more triangles than EyeCanSee can open in that format.\n- big.ply: more than 10 million triangles\n- huge.ply: more than 20 million triangles");
         let one = Said { beyond: vec![("big.ply".into(), crate::model_limit::OBJ.error())], ..Default::default() };
-        assert_eq!(plain(&export_notice(&it, &one).unwrap().text), "1 modello esportato in un file che EyeCanSee non potrà aprire:\nHa più triangoli di quanti EyeCanSee ne possa aprire in quel formato.\n- big.ply: più di 10 milioni di triangoli");
+        assert_eq!(plain(&export_notice(&it, &one, None).unwrap().text), "1 modello esportato in un file che EyeCanSee non potrà aprire:\nHa più triangoli di quanti EyeCanSee ne possa aprire in quel formato.\n- big.ply: più di 10 milioni di triangoli");
     }
 
     /// The models not exported, as Piero had them (21/11): a glTF without its data file, one with
@@ -526,24 +623,24 @@ mod tests {
         let plain = crate::save_dialogs::plain;
         let said = |errors: &[(&str, String)]| Said { failed: errors.iter().map(|(n, e)| (n.to_string(), e.clone())).collect(), again: Vec::new(), ..Default::default() };
         let four = [("senza-bin.gltf", format!("{MISSING_BIN}\u{1}senza-bin.bin")), ("dati-rovinati.gltf", format!("{DAMAGED_INSIDE}\u{1}")), ("fuori.gltf", format!("{OUTSIDE_BIN}\u{1}../dati.bin")), ("incompleto.glb", format!("{INCOMPLETE}\u{1}"))];
-        let n = export_notice(&it, &said(&four)).unwrap();
+        let n = export_notice(&it, &said(&four), None).unwrap();
         assert!(n.warning);
         assert_eq!(n.title, "Esportazione finita");
         assert_eq!(plain(&n.text), "4 modelli non esportati:\n- dati-rovinati.gltf: i dati scritti dentro il file sono rovinati\n- fuori.gltf: i dati sono fuori dalla cartella del modello (../dati.bin)\n- incompleto.glb: manca il blocco con i dati\n- senza-bin.gltf: manca il file senza-bin.bin");
         assert!(n.text.starts_with("**4 modelli non esportati\\:**\n- dati\\-rovinati"), "{}", n.text);
         assert_eq!(n.copy.as_deref(), Some("4 modelli non esportati:\n- Impossibile aprire dati-rovinati.gltf: I dati del modello scritti dentro il file sono rovinati\n- Impossibile aprire fuori.gltf: Il file con i dati del modello non viene letto: EyeCanSee non legge file fuori dalla cartella del modello né da internet. ../dati.bin\n- Impossibile aprire incompleto.glb: Il file è incompleto: manca il blocco con i dati del modello\n- Impossibile aprire senza-bin.gltf: Manca il file con i dati del modello: senza-bin.bin"));
-        let en_four = export_notice(&en, &said(&four)).unwrap();
+        let en_four = export_notice(&en, &said(&four), None).unwrap();
         assert_eq!(plain(&en_four.text), "4 models not exported:\n- dati-rovinati.gltf: the data written inside the file is damaged\n- fuori.gltf: the data is outside the model's folder (../dati.bin)\n- incompleto.glb: the block with the data is missing\n- senza-bin.gltf: the file senza-bin.bin is missing");
-        let one = export_notice(&it, &said(&[("a*.gltf", format!("{MISSING_BIN}\u{1}dati.bin"))])).unwrap();
+        let one = export_notice(&it, &said(&[("a*.gltf", format!("{MISSING_BIN}\u{1}dati.bin"))]), None).unwrap();
         assert_eq!(plain(&one.text), "1 modello non esportato:\n- a*.gltf: manca il file dati.bin");
         assert!(one.text.contains("a\\*"), "{}", one.text);
         let denied = "PermissionDenied (permanent) at write, context: { service_operation: OpenForWrite, service: fs, path: m/c.stl, size: 84, written: 0 } => permission denied, source: Permission denied (os error 13)".to_string();
-        let other = export_notice(&en, &said(&[("d.step", crate::occt::MISSING.into()), ("b.glb", "unexpected end of file".into()), ("c.step", denied)])).unwrap();
+        let other = export_notice(&en, &said(&[("d.step", crate::occt::MISSING.into()), ("b.glb", "unexpected end of file".into()), ("c.step", denied)]), None).unwrap();
         assert_eq!(plain(&other.text), "3 models not exported:\n- b.glb\n- c.step: access denied\n- d.step: the CAD engine is missing");
         let copy = other.copy.unwrap();
         assert!(copy.contains("\n- Cannot open b.glb (unexpected end of file)\n") && copy.contains("c.stl") && !copy.contains("PermissionDenied") && copy.ends_with(&format!("\n- Cannot open d.step: {}", en.t("cad-engine-missing"))), "{copy}");
         let many: Vec<(String, String)> = (1..=12).map(|i| (format!("m{i}.glb"), "cut".to_string())).collect();
-        let both = export_notice(&en, &Said { failed: many, again: vec!["a.gltf".into()], ..Default::default() }).unwrap();
+        let both = export_notice(&en, &Said { failed: many, again: vec!["a.gltf".into()], ..Default::default() }, None).unwrap();
         assert_eq!(both.title, "Export finished");
         assert!(plain(&both.text).contains("\n- m10.glb\n- and 2 more\n\n1 model exported with a change:\nIt placed one of its parts") && !both.text.contains("m11"), "{}", both.text);
         let copy = both.copy.unwrap();

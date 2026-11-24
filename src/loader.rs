@@ -458,28 +458,14 @@ impl Loader {
 
     /// Each model `path` read (with the files next to it) and written to `to` as `kind`, one after
     /// the other (a phone reads one file at a time, and a model can take much memory).
-    pub fn export_models(&self, jobs: Vec<(String, String)>, kind: crate::model_export::Kind) {
+    /// Export as a 3D model, with how far it is and Cancel in `progress` (`model_export_job`, #312).
+    pub fn export_models(&self, jobs: Vec<(String, String)>, kind: crate::model_export::Kind, progress: Arc<crate::model_export_job::Progress>) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
-        self.rt.spawn(async move {
-            for (path, to) in jobs {
-                let (sibling, local, from) = (siblings(op.clone(), path.clone()), crate::occt::local(&op, &path), path.clone());
-                let r = match op.read(&path).await {
-                    Ok(bytes) => tokio::task::spawn_blocking(move || crate::occt::from_file(local, || crate::model_export::export_file(&bytes, &path, &sibling, kind)))
-                        .await
-                        .unwrap_or_else(|e| Err(e.to_string())),
-                    Err((_, detail)) => Err(detail),
-                };
-                let r = match r {
-                    Ok((data, notes)) => match write_whole(&op, &to, data).await {
-                        Ok(()) => Ok((to, from, notes)),
-                        Err((_, detail)) => Err((from, detail)),
-                    },
-                    Err(e) => Err((from, e)),
-                };
-                let _ = tx.send(Msg::Exported(r));
-                ctx.request_repaint();
-            }
-        });
+        let send = move |r| {
+            let _ = tx.send(Msg::Exported(r));
+            ctx.request_repaint();
+        };
+        self.rt.spawn(crate::model_export_job::run(op, jobs, kind, progress, send));
     }
 
     /// Two CAD drawings read and compared (#143, `cad_compare`), for the viewer; `names` of the

@@ -136,13 +136,30 @@ fn unit(n: [f32; 3]) -> [f32; 3] {
 /// `kind`, with what was read differently from its file (`Mesh::warnings`): the export says the
 /// new file has it so (#179); and `model_limit::BEYOND_EXPORT` when the new file has more
 /// triangles than EyeCanSee opens in its format.
-pub fn export_file(bytes: &[u8], name: &str, sibling: crate::model::Sibling, kind: Kind) -> Result<(Vec<u8>, Vec<&'static str>), String> {
+/// `tick` is told how far the writing is (0 to 1, from 0 once the model is read) and stops it
+/// with `false`: then the error is `model_export_job::CANCELLED` (#312).
+pub fn export_file(bytes: &[u8], name: &str, sibling: crate::model::Sibling, kind: Kind, tick: Tick) -> Result<(Vec<u8>, Vec<&'static str>), String> {
     let mesh = crate::model::parse_with(bytes, name, sibling)?;
     let mut notes = mesh.warnings.clone();
     if crate::model_limit::of_export(kind).check(mesh.tris.len()).is_err() {
         notes.push(crate::model_limit::BEYOND_EXPORT);
     }
-    Ok((export(&mesh, kind), notes))
+    let cancelled = || crate::model_export_job::CANCELLED.to_string();
+    if !tick(0.0) {
+        return Err(cancelled());
+    }
+    Ok((export_with(&mesh, kind, tick).ok_or_else(cancelled)?, notes))
+}
+
+/// Told how far an export is, 0 to 1; `false` stops it (`export_file`).
+pub type Tick<'a> = &'a dyn Fn(f32) -> bool;
+
+/// How often the writers tell how far they are: every this many triangles.
+const TICK_EVERY: usize = 1 << 16;
+
+/// `tick` at the triangle `t` of `n`, every `TICK_EVERY`: `false` when it says to stop.
+fn ticked(tick: Tick, t: usize, n: usize) -> bool {
+    !t.is_multiple_of(TICK_EVERY) || tick(t as f32 / n.max(1) as f32)
 }
 
 /// How many metres a unit of `model::Mesh::unit` is.
@@ -164,18 +181,24 @@ fn unit_line(mesh: &Mesh, comment: &str) -> String {
     mesh.unit.map(|u| format!("{comment} unit: {u}\n")).unwrap_or_default()
 }
 
-/// The file's bytes.
+/// The file's bytes (tests).
+#[cfg(test)]
 pub fn export(mesh: &Mesh, kind: Kind) -> Vec<u8> {
+    export_with(mesh, kind, &|_| true).unwrap_or_default()
+}
+
+/// As `export`, telling `tick` how far it is; `None` when `tick` stopped it.
+pub fn export_with(mesh: &Mesh, kind: Kind, tick: Tick) -> Option<Vec<u8>> {
     let scale = match (kind, mesh.unit) {
         (Kind::Glb, Some(u)) => metres(u).unwrap_or(1.0),
         _ => 1.0,
     };
     let v = View { mesh, z_up: matches!(kind, Kind::Stl | Kind::Ply), scale };
     match kind {
-        Kind::Stl => stl(&v),
-        Kind::Obj => obj(&v),
-        Kind::Ply => ply(&v),
-        Kind::Glb => glb(&v),
+        Kind::Stl => stl(&v, tick),
+        Kind::Obj => obj(&v, tick),
+        Kind::Ply => ply(&v, tick),
+        Kind::Glb => glb(&v, tick),
     }
 }
 
@@ -183,13 +206,16 @@ fn floats(out: &mut Vec<u8>, v: &[f32]) {
     out.extend(v.iter().flat_map(|f| f.to_le_bytes()));
 }
 
-fn stl(v: &View) -> Vec<u8> {
+fn stl(v: &View, tick: Tick) -> Option<Vec<u8>> {
     // The header is free text: the unit in it, as in OBJ and PLY.
     let mut out = format!("EyeCanSee{}", v.mesh.unit.map(|u| format!(", unit: {u}")).unwrap_or_default()).into_bytes();
     out.resize(80, 0);
     out.extend((v.mesh.tris.len() as u32).to_le_bytes());
     let colored = v.colored();
     for t in 0..v.mesh.tris.len() {
+        if !ticked(tick, t, v.mesh.tris.len()) {
+            return None;
+        }
         let corners = [0, 1, 2].map(|k| v.corner(t, k));
         floats(&mut out, &face_normal(corners));
         for p in corners {
@@ -204,14 +230,18 @@ fn stl(v: &View) -> Vec<u8> {
         };
         out.extend(attr.to_le_bytes());
     }
-    out
+    Some(out)
 }
 
-fn obj(v: &View) -> Vec<u8> {
+fn obj(v: &View, tick: Tick) -> Option<Vec<u8>> {
     let mut s = format!("# EyeCanSee\n{}", unit_line(v.mesh, "#"));
     let (colored, smooth) = (v.colored(), !v.mesh.normals.is_empty());
     // Each triangle its own corners: colours and normals are per corner.
+    // The corners are most of the work: they tell how far it is.
     for t in 0..v.mesh.tris.len() {
+        if !ticked(tick, t, v.mesh.tris.len()) {
+            return None;
+        }
         let colors = v.corner_colors(t);
         for (k, c) in colors.iter().enumerate() {
             let p = v.corner(t, k);
@@ -228,10 +258,10 @@ fn obj(v: &View) -> Vec<u8> {
         let [a, b, c] = [1, 2, 3].map(|k| t * 3 + k);
         let _ = if smooth { writeln!(s, "f {a}//{a} {b}//{b} {c}//{c}") } else { writeln!(s, "f {a} {b} {c}") };
     }
-    s.into_bytes()
+    Some(s.into_bytes())
 }
 
-fn ply(v: &View) -> Vec<u8> {
+fn ply(v: &View, tick: Tick) -> Option<Vec<u8>> {
     let colored = v.colored();
     let mut out = format!(
         "ply\nformat binary_little_endian 1.0\n{}\n{}element vertex {}\nproperty float x\nproperty float y\nproperty float z\nelement face {}\nproperty list uchar uint vertex_indices\n{}end_header\n",
@@ -246,13 +276,16 @@ fn ply(v: &View) -> Vec<u8> {
         floats(&mut out, &v.turn(*p).map(|c| c * v.scale));
     }
     for (t, tri) in v.mesh.tris.iter().enumerate() {
+        if !ticked(tick, t, v.mesh.tris.len()) {
+            return None;
+        }
         out.push(3);
         out.extend(tri.iter().flat_map(|i| i.to_le_bytes()));
         if colored {
             out.extend(v.face_color(t));
         }
     }
-    out
+    Some(out)
 }
 
 /// The binary part of a GLB and what points into it.
@@ -296,7 +329,7 @@ impl Bin {
 }
 
 /// The triangles grouped by picture and surface: one glTF primitive each, with its material.
-fn glb(v: &View) -> Vec<u8> {
+fn glb(v: &View, tick: Tick) -> Option<Vec<u8>> {
     let m = v.mesh;
     let mut groups: BTreeMap<(u16, u16), Vec<usize>> = BTreeMap::new();
     for t in 0..m.tris.len() {
@@ -304,7 +337,12 @@ fn glb(v: &View) -> Vec<u8> {
     }
     let mut bin = Bin::default();
     let (mut primitives, mut materials) = (Vec::new(), Vec::new());
+    let mut written = 0;
     for (&(tex, surface), tris) in &groups {
+        if !tick(written as f32 / m.tris.len().max(1) as f32) {
+            return None;
+        }
+        written += tris.len();
         let attributes = glb_attributes(v, &mut bin, tris);
         let material = if tex > 0 || surface > 0 {
             materials.push(glb_material(m, tex, surface));
@@ -353,7 +391,7 @@ fn glb(v: &View) -> Vec<u8> {
     out.extend((bin.bytes.len() as u32).to_le_bytes());
     out.extend(b"BIN\0");
     out.extend(bin.bytes);
-    out
+    Some(out)
 }
 
 /// Positions, normals, picture coordinates and colours of the triangles `tris`, each its own
