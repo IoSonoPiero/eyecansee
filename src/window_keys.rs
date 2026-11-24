@@ -453,8 +453,8 @@ fn the_box_of_a_copy_is_in_the_round_of_tab() {
 }
 
 /// #311: the questions with a row of buttons (`confirm::choose`): deleting, turning pictures of
-/// the grid, leaving a turn of the viewer or the changes of the editor not saved, KDE holding a
-/// phone. Tab with nothing focused goes through their buttons, the arrows too, Esc cancels.
+/// the grid, leaving a turn of the viewer or the changes of the editor not saved, Rename, New
+/// folder, saving a turn of the viewer, KDE holding a phone. Tab with nothing focused goes through their buttons, the arrows too, Esc cancels.
 #[test]
 #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
 fn tab_goes_through_the_rows_of_buttons() {
@@ -496,6 +496,28 @@ fn tab_goes_through_the_rows_of_buttons() {
     h.blur();
     h.key(Key::Escape);
     assert!(!asked(&h.app) && h.app.editor.is_some(), "Esc did not go back to the editor");
+
+    let mut h = on_grid("keys-rename");
+    h.app.ask_rename(None);
+    tab_goes_through(&mut h, modal("rename"), |a| a.rename.is_some(), 3, true);
+    h.blur();
+    h.key(Key::Escape);
+    assert!(h.app.rename.is_none(), "Esc did not cancel Rename");
+
+    let mut h = on_grid("keys-new-folder");
+    h.app.ask_new_folder(None);
+    tab_goes_through(&mut h, modal("new-folder"), |a| a.new_folder.is_some(), 3, true);
+    h.blur();
+    h.key(Key::Escape);
+    assert!(h.app.new_folder.is_none(), "Esc did not cancel New folder");
+
+    let mut h = crate::audit_family_1::turned_middle("keys-save");
+    h.key_with(Key::S, Modifiers::COMMAND);
+    h.until(|a| a.save_ready.is_some(), "the question before saving the turn");
+    tab_goes_through(&mut h, modal("save"), |a| a.save_ready.is_some(), 2, true);
+    h.blur();
+    h.key(Key::Escape);
+    assert!(h.app.save_ready.is_none() && h.app.turn_unsaved(), "Esc did not cancel the save");
 
     let mut h = on_grid("keys-kiod");
     h.app.kiod_ask = true;
