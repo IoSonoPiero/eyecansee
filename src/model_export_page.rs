@@ -61,7 +61,7 @@ fn form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer> {
         ui.label(t("model-export-format"));
         let list = egui::ComboBox::from_id_salt("model-export-format").width(160.0).selected_text(f.kind.label()).show_list(ui, |ui| {
             for k in Kind::ALL {
-                ui.selectable_value(&mut f.kind, k, k.label());
+                crate::confirm::choice(ui, &mut f.kind, k, k.label());
             }
         });
         // Tab reaches it with the buttons, Space opens it (#311).

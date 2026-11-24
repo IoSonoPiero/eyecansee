@@ -313,6 +313,7 @@ fn font_choice(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
     let r = egui::ComboBox::from_id_salt("edit-font").width(180.0).height(420.0).selected_text(own.clone().unwrap_or_else(|| default.clone())).show_list(ui, |ui| {
         for f in std::iter::once(None).chain(families.iter().cloned().map(Some)) {
             let r = ui.selectable_label(own == f, f.clone().unwrap_or_else(|| default.clone()));
+            crate::confirm::list_entry(ui, &r, own == f);
             if r.hovered() {
                 pointed = Some(f.clone());
             }

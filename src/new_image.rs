@@ -160,11 +160,15 @@ fn new_image_form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer
         let shown = f.preset.map_or_else(|| t("new-custom"), |i| f.name(i18n, i));
         egui::ComboBox::from_id_salt("new-preset").width(260.0).selected_text(shown).show_list(ui, |ui| {
             for (i, &(_, w, h, unit)) in PRESETS.iter().enumerate() {
-                if ui.selectable_label(f.preset == Some(i), f.name(i18n, i)).clicked() {
+                let r = ui.selectable_label(f.preset == Some(i), f.name(i18n, i));
+                crate::confirm::list_entry(ui, &r, f.preset == Some(i));
+                if r.clicked() {
                     (f.preset, f.w, f.h, f.unit) = (Some(i), w, h, unit);
                 }
             }
-            if ui.selectable_label(f.preset.is_none(), t("new-custom")).clicked() {
+            let r = ui.selectable_label(f.preset.is_none(), t("new-custom"));
+            crate::confirm::list_entry(ui, &r, f.preset.is_none());
+            if r.clicked() {
                 f.preset = None;
             }
         });
@@ -178,7 +182,7 @@ fn new_image_form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer
             let edited = w.changed() || h.changed();
             egui::ComboBox::from_id_salt("new-unit").width(60.0).selected_text(f.unit.label()).show_list(ui, |ui| {
                 for u in Unit::ALL {
-                    ui.selectable_value(&mut f.unit, u, u.label());
+                    crate::confirm::choice(ui, &mut f.unit, u, u.label());
                 }
             });
             if edited || f.unit != unit {

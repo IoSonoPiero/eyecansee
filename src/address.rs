@@ -310,7 +310,7 @@ impl App {
         ui.label(t("addr-protocol"));
         egui::ComboBox::from_id_salt("addr-scheme").selected_text(SCHEMES[f.scheme].to_uppercase()).show_list(ui, |ui| {
             for (i, s) in SCHEMES.iter().enumerate() {
-                ui.selectable_value(&mut f.scheme, i, s.to_uppercase());
+                crate::confirm::choice(ui, &mut f.scheme, i, s.to_uppercase());
             }
         });
         ui.end_row();

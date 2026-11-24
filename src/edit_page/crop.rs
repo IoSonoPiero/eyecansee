@@ -64,7 +64,7 @@ fn crop_controls(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     ui.label(t("rc-crop"));
     egui::ComboBox::from_id_salt("rc-aspect").selected_text(label(w.aspect)).show_list(ui, |ui| {
         for a in ASPECTS {
-            ui.selectable_value(&mut w.aspect, a, label(a));
+            crate::confirm::choice(ui, &mut w.aspect, a, label(a));
         }
     });
     if w.aspect == Aspect::Custom {

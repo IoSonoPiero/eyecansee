@@ -86,9 +86,9 @@ fn format_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
     let t = |id| i18n.t(id);
     let label = |format: Option<Format>| format.map_or_else(|| t("batch-same-format"), |f| f.label().to_string());
     egui::ComboBox::from_id_salt("batch-format").selected_text(label(f.format)).show_list(ui, |ui| {
-        ui.selectable_value(&mut f.format, None, t("batch-same-format"));
+        crate::confirm::choice(ui, &mut f.format, None, t("batch-same-format"));
         for format in Format::ALL {
-            ui.selectable_value(&mut f.format, Some(format), format.label());
+            crate::confirm::choice(ui, &mut f.format, Some(format), format.label());
         }
     });
     match f.format {
@@ -132,12 +132,15 @@ fn drawing_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
     let label = others.iter().find(|(d, _)| f.kept == Some(*d)).map_or(format.label(), |(_, l)| l);
     egui::ComboBox::from_id_salt("drawing-format").selected_text(label).show_list(ui, |ui| {
         for k in Format::ALL {
-            if ui.selectable_label(f.kept.is_none() && k == format, k.label()).clicked() {
+            let selected = f.kept.is_none() && k == format;
+            let r = ui.selectable_label(selected, k.label());
+            crate::confirm::list_entry(ui, &r, selected);
+            if r.clicked() {
                 (f.kept, f.format) = (None, Some(k));
             }
         }
         for (d, label) in others {
-            ui.selectable_value(&mut f.kept, Some(d), label);
+            crate::confirm::choice(ui, &mut f.kept, Some(d), label);
         }
     });
     if let Some(kept) = f.kept {
@@ -194,7 +197,7 @@ fn size_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
         }
         egui::ComboBox::from_label(t("batch-filter")).selected_text(t(f.filter.label())).show_list(ui, |ui| {
             for filter in Filter::ALL {
-                ui.selectable_value(&mut f.filter, filter, t(filter.label()));
+                crate::confirm::choice(ui, &mut f.filter, filter, t(filter.label()));
             }
         });
     });

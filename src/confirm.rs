@@ -409,6 +409,13 @@ pub(crate) trait FollowList {
 impl FollowList for egui::ComboBox<'_> {
     fn show_list<R>(self, ui: &mut egui::Ui, contents: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<Option<R>> {
         self.show_ui(ui, |ui| {
+            // Just opened: no frame of this list right before this one (`choice`).
+            let (seen, now) = (egui::Id::unique(LIST_ID).with(ui.layer_id()), ui.ctx().cumulative_frame_nr());
+            let fresh = ui.data(|d| d.get_temp::<u64>(seen)).is_none_or(|f| f.saturating_add(1) < now);
+            ui.data_mut(|d| {
+                d.insert_temp(seen, now);
+                d.insert_temp(egui::Id::unique(LIST_ID), (ui.layer_id(), fresh));
+            });
             let r = contents(ui);
             follow_focus(ui);
             r
@@ -432,9 +439,35 @@ impl FollowArea for egui::ScrollArea {
     }
 }
 
-/// An entry of a drop-down list opened with `show_list`: as `selectable_value`.
+/// The list of `show_list` drawn now: its layer, and whether it has just opened.
+const LIST_ID: &str = "list-open";
+
+/// An entry of a drop-down list opened with `show_list`, as `selectable_value` (#311, Piero,
+/// 24/11): the list opens with the keyboard on the entry chosen, so the arrows go on from it and
+/// not from the first; Enter or Space on an entry chooses it and closes the list, as a click.
 pub(crate) fn choice<V: PartialEq>(ui: &mut egui::Ui, current: &mut V, value: V, text: impl Into<egui::WidgetText>) -> egui::Response {
-    ui.selectable_value(current, value, text)
+    let selected = *current == value;
+    let mut r = ui.selectable_label(selected, text);
+    if r.clicked() && !selected {
+        *current = value;
+        r.mark_changed();
+    }
+    list_entry(ui, &r, selected);
+    r
+}
+
+/// What `choice` does for an entry drawn otherwise (`selectable_label` with its own logic).
+pub(crate) fn list_entry(ui: &egui::Ui, r: &egui::Response, selected: bool) {
+    let Some((layer, fresh)) = ui.data(|d| d.get_temp::<(egui::LayerId, bool)>(egui::Id::unique(LIST_ID))) else { return };
+    if layer != ui.layer_id() {
+        return;
+    }
+    if fresh && selected {
+        r.request_focus();
+    }
+    if r.clicked() {
+        ui.close();
+    }
 }
 
 /// A list or a page that scrolls follows the keyboard (#311): when the focus moves (Tab, the

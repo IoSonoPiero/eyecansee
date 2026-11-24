@@ -270,7 +270,7 @@ impl App {
                 .selected_text(t(order_label(w.order)))
                 .show_list(ui, |ui| {
                     for o in [Order::Date, Order::Name, Order::Path] {
-                        ui.selectable_value(&mut w.order, o, t(order_label(o)));
+                        crate::confirm::choice(ui, &mut w.order, o, t(order_label(o)));
                     }
                 });
             if w.order != before {

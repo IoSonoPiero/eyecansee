@@ -205,7 +205,7 @@ fn sort_buttons(ui: &mut egui::Ui, i18n: &I18n, (mut by, width): (SortBy, f32), 
         .selected_text(i18n.t(by.label()))
         .show_list(ui, |ui| {
             for b in SortBy::ALL {
-                ui.selectable_value(&mut by, b, i18n.t(b.label()));
+                crate::confirm::choice(ui, &mut by, b, i18n.t(b.label()));
             }
         })
         .response

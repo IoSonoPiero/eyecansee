@@ -16,7 +16,7 @@ pub(super) fn format_choice(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
     let before = o.format;
     egui::ComboBox::from_label(i18n.t("convert-format")).selected_text(o.format.label()).show_list(ui, |ui| {
         for f in Format::ALL {
-            ui.selectable_value(&mut o.format, f, f.label());
+            crate::confirm::choice(ui, &mut o.format, f, f.label());
         }
     });
     if o.format != before {
@@ -80,10 +80,10 @@ fn jpeg_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
                 Chroma::Grey => "convert-chroma-grey",
             }))
             .show_list(ui, |ui| {
-                ui.selectable_value(&mut o.chroma, Chroma::Full, t("convert-chroma-full"));
-                ui.selectable_value(&mut o.chroma, Chroma::Half, t("convert-chroma-half"));
-                ui.selectable_value(&mut o.chroma, Chroma::Quarter, t("convert-chroma-quarter"));
-                ui.selectable_value(&mut o.chroma, Chroma::Grey, t("convert-chroma-grey"));
+                crate::confirm::choice(ui, &mut o.chroma, Chroma::Full, t("convert-chroma-full"));
+                crate::confirm::choice(ui, &mut o.chroma, Chroma::Half, t("convert-chroma-half"));
+                crate::confirm::choice(ui, &mut o.chroma, Chroma::Quarter, t("convert-chroma-quarter"));
+                crate::confirm::choice(ui, &mut o.chroma, Chroma::Grey, t("convert-chroma-grey"));
             });
     });
     ui.checkbox(&mut o.progressive, t("convert-progressive"));
@@ -106,7 +106,7 @@ fn png_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
     let shown = filters.iter().find(|(f, _)| *f == o.png_filter).map(|(_, l)| l.clone()).unwrap_or_default();
     egui::ComboBox::from_label(t("convert-png-filter")).selected_text(shown).show_list(ui, |ui| {
         for (f, label) in filters {
-            ui.selectable_value(&mut o.png_filter, f, label);
+            crate::confirm::choice(ui, &mut o.png_filter, f, label);
         }
     });
 }
@@ -139,7 +139,7 @@ fn tiff_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
     let shown = kinds.iter().find(|(k, _)| *k == o.tiff).map(|(_, l)| l.clone()).unwrap_or_default();
     egui::ComboBox::from_label(t("convert-compression")).selected_text(shown).show_list(ui, |ui| {
         for (k, label) in kinds {
-            ui.selectable_value(&mut o.tiff, k, label);
+            crate::confirm::choice(ui, &mut o.tiff, k, label);
         }
     });
     let predictor = matches!(o.tiff, TiffCompression::Lzw | TiffCompression::DeflateFast | TiffCompression::Deflate | TiffCompression::DeflateBest);
@@ -153,7 +153,7 @@ pub(crate) fn meta_choice(ui: &mut egui::Ui, keep: &mut Keep, i18n: &I18n) -> eg
     ui.horizontal(|ui| {
         let list = egui::ComboBox::from_id_salt("meta-keep").selected_text(i18n.t(keep.label())).show_list(ui, |ui| {
             for k in Keep::ALL {
-                ui.selectable_value(keep, k, i18n.t(k.label()));
+                crate::confirm::choice(ui, keep, k, i18n.t(k.label()));
             }
         });
         ui.label(i18n.t("meta-keep")).on_hover_text(i18n.t("meta-keep-hint"));

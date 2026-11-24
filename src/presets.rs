@@ -109,7 +109,10 @@ pub fn options_ui(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
 fn kind_combo(ui: &mut egui::Ui, size: &mut Size, i: usize, i18n: &I18n) {
     egui::ComboBox::from_id_salt(("preset-kind", i)).width(170.0).selected_text(i18n.t(size.label())).show_list(ui, |ui| {
         for kind in &Size::KINDS[1..] {
-            if ui.selectable_label(size.same_kind(*kind), i18n.t(kind.label())).clicked() && !size.same_kind(*kind) {
+            let selected = size.same_kind(*kind);
+            let r = ui.selectable_label(selected, i18n.t(kind.label()));
+            crate::confirm::list_entry(ui, &r, selected);
+            if r.clicked() && !selected {
                 *size = *kind;
             }
         }

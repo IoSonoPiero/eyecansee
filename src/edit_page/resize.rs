@@ -137,7 +137,7 @@ fn size_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
         let unit = |percent: bool| if percent { t("resize-percent") } else { t("resize-unit-pixels") };
         egui::ComboBox::from_id_salt("resize-unit").selected_text(unit(f.percent)).show_list(ui, |ui| {
             for percent in [false, true] {
-                ui.selectable_value(&mut f.percent, percent, unit(percent));
+                crate::confirm::choice(ui, &mut f.percent, percent, unit(percent));
             }
         });
     });
@@ -153,7 +153,9 @@ fn size_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
     let shown = f.filter();
     egui::ComboBox::from_id_salt("resize-filter").width(220.0).selected_text(t(shown.label())).show_list(ui, |ui| {
         for filter in Filter::ALL {
-            if ui.selectable_label(shown == filter, t(filter.label())).clicked() {
+            let r = ui.selectable_label(shown == filter, t(filter.label()));
+            crate::confirm::list_entry(ui, &r, shown == filter);
+            if r.clicked() {
                 f.chosen = Some(filter);
             }
         }

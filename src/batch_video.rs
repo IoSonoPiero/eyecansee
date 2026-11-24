@@ -101,7 +101,7 @@ pub(crate) fn sound_rows(ui: &mut egui::Ui, s: &mut SoundForm, dl: &mut Slot, i1
     }
     egui::ComboBox::from_label(t("batch-sound-format")).selected_text(FORMATS[s.format].name).show_list(ui, |ui| {
         for &i in &formats {
-            ui.selectable_value(&mut s.format, i, FORMATS[i].name);
+            crate::confirm::choice(ui, &mut s.format, i, FORMATS[i].name);
         }
     });
     if !FORMATS[s.format].lossless {
@@ -173,7 +173,7 @@ pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, dl: &mut Slot, i1
         };
         egui::ComboBox::from_label(t("batch-video-encoder")).selected_text(name(v.encoder.unwrap_or_default())).show_list(ui, |ui| {
             for &e in &encoders {
-                ui.selectable_value(&mut v.encoder, Some(e), name(e));
+                crate::confirm::choice(ui, &mut v.encoder, Some(e), name(e));
             }
         });
         ui.weak(t(crate::ffmpeg::hint(v.encoder.unwrap_or_default())));
@@ -207,7 +207,7 @@ fn container_codec_rows(ui: &mut egui::Ui, v: &mut VideoForm, probe: &crate::ffm
     let copy = v.codec == Codec::Copy;
     egui::ComboBox::from_label(t("batch-video-container")).selected_text(CONTAINERS[v.container].name).show_list(ui, |ui| {
         for (i, c) in CONTAINERS.iter().enumerate().filter(|(i, _)| !copy || v.copy_into.contains(i)) {
-            ui.selectable_value(&mut v.container, i, c.name);
+            crate::confirm::choice(ui, &mut v.container, i, c.name);
         }
     });
     let c = &CONTAINERS[v.container];
@@ -221,7 +221,7 @@ fn container_codec_rows(ui: &mut egui::Ui, v: &mut VideoForm, probe: &crate::ffm
         for &k in c.codecs {
             let usable = usable(k);
             let label = if usable { label(k) } else { i18n.t_args("batch-video-unavailable", &[("codec", k.label())]) };
-            ui.add_enabled_ui(usable, |ui| ui.selectable_value(&mut v.codec, k, label));
+            ui.add_enabled_ui(usable, |ui| crate::confirm::choice(ui, &mut v.codec, k, label));
         }
     });
     v.copy_container();
