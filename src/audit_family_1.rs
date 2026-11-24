@@ -202,6 +202,27 @@ pub(crate) fn keys_stay_over_viewer(h: &mut Harness, open: impl Fn(&App) -> bool
     }
 }
 
+/// #311: Rename over the viewer (F2) keeps the keys of the viewer and the shortcuts, with the
+/// keyboard nowhere, in the name field or on a button: the picture, its zoom, its turn not
+/// saved and full screen stay as they were.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn rename_over_the_viewer_keeps_its_keys() {
+    if own_folder("audit_family_1::rename_over_the_viewer_keeps_its_keys") {
+        return;
+    }
+    let mut h = turned_middle("rename-viewer");
+    h.app.ask_rename(None);
+    h.frame(Vec::new());
+    h.frame(Vec::new());
+    let field = h.ctx.memory(|m| m.focused()).filter(|_| h.ctx.text_edit_focused()).expect("the name field has the keys");
+    h.key(egui::Key::Tab);
+    let button = h.ctx.memory(|m| m.focused()).filter(|f| *f != field && !h.ctx.text_edit_focused()).expect("Tab to a button");
+    for focus in [None, Some(field), Some(button)] {
+        keys_stay_over_viewer(&mut h, |a| a.rename.is_some(), focus);
+    }
+}
+
 /// #311: a window that is not modal open over the grid (New image, Options): Tab, Shift+Tab and
 /// the arrows, pressed many times, never take the keyboard out of it to the menus, the toolbar or
 /// the grid under it (Enter then pressed what they had reached there).
