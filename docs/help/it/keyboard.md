@@ -181,5 +181,5 @@ Vedi [Modificare un'immagine](editor.md).
 
 ## In altre pagine
 
-- **Salva come**: **Esc** chiude la pagina senza salvare.
-- **Trova duplicati**: **↑** e **↓** passano tra le copie, **Spazio** spunta o toglie, **Esc** chiude. Invio non elimina.
+- **Salva come**: **Tab** e **Maiusc + Tab** passano tra i suoi controlli, le frecce dall'uno all'altro, **Invio** o **Spazio** preme quello evidenziato; **Esc** chiude la pagina senza salvare.
+- **Trova duplicati**: **↑** e **↓** passano tra le copie, **Spazio** spunta o toglie, **Esc** chiude. Invio non elimina. **Tab** va ai controlli della pagina; lì le frecce passano dall'uno all'altro.

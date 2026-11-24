@@ -181,5 +181,5 @@ See [Editing an image](editor.md).
 
 ## In other pages
 
-- **Save as**: **Esc** closes the page without saving.
-- **Find duplicates**: **↑** and **↓** move between the copies, **Space** ticks or unticks, **Esc** closes. Enter does not delete.
+- **Save as**: **Tab** and **Shift + Tab** go through its controls, the arrows move between them, **Enter** or **Space** presses the highlighted one; **Esc** closes the page without saving.
+- **Find duplicates**: **↑** and **↓** move between the copies, **Space** ticks or unticks, **Esc** closes. Enter does not delete. **Tab** goes to the controls of the page; there the arrows move between them.

@@ -601,7 +601,9 @@ impl eframe::App for App {
             return;
         }
         self.first_start_keys(ctx, raw_input);
-        if ctx.egui_wants_keyboard_input() || egui::Popup::is_any_open(ctx) || self.rename.is_some() || self.new_folder.is_some() {
+        // Save as and Find duplicates cover the grid: Tab, copy and paste are theirs, not its (#311).
+        let page = self.convert.is_some() || self.dup_page_shown();
+        if page || ctx.egui_wants_keyboard_input() || egui::Popup::is_any_open(ctx) || self.rename.is_some() || self.new_folder.is_some() {
             return;
         }
         // Copy, cut and paste reach the app as events, not keys. On Windows Shift+Del is a cut
