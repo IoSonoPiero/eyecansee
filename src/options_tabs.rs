@@ -86,8 +86,12 @@ fn row(ui: &mut egui::Ui, selected: bool, name: &str, icon: Line) -> bool {
     let accent = crate::theme::accent(&v);
     if selected {
         ui.painter().rect(rect, 6, crate::theme::tile_selected(&v), egui::Stroke::new(1.0, accent), egui::StrokeKind::Inside);
-    } else if response.hovered() || response.has_focus() {
+    } else if response.hovered() {
         ui.painter().rect_filled(rect, 6, v.widgets.hovered.weak_bg_fill);
+    }
+    // The row of the keyboard (Tab): a ring of the accent colour, seen in both themes (#311).
+    if response.has_focus() {
+        ui.painter().rect_stroke(rect, 6, egui::Stroke::new(2.0, accent), egui::StrokeKind::Inside);
     }
     let at = egui::Rect::from_center_size(egui::pos2(rect.left() + PAD + ICON / 2.0, rect.center().y), egui::Vec2::splat(ICON));
     crate::icons::line_in(ui.ctx(), icon, ICON, if selected { accent } else { v.text_color() }).paint_at(ui, at);
