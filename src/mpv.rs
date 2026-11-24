@@ -561,16 +561,25 @@ pub(crate) mod tests {
         names.map(|p| format!("{p} {}", said(p))).join(", ")
     }
 
-    /// What `Player::error` says within `secs`; `None` if nothing in that time.
-    fn error_within(player: &Player, secs: u64) -> Option<Failure> {
-        let t = Instant::now();
-        while t.elapsed() < Duration::from_secs(secs) {
+    /// What `Player::error` says once mpv has settled on the file, as long as that takes: it
+    /// did not load it (`error` says so), or it played it to its end with its tracks chosen
+    /// (`start_tracks`; before them mpv is at an end too, with nothing to play). A damaged video
+    /// is run through to its end: 0.4 s alone, 5 to 13 s with the whole suite and more tests at
+    /// once (24/11/2026), where a wait of 10 s failed. mpv dropping a file it had loaded is said
+    /// at once (no sound output for a file with sound only: mpv's `AO_INIT_FAILED`).
+    fn settled(player: &Player) -> Option<Failure> {
+        let id = |p: &str| player.mpv.property::<i64>(p, FORMAT_INT64);
+        loop {
             if let Some(e) = player.error() {
                 return Some(e);
             }
+            let chosen = id("current-tracks/video/id").is_some() || id("current-tracks/audio/id").is_some();
+            if chosen && player.ended() {
+                return player.error();
+            }
+            assert!(!player.dropped(), "mpv dropped the file after loading it: {}", mpv_state(player));
             std::thread::sleep(Duration::from_millis(20));
         }
-        None
     }
 
     fn stream(bytes: Vec<u8>) -> Input {
@@ -628,23 +637,21 @@ pub(crate) mod tests {
         let file = dir.join("broken.mp4");
         std::fs::write(&file, noise(20_000)).unwrap();
         let found = [
-            ("noise, file", error_within(&open(Input::File(file)), 10)),
-            ("noise, stream", error_within(&open(stream(noise(20_000))), 10)),
-            ("header and noise", error_within(&open(stream(header_and_noise())), 10)),
+            ("noise, file", settled(&open(Input::File(file)))),
+            ("noise, stream", settled(&open(stream(noise(20_000))))),
+            ("header and noise", settled(&open(stream(header_and_noise())))),
         ];
         let _ = std::fs::remove_dir_all(&dir);
         let good = std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/site/img/mtp-open.mp4")).unwrap();
         let cut = open(Input::Stream(Arc::new(Failing(Bytes(good), 10_000))));
-        let read = error_within(&cut, 10);
+        let read = settled(&cut);
         let audio = open(stream(silence()));
-        let t = Instant::now();
-        while !audio.ended() && t.elapsed() < Duration::from_secs(10) {
-            std::thread::sleep(Duration::from_millis(20));
-        }
-        println!("{found:?}, read {read:?}, audio ended {} with {:?}", audio.ended(), audio.error());
-        assert_eq!(found.clone().map(|f| f.1), [Some(Failure::NotVideo), Some(Failure::NotVideo), Some(Failure::NoPicture)], "{found:?} in 10 s");
+        let sound = settled(&audio);
+        println!("{found:?}, read {read:?}, sound {sound:?}");
+        assert_eq!(found.clone().map(|f| f.1), [Some(Failure::NotVideo), Some(Failure::NotVideo), Some(Failure::NoPicture)], "{found:?}");
         assert_eq!(read, Some(Failure::Read("error-device-gone\u{1}USB 3-2".into())));
-        assert!(audio.ended() && audio.error().is_none(), "sound only: ended {}, {:?}, dropped by mpv {}: {}", audio.ended(), audio.error(), audio.dropped(), mpv_state(&audio));
+        let played = audio.ended() && audio.mpv.property::<i64>("current-tracks/audio/id", FORMAT_INT64).is_some();
+        assert!(sound.is_none() && played, "sound only: {sound:?}, {}", mpv_state(&audio));
     }
 
     impl Reader for Slow {
