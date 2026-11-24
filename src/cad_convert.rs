@@ -62,10 +62,40 @@ pub fn convert_checked(bytes: &[u8], name: &str, to: Target) -> Result<Vec<u8>, 
 }
 
 /// What `after`, the drawing read back from the new file, shows less than `before`; `None` when
-/// nothing.
+/// nothing. The model, each layout by its name and the layers are compared (audit 6.16: the
+/// totals let a layout's elements moved into the model, or a layer lost, pass).
 fn lost(before: &crate::cad::Drawing, after: &crate::cad::Drawing) -> Option<String> {
     let (items, sheets) = ((before.items.len(), after.items.len()), (before.sheets.len(), after.sheets.len()));
-    (items.1 < items.0 || sheets.1 < sheets.0).then(|| format!("{} → {} elements, {} → {} layouts", items.0, items.1, sheets.0, sheets.1))
+    let mut what = Vec::new();
+    if items.1 < items.0 || sheets.1 < sheets.0 {
+        what.push(format!("{} → {} elements, {} → {} layouts", items.0, items.1, sheets.0, sheets.1));
+    }
+    for (name, sheet) in &before.sheets {
+        let kept = after.sheets.iter().find(|(n, _)| n == name).map_or(0, |(_, s)| s.items.len());
+        if kept < sheet.items.len() {
+            what.push(format!("layout {name}: {} → {kept} elements", sheet.items.len()));
+        }
+    }
+    // A layer with something on it, gone: what is on it can no longer be shown or hidden as
+    // before. An empty layer of the table that goes changes nothing that is seen.
+    let names = |d: &crate::cad::Drawing| d.layers.iter().map(|l| l.name.to_lowercase()).collect::<std::collections::HashSet<_>>();
+    let kept = names(after);
+    let gone: Vec<&str> = used_layers(before).into_iter().filter(|l| !kept.contains(&l.to_lowercase())).collect();
+    if !gone.is_empty() {
+        what.push(format!("layers {}", gone.join(", ")));
+    }
+    (!what.is_empty()).then(|| what.join(", "))
+}
+
+/// The names of the layers something is on, in the model or in a layout.
+fn used_layers(d: &crate::cad::Drawing) -> Vec<&str> {
+    let mut used = std::collections::BTreeSet::new();
+    for part in std::iter::once(d).chain(d.sheets.iter().map(|(_, s)| s.as_ref())) {
+        for &set in &part.on {
+            used.extend(part.sets.get(set as usize).into_iter().flatten().copied());
+        }
+    }
+    used.into_iter().filter_map(|l| d.layers.get(l as usize)).map(|l| l.name.as_str()).collect()
 }
 
 /// The drawing `bytes` (named `name`) as `to`, in the AutoCAD version it was saved with.
@@ -105,11 +135,21 @@ mod tests {
         let line = || Item::Line { pts: vec![[0.0, 0.0], [1.0, 1.0]], color: [255; 3], fill: None, stroke: Stroke::default() };
         let layer = |name: &str| crate::cad_layers::Layer { name: name.into(), color: [255; 3], shown: true };
         let sheet = |n: usize| ("Layout1".to_string(), std::sync::Arc::new(Drawing { items: (0..n).map(|_| line()).collect(), ..Default::default() }));
-        let drawing = |model: usize, on_sheet: usize, layers: &[&str]| Drawing { items: (0..model).map(|_| line()).collect(), sheets: vec![sheet(on_sheet)], layers: layers.iter().map(|l| layer(l)).collect(), ..Default::default() };
+        // The model's elements on layer 1 ("walls"), as `cad_layers` numbers them.
+        let drawing = |model: usize, on_sheet: usize, layers: &[&str]| Drawing {
+            items: (0..model).map(|_| line()).collect(),
+            sheets: vec![sheet(on_sheet)],
+            layers: layers.iter().map(|l| layer(l)).collect(),
+            sets: vec![Vec::new(), vec![1]],
+            on: vec![1; model],
+            ..Default::default()
+        };
         let before = drawing(2, 3, &["0", "walls"]);
         assert_eq!(lost(&before, &drawing(2, 3, &["0", "walls"])), None);
         assert!(lost(&before, &drawing(5, 0, &["0", "walls"])).is_some(), "the layout's elements moved into the model");
-        assert!(lost(&before, &drawing(2, 3, &["0"])).is_some(), "a layer lost");
+        assert_eq!(lost(&before, &drawing(2, 3, &["0", "doors"])).as_deref(), Some("layers walls"), "a layer with something on it lost");
+        // An empty layer of the table that goes changes nothing that is seen.
+        assert_eq!(lost(&drawing(2, 3, &["0", "walls", "empty"]), &drawing(2, 3, &["0", "walls"])), None);
         // More is accepted, as before.
         assert_eq!(lost(&before, &drawing(3, 4, &["0", "walls", "doors"])), None);
     }
