@@ -81,26 +81,66 @@ pub(crate) async fn run(op: Store, jobs: Vec<(String, String)>, kind: Kind, p: A
     }
 }
 
-/// One model read, turned into `kind` and written as `to`; what to say of the new file.
+/// One model read, turned into `kind` and written as `to`, with the files that go next to it
+/// (an OBJ's materials and pictures) before it; what to say of the new file.
 async fn one(op: &Store, path: &str, to: &str, kind: Kind, p: &Arc<Progress>) -> Result<Vec<&'static str>, String> {
     let bytes = op.read(path).await.map_err(|(_, detail)| detail)?;
     p.at(0.0, READ, 1.0);
     let (sibling, local, name, q) = (crate::loader::siblings(op.clone(), path.to_string()), crate::occt::local(op, path), path.to_string(), p.clone());
+    let free = free_names(op.clone(), to);
+    let stem = crate::source::name(to).rsplit_once('.').map_or(crate::source::name(to), |(s, _)| s).to_string();
     let made = tokio::task::spawn_blocking(move || {
         let tick = |f: f32| {
             q.at(READ, BUILT, f);
             !q.stopped()
         };
-        crate::occt::from_file(local, || crate::model_export::export_file(&bytes, &name, &sibling, kind, &tick))
+        let beside = crate::model_export::Beside { stem: &stem, free: &free };
+        crate::occt::from_file(local, || crate::model_export::export_file(&bytes, &name, &sibling, kind, &tick, &beside))
     });
-    let (data, notes) = made.await.unwrap_or_else(|e| Err(e.to_string()))?;
-    write(op, to, data, p).await?;
+    let (made, notes) = made.await.unwrap_or_else(|e| Err(e.to_string()))?;
+    let dir = crate::source::parent(to);
+    let total = (made.beside.iter().map(|(_, d)| d.len()).sum::<usize>() + made.main.len()).max(1) as f32;
+    let (mut at, mut written) = (0, Vec::<String>::new());
+    let files = made.beside.into_iter().map(|(name, data)| (format!("{dir}{name}"), data)).chain([(to.to_string(), made.main)]);
+    for (path, data) in files {
+        let span = (BUILT + (1.0 - BUILT) * at as f32 / total, BUILT + (1.0 - BUILT) * (at + data.len()) as f32 / total);
+        at += data.len();
+        if let Err(e) = write(op, &path, data, p, span).await {
+            // Nothing of a model half there: the files next to it written so far go too.
+            for path in written {
+                let gone = op.delete(&path, crate::source::Deletion::Permanent).await;
+                log!("export: {path:?} removed after {e:?}: {gone:?}");
+            }
+            return Err(e);
+        }
+        written.push(path);
+    }
     Ok(notes)
 }
 
-/// `data` written as `to` in pieces, telling how far; at Cancel the file is removed, as a write
-/// that fails (`replace::write_file`), and the error is `CANCELLED`.
-async fn write(op: &Store, to: &str, data: Vec<u8>, p: &Arc<Progress>) -> Result<(), String> {
+/// Free names in the folder of `to` for the files next to it, asked of the folder itself: a
+/// file already there is never written over (the user's `a.png` next to `a.glb`), nor `to`,
+/// nor a name given before.
+fn free_names(op: Store, to: &str) -> impl Fn(&str) -> String + Send + 'static {
+    let rt = tokio::runtime::Handle::current();
+    let dir = crate::source::parent(to);
+    let given = Mutex::new(std::collections::HashSet::from([crate::source::name(to).to_string()]));
+    move |wanted| {
+        let mut given = given.lock().unwrap();
+        loop {
+            let name = crate::source::free_name(&given, wanted);
+            given.insert(name.clone());
+            if !rt.block_on(op.exists(&format!("{dir}{name}"))) {
+                return name;
+            }
+        }
+    }
+}
+
+/// `data` written as `path` in pieces, telling how far along `span` of the model's part; at
+/// Cancel the file is removed, as a write that fails (`replace::write_file`), and the error is
+/// `CANCELLED`.
+async fn write(op: &Store, to: &str, data: Vec<u8>, p: &Arc<Progress>, span: (f32, f32)) -> Result<(), String> {
     let size = data.len() as u64;
     let data = bytes::Bytes::from(data);
     let (tx, rx) = tokio::sync::mpsc::channel(1);
@@ -116,7 +156,7 @@ async fn write(op: &Store, to: &str, data: Vec<u8>, p: &Arc<Progress>) -> Result
                 return false;
             }
             at = end;
-            p.at(BUILT, 1.0, at as f32 / data.len() as f32);
+            p.at(span.0, span.1, at as f32 / data.len() as f32);
             #[cfg(test)]
             if let Some(f) = &*p.on_chunk.lock().unwrap() {
                 f(p);
@@ -194,17 +234,23 @@ mod tests {
     /// The export of `names` (STL, in a folder of their own) as OBJ, with `on_chunk` called after
     /// each piece written: what each model gave, the files left in the folder, the progress.
     fn export(folder: &str, names: &[&str], on_chunk: impl Fn(&Progress) + Send + 'static) -> (Vec<Exported>, Vec<String>, Arc<Progress>) {
+        let files = names.iter().map(|n| (format!("{n}.stl"), stl(300))).collect();
+        let jobs = names.iter().map(|n| (format!("{n}.stl"), format!("{n}.obj"))).collect();
+        export_in(folder, files, jobs, on_chunk)
+    }
+
+    /// As `export`, from the folder with `files` in it, the models `jobs` (original, new file).
+    fn export_in(folder: &str, files: Vec<(String, Vec<u8>)>, jobs: Vec<(String, String)>, on_chunk: impl Fn(&Progress) + Send + 'static) -> (Vec<Exported>, Vec<String>, Arc<Progress>) {
         let dir = std::env::temp_dir().join(format!("eyecansee-export-job-{}-{folder}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        for n in names {
-            std::fs::write(dir.join(format!("{n}.stl")), stl(300)).unwrap();
+        for (name, data) in files {
+            std::fs::write(dir.join(name), data).unwrap();
         }
         let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
         let p = Arc::new(Progress::default());
-        p.total.store(names.len(), Ordering::Relaxed);
+        p.total.store(jobs.len(), Ordering::Relaxed);
         *p.on_chunk.lock().unwrap() = Some(Box::new(on_chunk));
-        let jobs = names.iter().map(|n| (format!("{n}.stl"), format!("{n}.obj"))).collect();
         let got = Mutex::new(Vec::new());
         tokio::runtime::Runtime::new().unwrap().block_on(run(op, jobs, Kind::Obj, p.clone(), |r| got.lock().unwrap().push(r)));
         let mut files: Vec<String> = std::fs::read_dir(&dir).unwrap().flatten().map(|f| f.file_name().to_string_lossy().to_string()).collect();
@@ -245,5 +291,28 @@ mod tests {
         assert!(got[0].is_ok(), "{got:?}");
         assert_eq!(got[1..].iter().map(|r| r.as_ref().map_err(|(from, e)| (from.as_str(), e.as_str()))).collect::<Vec<_>>(), [Err(("b.stl", CANCELLED)), Err(("c.stl", CANCELLED))]);
         assert_eq!(p.done.load(Ordering::Relaxed), 3);
+    }
+
+    /// Audit 6.16: a model with a picture exported as OBJ in a folder that has a picture named
+    /// as the model already: the user's picture stays as it was, the model's goes next to it with
+    /// a free name, with the `.mtl`. Cancel while the OBJ is written removes it and the files
+    /// written next to it.
+    #[test]
+    fn obj_files_beside_free_and_removed_at_cancel() {
+        let glb = crate::model_export::export(&crate::model_export::tests::pictured(), Kind::Glb);
+        let mine = b"the user's picture".to_vec();
+        let files = || vec![("a.glb".to_string(), glb.clone()), ("a.png".to_string(), mine.clone())];
+        let jobs = || vec![("a.glb".to_string(), "a.obj".to_string())];
+        let (got, names, _) = export_in("beside", files(), jobs(), |_| {});
+        assert!(got[0].is_ok(), "{got:?}");
+        assert_eq!(names, ["a (2).png", "a.glb", "a.mtl", "a.obj", "a.png"]);
+        // Stopped after the picture and the `.mtl` (a piece each), before the OBJ.
+        let pieces = AtomicUsize::new(0);
+        let (got, names, _) = export_in("beside-cancel", files(), jobs(), move |p| {
+            if pieces.fetch_add(1, Ordering::Relaxed) + 1 == 2 {
+                p.cancel.store(true, Ordering::Relaxed);
+            }
+        });
+        assert_eq!(names, ["a.glb", "a.png"], "{got:?}");
     }
 }

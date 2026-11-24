@@ -122,6 +122,7 @@ mod model_amf;
 mod model_dae;
 mod model_export;
 mod model_export_job;
+mod model_export_obj;
 mod model_export_page;
 mod model_fbx;
 mod model_gltf;

@@ -21,7 +21,7 @@ Se sono selezionati anche file di altro tipo, la voce è segnata con **\*** e la
 EyeCanSee tiene tutto quello dell'originale che il nuovo formato sa contenere:
 
 - **glTF (GLB)** tiene le immagini sulle superfici (texture), le normali e i materiali (quanto sono lisci o metallici, il rilievo, le ombre nelle pieghe, la luce propria).
-- **OBJ** tiene le normali e i colori.
+- **OBJ** tiene le immagini sulle superfici, le loro coordinate, le normali, i colori e i materiali (quanto sono lisci o metallici, il rilievo, la luce propria). Le immagini si salvano come file PNG accanto al modello e i materiali in un file `.mtl` con il nome del modello (`staffa.mtl`, `staffa.png`, oppure `staffa-1.png`, `staffa-2.png`… con più immagini): vanno tenuti nella stessa cartella dell'OBJ. Un nome già preso lì riceve " (2)", così nessun file viene sovrascritto. I triangoli che si toccano condividono i loro punti, così gli altri programmi vedono una superficie sola.
 - **PLY** e **STL** tengono un colore per ogni triangolo.
 
 Dove un formato non sa contenere un'immagine, i colori vengono presi dall'immagine, così il modello non esce grigio.

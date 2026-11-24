@@ -537,7 +537,7 @@ mod tests {
         // Save as… and Export as a 3D model… read it the same way, and say it with `load_error`.
         let none: crate::model::Sibling = &|_| None;
         assert_eq!(crate::decode::decode_full_noted(&glb, "a.glb", none).unwrap_err(), e);
-        assert_eq!(crate::model_export::export_file(&glb, "a.glb", none, crate::model_export::Kind::Stl, &|_| true).unwrap_err(), e);
+        assert_eq!(crate::model_export::export_file(&glb, "a.glb", none, crate::model_export::Kind::Stl, &|_| true, &crate::model_export::Beside { stem: "b", free: &|n| n.to_string() }).unwrap_err(), e);
         assert_eq!(en, "The file is incomplete: it should be 12.4 MB but it is 3.1 MB.\nPerhaps the download or the copy stopped: try downloading or copying it again.");
         assert_eq!(it, "Il file è incompleto: dovrebbe essere di 12,4 MB ma è di 3,1 MB.\nForse lo scaricamento o la copia si è interrotta: prova a scaricarlo o copiarlo di nuovo.");
         assert_eq!(converted(&glb, "a b.glb"), "The file is incomplete (a b.glb): it should be 12.4 MB but it is 3.1 MB.\nPerhaps the download or the copy stopped: try downloading or copying it again.");
@@ -648,11 +648,11 @@ mod tests {
         original.notes = notes;
         assert_eq!(original.alone().turned(Default::default()).notes, vec![super::NODE_AGAIN]);
         for kind in Kind::ALL {
-            let (data, notes) = export_file(twice.as_bytes(), "a.gltf", none, kind, &|_| true).unwrap();
+            let (data, notes) = export_file(twice.as_bytes(), "a.gltf", none, kind, &|_| true, &crate::model_export::Beside { stem: "b", free: &|n| n.to_string() }).unwrap();
             assert_eq!(notes, vec![super::NODE_AGAIN], "{kind:?}");
-            let back = crate::model::parse(&data, &format!("b.{}", kind.ext())).unwrap();
+            let back = crate::model::parse(&data.main, &format!("b.{}", kind.ext())).unwrap();
             assert_eq!((back.tris.len(), back.warnings.len()), (1, 0), "{kind:?}");
-            assert!(export_file(once.as_bytes(), "a.gltf", none, kind, &|_| true).unwrap().1.is_empty(), "{kind:?}");
+            assert!(export_file(once.as_bytes(), "a.gltf", none, kind, &|_| true, &crate::model_export::Beside { stem: "b", free: &|n| n.to_string() }).unwrap().1.is_empty(), "{kind:?}");
         }
         let line = |lang| crate::model::saved_lines(&crate::i18n::I18n::new(lang), "a.gltf", &[super::NODE_AGAIN]);
         assert_eq!(line("en"), ["a.gltf: a part of the model appeared more than once in its hierarchy; the new file has it only once"]);
