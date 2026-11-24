@@ -455,7 +455,11 @@ mod tests {
             return;
         }
         let mut h = options("opt-purge");
-        h.until(|_| crate::thumbcache::stats().0 > 0, "thumbnails in the cache");
+        h.until(|_| crate::thumbcache::stats().0 == 3, "the thumbnails in the cache");
+        // Gone from the disk: emptying the cache reads the folder again and must make none anew.
+        for f in ["a.png", "b.png", "c.png"] {
+            std::fs::remove_file(crate::audit_family_1::guard().join("opt-purge").join(f)).unwrap();
+        }
         h.app.options_tab = OptTab::Thumbnails;
         let ask = |h: &mut Harness| {
             h.focus_somewhere();
