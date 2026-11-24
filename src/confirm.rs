@@ -204,6 +204,14 @@ pub(crate) fn join(id: &str, r: &egui::Response) {
         all.retain(|_, (_, frame)| *frame + 1 >= now);
         all.insert(r.id, (window, now));
     });
+    // A list closed (Esc, or a choice made in it) with the keyboard in it: the keyboard comes back
+    // to the list, not lost (Space then pressed the highlighted button of the window).
+    let (open, was) = (egui::Popup::is_id_open(&r.ctx, r.id.with("popup")), r.id.with("list-open"));
+    if open {
+        r.ctx.data_mut(|d| d.insert_temp(was, ()));
+    } else if r.ctx.data_mut(|d| d.remove_temp::<()>(was)).is_some() && r.ctx.memory(|m| m.focused().is_none()) {
+        r.request_focus();
+    }
 }
 
 /// The controls joined to the window `id` in this frame or the one before (`join`).
@@ -306,7 +314,10 @@ impl App {
         // An open drop-down list (Language, Unit) has its own keys too (`browser::menu_keys`). Under
         // the guide only a text field keeps them: Enter on a highlighted button answered the window.
         let own = ctx.text_edit_focused() || (!self.help.open && (ctx.egui_wants_keyboard_input() || egui::Popup::is_any_open(ctx)));
-        if !self.asking() || (fields && own) {
+        // A list of a question opened from the keyboard (`join`) takes its keys too: ↓ and Enter
+        // chose and pressed a button of the window, Esc cancelled it (#311).
+        let list = !self.help.open && egui::Popup::is_any_open(ctx);
+        if !self.asking() || (fields && own) || list {
             return false;
         }
         // The tip's first frame: egui keeps what is under a modal from the mouse only from the frame

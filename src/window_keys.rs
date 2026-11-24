@@ -597,6 +597,8 @@ fn a_list_of_a_question_takes_its_keys() {
     assert!(!egui::Popup::is_any_open(&h.ctx) && kind(&h) == before, "Esc did not close the list only");
     h.key(Key::Space);
     h.frame(Vec::new());
+    // The first ↓ goes to the format chosen, the first of the list; the second to the next one.
+    h.key(Key::ArrowDown);
     h.key(Key::ArrowDown);
     h.key(Key::Enter);
     h.frame(Vec::new());
