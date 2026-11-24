@@ -7,7 +7,7 @@ Copies or moves files and folders, with everything inside them, to another folde
 1. Select the files or folders (see [Selecting files](selection.md)).
 2. Press **Ctrl + C** to copy them, or **Ctrl + X** to cut them (to move them). You can also click ![Copy](icon://copy) or ![Cut](icon://scissors) in the toolbar, use the **Edit** menu or the right-click menu.
 3. Open the folder where they should go: on this computer, a disk, a phone or a server (see [Folders and the side panel](folders.md)).
-4. Press **Ctrl + V**, or click ![Paste](icon://clipboard-paste), or choose **Edit > Paste**.
+4. Press **Ctrl + V**, or click ![Paste](icon://clipboard-paste), or choose **Edit > Paste**. When it ends, what was pasted is selected in the folder (the last item, when there are several).
 
 To paste straight into a folder without opening it, right-click it (in the grid or in the tree) and choose **Paste into this folder**. In the viewer, **Ctrl + C** and **Ctrl + X** take the image shown; **Ctrl + V** does nothing there, as **Edit > Paste**: go back to the grid to paste.
 

@@ -7,7 +7,7 @@ Copia o sposta file e cartelle, con tutto quello che contengono, in un'altra car
 1. Seleziona i file o le cartelle (vedi [Selezionare i file](selection.md)).
 2. Premi **Ctrl + C** per copiarli, oppure **Ctrl + X** per tagliarli (cioè spostarli). Puoi anche fare clic su ![Copia](icon://copy) o ![Taglia](icon://scissors) nella barra strumenti, o usare il menù **Modifica** o il clic destro.
 3. Apri la cartella dove devono andare: sul computer, su un disco, su un telefono o su un server (vedi [Cartelle e pannello laterale](folders.md)).
-4. Premi **Ctrl + V**, oppure fai clic su ![Incolla](icon://clipboard-paste), oppure scegli **Modifica > Incolla**.
+4. Premi **Ctrl + V**, oppure fai clic su ![Incolla](icon://clipboard-paste), oppure scegli **Modifica > Incolla**. Alla fine ciò che hai incollato è selezionato nella cartella (l'ultimo elemento, se sono più di uno).
 
 Per incollare direttamente in una cartella senza aprirla, fai clic destro su di essa (nella griglia o nell'albero) e scegli **Incolla in questa cartella**. Nel visore **Ctrl + C** e **Ctrl + X** prendono l'immagine mostrata; **Ctrl + V** lì non fa niente, come **Modifica > Incolla**: per incollare si torna alla griglia.
 

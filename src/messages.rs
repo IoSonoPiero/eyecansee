@@ -415,6 +415,12 @@ impl App {
             if open != dir && open.starts_with(&dir) {
                 self.relist(open);
             }
+            // What the paste made in the folder open is selected, the last one (#323).
+            if dir == self.dir
+                && let Some(last) = p.made.lock().unwrap().last()
+            {
+                self.select_after = Some(last.clone());
+            }
             self.relist(dir);
         }
         // The copy box is gone (`transfer` taken): what is left to say, in a message.
