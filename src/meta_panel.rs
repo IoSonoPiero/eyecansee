@@ -576,6 +576,18 @@ mod tests {
         }
     }
 
+    /// The keys listed for a file (#331): a sound file has its own list, without the turns, the
+    /// frames and the saves of a video, which do nothing there.
+    #[test]
+    fn keys_of_a_sound_file() {
+        assert_eq!(super::file_keys("music/song.mp3", false, false), "hint-audio");
+        assert_eq!(super::file_keys("music/song.flac", false, false), "hint-audio");
+        assert_eq!(super::file_keys("clips/trip.mp4", false, false), "hint-video");
+        assert_eq!(super::file_keys("photos/a.jpg", false, false), "hint-image");
+        assert_eq!(super::file_keys("photos/a.jpg", false, true), "hint-pano");
+        assert_eq!(super::file_keys("plans/a.dxf", true, false), "hint-cad-layouts");
+    }
+
     /// The grid's tooltip on a file: full name, size, date, and the pixels only once known.
     #[test]
     fn file_tooltip_lines() {
