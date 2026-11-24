@@ -232,9 +232,12 @@ pub fn trim(limit: u64) {
     send(Write::Trim { limit });
 }
 
-/// Empties the cache: it is the space limit set to zero (and then VACUUM).
-pub fn purge() {
+/// Empties the cache: it is the space limit set to zero (and then VACUUM). `done` is called once
+/// the thumbnails are gone (`forget` after the trim, in the writer's order): only then may the
+/// grid read them again, or the old ones came back from the cache (#326).
+pub fn purge(done: impl FnOnce() + Send + 'static) {
     trim(0);
+    forget("", Vec::new(), done);
 }
 
 /// Number of thumbnails and bytes used, for the confirmation before emptying.

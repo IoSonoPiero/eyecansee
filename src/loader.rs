@@ -113,6 +113,8 @@ pub enum Msg {
     KeptSaved(Result<String, source::Error>),
     /// Thumbnails gone from the disk cache (`thumbcache::forget`): their paths.
     Forgotten(Vec<String>),
+    /// The thumbnail cache emptied (`thumbcache::purge`): the open folder makes them again.
+    Purged,
     /// Metadata of an image: `None` = no EXIF.
     Meta { generation: u64, index: usize, meta: Result<Option<crate::meta::Meta>, String> },
     /// The details of a file for the line under its thumbnail (#139); `None`: not known yet (its

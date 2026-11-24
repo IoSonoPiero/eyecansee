@@ -71,9 +71,13 @@ impl App {
             log!("options: downloading {}", c.kind);
         }
         if purged {
-            log!("thumbnail cache emptied");
-            // The thumbnails in memory are still the old ones: the open folder redoes them right away.
-            self.refresh();
+            // The thumbnails in memory are still the old ones: the open folder redoes them once the
+            // cache is empty (`Msg::Purged`); read before, the old ones came back from it (#326).
+            let (tx, ctx) = (self.tx.clone(), ctx.clone());
+            thumbcache::purge(move || {
+                let _ = tx.send(crate::loader::Msg::Purged);
+                ctx.request_repaint();
+            });
         }
         self.options = open;
         self.options_changed(ctx, &before);
@@ -412,9 +416,6 @@ fn thumbnails_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n, confirm: &mu
     let answer = ui.horizontal(|ui| crate::confirm::buttons(ui, "options", &labels, 0)).inner;
     if answer.is_some() {
         *confirm = None;
-    }
-    if answer == Some(0) {
-        thumbcache::purge();
     }
     answer == Some(0)
 }

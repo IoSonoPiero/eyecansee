@@ -85,6 +85,10 @@ impl App {
                 Msg::NotReplaced(kept) => self.on_not_replaced(ctx, kept),
                 Msg::KeptSaved(r) => self.on_kept_saved(r),
                 Msg::Forgotten(paths) => self.on_forgotten(paths),
+                Msg::Purged => {
+                    log!("thumbnail cache emptied");
+                    self.refresh();
+                }
                 Msg::Update(r) => self.on_update(r),
                 Msg::Devices(d) => self.on_devices(ctx, d),
             }
