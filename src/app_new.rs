@@ -92,6 +92,7 @@ impl App {
             unlock: None,
             saved_servers: servers::load(),
             last_dirs: HashMap::new(),
+            place_key: None,
             status_note: None,
             held_open: None,
             note_until: None,

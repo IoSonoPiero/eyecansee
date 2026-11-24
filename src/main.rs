@@ -451,8 +451,10 @@ struct App {
     unlock: Option<vault_page::Unlock>,
     /// The saved servers, listed in the left panel.
     saved_servers: Vec<servers::Saved>,
-    /// The folder last open in each source (by base), to go back to it from the left panel.
+    /// The folder last open in each source (by base; a phone or a server entered from its row in
+    /// the left panel, by that row's address: `place_key`), to go back to it from the left panel.
     last_dirs: HashMap<String, String>,
+    place_key: Option<String>,
     /// File > Open location: the window, with what is typed in it.
     open_address: Option<AddressForm>,
     /// A transform on images of the grid: the images and the operation, to confirm.

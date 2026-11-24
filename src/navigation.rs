@@ -8,14 +8,16 @@ use crate::loader::Loader;
 use crate::source::{self, File};
 use crate::{App, devices, settings};
 
-/// #206: the folder to open instead of `dir` on the place `base`, entered from the place `from`:
-/// the last one visited there (`last`: place → its address with that folder), when it is inside
-/// `dir`. `None` on the same place, or with nothing remembered there.
-fn last_folder_in(last: &std::collections::HashMap<String, String>, from: &str, base: &str, dir: &str) -> Option<String> {
-    if base == from {
+/// #206: the folder to open instead of `dir` on the phone or server `base`, entered from the place
+/// `from` by the row `row` of the left panel: the last one visited after entering by that row
+/// (`last`: row → its address with that folder), when it is inside `dir`. Two saved servers with
+/// the same login are one place but two rows: each keeps its own. `None` on the same place, on a
+/// disk, or with nothing remembered there.
+fn last_folder_in(last: &std::collections::HashMap<String, String>, from: &str, base: &str, row: &str, dir: &str) -> Option<String> {
+    if base == from || !base.contains("://") {
         return None;
     }
-    let folder = last.get(base)?.strip_prefix(base)?;
+    let folder = last.get(row)?.strip_prefix(base)?;
     (folder.starts_with(dir) && folder != dir).then(|| folder.to_string())
 }
 
@@ -52,15 +54,24 @@ impl App {
         };
         match opened {
             Ok(mut s) => {
-                if back && let Some(dir) = last_folder_in(&self.last_dirs, &self.base, &s.base, &s.dir) {
-                    log!("back on {:?}: {dir:?}", without_password(&s.base));
+                // A phone or a server from its row: its last folder is kept under the row's address.
+                let row = (back && s.base.contains("://")).then(|| without_password(address));
+                if let Some(row) = &row
+                    && let Some(dir) = last_folder_in(&self.last_dirs, &self.base, &s.base, row, &s.dir)
+                {
+                    log!("back on {row:?}: {dir:?}");
                     (s.dir, s.start, s.home) = (dir, None, false);
                 }
-                if s.base != self.base {
+                let other = s.base != self.base;
+                if other {
                     self.leave_source();
                 }
                 if !self.base.is_empty() {
-                    self.last_dirs.insert(self.base.clone(), format!("{}{}", self.base, self.dir));
+                    let key = self.place_key.clone().unwrap_or_else(|| self.base.clone());
+                    self.last_dirs.insert(key, format!("{}{}", self.base, self.dir));
+                }
+                if other || row.is_some() {
+                    self.place_key = row;
                 }
                 let handle = self.rt.handle().clone();
                 self.loader = Some(Loader::new(handle, s.op, s.base.clone(), self.tx.clone(), ctx.clone()));
@@ -463,21 +474,24 @@ fn release(editing: bool, held: &mut Option<String>) -> Option<String> {
 mod tests {
     use super::*;
 
-    /// #206: the folder reopened back on a place: the last one there, inside the folder of the
-    /// address clicked. Two saved servers with the same login share the place: one saved on
-    /// `docs/` does not reopen a folder of the other's `photos/`.
+    /// #206: the folder reopened back on a place: the last one visited from the row clicked,
+    /// inside its folder. Two saved servers with the same login are one place: one saved on
+    /// `docs/` (or on the root) does not reopen a folder visited from the other.
     #[test]
     fn last_folder_back_on_a_place() {
         let server = "sftp://me@nas/";
-        let last = std::collections::HashMap::from([(server.to_string(), format!("{server}photos/2024/")), ("mtp://SERIAL1234/".to_string(), "mtp://SERIAL1234/".to_string())]);
-        assert_eq!(last_folder_in(&last, "/", server, "").as_deref(), Some("photos/2024/"));
-        assert_eq!(last_folder_in(&last, "/", server, "photos/").as_deref(), Some("photos/2024/"));
-        assert_eq!(last_folder_in(&last, "/", server, "docs/"), None);
-        assert_eq!(last_folder_in(&last, "/", server, "photos/2024/"), None);
+        let (photos, home) = ("sftp://me@nas/photos/", "sftp://me@nas/");
+        let phone = "mtp://SERIAL1234/";
+        let last = std::collections::HashMap::from([(photos.to_string(), format!("{server}photos/2024/")), (phone.to_string(), phone.to_string()), ("/".to_string(), "/home/me/Pictures/".to_string())]);
+        assert_eq!(last_folder_in(&last, "/", server, photos, "photos/").as_deref(), Some("photos/2024/"));
+        // The row of the same server on its root, never entered: its own folder.
+        assert_eq!(last_folder_in(&last, "/", server, home, ""), None);
+        assert_eq!(last_folder_in(&last, "/", server, "sftp://me@nas/docs/", "docs/"), None);
         // Already there: the address as it is; nothing remembered, or the root: as before.
-        assert_eq!(last_folder_in(&last, server, server, ""), None);
-        assert_eq!(last_folder_in(&last, "/", "sftp://me@other/", ""), None);
-        assert_eq!(last_folder_in(&last, "/", "mtp://SERIAL1234/", ""), None);
+        assert_eq!(last_folder_in(&last, server, server, photos, "photos/"), None);
+        assert_eq!(last_folder_in(&last, "/", phone, phone, ""), None);
+        // A disk of the computer: as before, whatever was open there.
+        assert_eq!(last_folder_in(&last, server, "/", "/", "home/me/"), None);
     }
 
     /// An address from outside while the editor is open is kept (the last one) and opened once it
