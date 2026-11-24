@@ -232,7 +232,7 @@ pub(crate) fn arrival(kept: Option<&Result<Listing, String>>, new: &Listing, sel
 /// The same listing, item by item.
 fn same(a: &Listing, b: &Listing) -> bool {
     let files = |x: &[File], y: &[File]| x.len() == y.len() && x.iter().zip(y).all(|(f, g)| f.path == g.path && f.size == g.size && f.modified == g.modified);
-    a.dirs == b.dirs && files(&a.files, &b.files) && a.trash == b.trash && a.leftovers == b.leftovers && files(&a.trashed, &b.trashed) && a.unseen == b.unseen
+    a.dirs == b.dirs && files(&a.files, &b.files) && a.trash == b.trash && files(&a.leftovers, &b.leftovers) && files(&a.trashed, &b.trashed) && a.unseen == b.unseen
 }
 
 /// Where the files of `old` are in `new` (positions among the images): every file still there,

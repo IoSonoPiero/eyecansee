@@ -1067,6 +1067,13 @@ mod tests {
         let l = tokio::runtime::Runtime::new().unwrap().block_on(op.list("shared/")).unwrap();
         assert_eq!(l.files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["shared/a.jpg"]);
         assert!(!seen.deleted("shared", ".a.jpg.eyecansee-new"), "the file another computer is sending was deleted");
+        // Still the same, same size and date, five minutes later by this computer's clock: the
+        // rest of a save cut short, it goes.
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let later = std::time::Instant::now() + std::time::Duration::from_secs(5 * 60 + 1);
+        rt.block_on(op.recover_at("shared/", &l.leftovers, later));
+        assert!(seen.deleted("shared", ".a.jpg.eyecansee-new"), "a new file that stayed the same was kept");
+        assert!(!seen.deleted("shared", "a.jpg"));
     }
 
     /// Audit 2.23 (a): on a server too, an upload whose chunks bring fewer bytes than the size is
