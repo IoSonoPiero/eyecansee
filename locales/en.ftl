@@ -787,8 +787,8 @@ model-export-surfaces-heading = { $n ->
    *[other] { $n } models exported without all of their materials:
 }
 model-export-surfaces-why = { $n ->
-    [one] Its new format cannot hold all of how its surfaces take the light (how smooth or metallic they are, bumps, shadows in the creases, their own light). glTF (GLB) keeps it all.
-   *[other] Their new format cannot hold all of how their surfaces take the light (how smooth or metallic they are, bumps, shadows in the creases, their own light). glTF (GLB) keeps it all.
+    [one] Its new format cannot hold everything about its materials (how smooth or metallic they are, bumps, shadows in the creases, their own light). glTF (GLB) keeps it all.
+   *[other] Their new format cannot hold everything about their materials (how smooth or metallic they are, bumps, shadows in the creases, their own light). glTF (GLB) keeps it all.
 }
 model-export-smaller-heading = { $n ->
     [one] 1 model exported with smaller pictures:
