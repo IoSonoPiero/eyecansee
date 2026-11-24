@@ -786,4 +786,29 @@ mod tests {
         h.key(eframe::egui::Key::F5);
         assert!(h.app.rename.is_some() && h.app.listings.contains_key(&h.app.dir), "F5 in the field read the folder under the window again");
     }
+
+    /// #311: with the guide over Rename, Enter answers nothing under it, also once a button of
+    /// Rename has the highlight (a window that asks highlights its default button when nothing
+    /// has the keys).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn enter_under_the_guide_answers_nothing() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        use eframe::egui::Key;
+        if own_folder("file_dialogs::tests::enter_under_the_guide_answers_nothing") {
+            return;
+        }
+        let mut h = Harness::new(&folder("guide-over", &["a.png"]));
+        (h.app.cursor, h.app.selected, h.app.focus) = (true, 0, crate::Focus::Grid);
+        h.app.ask_rename(None);
+        h.frame(Vec::new());
+        h.key(Key::F1);
+        assert!(h.app.help.open, "F1 did not open the guide");
+        h.blur();
+        for _ in 0..2 {
+            h.key(Key::Enter);
+            h.frame(Vec::new());
+            assert!(h.app.rename.is_some() && h.app.help.open, "Enter under the guide answered Rename");
+        }
+    }
 }

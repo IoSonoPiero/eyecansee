@@ -226,8 +226,10 @@ impl App {
         let fields = self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some() || self.editor.as_ref().is_some_and(crate::edit_page::Window::resizing) || self.forms();
         // A question inside a form has the keys of a question, unless a text field has them (#311).
         let fields = fields && !(self.form_asks() && !ctx.text_edit_focused());
-        // An open drop-down list (Language, Unit) has its own keys too (`browser::menu_keys`).
-        if !self.asking() || (fields && (ctx.egui_wants_keyboard_input() || egui::Popup::is_any_open(ctx))) {
+        // An open drop-down list (Language, Unit) has its own keys too (`browser::menu_keys`). Under
+        // the guide only a text field keeps them: Enter on a highlighted button answered the window.
+        let own = ctx.text_edit_focused() || (!self.help.open && (ctx.egui_wants_keyboard_input() || egui::Popup::is_any_open(ctx)));
+        if !self.asking() || (fields && own) {
             return false;
         }
         // The tip's first frame: egui keeps what is under a modal from the mouse only from the frame
