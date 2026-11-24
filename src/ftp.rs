@@ -22,7 +22,7 @@ use crate::source::{Error, Listing, NOT_FOUND, SILENT};
 mod listing;
 mod tls;
 use listing::Item;
-pub use tls::{trust, unknown};
+pub use tls::{Unknown, forget, take, trust, unknown};
 
 /// Connections per server: the thumbnails are read four at a time, as on SFTP.
 pub const POOL: usize = 4;

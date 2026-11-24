@@ -20,7 +20,7 @@ use crate::source::{Error, Listing, NOT_FOUND, SILENT};
 
 mod connect;
 mod watch;
-pub use connect::{Target, rsa_login, trust, unknown};
+pub use connect::{Target, Unknown, forget, rsa_login, take, trust, unknown};
 use watch::{SILENCE, Watch, lost};
 
 /// Requests in flight for one read or write.

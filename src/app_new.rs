@@ -86,6 +86,7 @@ impl App {
             notice: None,
             kiod_ask: false,
             host_ask: false,
+            host_question: None,
             server_manager: None,
             bookmarks: Default::default(),
             unlock: None,

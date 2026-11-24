@@ -89,6 +89,7 @@ mod gpu_start;
 mod grid;
 mod help;
 mod help_search;
+mod host_question;
 mod human;
 mod help_icons;
 mod i18n;
@@ -426,8 +427,10 @@ struct App {
     notice: Option<save_dialogs::Notice>,
     /// KDE holds the phone: asking whether to terminate kiod (`kiod_window`).
     kiod_ask: bool,
-    /// An SFTP server never used from this computer: asking whether to trust its key (`host_window`).
+    /// An SFTP server never used from this computer, or an FTPS server whose certificate no
+    /// authority vouches for: asking whether to trust it (`host_window`), about `host_question`.
     host_ask: bool,
+    host_question: Option<host_question::Question>,
     /// In the status bar until the next source: the phone is open through the desktop's mount.
     status_note: Option<String>,
     /// An address from outside that arrived while the editor was open: opened once it closes
