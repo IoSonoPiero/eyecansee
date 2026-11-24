@@ -146,6 +146,7 @@ pub fn export_file(bytes: &[u8], name: &str, sibling: crate::model::Sibling, kin
     if crate::model_limit::of_export(kind).check(mesh.tris.len()).is_err() {
         notes.push(crate::model_limit::BEYOND_EXPORT);
     }
+    notes.extend(lost(&mesh, kind));
     let cancelled = || crate::model_export_job::CANCELLED.to_string();
     if !tick(0.0) {
         return Err(cancelled());
@@ -166,6 +167,29 @@ pub struct Made {
 pub struct Beside<'a> {
     pub stem: &'a str,
     pub free: &'a dyn Fn(&str) -> String,
+}
+
+/// A model exported into a format that cannot hold its pictures: their colours are on it instead.
+pub(crate) const LOST_PICTURES: &str = "model-export-lost-pictures";
+/// A model exported into a format that cannot hold all of how its surfaces take the light.
+pub(crate) const LOST_SURFACES: &str = "model-export-lost-surfaces";
+
+/// What `kind` cannot hold of `mesh`, said at the end of the export (audit 6.16, the project's
+/// rule): STL and PLY have no place for pictures (their colours are put on the model) nor for
+/// surfaces; a `.mtl` has none for the pictures of roughness and metal and of the shadows in the
+/// creases. glTF holds all a `Mesh` has.
+/// A surface counts when it shows: smoother than matte, glowing, or with pictures; a glTF
+/// without a material (metal, as rough as matte, by the format's default) is not named.
+pub(crate) fn lost(mesh: &Mesh, kind: Kind) -> Vec<&'static str> {
+    let s = &mesh.surfaces;
+    let shiny = s.iter().any(|s| s.roughness < 1.0 || s.glow != [0.0; 3] || s.bumps > 0 || s.rough_metal > 0 || s.occlusion_map > 0 || s.glow_map > 0);
+    let maps = s.iter().any(|s| s.rough_metal > 0 || s.occlusion_map > 0);
+    let pictures = mesh.tex.iter().any(|&k| k > 0);
+    match kind {
+        Kind::Stl | Kind::Ply => [(pictures, LOST_PICTURES), (shiny, LOST_SURFACES)].into_iter().filter_map(|(lost, id)| lost.then_some(id)).collect(),
+        Kind::Obj if maps => vec![LOST_SURFACES],
+        Kind::Obj | Kind::Glb => Vec::new(),
+    }
 }
 
 /// Told how far an export is, 0 to 1; `false` stops it (`export_file`).

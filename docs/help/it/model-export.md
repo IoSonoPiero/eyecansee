@@ -25,7 +25,9 @@ EyeCanSee tiene tutto quello dell'originale che il nuovo formato sa contenere:
 - **PLY** tiene le normali e i colori, sia sui punti (quelli che leggono quasi tutti i programmi) sia su ogni triangolo.
 - **STL** tiene un colore per ogni triangolo.
 
-Dove un formato non sa contenere un'immagine, i colori vengono presi dall'immagine, così il modello non esce grigio.
+Dove un formato non sa contenere un'immagine, i colori vengono presi dall'immagine, così il modello non esce grigio. Quello che il nuovo formato non sa contenere lo dice il messaggio **Esportazione finita**: i modelli esportati senza le loro immagini (STL e PLY) e quelli esportati senza tutti i loro materiali (STL e PLY non hanno posto per loro; OBJ non ne ha per le immagini di ruvidità, metallo e ombre nelle pieghe). glTF (GLB) li tiene tutti.
+
+I nomi delle parti, i gruppi e la loro gerarchia, e la trasparenza non si tengono in nessun formato: EyeCanSee legge un modello come un unico insieme di triangoli.
 
 ## Dov'è l'alto
 

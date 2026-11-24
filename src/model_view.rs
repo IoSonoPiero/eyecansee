@@ -307,6 +307,7 @@ impl App {
                 if notes.contains(&crate::model_limit::BEYOND_EXPORT) {
                     self.export_said.beyond(from, to);
                 }
+                self.export_said.lost(from, notes);
                 self.status_note = Some(self.i18n.t_args("status-exported", &[("name", crate::source::name(to))]));
                 self.note_until = Some(ctx.input(|i| i.time) + 6.0);
                 self.export_said.exported += 1;
@@ -368,6 +369,10 @@ pub(crate) struct Said {
     pub(crate) failed: Vec<(String, String)>,
     pub(crate) again: Vec<String>,
     pub(crate) beyond: Vec<(String, String)>,
+    /// Exported into a format that cannot hold their pictures, or all of their surfaces
+    /// (`model_export::lost`, audit 6.16).
+    pub(crate) pictures: Vec<String>,
+    pub(crate) surfaces: Vec<String>,
 }
 
 impl ExportSaid {
@@ -414,6 +419,17 @@ impl ExportSaid {
         }
     }
 
+    /// The model `from` exported without what its new format cannot hold (`notes`,
+    /// `model_export::lost`): said at the end.
+    pub(crate) fn lost(&mut self, from: &str, notes: &[&'static str]) {
+        let name = crate::source::name(from).to_string();
+        for (id, names) in [(crate::model_export::LOST_PICTURES, &mut self.said.pictures), (crate::model_export::LOST_SURFACES, &mut self.said.surfaces)] {
+            if notes.contains(&id) {
+                names.push(name.clone());
+            }
+        }
+    }
+
     /// A model exported (`again`: its name, if it placed a part more than once) or not (`failed`:
     /// its name and why); what to say once it was the last, if anything.
     pub(crate) fn done(&mut self, again: Option<String>, failed: Option<(String, String)>) -> Option<Said> {
@@ -441,6 +457,8 @@ pub(crate) fn export_notice(i18n: &crate::i18n::I18n, said: &Said, stopped: Opti
         Part::of(i18n, "model-export-failed-heading", "", failed.collect()),
         Part::named(i18n, "model-export-again-heading", "model-export-again-why", &said.again),
         Part::of(i18n, "model-export-beyond-heading", "model-export-beyond-why", beyond.collect()),
+        Part::named(i18n, "model-export-pictures-heading", "model-export-pictures-why", &said.pictures),
+        Part::named(i18n, "model-export-surfaces-heading", "model-export-surfaces-why", &said.surfaces),
     ];
     let title = i18n.t(if stopped.is_some() { "model-export-cancelled" } else { "model-export-done-title" });
     (*said != Said::default()).then(|| crate::notice_list::told(i18n, title, stopped.unwrap_or_default(), parts))
@@ -529,6 +547,25 @@ mod tests {
             s.done(None, None);
         }
         assert!(!s.running() && s.progress().is_none());
+    }
+
+    /// Audit 6.16: models exported without their pictures or all of their materials are said at
+    /// the end, each loss under its heading with why; a model that lost nothing is not named.
+    #[test]
+    fn losses_said_at_the_end() {
+        let en = I18n::new("en");
+        let mut s = ExportSaid::default();
+        s.start(3);
+        s.lost("d/avocado.glb", &[crate::model_export::LOST_PICTURES, crate::model_export::LOST_SURFACES]);
+        s.done(None, None);
+        s.lost("d/helmet.glb", &[crate::model_export::LOST_SURFACES]);
+        s.done(None, None);
+        s.lost("d/plain.stl", &[]);
+        let said = s.done(None, None).expect("nothing said of the losses");
+        assert_eq!((said.pictures.clone(), said.surfaces.clone()), (vec!["avocado.glb".to_string()], vec!["avocado.glb".to_string(), "helmet.glb".to_string()]));
+        let text = crate::save_dialogs::plain(&export_notice(&en, &said, None).unwrap().text);
+        assert!(text.starts_with("1 model exported without its pictures:\nIts new format cannot hold pictures"), "{text}");
+        assert!(text.contains("\n\n2 models exported without all of their materials:\n") && !text.contains("plain.stl"), "{text}");
     }
 
     /// Three models, the second failed: the names of the first and the third, in their order, and

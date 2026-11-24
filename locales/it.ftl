@@ -784,6 +784,22 @@ model-export-where = Ogni copia va accanto al suo modello, con lo stesso nome; u
 model-export-ok = Esporta
 model-export-done-title = Esportazione finita
 model-export-cancelled = Esportazione annullata
+model-export-pictures-heading = { $n ->
+    [one] 1 modello esportato senza le sue immagini:
+   *[other] { $n } modelli esportati senza le loro immagini:
+}
+model-export-pictures-why = { $n ->
+    [one] Il suo nuovo formato non sa contenere immagini: i loro colori sono stati messi sul modello. glTF (GLB) e OBJ le tengono.
+   *[other] Il loro nuovo formato non sa contenere immagini: i loro colori sono stati messi sui modelli. glTF (GLB) e OBJ le tengono.
+}
+model-export-surfaces-heading = { $n ->
+    [one] 1 modello esportato senza tutti i suoi materiali:
+   *[other] { $n } modelli esportati senza tutti i loro materiali:
+}
+model-export-surfaces-why = { $n ->
+    [one] Il suo nuovo formato non sa contenere tutto il modo in cui le sue superfici prendono la luce (quanto sono lisce o metalliche, il rilievo, le ombre nelle pieghe, la luce propria). glTF (GLB) lo tiene tutto.
+   *[other] Il loro nuovo formato non sa contenere tutto il modo in cui le loro superfici prendono la luce (quanto sono lisce o metalliche, il rilievo, le ombre nelle pieghe, la luce propria). glTF (GLB) lo tiene tutto.
+}
 model-export-running = Esportazione dei modelli 3D
 model-export-counts = Modello { $n } di { $total }
 model-export-files = { $n ->

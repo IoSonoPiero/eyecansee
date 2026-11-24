@@ -774,6 +774,22 @@ model-export-where = Each copy goes next to its model, with the same name; a nam
 model-export-ok = Export
 model-export-done-title = Export finished
 model-export-cancelled = Export cancelled
+model-export-pictures-heading = { $n ->
+    [one] 1 model exported without its pictures:
+   *[other] { $n } models exported without their pictures:
+}
+model-export-pictures-why = { $n ->
+    [one] Its new format cannot hold pictures: their colours were put on the model instead. glTF (GLB) and OBJ keep them.
+   *[other] Their new format cannot hold pictures: their colours were put on the models instead. glTF (GLB) and OBJ keep them.
+}
+model-export-surfaces-heading = { $n ->
+    [one] 1 model exported without all of its materials:
+   *[other] { $n } models exported without all of their materials:
+}
+model-export-surfaces-why = { $n ->
+    [one] Its new format cannot hold all of how its surfaces take the light (how smooth or metallic they are, bumps, shadows in the creases, their own light). glTF (GLB) keeps it all.
+   *[other] Their new format cannot hold all of how their surfaces take the light (how smooth or metallic they are, bumps, shadows in the creases, their own light). glTF (GLB) keeps it all.
+}
 model-export-running = Exporting 3D models
 model-export-counts = Model { $n } of { $total }
 model-export-files = { $n ->
