@@ -866,8 +866,12 @@ fn f6_goes_to_cancel_of_the_jobs() {
     let boxes = crate::box_keys::controls(&h.ctx);
     let area = |h: &Harness, id: egui::Id| h.ctx.read_response(id).and_then(|r| h.ctx.memory(|m| m.area_rect(r.layer_id.id))).expect("box drawn");
     assert!(!area(&h, boxes[0]).intersects(area(&h, boxes[1])), "the two boxes overlap");
+    // Pressed and let go in two frames, as on a real keyboard: the release moved it on again
+    // (Piero, 24/11: the second F6 went to the other box and back to the first).
     let f6 = |h: &mut Harness| {
-        h.key(Key::F6);
+        let ev = |pressed| egui::Event::Key { key: Key::F6, physical_key: None, pressed, repeat: false, modifiers: Modifiers::NONE };
+        h.frame(vec![ev(true)]);
+        h.frame(vec![ev(false)]);
         h.frame(Vec::new());
         h.ctx.memory(|m| m.focused())
     };
