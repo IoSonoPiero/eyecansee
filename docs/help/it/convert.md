@@ -65,7 +65,7 @@ Se non cambierebbe niente (stesso formato, stesse dimensioni, nessuna rotazione)
 
 - **Accanto agli originali**.
 - **Nella sottocartella**, col nome che scrivi ("convertite" all'inizio). Se non c'è, viene creata.
-- **In un'altra cartella, anche su un altro dispositivo**: scrivi una cartella o un indirizzo come nella barra degli indirizzi (`mtp://…` per un telefono, `sftp://…` per un server), oppure premi **Sfoglia…**. La finestra di scelta mostra a sinistra la cartella home, i dischi, i telefoni collegati e i server salvati: fai clic su una cartella per entrarci, poi **Usa questa cartella**. Un server salvato si apre nella cartella da cui parte, come nella griglia. ![Nuova cartella](icon://folder-plus) accanto all'indirizzo crea lì una cartella nuova: scrivi il nome, poi **Invio** o **Crea**.
+- **In un'altra cartella, anche su un altro dispositivo**: scrivi una cartella o un indirizzo come nella barra degli indirizzi (`mtp://…` per un telefono, `sftp://…` per un server), oppure premi **Sfoglia…**. La finestra di scelta mostra a sinistra la cartella home, i dischi, i telefoni collegati e i server salvati: fai clic su una cartella per entrarci, poi **Usa questa cartella**. Un server salvato si apre nella cartella da cui parte, come nella griglia. ![Nuova cartella](icon://folder-plus) accanto all'indirizzo crea lì una cartella nuova: una piccola finestra ne chiede il nome, come **Nuova cartella** nella griglia ("Nuova cartella" già scritto e selezionato); scrivi quello che vuoi, poi **Invio** o **Crea**. La finestra di scelta entra poi nella cartella nuova.
 
 Un nome già preso riceve " (2)": nessun file viene mai sovrascritto. Così puoi, per esempio, convertire le foto del telefono direttamente in una cartella del computer.
 

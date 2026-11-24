@@ -30,8 +30,8 @@ pub struct Picker {
     first: Option<String>,
     /// The folder a server starts in, once it answers (`go_home`).
     found: Arc<Mutex<Option<String>>>,
-    /// New folder: the name being typed.
-    naming: Option<String>,
+    /// New folder: the name being typed, and whether its window opens this frame.
+    naming: Option<(String, bool)>,
     /// The folder made (gone into once it answers), or why not.
     made: Arc<Mutex<Option<Result<String, source::Error>>>>,
     made_error: Option<source::Error>,
@@ -165,12 +165,13 @@ impl Picker {
 
     /// The name of a new folder being typed, if any.
     pub(crate) fn naming(&self) -> Option<&str> {
-        self.naming.as_deref()
+        self.naming.as_ref().map(|(name, _)| name.as_str())
     }
 
-    /// New folder: its name asked.
-    pub(crate) fn ask_name(&mut self) {
-        self.naming = Some(String::new());
+    /// New folder: its name asked, a free one proposed as in the grid.
+    pub(crate) fn ask_name(&mut self, i18n: &I18n) {
+        let taken = self.dirs.lock().unwrap().as_ref().and_then(|r| r.as_ref().ok()).map(|d| d.iter().map(|p| source::name(p).to_string()).collect()).unwrap_or_default();
+        self.naming = Some((source::free_name(&taken, &i18n.t("new-folder-name")), true));
     }
 
     /// As the address bar takes it.
@@ -204,8 +205,9 @@ impl App {
 }
 
 /// The chooser; `Some(Some(address))` once a folder is chosen, `Some(None)` cancelled.
-/// `keys`: Enter and Esc from the window.
-pub fn pick_ui(ui: &mut egui::Ui, p: &mut Picker, places: &[Place], i18n: &I18n, rt: &Handle, keys: Option<bool>) -> Option<Option<String>> {
+/// `keys`: Enter and Esc from the window; `key`, those left for the new folder's name over it
+/// (`App::key_answer`).
+pub fn pick_ui(ui: &mut egui::Ui, p: &mut Picker, places: &[Place], i18n: &I18n, rt: &Handle, keys: Option<bool>, key: &mut Option<bool>) -> Option<Option<String>> {
     let ctx = ui.ctx().clone();
     p.settle(std::env::home_dir(), rt, &ctx);
     crate::theme::title(ui, i18n.t("pick-title"));
@@ -244,6 +246,7 @@ pub fn pick_ui(ui: &mut egui::Ui, p: &mut Picker, places: &[Place], i18n: &I18n,
             answer = Some(None);
         }
     });
+    naming_window(&ctx, p, i18n, rt, key);
     answer
 }
 
@@ -272,11 +275,13 @@ fn folders_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
         let can = listed && p.naming.is_none() && !(p.base.starts_with("mtp://") && p.dir.is_empty());
         let new = egui::Button::image(icons::line(ui, icons::Line::NewFolder, 16.0));
         if ui.add_enabled(can, new).on_hover_text(i18n.t("menu-new-folder")).clicked() {
-            p.ask_name();
+            p.ask_name(i18n);
         }
         ui.add(egui::Label::new(egui::RichText::new(p.address()).strong()).truncate());
     });
-    naming_ui(ui, p, i18n, rt);
+    if let Some(e) = &p.made_error {
+        crate::error_bar::inline(ui, &i18n.error(e.0, &e.1));
+    }
     ui.add_space(2.0);
     ui.separator();
     let dirs = p.dirs.lock().unwrap().clone();
@@ -300,37 +305,18 @@ fn folders_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
     });
 }
 
-/// The name of the new folder, under the address: Enter or Create makes it, Esc or Cancel leaves
-/// it; what is wrong with the name below, as in the grid's New folder.
-fn naming_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
-    let ctx = ui.ctx().clone();
-    if let Some(e) = &p.made_error {
-        crate::error_bar::inline(ui, &i18n.error(e.0, &e.1));
-    }
-    let Some(mut name) = p.naming.clone() else { return };
+/// The name of a new folder, in a window over the chooser as New folder in the grid (#311: typed
+/// in a line of the chooser, it took no keys from Save as…). Create or Enter makes it, Esc or
+/// Cancel leaves it; what is wrong with the name under it.
+fn naming_window(ctx: &egui::Context, p: &mut Picker, i18n: &I18n, rt: &Handle, key: &mut Option<bool>) {
+    let Some((mut name, first)) = p.naming.clone() else { return };
     let problem = p.name_problem(name.trim(), i18n);
-    let (mut make, mut cancel) = (false, false);
-    ui.horizontal(|ui| {
-        let edit = ui.add(egui::TextEdit::singleline(&mut name).desired_width(200.0));
-        if !edit.has_focus() && !edit.lost_focus() {
-            edit.request_focus();
-        }
-        let (enter, esc) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
-        make = edit.lost_focus() && enter;
-        cancel = esc;
-        make |= ui.add_enabled(problem.is_none(), egui::Button::new(i18n.t("new-folder-ok"))).clicked();
-        cancel |= ui.button(i18n.t("delete-no")).clicked();
-    });
-    // Nothing said while nothing is typed yet: Create is grey.
-    if let Some(problem) = problem.as_ref().filter(|_| !name.trim().is_empty()) {
-        crate::error_bar::hint(ui, problem);
-    }
-    if cancel {
-        p.naming = None;
-    } else if make && problem.is_none() {
-        p.make(name.trim(), rt, &ctx);
-    } else {
-        p.naming = Some(name);
+    let texts = (i18n.t("new-folder-title"), i18n.t("new-folder-ok"), i18n.t("delete-no"));
+    let select = first.then(|| name.chars().count());
+    match crate::file_dialogs::name_window(ctx, "pick-new-folder", texts, &mut name, select, problem, key) {
+        Some(true) => p.make(name.trim(), rt, ctx),
+        Some(false) => p.naming = None,
+        None => p.naming = Some((name, false)),
     }
 }
 

@@ -68,6 +68,11 @@ impl Window {
     pub fn asking(&self) -> bool {
         self.picker.is_some() || crate::view_memory::asked(self.original.as_ref()).is_some()
     }
+
+    /// A new folder's name is typed over the folder chooser: the keys go to its field (`App::forms`).
+    pub fn naming(&self) -> bool {
+        self.picker.as_ref().is_some_and(|p| p.naming().is_some())
+    }
 }
 
 impl App {
@@ -85,7 +90,7 @@ impl App {
         let mut picked = None;
         egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
             ui.set_width(680.0);
-            picked = pick_ui(ui, p, &places, &self.i18n, &rt, keys);
+            picked = pick_ui(ui, p, &places, &self.i18n, &rt, keys, &mut self.key_answer);
         });
         let Some(choice) = picked else { return };
         w.picker = None;
@@ -200,7 +205,7 @@ mod tests {
         let picker = |app: &App| app.convert.as_ref().and_then(|w| w.picker.clone());
         h.until(|app| picker(app).is_some(), "the chooser open");
         let ask = |h: &mut Harness| {
-            h.app.convert.as_mut().and_then(|w| w.picker.as_mut()).unwrap().ask_name();
+            h.app.convert.as_mut().and_then(|w| w.picker.as_mut()).unwrap().ask_name(&crate::i18n::I18n::new("en"));
             for _ in 0..3 {
                 h.frame(Vec::new());
             }

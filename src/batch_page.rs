@@ -472,7 +472,7 @@ impl App {
         let shown = egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
             ui.set_width(680.0);
             if let Some(p) = &mut form.picker {
-                picked = pick_ui(ui, p, &places, &self.i18n, &rt, keys);
+                picked = pick_ui(ui, p, &places, &self.i18n, &rt, keys, &mut self.key_answer);
                 return;
             }
             crate::theme::title(ui, title);

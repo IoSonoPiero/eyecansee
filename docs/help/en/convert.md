@@ -65,7 +65,7 @@ If nothing would change (same format, same size, no rotation), **Convert** (or *
 
 - **Next to the originals**.
 - **In the subfolder**, with the name you write ("converted" at first). It is created if missing.
-- **In another folder, also on another device**: type a folder or an address as in the address bar (`mtp://…` for a phone, `sftp://…` for a server), or click **Browse…**. The chooser shows your home folder, the disks, the connected phones and the saved servers on the left: click a folder to go into it, then **Use this folder**. A saved server opens in the folder it starts in, as in the grid. ![New folder](icon://folder-plus) next to the address makes a new folder there: type its name, then **Enter** or **Create**.
+- **In another folder, also on another device**: type a folder or an address as in the address bar (`mtp://…` for a phone, `sftp://…` for a server), or click **Browse…**. The chooser shows your home folder, the disks, the connected phones and the saved servers on the left: click a folder to go into it, then **Use this folder**. A saved server opens in the folder it starts in, as in the grid. ![New folder](icon://folder-plus) next to the address makes a new folder there: a small window asks its name, as **New folder** in the grid ("New folder" already written and selected); type the one you want, then **Enter** or **Create**. The chooser then goes into it.
 
 A name already taken gets " (2)": nothing is ever written over a file. So you can, for example, convert the photos of a phone straight into a folder of the computer.
 

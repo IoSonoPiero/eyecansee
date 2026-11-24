@@ -291,7 +291,7 @@ impl App {
     /// Rename, New folder, Options and New image: windows with fields, whose keys reach nothing
     /// under them either (#311).
     fn forms(&self) -> bool {
-        self.rename.is_some() || self.new_folder.is_some() || self.options || self.new_image.is_some()
+        self.rename.is_some() || self.new_folder.is_some() || self.options || self.new_image.is_some() || self.convert.as_ref().is_some_and(crate::convert::Window::naming)
     }
 
     /// A question inside a form, in place of its buttons: deleting a server, removing the master
