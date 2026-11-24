@@ -33,7 +33,7 @@ video-volume = Volume { $volume } (up and down arrows, mouse wheel on the video)
 video-no-audio = This video has no audio
 video-not-video = The file is not a video, or it is damaged.
 video-no-frame = No frame can be shown: the video is damaged.
-video-no-sound = The sound cannot be played: no sound output could be opened.
+video-no-sound = The audio cannot be played: no audio output could be opened.
 video-frame-back-busy = Preparing the previous frame…
 video-stalled =
     No data for 20 seconds: the phone or the server is not answering.

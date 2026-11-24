@@ -236,6 +236,9 @@ impl Player {
     /// Why the video cannot be played, once mpv has decided it cannot (#209): from mpv's own
     /// state, never a timer, so a slow phone or server only keeps the spinner longer.
     pub fn error(&self) -> Option<Failure> {
+        if self.dropped() {
+            return Some(Failure::NoSound);
+        }
         let read = self.mpv.stream.as_ref().and_then(|s| s.last_error());
         let failed = self.shared.state.lock().unwrap().failed;
         let ended = !failed && self.ended();
@@ -247,9 +250,9 @@ impl Player {
         judge(failed, read, picture)
     }
 
-    /// mpv loaded the file and then let it go (idle): no error is said for it yet. With no sound
-    /// output a file with sound only goes so (mpv's `AO_INIT_FAILED`, 24/11/2026).
-    #[cfg(test)]
+    /// mpv loaded the file and then let it go (idle): with no sound output a file with sound only
+    /// goes so (mpv's `AO_INIT_FAILED`, 24/11/2026), said as `Failure::NoSound` (#327). A file
+    /// played to its end stays loaded (keep-open), so this is not the end of a file.
     pub(crate) fn dropped(&self) -> bool {
         self.shared.state.lock().unwrap().loaded && self.mpv.string("idle-active").as_deref() == Some("yes")
     }

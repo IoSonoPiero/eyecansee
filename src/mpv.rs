@@ -565,8 +565,8 @@ pub(crate) mod tests {
     /// did not load it (`error` says so), or it played it to its end with its tracks chosen
     /// (`start_tracks`; before them mpv is at an end too, with nothing to play). A damaged video
     /// is run through to its end: 0.4 s alone, 5 to 13 s with the whole suite and more tests at
-    /// once (24/11/2026), where a wait of 10 s failed. mpv dropping a file it had loaded is said
-    /// at once (no sound output for a file with sound only: mpv's `AO_INIT_FAILED`).
+    /// once (24/11/2026), where a wait of 10 s failed. mpv dropping a file it had loaded is an
+    /// error of its own (`Failure::NoSound`, #327).
     fn settled(player: &Player) -> Option<Failure> {
         let id = |p: &str| player.mpv.property::<i64>(p, FORMAT_INT64);
         loop {
@@ -577,7 +577,6 @@ pub(crate) mod tests {
             if chosen && player.ended() {
                 return player.error();
             }
-            assert!(!player.dropped(), "mpv dropped the file after loading it: {}", mpv_state(player));
             std::thread::sleep(Duration::from_millis(20));
         }
     }

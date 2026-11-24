@@ -859,6 +859,16 @@ fn sound_controls(ui: &mut egui::Ui, player: &mpv::Player, (volume, mute): (&mut
 #[cfg(test)]
 mod tests {
 
+    /// #327: the viewer says "no sound output" for a file mpv dropped, in both languages.
+    #[test]
+    fn no_sound_said_in_words() {
+        let id = super::said(&crate::mpv::Failure::NoSound);
+        let it = crate::i18n::I18n::new("it").cannot_load("a.mp3", &id);
+        assert!(it.contains("L'audio non si può riprodurre: non si è potuta aprire nessuna uscita audio."), "{it}");
+        let en = crate::i18n::I18n::new("en").cannot_load("a.mp3", &id);
+        assert!(en.contains("The audio cannot be played: no audio output could be opened."), "{en}");
+    }
+
     /// #165: the time under the pointer, and a drag with Shift ten times finer.
     #[test]
     fn timeline_time_under_pointer_and_fine_drag_165() {
