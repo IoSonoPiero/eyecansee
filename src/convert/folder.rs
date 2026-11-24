@@ -69,6 +69,12 @@ impl Window {
         self.picker.is_some() || crate::view_memory::asked(self.original.as_ref()).is_some()
     }
 
+    /// The folder chooser is open, with no name typed over it: Tab and the arrows go through it
+    /// (`App::asking_keys`).
+    pub fn picking(&self) -> bool {
+        self.picker.as_ref().is_some_and(|p| p.naming().is_none())
+    }
+
     /// A new folder's name is typed over the folder chooser: the keys go to its field (`App::forms`).
     pub fn naming(&self) -> bool {
         self.picker.as_ref().is_some_and(|p| p.naming().is_some())
@@ -217,10 +223,14 @@ mod tests {
         }
         assert!(seen.len() >= 3, "Tab went through {} controls", seen.len());
         assert!(picker(&h.app).is_some(), "the chooser closed");
+        // Up from where Tab left it, then down again: the arrows move between its controls.
         let before = focused(&h);
+        h.key(Key::ArrowUp);
+        h.frame(Vec::new());
+        let up = focused(&h);
         h.key(Key::ArrowDown);
         h.frame(Vec::new());
-        assert!(focused(&h).is_some() && focused(&h) != before, "the arrow moved nothing");
+        assert!(up.is_some() && (up != before || focused(&h) != up), "the arrows moved nothing");
         assert!(picker(&h.app).is_some(), "the chooser closed");
     }
 

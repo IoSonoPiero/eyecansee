@@ -165,6 +165,7 @@ impl Picker {
     }
 
     /// Its folders are listed (or failed): what is in it can be gone through.
+    #[cfg(test)]
     pub(crate) fn dirs_listed(&self) -> bool {
         self.dirs.lock().unwrap().is_some()
     }

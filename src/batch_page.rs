@@ -103,6 +103,11 @@ enum Part {
 const LONG: usize = 3;
 
 impl Form {
+    /// The folder chooser is open, with no name typed over it (`App::asking_keys`).
+    pub fn picking(&self) -> bool {
+        self.picker.as_ref().is_some_and(|p| p.naming().is_none())
+    }
+
     fn new(sub_name: String) -> Form {
         Form {
             format: Some(Format::Jpeg),
