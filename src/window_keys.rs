@@ -775,3 +775,29 @@ fn two_esc_close_the_guide_with_the_keyboard_inside() {
     h.frame(Vec::new());
     assert!(!h.app.help.open, "two Esc with the keyboard in the guide did not close it");
 }
+
+/// #311: the guide opened with F1 over a window that asks (About): Tab goes into the guide, as
+/// over the grid; it was lost (Piero's test W1.4 on Windows, 24/11, the same on Linux).
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn tab_goes_into_the_guide_over_about() {
+    if own_folder("window_keys::tab_goes_into_the_guide_over_about") {
+        return;
+    }
+    let guide = modal("help-window");
+    let mut h = on_grid("keys-guide-over-about");
+    h.app.about = true;
+    h.frame(Vec::new());
+    // As in the test: the keyboard first on a control of About (Tab), then F1.
+    h.key(Key::Tab);
+    h.frame(Vec::new());
+    assert!(focused(&h).is_some(), "Tab in About reached nothing");
+    h.key(Key::F1);
+    assert!(h.app.help.open, "F1 did not open the guide over About");
+    for _ in 0..3 {
+        h.key(Key::Tab);
+        h.frame(Vec::new());
+    }
+    assert!(focused(&h).is_some_and(|(_, l)| guide(l)), "Tab over About did not go into the guide");
+    assert!(h.app.about, "About closed");
+}
