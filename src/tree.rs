@@ -113,34 +113,55 @@ impl App {
         }
     }
 
-    /// Tab: next image in the grid, then the devices one by one, then the folders of the
-    /// computer (or of the open device) one by one, then the grid again from the first item.
-    /// Shift+Tab (`back`) goes round the same way in reverse.
-    pub(crate) fn tab(&mut self, ctx: &egui::Context, back: bool) {
-        let ndev = self.external().len();
-        let n = self.items();
+    /// The folders of the tree that Tab goes through, and where the open one is among them.
+    fn tab_rows(&self) -> (Vec<String>, Option<usize>) {
         let rows = if self.tree_split < self.tree_rows.len() { self.tree_split } else { 0 };
         let rows: Vec<String> = self.tree_rows[rows..].iter().map(|(_, d)| d.clone()).collect();
         let at = rows.iter().position(|d| *d == self.dir);
-        // In the tree, stay on the open folder if there is one; otherwise the first (or the last
-        // going backwards).
-        let to_tree = |app: &mut Self| {
-            app.focus = Focus::Tree;
-            let end = if back { rows.last() } else { rows.first() };
-            if at.is_none() && let Some(d) = end {
-                app.set_dir(d.clone());
-            }
-        };
+        (rows, at)
+    }
+
+    /// Tab into the tree: stay on the open folder if there is one; otherwise the first (or the
+    /// last going backwards).
+    fn tab_to_tree(&mut self, back: bool) {
+        let (rows, at) = self.tab_rows();
+        self.focus = Focus::Tree;
+        let end = if back { rows.last() } else { rows.first() };
+        if at.is_none() && let Some(d) = end {
+            self.set_dir(d.clone());
+        }
+    }
+
+    /// Tab into the grid: its first item (the last going backwards).
+    fn tab_to_grid(&mut self, back: bool) {
+        let n = self.items();
+        self.focus = Focus::Grid;
+        self.selected = if back { n.saturating_sub(1) } else { 0 };
+        self.cursor = n > 0;
+        self.scroll_to_selected = true;
+    }
+
+    /// Tab from the last control of the boxes under way (`box_keys`) to the first item of the
+    /// grid; Shift+Tab from the first one to the tree.
+    pub(crate) fn tab_out_of_boxes(&mut self, back: bool) {
+        if back { self.tab_to_tree(true) } else { self.tab_to_grid(false) }
+    }
+
+    /// Tab: next image in the grid, then the devices one by one, then the folders of the
+    /// computer (or of the open device) one by one, then the boxes of a work under way
+    /// (`box_keys`), then the grid again from the first item. Shift+Tab (`back`) goes round the
+    /// same way in reverse.
+    pub(crate) fn tab(&mut self, ctx: &egui::Context, back: bool) {
+        let ndev = self.external().len();
+        let n = self.items();
+        let (rows, at) = self.tab_rows();
+        let boxes = crate::box_keys::controls(ctx);
+        let to_tree = |app: &mut Self| app.tab_to_tree(back);
         let to_devices = |app: &mut Self, i: usize| {
             app.focus = Focus::Devices(i);
             app.scroll_to_device = true;
         };
-        let to_grid = |app: &mut Self| {
-            app.focus = Focus::Grid;
-            app.selected = if back { n.saturating_sub(1) } else { 0 };
-            app.cursor = n > 0;
-            app.scroll_to_selected = true;
-        };
+        let to_grid = |app: &mut Self| app.tab_to_grid(back);
         match (self.focus, back) {
             (Focus::Grid, false) if n > 0 && (!self.cursor || self.selected + 1 < n) => self.go(Go::Next),
             (Focus::Grid, false) if ndev > 0 => to_devices(self, 0),
@@ -149,9 +170,11 @@ impl App {
             (Focus::Devices(_), false) => to_tree(self),
             (Focus::Tree, false) => match at {
                 Some(at) if at + 1 < rows.len() => self.set_dir(rows[at + 1].clone()),
+                _ if !boxes.is_empty() => crate::box_keys::focus(ctx, boxes[0]),
                 _ => to_grid(self),
             },
             (Focus::Grid, true) if self.cursor && self.selected > 0 => self.go(Go::Prev),
+            (Focus::Grid, true) if let Some(last) = boxes.last() => crate::box_keys::focus(ctx, *last),
             (Focus::Grid, true) => to_tree(self),
             (Focus::Tree, true) => match at {
                 Some(at) if at > 0 => self.set_dir(rows[at - 1].clone()),

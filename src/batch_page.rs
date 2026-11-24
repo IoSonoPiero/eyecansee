@@ -593,9 +593,14 @@ impl App {
                 ui.label(egui::RichText::new(current).weak());
                 if stopping {
                     ui.label(self.i18n.t("batch-stopping"));
-                } else if ui.button(self.i18n.t("delete-no")).clicked() {
-                    log!("batch: Cancel pressed, {done} of {total} done");
-                    p.cancel.store(true, Ordering::Relaxed);
+                } else {
+                    // Reached with Tab after the folders of the tree (`box_keys`, #311).
+                    let cancel = ui.button(self.i18n.t("delete-no"));
+                    crate::box_keys::mark(&cancel);
+                    if cancel.clicked() {
+                        log!("batch: Cancel pressed, {done} of {total} done");
+                        p.cancel.store(true, Ordering::Relaxed);
+                    }
                 }
             });
         true

@@ -41,7 +41,7 @@ In the first-start window each page opens with its main button highlighted (**Ne
 | Backspace | Parent folder |
 | **Ctrl + A** | Select everything in the folder |
 | Tab | Next item; from the last one to the devices |
-| **Shift + Tab** | Previous item; from the first one to the folder open on the left |
+| **Shift + Tab** | Previous item; from the first one to the box of a copy or of Convert under way, if there is one, otherwise to the folder open on the left |
 | **Ctrl + C**, **Ctrl + X**, **Ctrl + V** | Copy, cut, paste (see [Copying and moving](copy-move.md)) |
 | F2 | Rename (see [Renaming and new folders](rename.md)) |
 | **Ctrl + Shift + N** | New folder |
@@ -63,7 +63,7 @@ With the mouse: **Ctrl + click** adds or removes an item, **Shift + click** sele
 | → | Expand the folder; if already expanded, go to its first subfolder |
 | ← | Collapse the folder; if already collapsed, go to its parent |
 | Backspace | Parent folder |
-| Tab | Next folder; from the last one to the grid |
+| Tab | Next folder; from the last one to the box of a copy or of Convert under way, if there is one (its **Cancel**: **Enter** or **Space** presses it, **Tab** goes on to the grid, **Shift + Tab** back to the folders), otherwise to the grid |
 | **Shift + Tab** | Previous folder; from the first one to the last device |
 
 In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device enters its first folder), → and ← expand and collapse it, **Enter** opens it on the right, **Tab** goes to the next one and from the last one to the computer's folders, **Shift + Tab** to the previous one and from the first one to the last item of the grid.

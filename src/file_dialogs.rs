@@ -175,7 +175,10 @@ impl App {
                     let fill = theme::accent(ui.visuals());
                     ui.add(egui::ProgressBar::new(phase.fraction()).fill(fill).desired_height(16.0).show_percentage());
                 });
-                if ui.add_enabled(!cancelling, egui::Button::new(self.i18n.t("delete-no"))).clicked() {
+                // Reached with Tab after the folders of the tree (`box_keys`, #311).
+                let cancel = ui.add_enabled(!cancelling, egui::Button::new(self.i18n.t("delete-no")));
+                crate::box_keys::mark(&cancel);
+                if cancel.clicked() {
                     p.cancel.store(true, Ordering::Relaxed);
                 }
             });

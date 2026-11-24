@@ -41,7 +41,7 @@ Nella finestra del primo avvio ogni pagina si apre col suo pulsante principale e
 | Backspace | Cartella superiore |
 | **Ctrl + A** | Seleziona tutto nella cartella |
 | Tab | Elemento successivo; dall'ultimo passa ai dispositivi |
-| **Maiusc + Tab** | Elemento precedente; dal primo passa alla cartella aperta a sinistra |
+| **Maiusc + Tab** | Elemento precedente; dal primo passa al riquadro di una copia o di Converti in corso, se c'è, altrimenti alla cartella aperta a sinistra |
 | **Ctrl + C**, **Ctrl + X**, **Ctrl + V** | Copia, taglia, incolla (vedi [Copiare e spostare](copy-move.md)) |
 | F2 | Rinomina (vedi [Rinominare e nuove cartelle](rename.md)) |
 | **Ctrl + Maiusc + N** | Nuova cartella |
@@ -63,7 +63,7 @@ Con il mouse: **Ctrl + clic** aggiunge o toglie un elemento, **Maiusc + clic** s
 | → | Apre la cartella; se è già aperta, va alla prima sottocartella |
 | ← | Chiude la cartella; se è già chiusa, va a quella superiore |
 | Backspace | Cartella superiore |
-| Tab | Cartella successiva; dall'ultima passa alla griglia |
+| Tab | Cartella successiva; dall'ultima passa al riquadro di una copia o di Converti in corso, se c'è (il suo **Annulla**: **Invio** o **Spazio** lo premono, **Tab** prosegue alla griglia, **Maiusc + Tab** torna alle cartelle), altrimenti alla griglia |
 | **Maiusc + Tab** | Cartella precedente; dalla prima passa all'ultimo dispositivo |
 
 Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositivo aperto entra nella sua prima cartella), → e ← lo aprono e lo chiudono, **Invio** lo apre a destra, **Tab** passa al successivo e dall'ultimo alle cartelle del computer, **Maiusc + Tab** al precedente e dal primo all'ultimo elemento della griglia.
