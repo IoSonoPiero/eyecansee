@@ -353,3 +353,46 @@ fn a_pause_does_not_outlive_its_typing() {
     typed(&mut h, "cd");
     assert_eq!(texts(&h), ["ab", "cd"], "the second text typed");
 }
+
+/// #332: a part chosen with Selection, then a second one being drawn, Esc with the button still
+/// held: the part chosen before is back, as in the photo editors (Esc took both away).
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn esc_while_a_selection_is_drawn_puts_back_the_one_before() {
+    if own_folder("edit_page::defects::esc_while_a_selection_is_drawn_puts_back_the_one_before") {
+        return;
+    }
+    let mut h = Harness::new(&white("three-three-two"));
+    editor(&mut h, "a.png", Tool::Marquee);
+    drag(&mut h, MIDDLE - vec2(100.0, 80.0), MIDDLE - vec2(20.0, 20.0));
+    let before = h.app.editor.as_ref().unwrap().marquee.expect("the part chosen");
+    press_and_move(&mut h, MIDDLE + vec2(20.0, 20.0), vec2(90.0, 70.0));
+    assert_ne!(h.app.editor.as_ref().unwrap().marquee, Some(before), "the second part being drawn");
+    h.key(Key::Escape);
+    h.frame(vec![button(MIDDLE + vec2(110.0, 90.0), false)]);
+    h.frame(Vec::new());
+    assert_eq!(h.app.editor.as_ref().unwrap().marquee, Some(before), "Esc during the drawing: the part chosen before");
+}
+
+/// #334: a result that could not be made with no detail of the fault (a panic without a
+/// message): the sentence in the error bar ends without a colon, for Copy and for Save as….
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn result_failed_without_a_detail_has_no_colon() {
+    if own_folder("edit_page::defects::result_failed_without_a_detail_has_no_colon") {
+        return;
+    }
+    let mut h = Harness::new(&white("three-three-four"));
+    editor(&mut h, "a.png", Tool::Select);
+    let ctx = h.ctx.clone();
+    h.app.on_edit_copy(&ctx, Err(String::new()));
+    let copy = h.app.error.take().expect("Copy failed, said");
+    h.key_with(Key::S, Modifiers::COMMAND | Modifiers::SHIFT);
+    assert!(h.app.convert.is_some(), "Save as… open");
+    h.app.convert_original(&ctx, Err(format!("{}\u{1}", super::RESULT_FAILED)));
+    h.frame(Vec::new());
+    let save_as = h.app.error.take().expect("Save as… failed, said");
+    for said in [&copy, &save_as] {
+        assert!(!said.trim_end().ends_with(':'), "a colon with nothing after it: {said:?}");
+    }
+}
