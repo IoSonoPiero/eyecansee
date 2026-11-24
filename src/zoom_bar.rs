@@ -146,6 +146,11 @@ fn slider(ui: &mut egui::Ui, i18n: &I18n, zoom: f32, range: [f32; 2]) -> Option<
     // Shift+Tab gives it the keyboard at the end of the frame, after it is drawn: the Tab of the
     // frame before counts too (the frame it came in; `u64::MAX` once kept).
     let (by_tab, now, tab) = (r.id.with("by-tab"), ui.ctx().cumulative_frame_nr(), ui.input(|i| i.key_pressed(egui::Key::Tab)));
+    // A click or a drag with the mouse ends what Tab gave: kept from before, the slider held the
+    // keyboard after a drag too, and ← → changed the zoom (Piero's test W5.2, 24/11).
+    if r.clicked() || r.drag_started() || r.is_pointer_button_down_on() {
+        ui.data_mut(|d| d.remove::<u64>(by_tab));
+    }
     let tabbed = ui.data(|d| d.get_temp::<u64>(by_tab)).is_some_and(|f| f.saturating_add(1) >= now);
     if r.has_focus() && !(tab || tabbed) {
         r.surrender_focus();
