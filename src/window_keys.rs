@@ -146,3 +146,51 @@ fn tab_goes_through_the_windows_with_fields() {
     h.key(Key::Escape);
     assert!(!resizing(&h.app) && h.app.editor.is_some(), "Esc did not close Resize only");
 }
+
+/// A page covering the window (Save as, Find duplicates): its controls are on the bottom layer.
+fn page(l: egui::LayerId) -> bool {
+    l.order == egui::Order::Background
+}
+
+/// #311: the pages that cover the window, Save as (opened from the grid, the viewer and the
+/// editor) and the results of Find duplicates: with nothing focused Tab went to the grid hidden
+/// under them, and Ctrl+C copied its files. Tab goes through the page's controls, the arrows too.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn tab_goes_through_the_pages() {
+    if own_folder("window_keys::tab_goes_through_the_pages") {
+        return;
+    }
+    let saving = |a: &App| a.convert.is_some();
+    let mut h = on_grid("keys-save-as");
+    let a = h.app.files()[0].path.clone();
+    h.app.open_convert(Some(a));
+    tab_goes_through(&mut h, page, saving, 3, true);
+
+    let mut h = on_grid("keys-save-as-viewer");
+    h.app.activate(1);
+    h.until(|a| a.zoom_of == Some(1), "b.png shown");
+    let b = h.app.files()[1].path.clone();
+    h.app.open_convert(Some(b));
+    tab_goes_through(&mut h, page, saving, 3, true);
+
+    let mut h = in_editor("keys-save-as-editor");
+    h.key_with(Key::S, Modifiers::COMMAND | Modifiers::SHIFT);
+    h.frame(Vec::new());
+    assert!(saving(&h.app), "Ctrl+Shift+S did not open Save as from the editor");
+    tab_goes_through(&mut h, page, saving, 3, true);
+    h.blur();
+    h.key(Key::Escape);
+    assert!(!saving(&h.app) && h.app.editor.is_some(), "Esc did not go back to the editor");
+
+    // a.png, b.png and c.png are the same picture: one group of three copies.
+    let mut h = on_grid("keys-duplicates");
+    h.app.open_duplicates(None);
+    h.frame(Vec::new());
+    h.key(Key::Enter);
+    h.until(App::dup_page_shown, "the results of Find duplicates");
+    tab_goes_through(&mut h, page, App::dup_page_shown, 3, true);
+    h.blur();
+    h.key(Key::Escape);
+    assert!(h.app.duplicates.is_none(), "Esc did not close Find duplicates");
+}
