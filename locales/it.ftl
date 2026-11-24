@@ -1724,7 +1724,7 @@ summary-not-done = { $n ->
    *[other] **{ $n } file** non fatti: il lavoro è stato fermato.
 }
 summary-nothing = Nessun file è stato salvato.
-summary-took = Ci è voluto { $time }.
+summary-took = Ci sono voluti { $time }.
 summary-sizes = Dimensione: { $before } prima, { $after } dopo ({ $percent }%).
 summary-kind = { $n ->
     [one] 1 file di un tipo su cui questo comando non lavora:

@@ -207,10 +207,15 @@ impl App {
             use crate::confirm::FollowArea;
             egui::ScrollArea::vertical().max_height(max).auto_shrink([false, true]).show_follow(ui, |ui| {
                 for (i, p) in r.parts.iter().enumerate() {
+                    // A line between the parts, and each title in bold as the headings of the
+                    // lists (Piero, 24/11: `strong` only darkened it).
                     if i > 0 {
-                        ui.add_space(10.0);
+                        ui.add_space(6.0);
+                        ui.separator();
+                        ui.add_space(6.0);
                     }
-                    ui.label(egui::RichText::new(&p.title).strong());
+                    notice_text(ui, &format!("**{}**", md(&p.title)));
+                    ui.add_space(2.0);
                     notice_text(ui, &p.text);
                     p.groups.iter().for_each(|g| group_ui(ui, g, None));
                 }

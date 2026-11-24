@@ -282,7 +282,7 @@ mod tests {
         // Nothing left out: Copy takes the text as it reads.
         assert_eq!(summary(&i18n, "batch-title", &outcome(&[], 3, 3, 3), String::new()).copy, "3 files saved in /p/converted.\n\nIt took 1 min 15 s.\nSize: 4.0 MB before, 1.0 MB after (25%).");
         let it = summary(&I18n::new("it"), "batch-title", &outcome(&[], 2, 2, 2), String::new());
-        assert!(it.text.starts_with("**2 file** salvati in \\/p\\/converted.\n\nCi è voluto 1 min 15 s.\nDimensione: 4,0 MB prima, 1,0 MB dopo (25%)."), "{}", it.text);
+        assert!(it.text.starts_with("**2 file** salvati in \\/p\\/converted.\n\nCi sono voluti 1 min 15 s.\nDimensione: 4,0 MB prima, 1,0 MB dopo (25%)."), "{}", it.text);
     }
 
     /// The files that do not decode, as Convert… leaves them out, in the order of their names: a
@@ -371,7 +371,7 @@ mod tests {
         assert!(s.groups[0].items.len() > FOLD);
         let files: Vec<String> = (1..=15).map(|i| format!("- foto_{i}.heic")).collect();
         let want = format!("\n\n15 file in un formato che EyeCanSee non sa scrivere; scegli un altro formato:\n{}\n\n1 file di un tipo su cui questo comando non lavora:\n- nota.txt", files.join("\n"));
-        assert!(s.copy.starts_with("2 file salvati in /p/converted.\n16 file lasciati fuori.\n\nCi è voluto 1 min 15 s."), "{}", s.copy);
+        assert!(s.copy.starts_with("2 file salvati in /p/converted.\n16 file lasciati fuori.\n\nCi sono voluti 1 min 15 s."), "{}", s.copy);
         assert!(s.copy.ends_with(&want), "{}", s.copy);
     }
 
