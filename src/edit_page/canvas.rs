@@ -547,11 +547,11 @@ fn marquee_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
     if response.drag_started()
         && let Some(s) = ui.input(|i| i.pointer.press_origin()).or(response.interact_pointer_pos())
     {
-        w.hold = Some(if pan { Hold::Pan { at: view.at, k: view.k, from: s } } else { Hold::Marquee { from: view.doc(s, w.doc.angle) } });
+        w.hold = Some(if pan { Hold::Pan { at: view.at, k: view.k, from: s } } else { Hold::Marquee { from: view.doc(s, w.doc.angle), before: w.marquee } });
     }
     if let Some(s) = response.interact_pointer_pos() {
         match &w.hold {
-            Some(Hold::Marquee { from }) => {
+            Some(Hold::Marquee { from, .. }) => {
                 let square = ui.input(|i| i.modifiers.shift);
                 let drawn = geom::drawn(Kind::Rect, *from, view.doc(s, w.doc.angle), w.doc.angle, crate::edit::doc::Style::default(), square);
                 // On whole pixels, as Copy takes it.

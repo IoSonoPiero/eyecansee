@@ -8,7 +8,7 @@ use super::{Hold, Window};
 impl Window {
     /// The drag under way stopped and undone, `true` if there was one: an object moved, resized
     /// or turned back as it was, one being drawn gone, the view as before; a selection being
-    /// drawn goes. Rotate and crop: the crop and the view as before, no line to straighten.
+    /// drawn gives way to the one before (#332). Rotate and crop: the crop and the view as before, no line to straighten.
     pub(super) fn cancel_drag(&mut self) -> bool {
         if let Some((grab, crop, view, _)) = self.drag.take() {
             self.doc.crop = crop;
@@ -31,7 +31,7 @@ impl Window {
             }
             Hold::Draw { .. } => {}
             Hold::Pan { at, k, .. } => self.view = Some((at, k)),
-            Hold::Marquee { .. } => self.marquee = None,
+            Hold::Marquee { before, .. } => self.marquee = before,
         }
         let n = self.doc.objects.len();
         self.selected = self.selected.filter(|&i| i < n);
@@ -90,10 +90,13 @@ mod tests {
         w.hold = Some(Hold::Pan { at: eframe::egui::vec2(0.0, 0.0), k: 1.0, from: eframe::egui::pos2(0.0, 0.0) });
         assert!(w.cancel_drag());
         assert_eq!((w.view, w.doc.objects[1].clone()), (Some((eframe::egui::vec2(0.0, 0.0), 1.0)), text("bcd", 10.0)));
-        // A selection being drawn goes.
+        // A selection being drawn goes, the one before is back (#332).
         let mut w = page();
+        let before = Area { centre: Pt::new(-5.0, 0.0), w: 4.0, h: 4.0, rot: 0.0 };
         w.marquee = Some(Area { centre: Pt::new(0.0, 0.0), w: 9.0, h: 9.0, rot: 0.0 });
-        w.hold = Some(Hold::Marquee { from: Pt::new(0.0, 0.0) });
+        w.hold = Some(Hold::Marquee { from: Pt::new(0.0, 0.0), before: Some(before) });
+        assert!(w.cancel_drag() && w.marquee == Some(before));
+        w.hold = Some(Hold::Marquee { from: Pt::new(0.0, 0.0), before: None });
         assert!(w.cancel_drag() && w.marquee.is_none());
         // Nothing held: nothing to stop.
         assert!(!page().cancel_drag());

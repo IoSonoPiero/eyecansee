@@ -8,7 +8,7 @@
 2. Trascina sull'immagine. Tieni premuto Maiusc per un quadrato.
 3. Un contorno tratteggiato mostra la zona scelta. I suoi lati seguono i bordi dei pixel dell'immagine, così una copia ha i pixel come sono.
 
-Un clic sull'immagine, o Esc, lascia la zona. La lascia anche scegliere un altro strumento.
+Un clic sull'immagine, o Esc, lascia la zona. Esc mentre disegni una zona nuova (col tasto ancora premuto) rimette la zona scelta prima. La lascia anche scegliere un altro strumento.
 
 ## Copiare, tagliare e incollare
 

@@ -125,8 +125,9 @@ enum Hold {
     /// The object drawn is at `index` once the drag is long enough.
     Draw { kind: Kind, from: Pt, index: Option<usize> },
     Pan { at: Vec2, k: f32, from: Pos2 },
-    /// The selection being drawn, from where the drag started.
-    Marquee { from: Pt },
+    /// The selection being drawn, from where the drag started; the one there was before, which
+    /// Esc puts back (#332).
+    Marquee { from: Pt, before: Option<crate::edit::doc::Area> },
 }
 
 /// What the texture of the objects was drawn for.
