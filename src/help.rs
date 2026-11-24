@@ -184,6 +184,9 @@ pub(crate) struct Guide {
     last_esc: Option<f64>,
     /// The search field had the keyboard in the frame before: an Esc there is the guide's.
     typing: bool,
+    /// A control of the guide (a link, the index) had the keyboard in the frame before (Tab):
+    /// an Esc there is the guide's too, wherever the pointer is (#311, Piero's test L1.5).
+    inside: bool,
     /// The search field takes the keyboard at the next frame: the guide has just opened.
     focus: bool,
     /// The keys and the text of this frame for the search field alone, with a window under the
@@ -205,6 +208,7 @@ impl Default for Guide {
             settle: None,
             last_esc: None,
             typing: false,
+            inside: false,
             focus: false,
             typed: vec![],
         }
@@ -396,6 +400,7 @@ impl App {
     pub(crate) fn open_help(&mut self, id: &'static str) {
         self.help.open = true;
         self.help.typing = false;
+        self.help.inside = false;
         self.help.focus = true;
         self.help.go(id);
     }
@@ -421,7 +426,7 @@ impl App {
         }
         let pointer = ctx.input(|i| i.pointer.hover_pos());
         let over = pointer.zip(ctx.memory(|m| m.area_rect(window_id()))).is_some_and(|(p, r)| r.contains(p));
-        if !over && !self.help.typing && !under {
+        if !over && !self.help.typing && !self.help.inside && !under {
             return;
         }
         let field = under && self.help.typing;
@@ -437,6 +442,7 @@ impl App {
             log!("help: closed with Esc");
             self.help.open = false;
             self.help.typing = false;
+            self.help.inside = false;
         }
     }
 
@@ -477,6 +483,13 @@ impl App {
             .collapsible(false);
         // Tab with nothing focused goes into it, and stays inside it, not to the grid (#311).
         let todo = crate::app_dialogs::in_ring(ctx, layer, || window.show(ctx, |ui| draw(ui, &mut self.help, &view))).and_then(|r| r.inner.flatten());
+        // Kept while nothing has the keyboard (the first Esc takes it away, the second must still
+        // reach the guide); a click anywhere, or the keyboard elsewhere, ends it.
+        match ctx.memory(|m| m.focused()) {
+            Some(id) => self.help.inside = ctx.read_response(id).is_some_and(|r| r.layer_id == layer),
+            None if ctx.input(|i| i.pointer.any_pressed()) => self.help.inside = false,
+            None => {}
+        }
         self.help.open &= open;
         if let Some(todo) = todo {
             self.help.act(todo);
