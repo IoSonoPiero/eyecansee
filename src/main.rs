@@ -92,6 +92,7 @@ mod help_search;
 mod human;
 mod help_icons;
 mod i18n;
+mod jobs_report;
 mod kept;
 mod icons;
 mod listing;
