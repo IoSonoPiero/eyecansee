@@ -223,8 +223,11 @@ impl App {
     /// the keys go to the field. `true`: the keys were the confirmation's (`raw_input_hook`).
     pub(crate) fn asking_keys(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) -> bool {
         ctx.data_mut(|d| d.remove::<Nav>(nav_id()));
-        let fields = self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some() || self.editor.as_ref().is_some_and(crate::edit_page::Window::resizing);
-        if !self.asking() || (fields && ctx.egui_wants_keyboard_input()) {
+        let fields = self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some() || self.editor.as_ref().is_some_and(crate::edit_page::Window::resizing) || self.forms();
+        // A question inside a form has the keys of a question, unless a text field has them (#311).
+        let fields = fields && !(self.form_asks() && !ctx.text_edit_focused());
+        // An open drop-down list (Language, Unit) has its own keys too (`browser::menu_keys`).
+        if !self.asking() || (fields && (ctx.egui_wants_keyboard_input() || egui::Popup::is_any_open(ctx))) {
             return false;
         }
         // The tip's first frame: egui keeps what is under a modal from the mouse only from the frame
@@ -280,7 +283,19 @@ impl App {
     /// day… Its keys are its own (`raw_input_hook`).
     pub(crate) fn asking(&self) -> bool {
         let pasting = self.paste_ask.as_ref().is_some_and(|a| a.conflicts.as_ref().is_some_and(|c| !c.is_empty()));
-        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.ffmpeg_ask.is_some() || self.batch_turn.is_some() || self.notice.is_some() || !self.kept.is_empty() || self.batch_summary.is_some() || self.update_note.is_some() || self.about || self.kiod_ask || self.host_ask || self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.duplicates.as_ref().is_some_and(crate::dup_page::Window::asking) || self.editor.as_ref().is_some_and(crate::edit_page::Window::asking) || self.after_turn.is_some() || self.batch.as_ref().is_some_and(crate::batch_page::Window::asking) || self.convert.as_ref().is_some_and(crate::convert::Window::asking) || self.first_start.as_ref().is_some_and(crate::first_start_ui::Open::asking) || self.tip.is_some() || self.model_export.is_some()
+        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.ffmpeg_ask.is_some() || self.batch_turn.is_some() || self.notice.is_some() || !self.kept.is_empty() || self.batch_summary.is_some() || self.update_note.is_some() || self.about || self.kiod_ask || self.host_ask || self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.duplicates.as_ref().is_some_and(crate::dup_page::Window::asking) || self.editor.as_ref().is_some_and(crate::edit_page::Window::asking) || self.after_turn.is_some() || self.batch.as_ref().is_some_and(crate::batch_page::Window::asking) || self.convert.as_ref().is_some_and(crate::convert::Window::asking) || self.first_start.as_ref().is_some_and(crate::first_start_ui::Open::asking) || self.tip.is_some() || self.model_export.is_some() || self.forms()
+    }
+
+    /// Options: a window with fields, whose keys reach nothing under it either (#311).
+    fn forms(&self) -> bool {
+        self.options
+    }
+
+    /// A question inside a form, in place of its buttons: deleting a server, removing the master
+    /// password, emptying the thumbnail cache (#311).
+    fn form_asks(&self) -> bool {
+        let purge = self.options && self.options_tab == crate::OptTab::Thumbnails && self.purge_confirm.is_some();
+        purge || self.server_manager.as_ref().is_some_and(|f| f.deleting || f.master == crate::vault_page::Change::Remove)
     }
 }
 

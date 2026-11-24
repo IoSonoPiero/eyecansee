@@ -81,8 +81,16 @@ impl App {
     /// Before the pages read the keys: Esc with Options open is the window's, and reaches nothing
     /// under it (it closed the viewer and left Options open, #163). The question on emptying the
     /// thumbnail cache is answered No first, as its No button.
+    /// With nothing focused Esc comes as `key_answer` (`asking_keys`, #311); under a modal window
+    /// (Rename from the grid's menu) it is that window's.
     pub(crate) fn options_esc(&mut self, ctx: &egui::Context) {
-        if !self.options || !ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+        if !self.options || ctx.memory(|m| m.top_modal_layer().is_some()) {
+            return;
+        }
+        let key = self.key_answer == Some(false);
+        if key {
+            self.key_answer = None;
+        } else if !ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
             return;
         }
         if self.purge_confirm.take().is_none() {
@@ -393,18 +401,79 @@ fn thumbnails_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n, confirm: &mu
     };
     let mb = format!("{:.1}", bytes as f64 / 1_048_576.0);
     ui.label(i18n.t_args("opt-purge-confirm", &[("n", &n.to_string()), ("mb", &mb)]));
-    let mut purged = false;
-    ui.horizontal(|ui| {
-        if ui.button(t("opt-purge-yes")).clicked() {
-            thumbcache::purge();
-            purged = true;
-            *confirm = None;
+    // On Empty: the thumbnails are made again (#311).
+    let labels = [(t("opt-purge-yes"), true), (t("opt-purge-no"), true)];
+    let answer = ui.horizontal(|ui| crate::confirm::buttons(ui, "options", &labels, 0)).inner;
+    if answer.is_some() {
+        *confirm = None;
+    }
+    if answer == Some(0) {
+        thumbcache::purge();
+    }
+    answer == Some(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use eframe::egui::Key;
+
+    use crate::OptTab;
+    use crate::audit_family_1::{Harness, folder, keys_stay_in_window, own_folder};
+
+    /// Options open on the folder `name`, with nothing focused (a click on its body).
+    fn options(name: &str) -> Harness {
+        let mut h = Harness::new(&folder(name, &["a.png", "b.png", "c.png"]));
+        h.app.options = true;
+        h.frame(Vec::new());
+        h
+    }
+
+    /// #311: with Options open the keys never reach the grid, the viewer or the shortcuts under
+    /// it, also with nothing focused; Esc still closes it.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn options_keep_their_keys() {
+        if own_folder("app_dialogs::tests::options_keep_their_keys") {
+            return;
         }
-        if ui.button(t("opt-purge-no")).clicked() {
-            *confirm = None;
+        let mut h = options("opt-keys");
+        keys_stay_in_window(&mut h, |a| a.options);
+        h.blur();
+        h.key(Key::Enter);
+        assert!(h.app.options && h.app.viewing.is_none(), "Enter in Options opened the picture under it");
+        h.blur();
+        h.key(Key::Escape);
+        assert!(!h.app.options, "Esc did not close Options");
+    }
+
+    /// #311: "Empty the thumbnail cache?" opens on Empty: Enter empties it. Esc cancels the
+    /// question first, then closes Options.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn emptying_the_cache_opens_on_empty() {
+        if own_folder("app_dialogs::tests::emptying_the_cache_opens_on_empty") {
+            return;
         }
-    });
-    purged
+        let mut h = options("opt-purge");
+        h.until(|_| crate::thumbcache::stats().0 > 0, "thumbnails in the cache");
+        h.app.options_tab = OptTab::Thumbnails;
+        let ask = |h: &mut Harness| {
+            h.focus_somewhere();
+            h.app.purge_confirm = Some(crate::thumbcache::stats());
+            h.frame(Vec::new());
+        };
+        ask(&mut h);
+        h.blur();
+        h.key(Key::Escape);
+        assert!(h.app.options && h.app.purge_confirm.is_none() && crate::thumbcache::stats().0 > 0, "Esc did not cancel the question only");
+        ask(&mut h);
+        h.key(Key::Enter);
+        assert!(h.app.options && h.app.purge_confirm.is_none() && h.app.viewing.is_none(), "Enter did not answer the question, or reached the grid");
+        assert_eq!(crate::thumbcache::stats().0, 0, "Enter did not empty the cache");
+        h.blur();
+        h.key(Key::Escape);
+        assert!(!h.app.options, "Esc did not close Options");
+    }
 }
 
 #[cfg(test)]

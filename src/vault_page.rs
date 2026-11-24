@@ -149,23 +149,24 @@ impl App {
                             f.master = Change::New { first: String::new(), again: String::new() };
                         }
                         if encrypted && ui.button(t("vault-remove")).clicked() {
-                            f.master = Change::Remove;
+                            (f.master, f.deleting) = (Change::Remove, false);
                         }
                     });
                 }
                 Change::New { .. } => self.new_master(ui, f),
                 Change::Remove => {
                     crate::error_bar::inline(ui, &t("vault-remove-warning"));
-                    ui.horizontal(|ui| {
-                        if ui.button(t("vault-remove-yes")).clicked() {
+                    // On Cancel: the servers go back to plain text (#311).
+                    let labels = [(t("vault-remove-yes"), true), (t("delete-no"), true)];
+                    match ui.horizontal(|ui| crate::confirm::buttons(ui, "server-manager", &labels, 1)).inner {
+                        Some(0) => {
                             f.error = servers::remove_password().err().map(|e| e.to_string());
                             log!("master password removed: {:?}", f.error);
                             f.master = Change::None;
                         }
-                        if ui.button(t("delete-no")).clicked() {
-                            f.master = Change::None;
-                        }
-                    });
+                        Some(_) => f.master = Change::None,
+                        None => {}
+                    }
                 }
             }
         });

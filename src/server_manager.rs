@@ -4,6 +4,7 @@
 use eframe::egui;
 
 use crate::address::AddressForm;
+use crate::vault_page::Change;
 use crate::App;
 
 impl App {
@@ -12,8 +13,12 @@ impl App {
         // In a field Esc reaches the window; elsewhere it arrives as `answer`.
         let id = "server-manager";
         let esc = crate::confirm::answer(ctx, &mut self.key_answer, id) == Some(false) || ctx.input(|i| i.key_pressed(egui::Key::Escape));
-        let mut close = esc && !f.deleting;
-        f.deleting &= !esc;
+        // Esc on a question cancels the question only.
+        let asked = f.deleting || f.master == Change::Remove;
+        let mut close = esc && !asked;
+        if esc && asked {
+            (f.deleting, f.master) = (false, if f.master == Change::Remove { Change::None } else { f.master.clone() });
+        }
         let mut connect = None;
         let before = f.servers.clone();
         egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
@@ -111,7 +116,11 @@ impl App {
                 f.store();
             }
             if ui.add_enabled(f.chosen.is_some(), egui::Button::new(t("srv-delete"))).clicked() {
+                // One question at a time: they share the keys of the window.
                 f.deleting = true;
+                if f.master == Change::Remove {
+                    f.master = Change::None;
+                }
             }
             if ui.button(t("srv-close")).clicked() {
                 log!("server manager: close");
@@ -121,17 +130,89 @@ impl App {
         (close, connect)
     }
 
-    /// "Delete this server?" in place of the buttons.
+    /// "Delete this server?" in place of the buttons, on Cancel: it cannot be undone (#311).
     fn server_delete_row(&self, ui: &mut egui::Ui, f: &mut AddressForm) {
         let name = f.chosen.and_then(|i| f.servers.get(i)).map(|s| s.name.clone()).unwrap_or_default();
         ui.label(self.i18n.t_args("srv-delete-ask", &[("name", &name)]));
-        ui.horizontal(|ui| {
-            if ui.button(self.i18n.t("delete-yes")).clicked() {
-                f.remove();
-            }
-            if ui.button(self.i18n.t("delete-no")).clicked() {
-                f.deleting = false;
-            }
-        });
+        let labels = [(self.i18n.t("delete-yes"), true), (self.i18n.t("delete-no"), true)];
+        match ui.horizontal(|ui| crate::confirm::buttons(ui, "server-manager", &labels, 1)).inner {
+            Some(0) => f.remove(),
+            Some(_) => f.deleting = false,
+            None => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use eframe::egui::Key;
+
+    use crate::address::AddressForm;
+    use crate::audit_family_1::{Harness, folder, own_folder};
+    use crate::vault_page::Change;
+
+    /// The server manager open on one saved server.
+    fn manager(name: &str) -> Harness {
+        let mut h = Harness::new(&folder(name, &["a.jpg"]));
+        let mut f = AddressForm::manager();
+        f.servers = vec![crate::servers::Saved { name: "nas".into(), scheme: "ftp".into(), host: "nas.invalid".into(), ..Default::default() }];
+        f.choose(Some(0));
+        h.app.server_manager = Some(f);
+        h.frame(Vec::new());
+        h
+    }
+
+    fn form(h: &Harness) -> &AddressForm {
+        h.app.server_manager.as_ref().expect("the server manager closed")
+    }
+
+    /// The question in place of the buttons, as from its button (which had the keyboard).
+    fn ask(h: &mut Harness, question: impl Fn(&mut AddressForm)) {
+        h.focus_somewhere();
+        question(h.app.server_manager.as_mut().unwrap());
+        h.frame(Vec::new());
+    }
+
+    /// #311: "Delete this server?" opens on Cancel: Enter keeps the server; Tab goes to Delete,
+    /// Enter deletes it. Esc cancels the question, the window stays.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn deleting_a_server_opens_on_cancel() {
+        if own_folder("server_manager::tests::deleting_a_server_opens_on_cancel") {
+            return;
+        }
+        let mut h = manager("srv-delete");
+        ask(&mut h, |f| f.deleting = true);
+        h.key(Key::Enter);
+        assert!(!form(&h).deleting && form(&h).servers.len() == 1, "Enter on the question deleted the server, or left the question");
+        ask(&mut h, |f| f.deleting = true);
+        h.key(Key::Escape);
+        assert!(!form(&h).deleting && form(&h).servers.len() == 1, "Esc did not cancel the question");
+        ask(&mut h, |f| f.deleting = true);
+        h.key(Key::Tab);
+        h.key(Key::Enter);
+        assert!(form(&h).servers.is_empty() && h.app.saved_servers.is_empty(), "Tab and Enter did not delete the server");
+    }
+
+    /// #311: "Remove the master password?" opens on Cancel: Enter keeps it; Esc cancels the
+    /// question and leaves the window open; Tab goes to Remove, Enter removes it.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn removing_the_master_password_opens_on_cancel() {
+        if own_folder("server_manager::tests::removing_the_master_password_opens_on_cancel") {
+            return;
+        }
+        let mut h = manager("srv-vault");
+        crate::servers::set_password("correct horse battery staple 311").unwrap();
+        ask(&mut h, |f| f.master = Change::Remove);
+        h.key(Key::Enter);
+        assert!(form(&h).master == Change::None && crate::servers::encrypted(), "Enter on the question removed the master password, or left the question");
+        ask(&mut h, |f| f.master = Change::Remove);
+        h.key(Key::Escape);
+        assert!(form(&h).master == Change::None && crate::servers::encrypted(), "Esc did not cancel the question only");
+        ask(&mut h, |f| f.master = Change::Remove);
+        h.key(Key::Tab);
+        h.key(Key::Enter);
+        assert!(!crate::servers::encrypted(), "Tab and Enter did not remove the master password");
     }
 }

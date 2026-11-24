@@ -122,6 +122,39 @@ impl Harness {
         let ev = |pressed| egui::Event::Key { key, physical_key: None, pressed, repeat: false, modifiers };
         self.frame(vec![ev(true), ev(false)]);
     }
+
+    /// Nothing has the keyboard, as after a click on the body of a window.
+    pub fn blur(&mut self) {
+        self.ctx.memory_mut(|m| {
+            if let Some(id) = m.focused() {
+                m.surrender_focus(id);
+            }
+        });
+    }
+
+    /// A widget has the keyboard, as the button that opened a question inside a form.
+    pub fn focus_somewhere(&mut self) {
+        self.ctx.memory_mut(|m| m.request_focus(egui::Id::unique("the button that opened it")));
+    }
+}
+
+/// #311: a window with fields open over the grid (`open`), nothing focused (a click on its
+/// body): the keys of the grid and the shortcuts reach nothing under it, the window stays alone.
+pub(crate) fn keys_stay_in_window(h: &mut Harness, open: impl Fn(&App) -> bool) {
+    use egui::{Key, Modifiers};
+    let ctrl = Modifiers::COMMAND;
+    (h.app.cursor, h.app.selected, h.app.focus) = (true, 0, crate::Focus::Grid);
+    let keys = [(Key::ArrowRight, Modifiers::NONE), (Key::ArrowDown, Modifiers::NONE), (Key::End, Modifiers::NONE), (Key::Delete, Modifiers::NONE), (Key::F2, Modifiers::NONE), (Key::E, ctrl), (Key::N, ctrl), (Key::N, ctrl | Modifiers::SHIFT), (Key::B, ctrl), (Key::D, ctrl)];
+    for (key, modifiers) in keys {
+        h.blur();
+        h.key_with(key, modifiers);
+        h.frame(Vec::new());
+        let a = &h.app;
+        let forms = [a.rename.is_some(), a.new_folder.is_some(), a.new_image.is_some(), a.options].iter().filter(|o| **o).count();
+        assert!(open(a) && forms == 1, "{key:?} {modifiers:?}: the window closed, or another came");
+        assert!((a.cursor, a.selected) == (true, 0) && a.marked.is_empty(), "{key:?}: the grid moved under the window");
+        assert!(a.delete_confirm.is_none() && a.editor.is_none() && a.batch.is_none() && a.duplicates.is_none() && a.viewing.is_none(), "{key:?} {modifiers:?}: reached the app under the window");
+    }
 }
 
 pub(crate) fn enter() -> egui::Key {
