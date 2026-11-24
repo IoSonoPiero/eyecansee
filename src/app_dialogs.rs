@@ -627,6 +627,15 @@ mod tests {
             std::fs::remove_file(crate::audit_family_1::guard().join("opt-purge").join(f)).unwrap();
         }
         h.app.options_tab = OptTab::Thumbnails;
+        // The cache writes in a thread of its own (`thumbcache::purge` only sends the order): what
+        // was sent is in once `forget` is done. Read before, the count raced the writer.
+        let settled = || {
+            let (tx, rx) = std::sync::mpsc::channel();
+            crate::thumbcache::forget("", Vec::new(), move || {
+                let _ = tx.send(());
+            });
+            rx.recv().expect("the cache did not write");
+        };
         let ask = |h: &mut Harness| {
             h.focus_somewhere();
             h.app.purge_confirm = Some(crate::thumbcache::stats());
@@ -635,10 +644,12 @@ mod tests {
         ask(&mut h);
         h.blur();
         h.key(Key::Escape);
+        settled();
         assert!(h.app.options && h.app.purge_confirm.is_none() && crate::thumbcache::stats().0 > 0, "Esc did not cancel the question only");
         ask(&mut h);
         h.key(Key::Enter);
         assert!(h.app.options && h.app.purge_confirm.is_none() && h.app.viewing.is_none(), "Enter did not answer the question, or reached the grid");
+        settled();
         assert_eq!(crate::thumbcache::stats().0, 0, "Enter did not empty the cache");
         h.blur();
         h.key(Key::Escape);
