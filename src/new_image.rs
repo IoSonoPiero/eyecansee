@@ -125,9 +125,10 @@ impl App {
     /// The window of File > New image…; Create opens the image in the editor.
     pub(crate) fn new_image_window(&mut self, ctx: &egui::Context) {
         let Some(mut f) = self.new_image.take() else { return };
-        let mut answer = None;
+        // With nothing focused Esc comes as `key_answer` (`asking_keys`, #311).
+        let mut answer = (crate::confirm::answer(ctx, &mut self.key_answer, ID) == Some(false)).then_some(Answer::Cancel);
         egui::Window::new(self.i18n.t("new-title")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO).show(ctx, |ui| {
-            answer = new_image_form(ui, &mut f, &self.i18n);
+            answer = new_image_form(ui, &mut f, &self.i18n).or(answer.take());
         });
         match answer {
             Some(Answer::Create) => {
@@ -141,9 +142,14 @@ impl App {
     }
 }
 
+/// The window's name for the keys of its buttons (`confirm::keys`).
+const ID: &str = "new-image";
+
 /// Size (ready-made or one's own, its unit and resolution), background, Cancel and Create.
 fn new_image_form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer> {
     let t = |id| i18n.t(id);
+    // Enter in a field creates; on a button (Swap, the colour, Cancel) it presses that one only (#311).
+    let enter_creates = !ui.ctx().egui_wants_keyboard_input() || ui.ctx().text_edit_focused();
     egui::Grid::new("new-image").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
         ui.label(t("new-size"));
         let shown = f.preset.map_or_else(|| t("new-custom"), |i| f.name(i18n, i));
@@ -211,17 +217,27 @@ fn new_image_form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer
         ui.weak(i18n.t_args("new-pixels", &[("w", &ws), ("h", &hs)]));
     }
     ui.add_space(6.0);
-    let mut answer = None;
-    ui.horizontal(|ui| {
-        let create = ui.add_enabled(!big, crate::theme::main_button(ui, t("new-create"))).on_disabled_hover_text(&too_big);
-        if !big && (create.clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter))) {
-            answer = Some(Answer::Create);
-        }
-        if ui.button(t("delete-no")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            answer = Some(Answer::Cancel);
-        }
-    });
-    answer
+    ui.horizontal(|ui| form_buttons(ui, if big { Err(too_big.as_str()) } else { Ok(()) }, enter_creates, i18n)).inner
+}
+
+/// Create (`Err`: greyed out, and why) and Cancel, as every question's buttons (#311): Create
+/// highlighted, Cancel when it is greyed out. `enter_creates`: Enter came in a field.
+fn form_buttons(ui: &mut egui::Ui, create: Result<(), &str>, enter_creates: bool, i18n: &I18n) -> Option<Answer> {
+    let button = ui.add_enabled(create.is_ok(), crate::theme::main_button(ui, i18n.t("new-create")));
+    let button = match create {
+        Err(why) => button.on_disabled_hover_text(why),
+        Ok(()) => button,
+    };
+    let cancel = ui.button(i18n.t("delete-no"));
+    if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        return Some(Answer::Cancel);
+    }
+    match crate::confirm::keys(ui, ID, &[button, cancel], 0) {
+        Some(0) => Some(Answer::Create),
+        Some(_) => Some(Answer::Cancel),
+        None if create.is_ok() && enter_creates && ui.input(|i| i.key_pressed(egui::Key::Enter)) => Some(Answer::Create),
+        None => None,
+    }
 }
 
 #[cfg(test)]
@@ -246,10 +262,11 @@ mod tests {
     /// not made, Enter or no Enter; 20 000 × 10 000 and A4 at 300 dpi are (4.15 a).
     #[test]
     fn at_most_200_megapixels() {
-        let ctx = egui::Context::default();
         let enter = egui::Event::Key { key: egui::Key::Enter, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() };
         let i18n = I18n::new("en");
         let made = |w: f32, h: f32, unit: Unit| {
+            // A window opened anew: Create highlighted, Cancel when it is greyed out (#311).
+            let ctx = egui::Context::default();
             let mut f = Form { preset: None, w, h, unit, ..Form::new() };
             let mut answer = None;
             for events in [vec![], vec![enter.clone()]] {
@@ -268,5 +285,37 @@ mod tests {
         assert!(available(true, false));
         assert!(!available(true, true));
         assert!(!available(false, false));
+    }
+
+    /// #311: New image keeps its keys, also with nothing focused (a click on its body): the grid
+    /// and the shortcuts under it get none. Tab goes to Cancel and Enter presses it, no image;
+    /// Esc cancels; Enter with nothing focused presses Create.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn new_image_keeps_its_keys() {
+        use crate::audit_family_1::{Harness, folder, keys_stay_in_window, own_folder};
+        use egui::Key;
+        if own_folder("new_image::tests::new_image_keeps_its_keys") {
+            return;
+        }
+        let mut h = Harness::new(&folder("new-image-keys", &["a.png", "b.png", "c.png"]));
+        let open = |h: &mut Harness| {
+            h.app.new_image = Some(Form::new());
+            h.frame(Vec::new());
+        };
+        open(&mut h);
+        keys_stay_in_window(&mut h, |a| a.new_image.is_some());
+        h.blur();
+        h.key(Key::Tab);
+        h.key(Key::Enter);
+        assert!(h.app.new_image.is_none() && h.app.editor.is_none(), "Enter on Cancel made an image, or left the window");
+        open(&mut h);
+        h.blur();
+        h.key(Key::Escape);
+        assert!(h.app.new_image.is_none() && h.app.editor.is_none(), "Esc did not cancel");
+        open(&mut h);
+        h.blur();
+        h.key(Key::Enter);
+        assert!(h.app.new_image.is_none() && h.app.editor.is_some() && h.app.viewing.is_none(), "Enter did not press Create, or reached the grid");
     }
 }
