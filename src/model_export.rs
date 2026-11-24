@@ -677,4 +677,16 @@ pub(crate) mod tests {
         assert_eq!(made.beside[0].0, "x (2).png");
         assert!(String::from_utf8_lossy(&made.beside[1].1).contains("\nmap_Kd x (2).png\n"));
     }
+    /// Audit 6.16: PLY keeps the normals and puts the colours on the points too, where Blender
+    /// reads them (it leaves the faces' out).
+    #[test]
+    fn audit_6_16_ply_normals_and_point_colours() {
+        let out = export(&pictured(), Kind::Ply);
+        let end = out.windows(10).position(|w| w == b"end_header").unwrap();
+        let head = String::from_utf8_lossy(&out[..end]).to_string();
+        let points = &head[head.find("element vertex").unwrap()..head.find("element face").unwrap()];
+        for p in ["property float nx", "property float ny", "property float nz", "property uchar red"] {
+            assert!(points.contains(p), "no {p:?} on the points:\n{head}");
+        }
+    }
 }
