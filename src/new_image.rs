@@ -127,8 +127,11 @@ impl App {
         let Some(mut f) = self.new_image.take() else { return };
         // With nothing focused Esc comes as `key_answer` (`asking_keys`, #311).
         let mut answer = (crate::confirm::answer(ctx, &mut self.key_answer, ID) == Some(false)).then_some(Answer::Cancel);
-        egui::Window::new(self.i18n.t("new-title")).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO).show(ctx, |ui| {
-            answer = new_image_form(ui, &mut f, &self.i18n).or(answer.take());
+        // A fixed id: the title changes with the language.
+        let id = egui::Id::unique(ID);
+        let window = egui::Window::new(self.i18n.t("new-title")).id(id).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO);
+        crate::app_dialogs::in_ring(ctx, egui::LayerId::new(egui::Order::Middle, id), || {
+            window.show(ctx, |ui| answer = new_image_form(ui, &mut f, &self.i18n).or(answer.take()));
         });
         match answer {
             Some(Answer::Create) => {
@@ -351,8 +354,6 @@ mod tests {
         assert!(h.app.new_image.is_some() && h.app.editor.is_none(), "the window closed");
     }
 
-    /// #311: a size too large greys Create out. Enter in a number field leaves the keys there, as
-    /// on a name that does not go in Rename: before, it highlighted Cancel and a second Enter
     /// #311: a size too large greys Create out. Enter in a number field leaves the keys there, as
     /// on a name that does not go in Rename: before, it highlighted Cancel and a second Enter
     /// closed the window.

@@ -31,8 +31,9 @@ impl App {
         // One tab per subject, in a column on the left (eight or more tabs do not fit in a row in
         // every language; `options_tabs.rs`). Fixed size and in the middle, so changing tab does
         // not make it jump.
-        egui::Window::new(i18n.t("options-title"))
-            .id(egui::Id::unique("options"))
+        let id = egui::Id::unique("options");
+        in_ring(ctx, egui::LayerId::new(egui::Order::Middle, id), || egui::Window::new(i18n.t("options-title"))
+            .id(id)
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
@@ -57,7 +58,7 @@ impl App {
                         OptTab::Addons => download = addons.ui(ui, downloads, i18n),
                     });
                 });
-            });
+            }));
         if !open {
             self.purge_confirm = None;
             // Read again at the next opening: something may have changed meanwhile.
@@ -413,6 +414,65 @@ fn thumbnails_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n, confirm: &mu
     answer == Some(0)
 }
 
+/// Where the keyboard was at the end of a window's frame before, which of its controls take it
+/// (in the order Tab goes), and whether an arrow came then (`in_ring`).
+#[derive(Clone, Default)]
+struct Ring {
+    frame: u64,
+    was: Option<egui::Id>,
+    ids: Vec<egui::Id>,
+    arrow: bool,
+}
+
+/// A window that is not modal (New image, Options), drawn by `show` on `layer`: Tab past its last
+/// control went on to the menus, the toolbar and the grid under it, and Enter pressed what it had
+/// reached there; Shift+Tab before the first one and the arrows too (#311). The keyboard goes round
+/// inside the window instead, as in a modal one, which would keep the mouse from what is under it.
+pub(crate) fn in_ring<R>(ctx: &egui::Context, layer: egui::LayerId, show: impl FnOnce() -> R) -> R {
+    use egui::Key::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Tab};
+    let (key, frame) = (layer.id.with("focus-ring"), ctx.cumulative_frame_nr());
+    let ring = ctx.data(|d| d.get_temp::<Ring>(key)).filter(|r| r.frame + 1 == frame).unwrap_or_default();
+    // From the events: the harness of the tests gives Shift with the key only.
+    let tab = |back: bool| ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Key { key: Tab, pressed: true, modifiers, .. } if modifiers.shift == back)));
+    let (next, back) = (tab(false), tab(true));
+    let arrow = ctx.input(|i| [ArrowDown, ArrowLeft, ArrowRight, ArrowUp].iter().any(|k| i.key_pressed(*k)));
+    let now = ctx.memory(|m| m.focused());
+    // Shift+Tab on the first control goes to the last, as if it were drawn just before it.
+    if back && now.is_some() && now == ring.ids.first().copied() && let Some(&last) = ring.ids.last() {
+        ctx.memory_mut(|m| m.interested_in_focus(last, layer));
+    }
+    // An arrow took the keyboard under the window at the end of the frame before: back.
+    if let Some(was) = ring.was.filter(|w| ring.arrow && ring.ids.contains(w) && now.is_some_and(|n| under(ctx, n))) {
+        ctx.memory_mut(|m| m.request_focus(was));
+    }
+    let shown = show();
+    let ids: Vec<egui::Id> = ctx.viewport(|v| v.this_pass.widgets.get_layer(layer).filter(|w| w.enabled && w.sense.is_focusable()).map(|w| w.id).collect());
+    let now = ctx.memory(|m| m.focused());
+    if let (Some(&first), Some(&last)) = (ids.first(), ids.last()) {
+        // A row of buttons may have taken it back meanwhile (`confirm::keys`, nothing focused).
+        let from_last = ring.was.is_some() && ring.was == ring.ids.last().copied();
+        if next && (now.is_none() || from_last) {
+            // Tab on the last control: egui gives the keyboard to the next one drawn, the first.
+            ctx.memory_mut(|m| m.interested_in_focus(first, layer));
+        } else if (next || back) && now.is_some_and(|n| under(ctx, n)) {
+            ctx.memory_mut(|m| m.request_focus(if next { first } else { last }));
+        }
+    }
+    let now = ctx.memory(|m| m.focused());
+    let arrow = arrow && now.is_some_and(|n| ids.contains(&n));
+    if arrow {
+        // egui moves it at the end of the frame: the next one, right away, brings it back.
+        ctx.request_repaint();
+    }
+    ctx.data_mut(|d| d.insert_temp(key, Ring { frame, was: now, ids, arrow }));
+    shown
+}
+
+/// The widget `id` is under the windows: the menus, the toolbar, the tree, the grid.
+fn under(ctx: &egui::Context, id: egui::Id) -> bool {
+    ctx.read_response(id).is_some_and(|r| r.layer_id.order == egui::Order::Background)
+}
+
 #[cfg(test)]
 mod tests {
     use eframe::egui::Key;
@@ -459,7 +519,6 @@ mod tests {
         assert!(h.app.options, "Options closed");
     }
 
-    /// #311: "Empty the thumbnail cache?" opens on Empty: Enter empties it. Esc cancels the
     /// #311: "Empty the thumbnail cache?" opens on Empty: Enter empties it. Esc cancels the
     /// question first, then closes Options.
     #[test]
