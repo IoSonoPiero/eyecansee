@@ -655,6 +655,26 @@ mod tests {
     use crate::audit_family_1::{Harness, folder, own_folder};
     use crate::loader::Msg;
 
+    /// #323: when a paste ends in the folder open, what it made there is selected, the last one
+    /// when there are several (Piero, 24/11, W2: the new "Sunset (2).jpg" had to be looked for).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn a_paste_selects_what_it_made() {
+        if own_folder("messages::tests::a_paste_selects_what_it_made") {
+            return;
+        }
+        let mut h = Harness::new(&folder("paste-select", &["a.jpg", "b.jpg", "c.jpg"]));
+        h.app.selected = 0;
+        let made = |name: &str| format!("{}{name}", h.app.dir);
+        let p = std::sync::Arc::new(crate::transfer::Progress::default());
+        p.made.lock().unwrap().extend([made("c.jpg"), made("b.jpg")]);
+        h.app.transfer = Some((p, false, h.app.base.clone(), h.app.dir.clone()));
+        h.frame(Vec::new());
+        h.app.tx.send(Msg::Pasted(Vec::new(), Ok(()))).unwrap();
+        let b = h.app.files().iter().position(|f| f.path.ends_with("/b.jpg")).expect("b.jpg listed");
+        h.until(|a| a.selected == b, "the last item made selected");
+    }
+
     /// D1: a model beyond its cap shows "Too large for a thumbnail" in the grid (Piero, 23/11:
     /// it showed the warning, the error was translated before the grid could know it); the
     /// picture of the viewer still says it in words.

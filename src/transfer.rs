@@ -346,8 +346,10 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
     let mut copies = Vec::new();
     for (src, dest, exists, sides) in plan {
         if clip.cut && same && !(exists && dest.ends_with('/')) {
-            if let Some(entry) = renamed_on_device(clip, to, to_dir, (src, dest, exists, sides), gone).await? {
-                copies.push(entry);
+            let made = (!src.is_empty()).then(|| dest.clone());
+            match renamed_on_device(clip, to, to_dir, (src, dest, exists, sides), gone).await? {
+                Some(entry) => copies.push(entry),
+                None => p.made.lock().unwrap().extend(made),
             }
             continue;
         }
@@ -392,7 +394,10 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
     let mut there = Present::new(to_dir, present);
     for (item, list) in copies.iter().zip(lists) {
         let copied = copy_item(clip, to, item, list, &mut there, p).await?;
-        let (src, _, _, sides) = item;
+        let (src, dest, _, sides) = item;
+        if !src.is_empty() && copied.contains(src) {
+            p.made.lock().unwrap().push(dest.clone());
+        }
         // Moved between devices: the original goes only once all of it has been copied, its
         // sidecars before it (stopped between the two, the photo stays with no sidecar of its
         // own left behind); of a folder only what was copied (`originals`). A folder with an item
