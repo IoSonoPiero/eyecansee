@@ -154,6 +154,22 @@ mod tests {
         assert_eq!(lost(&before, &drawing(3, 4, &["0", "walls", "doors"])), None);
     }
 
+    /// #340: what a drawing would lose is said in the language of the summary, also the
+    /// elements and layouts that were already said in English.
+    #[test]
+    fn lost_said_in_the_language() {
+        use crate::cad::{Drawing, Item, Stroke};
+        let line = || Item::Line { pts: vec![[0.0, 0.0], [1.0, 1.0]], color: [255; 3], fill: None, stroke: Stroke::default() };
+        let sheet = |n: usize| ("Layout1".to_string(), std::sync::Arc::new(Drawing { items: (0..n).map(|_| line()).collect(), ..Default::default() }));
+        let before = Drawing { items: vec![line(), line()], sheets: vec![sheet(2)], ..Default::default() };
+        let after = Drawing { items: vec![line()], ..Default::default() };
+        let detail = format!("a.dxf ({})", lost(&before, &after).unwrap());
+        let it = crate::i18n::I18n::new("it").error(crate::batch::SKIP_WOULD_LOSE, &detail);
+        assert!(it.starts_with("a.dxf (2 → 1 elementi, 1 → 0 layout, layout Layout1: 2 → 0 elementi)"), "{it}");
+        let en = crate::i18n::I18n::new("en").error(crate::batch::SKIP_WOULD_LOSE, &detail);
+        assert!(en.starts_with("a.dxf (2 → 1 elements, 1 → 0 layouts, layout Layout1: 2 → 0 elements)"), "{en}");
+    }
+
     /// Every DWG and DXF under `EYECANSEE_CAD` (subfolders too) saved as the other format and
     /// read back: what is drawn before and after, layouts, and the pictures in
     /// `EYECANSEE_CAD_OUT` to compare by eye.
