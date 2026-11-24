@@ -13,7 +13,7 @@ use crate::model_export::{Beside, Made, Tick, View, ticked, unit_line};
 
 /// The pictures as PNG files next to the model, named after it: the name of each (index in
 /// `textures`), `None` for one that could not be written.
-fn pictures(v: &View, beside: &Beside, files: &mut Vec<(String, Vec<u8>)>) -> Vec<Option<String>> {
+fn pictures(v: &View, stem: &str, beside: &Beside, files: &mut Vec<(String, Vec<u8>)>) -> Vec<Option<String>> {
     let many = v.mesh.textures.len() > 1;
     v.mesh
         .textures
@@ -22,7 +22,7 @@ fn pictures(v: &View, beside: &Beside, files: &mut Vec<(String, Vec<u8>)>) -> Ve
         .map(|(i, img)| {
             let mut png = Vec::new();
             img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).ok()?;
-            let wanted = if many { format!("{}-{}.png", beside.stem, i + 1) } else { format!("{}.png", beside.stem) };
+            let wanted = if many { format!("{stem}-{}.png", i + 1) } else { format!("{stem}.png") };
             let name = (beside.free)(&wanted);
             files.push((name.clone(), png));
             Some(name)
@@ -51,7 +51,10 @@ impl<K: std::hash::Hash + Eq> Once<K> {
 pub(crate) fn obj(v: &View, tick: Tick, beside: &Beside) -> Option<Made> {
     let m = v.mesh;
     let mut files = Vec::new();
-    let names = pictures(v, beside, &mut files);
+    // No spaces in the names next to it: `mtllib` is a list split at spaces, and many readers
+    // cut a name there (Piero, 24/11, #340). The OBJ keeps its own name.
+    let stem: String = beside.stem.chars().map(|c| if c.is_whitespace() { '_' } else { c }).collect();
+    let names = pictures(v, &stem, beside, &mut files);
     let pic = |t: usize| m.tex.get(t).and_then(|&k| (k as usize).checked_sub(1)).and_then(|i| names.get(i).cloned().flatten());
     // A triangle keeps its picture when the picture was written and it has its coordinates.
     let kept = |t: usize| m.uv.get(t).is_some() && pic(t).is_some();
@@ -64,7 +67,7 @@ pub(crate) fn obj(v: &View, tick: Tick, beside: &Beside) -> Option<Made> {
         groups.entry((tex, surface)).or_default().push(t);
     }
     let materials = groups.keys().any(|&(tex, surface)| tex > 0 || surface > 0);
-    let mtl = materials.then(|| (beside.free)(&format!("{}.mtl", beside.stem)));
+    let mtl = materials.then(|| (beside.free)(&format!("{stem}.mtl")));
     // Colours on the points when the model has some, or a picture that could not be kept.
     let colored = !m.colors.is_empty() || (0..m.tris.len()).any(|t| v.picture(t).is_some() && !kept(t));
     let (smooth, scale) = (!m.normals.is_empty(), v.scale);

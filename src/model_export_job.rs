@@ -135,20 +135,19 @@ async fn free_in_folder(op: &Store, to: String) -> String {
 
 /// Free names in the folder of `to` for the files next to it, asked of the folder itself: a
 /// file already there is never written over (the user's `a.png` next to `a.glb`), nor `to`,
-/// nor a name given before.
+/// nor a name given before. A name taken gets "_2", "_3"…: no spaces next to an OBJ (#340).
 fn free_names(op: Store, to: &str) -> impl Fn(&str) -> String + Send + 'static {
     let rt = tokio::runtime::Handle::current();
     let dir = crate::source::parent(to);
-    let given = Mutex::new(std::collections::HashSet::from([crate::source::name(to).to_string()]));
+    let given = Mutex::new(std::collections::HashSet::from([crate::source::name(to).to_lowercase()]));
     move |wanted| {
         let mut given = given.lock().unwrap();
-        loop {
-            let name = crate::source::free_name(&given, wanted);
-            given.insert(name.clone());
-            if !rt.block_on(op.exists(&format!("{dir}{name}"))) {
-                return name;
-            }
-        }
+        let (stem, ext) = wanted.rsplit_once('.').map_or((wanted, String::new()), |(s, e)| (s, format!(".{e}")));
+        let names = std::iter::once(wanted.to_string()).chain((2..).map(|n| format!("{stem}_{n}{ext}")));
+        let free = |name: &String| !given.contains(&name.to_lowercase()) && !rt.block_on(op.exists(&format!("{dir}{name}")));
+        let name = names.into_iter().find(free).unwrap_or_default();
+        given.insert(name.to_lowercase());
+        name
     }
 }
 

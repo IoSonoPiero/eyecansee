@@ -21,7 +21,7 @@ With other kinds of files selected too, the entry is marked with **\*** and work
 EyeCanSee keeps as much of the original as the new format can hold:
 
 - **glTF (GLB)** keeps the pictures on the surfaces (textures), the normals and the materials (how smooth or metallic they are, bumps, shadows in the creases, their own light).
-- **OBJ** keeps the pictures on the surfaces, their coordinates, the normals, the colours and the materials (how smooth or metallic they are, bumps, their own light). The pictures are saved as PNG files next to the model, and the materials in a `.mtl` file with the model's name (`bracket.mtl`, `bracket.png`, or `bracket-1.png`, `bracket-2.png`… with more pictures): keep them in the same folder as the OBJ. A name already taken there gets " (2)", so no file is written over. The triangles that meet share their points, so other programs see one surface.
+- **OBJ** keeps the pictures on the surfaces, their coordinates, the normals, the colours and the materials (how smooth or metallic they are, bumps, their own light). The pictures are saved as PNG files next to the model, and the materials in a `.mtl` file with the model's name (`bracket.mtl`, `bracket.png`, or `bracket-1.png`, `bracket-2.png`… with more pictures): keep them in the same folder as the OBJ. Their names have no spaces, which many programs do not read in these files: a space in the model's name becomes "_" (`my bracket.obj` gets `my_bracket.mtl`). A name already taken there gets "_2" (then "_3"…), so no file is written over. The triangles that meet share their points, so other programs see one surface.
 - **PLY** keeps the normals and the colours, both on the points (which most programs read) and on each triangle.
 - **STL** keeps a colour for each triangle.
 
