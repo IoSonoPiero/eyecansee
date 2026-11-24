@@ -656,6 +656,82 @@ mod tests {
         assert!(!h.app.options, "Esc did not close Options");
     }
 
+    /// What the grid shows right after "Empty the thumbnail cache". The cache holds an old
+    /// thumbnail (5x5) for each picture (8x6): emptying it must make the grid show thumbnails made
+    /// again from the files. `hold`: the cache's writer is kept busy (a `forget` whose `done`
+    /// waits) while the grid reads again; `busy`: thumbnails of another folder queued before.
+    fn stale_after_emptying(name: &str, hold: bool, busy: usize) -> Vec<[usize; 2]> {
+        let mut h = options(name);
+        h.until(|_| crate::thumbcache::stats().0 == 3, "the thumbnails in the cache");
+        let settled = || {
+            let (tx, rx) = std::sync::mpsc::channel();
+            crate::thumbcache::forget("", Vec::new(), move || {
+                let _ = tx.send(());
+            });
+            rx.recv().expect("the cache did not write");
+        };
+        // The oracle: the grid shows the thumbnails made from the files, 8x6.
+        h.until(|a| (0..3).all(|i| matches!(a.thumbs.get(&i), Some(Ok(_)))), "the three thumbnails shown");
+        let shown: Vec<[usize; 2]> = (0..3).map(|i| h.app.thumbs[&i].as_ref().unwrap().texture_at(1.0).size()).collect();
+        assert_eq!(shown, vec![[8, 6]; 3], "the thumbnails of the files are not 8x6");
+        let old = image::DynamicImage::new_rgb8(5, 5);
+        for f in h.app.files().to_vec() {
+            crate::thumbcache::save(&h.app.base, &f, &old);
+        }
+        settled();
+        let (release, held) = std::sync::mpsc::channel::<()>();
+        if hold {
+            crate::thumbcache::forget("", Vec::new(), move || {
+                let _ = held.recv();
+            });
+        }
+        h.app.options_tab = OptTab::Thumbnails;
+        h.focus_somewhere();
+        h.app.purge_confirm = Some(crate::thumbcache::stats());
+        // The writer busy with ordinary work: thumbnails of another folder still being saved.
+        for i in 0..busy {
+            let f = crate::source::File { path: format!("other/{i}.jpg"), size: 1, modified: "0".into() };
+            crate::thumbcache::save_data("test-busy://", &f, vec![7; 64 << 10]);
+        }
+        h.frame(Vec::new());
+        h.key(Key::Enter);
+        assert!(h.app.purge_confirm.is_none(), "Enter did not empty the cache");
+        h.until(|a| (0..3).all(|i| matches!(a.thumbs.get(&i), Some(Ok(_)))), "the three thumbnails shown again");
+        let _ = release.send(());
+        settled();
+        (0..3).map(|i| h.app.thumbs[&i].as_ref().unwrap().texture_at(1.0).size()).collect()
+    }
+
+    /// #326: after "Empty the thumbnail cache" the grid shows thumbnails made again from the
+    /// files, also while the cache's writer is busy: it got the old ones back from the cache.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn emptying_the_cache_shows_new_thumbnails_writer_busy() {
+        if own_folder("app_dialogs::tests::emptying_the_cache_shows_new_thumbnails_writer_busy") {
+            return;
+        }
+        let sizes = stale_after_emptying("opt-stale-held", true, 0);
+        assert_eq!(sizes, vec![[8, 6]; 3], "after emptying the cache the grid shows the old thumbnails");
+    }
+
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn emptying_the_cache_shows_new_thumbnails() {
+        if own_folder("app_dialogs::tests::emptying_the_cache_shows_new_thumbnails") {
+            return;
+        }
+        assert_eq!(stale_after_emptying("opt-stale", false, 0), vec![[8, 6]; 3], "after emptying the cache the grid shows the old thumbnails");
+    }
+
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn emptying_the_cache_shows_new_thumbnails_writer_saving() {
+        if own_folder("app_dialogs::tests::emptying_the_cache_shows_new_thumbnails_writer_saving") {
+            return;
+        }
+        assert_eq!(stale_after_emptying("opt-stale-busy", false, 300), vec![[8, 6]; 3], "after emptying the cache the grid shows the old thumbnails");
+    }
+
     /// #311: the outcome of Check for updates opens with Close highlighted, which Enter presses;
     /// Esc closes it too.
     #[test]
