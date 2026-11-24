@@ -398,14 +398,14 @@ mod tests {
     /// the window's words, and it fits the bar of a window 1280 px wide with the counts after it.
     #[test]
     fn stalled_phone_line_says_what_to_do_and_fits() {
-        let ctx = eframe::egui::Context::default();
+        let (ctx, _) = crate::addons_ui::tests::headless();
         for lang in ["en", "it"] {
             let i18n = crate::i18n::I18n::new(lang);
             let line = i18n.t_args("status-phone-stalled", &[("s", "15")]);
             let (unplug, wait) = if lang == "en" { ("unplug the cable and plug it in again", "or wait") } else { ("stacca e ricollega il cavo", "oppure aspetta") };
             assert!(line.contains(unplug) && line.ends_with(wait), "{lang}: {line}");
             let mut width = 0.0;
-            let _ = ctx.run_ui(Default::default(), |ui| {
+            crate::addons_ui::tests::frame(&ctx, Vec::new(), &mut |ui: &mut eframe::egui::Ui| {
                 let font = eframe::egui::TextStyle::Body.resolve(ui.style());
                 width = ui.painter().layout_no_wrap(line.clone(), font, eframe::egui::Color32::WHITE).size().x;
             });
