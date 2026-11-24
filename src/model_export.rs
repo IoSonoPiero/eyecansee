@@ -753,4 +753,19 @@ pub(crate) mod tests {
         let back = crate::model::parse(&out, "x.ply").unwrap();
         assert!(back.colors[0][1] > 150 && back.colors[1][0] > 150, "{:?}", back.colors);
     }
+    /// Audit 6.16: what the new format cannot hold is said (project rule): a model with a
+    /// picture and a shiny surface, as STL and PLY, says the picture became colours and the
+    /// surface is lost; as OBJ and glTF, which hold them, nothing.
+    #[test]
+    fn audit_6_16_losses_said() {
+        let glb = export(&pictured(), Kind::Glb);
+        let none: crate::model::Sibling = &|_| None;
+        let notes = |kind| export_file(&glb, "q.glb", none, kind, &|_| true, &Beside { stem: "q", free: &|n| n.to_string() }).unwrap().1;
+        for kind in [Kind::Stl, Kind::Ply] {
+            assert_eq!(notes(kind), ["model-export-lost-pictures", "model-export-lost-surfaces"], "{kind:?}");
+        }
+        for kind in [Kind::Obj, Kind::Glb] {
+            assert!(notes(kind).is_empty(), "{kind:?}: {:?}", notes(kind));
+        }
+    }
 }
