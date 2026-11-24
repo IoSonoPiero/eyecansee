@@ -24,6 +24,8 @@ mod bar_fit;
 mod canvas;
 mod clip;
 mod crop;
+#[cfg(test)]
+mod defects;
 mod keys;
 mod open;
 mod patch;
