@@ -86,13 +86,18 @@ impl Harness {
 
     /// Started on `address`, a folder.
     pub fn open(address: &str) -> Self {
+        let mut h = Self::start(address);
+        h.until(|app| !app.files().is_empty(), "the folder listed");
+        h
+    }
+
+    /// Started on `address`, without waiting for anything.
+    pub fn start(address: &str) -> Self {
         guard();
         let ctx = egui::Context::default();
         let settings = Settings { check_updates: false, tips: false, local_permanent: true, servers_plain_warned: true, ..Settings::default() };
         let app = App::new(&ctx, settings, Some(address.to_string()));
-        let mut h = Harness { ctx, app, frame: eframe::Frame::_new_kittest(), full_asked: false };
-        h.until(|app| !app.files().is_empty(), "the folder listed");
-        h
+        Harness { ctx, app, frame: eframe::Frame::_new_kittest(), full_asked: false }
     }
 
     /// One frame, with `events` (keys) as the window would give them.

@@ -230,6 +230,8 @@ mod help_check;
 #[cfg(test)]
 mod audit_family_1;
 #[cfg(test)]
+mod audit_servers;
+#[cfg(test)]
 mod window_keys;
 
 use std::collections::{HashMap, HashSet};
