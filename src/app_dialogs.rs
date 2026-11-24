@@ -478,23 +478,17 @@ mod tests {
         h.key(Key::Escape);
         assert!(!h.app.options, "Esc did not close Options");
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use eframe::egui;
 
     /// #311: the outcome of Check for updates opens with Close highlighted, which Enter presses;
     /// Esc closes it too.
     #[test]
     #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
     fn update_note_opens_on_close() {
-        use crate::audit_family_1::{Harness, folder, own_folder};
         if own_folder("app_dialogs::tests::update_note_opens_on_close") {
             return;
         }
         let mut h = Harness::new(&folder("update-note", &["a.png"]));
-        for key in [egui::Key::Enter, egui::Key::Escape] {
+        for key in [Key::Enter, Key::Escape] {
             h.frame(Vec::new());
             h.app.update_note = Some("EyeCanSee is up to date.".into());
             h.frame(Vec::new());
