@@ -31,6 +31,7 @@ fn under(a: &App) -> String {
 /// is not a text field, the arrows move the keyboard (`arrows`: the window has two such controls
 /// or more). A copy (Ctrl+C) with nothing focused copies nothing of the grid under it. The window
 /// stays open and nothing under it moves.
+#[track_caller]
 pub(crate) fn tab_goes_through(h: &mut Harness, on: impl Fn(egui::LayerId) -> bool, open: impl Fn(&App) -> bool, least: usize, arrows: bool) {
     let before = under(&h.app);
     tab_and_arrows(h, on, &open, least, arrows);
@@ -43,6 +44,7 @@ pub(crate) fn tab_goes_through(h: &mut Harness, on: impl Fn(egui::LayerId) -> bo
 
 /// `tab_goes_through` without the copy: for the guide, a window beside the app, where Ctrl+C
 /// with nothing focused still copies the files of the grid.
+#[track_caller]
 fn tab_and_arrows(h: &mut Harness, on: impl Fn(egui::LayerId) -> bool, open: &impl Fn(&App) -> bool, least: usize, arrows: bool) {
     for _ in 0..3 {
         h.frame(Vec::new());
