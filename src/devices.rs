@@ -496,6 +496,19 @@ mod tests {
         assert_eq!(direct_address("/home/me/a.jpg", &devices), None);
     }
 
+    /// Audit 2.21: many phones have a serial in lower case hexadecimal (`adb devices` shows
+    /// "1a2b3c4d"), and gvfs writes it as it is at the end of its mount name. The serial was
+    /// recognised only in upper case: a file of such a phone handed over by the file manager
+    /// stayed on gvfs, and the phone showed up twice (its gvfs mount and its direct connection).
+    #[test]
+    fn gvfs_phone_with_a_lower_case_serial() {
+        let phone = |serial: &str| Device { name: "Phone".into(), path: format!("mtp://{serial}/"), phone: true, serial: Some(serial.into()), block: None, internal: false };
+        let gvfs = "/run/user/1000/gvfs/mtp:host=Google_Pixel_7_1a2b3c4d5e6f/Internal shared storage/DCIM/a.jpg";
+        assert_eq!(direct_address(gvfs, &[phone("1a2b3c4d5e6f")]).as_deref(), Some("mtp://1a2b3c4d5e6f/Internal shared storage/DCIM/a.jpg"));
+        let mixed = "/run/user/1000/gvfs/mtp:host=OnePlus_Nord_ab12CD34/DCIM/";
+        assert_eq!(direct_address(mixed, &[phone("ab12CD34")]).as_deref(), Some("mtp://ab12CD34/DCIM/"));
+    }
+
     #[test]
     fn phone_not_connected() {
         let phone = Device { name: "Phone".into(), path: "mtp://ABCD1234EFGH/".into(), phone: true, serial: Some("ABCD1234EFGH".into()), block: None, internal: false };
