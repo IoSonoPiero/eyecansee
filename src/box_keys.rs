@@ -34,6 +34,51 @@ pub(crate) fn focus(ctx: &egui::Context, id: egui::Id) {
     ctx.memory_mut(|m| m.request_focus(id));
 }
 
+/// Where the boxes stand, oldest first, with their height and the frame they were drawn in.
+fn stack_key() -> egui::Id {
+    egui::Id::unique("box-stack")
+}
+
+/// The offset from the bottom right corner for the box `name`: above the boxes that came before
+/// it, so two at once are both seen (#324; they were drawn at the same place).
+pub(crate) fn offset(ctx: &egui::Context, name: &'static str) -> egui::Vec2 {
+    let now = ctx.cumulative_frame_nr();
+    let stack = ctx.data_mut(|d| {
+        let all = d.get_temp_mut_or_default::<Vec<(&'static str, f32, u64)>>(stack_key());
+        all.retain(|(_, _, frame)| *frame + 2 >= now);
+        if !all.iter().any(|(n, _, _)| *n == name) {
+            all.push((name, 0.0, now));
+        }
+        all.clone()
+    });
+    let below: f32 = stack.iter().take_while(|(n, _, _)| *n != name).map(|(_, h, _)| h + 8.0).sum();
+    egui::vec2(-16.0, -40.0 - below)
+}
+
+/// The box `name` was drawn this frame, `height` tall.
+pub(crate) fn drawn(ctx: &egui::Context, name: &'static str, height: f32) {
+    let now = ctx.cumulative_frame_nr();
+    ctx.data_mut(|d| {
+        if let Some(b) = d.get_temp_mut_or_default::<Vec<(&'static str, f32, u64)>>(stack_key()).iter_mut().find(|(n, _, _)| *n == name) {
+            (b.1, b.2) = (height, now);
+        }
+    });
+}
+
+/// F6, from anywhere: the keyboard to Cancel of a job under way, the next one at every press
+/// (#324). With none, F6 does nothing. The key is taken out of the input.
+pub(crate) fn f6(ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+    let n = raw_input.events.len();
+    raw_input.events.retain(|e| !matches!(e, egui::Event::Key { key: egui::Key::F6, .. }));
+    let pressed = n != raw_input.events.len();
+    let boxes = controls(ctx);
+    if !pressed || boxes.is_empty() {
+        return;
+    }
+    let at = ctx.memory(|m| m.focused()).and_then(|f| boxes.iter().position(|b| *b == f));
+    focus(ctx, boxes[at.map_or(0, |i| (i + 1) % boxes.len())]);
+}
+
 impl App {
     /// Before the frame, on the grid: with the keyboard on a control of a box, Tab goes to the next one, or
     /// from the last one to the first item of the grid; Shift+Tab to the one before, or from the

@@ -598,6 +598,7 @@ impl eframe::App for App {
         }
         let paste_to = if raw_input.events.iter().any(|e| matches!(e, egui::Event::Paste(_))) { self.paste_to.take().map(|(dir, _)| dir) } else { None };
         browser::menu_clicks(ctx, raw_input);
+        box_keys::f6(ctx, raw_input);
         if self.asking_keys(ctx, raw_input) || self.box_keys(ctx, raw_input) {
             return;
         }

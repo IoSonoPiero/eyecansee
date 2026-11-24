@@ -590,10 +590,10 @@ impl App {
         let counts = self.i18n.t_args("batch-counts", &[("n", &done.to_string()), ("total", &total.to_string())]);
         let current = p.current.lock().unwrap().clone();
         let stopping = p.cancel.load(Ordering::Relaxed);
-        egui::Window::new(self.i18n.t(self.batch_titles(w).2))
+        let shown = egui::Window::new(self.i18n.t(self.batch_titles(w).2))
             .collapsible(false)
             .resizable(false)
-            .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-16.0, -40.0))
+            .anchor(egui::Align2::RIGHT_BOTTOM, crate::box_keys::offset(ctx, "convert"))
             .show(ctx, |ui| {
                 ui.set_width(360.0);
                 ui.label(counts);
@@ -611,6 +611,9 @@ impl App {
                     }
                 }
             });
+        if let Some(r) = shown {
+            crate::box_keys::drawn(ctx, "convert", r.response.rect.height());
+        }
         true
     }
 

@@ -159,10 +159,10 @@ impl App {
         let (current, counts, left) = self.transfer_lines(p, &phase);
         let to = self.i18n.t_args("transfer-to", &[("dir", &shown(base, dest))]);
         let cancelling = p.cancel.load(Ordering::Relaxed);
-        egui::Window::new(self.i18n.t(if *cut { "transfer-moving" } else { "transfer-copying" }))
+        let shown = egui::Window::new(self.i18n.t(if *cut { "transfer-moving" } else { "transfer-copying" }))
             .collapsible(false)
             .resizable(false)
-            .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-16.0, -40.0))
+            .anchor(egui::Align2::RIGHT_BOTTOM, crate::box_keys::offset(ctx, "copy"))
             .show(ctx, |ui| {
                 ui.set_width(360.0);
                 ui.add(egui::Label::new(egui::RichText::new(current).strong()).truncate());
@@ -182,6 +182,9 @@ impl App {
                     p.cancel.store(true, Ordering::Relaxed);
                 }
             });
+        if let Some(r) = shown {
+            crate::box_keys::drawn(ctx, "copy", r.response.rect.height());
+        }
     }
 
     /// The lines of the copy box (`transfer_window`) for `phase`: what it is on (the file copied),

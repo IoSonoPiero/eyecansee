@@ -15,6 +15,7 @@ Every key of EyeCanSee, by place. The menus show the key next to each item, and 
 | Key | Action |
 |---|---|
 | F5 | Read the folders again (in the viewer it stays on the open image) |
+| F6 | Takes the keyboard to **Cancel** of a copy or a conversion under way (with two, F6 again goes to the other); **Enter** or **Space** stops it |
 | F11 | Full screen and back; in the viewer only the image is shown, without menus or bars |
 | **Ctrl + R**, **Ctrl + Shift + R** | Turn the picture 90° clockwise, anticlockwise: in the viewer you see it before saving, in the grid the selected pictures are saved after asking (see [Rotating and flipping](rotate.md)) |
 | **Ctrl + Z**, **Ctrl + Y** | In the viewer: undo, redo a turn or flip not saved |
