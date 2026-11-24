@@ -110,7 +110,7 @@ impl App {
             // The question about the first server refused; asked, it stays until answered.
             Err((id @ ("error-host-unknown" | "error-cert-unknown"), _)) => {
                 if self.host_question.is_none() {
-                    self.host_question = crate::host_question::Question::take(id);
+                    self.host_question = crate::host_question::Question::of(id);
                 }
                 self.host_ask = self.host_question.is_some();
             }

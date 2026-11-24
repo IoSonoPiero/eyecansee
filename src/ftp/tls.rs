@@ -31,10 +31,11 @@ pub fn unknown() -> Option<(String, String)> {
     UNKNOWN.lock().unwrap().as_ref().map(|u| (u.label.clone(), u.fingerprint.clone()))
 }
 
-/// The certificate waiting, taken to be asked about: what the question shows is what `trust`
-/// saves, whatever another connection leaves meanwhile (audit 2.10).
-pub fn take() -> Option<Unknown> {
-    UNKNOWN.lock().unwrap().take()
+/// The certificate waiting, to be asked about: the question keeps it, and what it shows is what
+/// `trust` saves, whatever another connection leaves meanwhile (audit 2.10). It stays waiting
+/// until the answer (`forget`): a connection refused meanwhile still says why (`waiting`).
+pub fn pending() -> Option<Unknown> {
+    UNKNOWN.lock().unwrap().clone()
 }
 
 /// After an answer: what connections left meanwhile is not asked about with the next server.

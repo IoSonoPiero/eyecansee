@@ -47,6 +47,7 @@ fn audit_2_14_password_kept_after_trust() {
     h.until(|a: &App| !a.files().is_empty() || a.open_address.is_some(), "the folder, or the form asking for the password");
     eprintln!("logins: {:?}", server.logins());
     assert!(h.app.open_address.is_none(), "the password was asked again");
+    assert!(h.app.error.is_none(), "an error left in the bar: {:?}", h.app.error);
     assert_eq!(h.app.files().len(), 1, "album/ listed");
     assert!(server.logins().iter().all(|l| l == "PASS ok"), "a login without the password typed: {:?}", server.logins());
 }
@@ -74,6 +75,8 @@ fn audit_2_10_refused_certificate_forgotten() {
     let target = crate::ftp::Target { host: "127.0.0.1".into(), port: second.port, user: "tester".into(), password: "secret".into(), secure: true };
     let other = h.app.rt.block_on(crate::ftp::Server::shared(target).home());
     assert!(matches!(other, Err(("error-cert-unknown", _))), "the second server: {other:?}");
+    // An SFTP server never seen, refused meanwhile, would be asked about its key, not this.
+    assert!(crate::host_question::Question::of("error-host-unknown").is_none(), "an SFTP question would show a certificate");
     answer(&mut h, true);
     let (shown, other) = (format!("127.0.0.1:{} ", first.port), format!("127.0.0.1:{} ", second.port));
     assert!(known_certs().contains(&shown) && !known_certs().contains(&other), "trusted: {:?}, the one asked about: {shown:?}", known_certs());

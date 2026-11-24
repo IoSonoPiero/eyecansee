@@ -22,7 +22,7 @@ use crate::source::{Error, Listing, NOT_FOUND, SILENT};
 mod listing;
 mod tls;
 use listing::Item;
-pub use tls::{Unknown, forget, take, trust, unknown};
+pub use tls::{Unknown, forget, pending, trust, unknown};
 
 /// Connections per server: the thumbnails are read four at a time, as on SFTP.
 pub const POOL: usize = 4;
@@ -331,6 +331,12 @@ impl Server {
         let s = Arc::new(Server { target, idle: Mutex::new(Vec::new()), permits: tokio::sync::Semaphore::new(POOL), tls, over: AtomicU8::new(UNKNOWN) });
         servers.push(Arc::downgrade(&s));
         s
+    }
+
+    /// Which server this is, whatever its password, for as long as the app runs.
+    pub(crate) fn place(&self) -> String {
+        let t = &self.target;
+        format!("ftp{} {}@{}:{}", if t.secure { "s" } else { "" }, t.user, t.host, t.port)
     }
 
     fn label(&self) -> String {

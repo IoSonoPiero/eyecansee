@@ -43,14 +43,16 @@ static SEEN_NEW: Mutex<BTreeMap<String, (u64, String, Instant)>> = Mutex::new(BT
 /// since, is remembered from `now`. Its date is never compared with this computer's clock: it is
 /// the server's, which may be off, and LIST gives it in the server's time zone, to the minute.
 fn settled(seen: &mut BTreeMap<String, (u64, String, Instant)>, key: &str, file: &File, now: Instant) -> bool {
-    seen.retain(|_, (_, _, since)| now.saturating_duration_since(*since) < 24 * Duration::from_secs(3600));
-    match seen.get(key) {
+    let quiet = match seen.get(key) {
         Some((size, modified, since)) if *size == file.size && *modified == file.modified => now.saturating_duration_since(*since) >= QUIET,
         _ => {
             seen.insert(key.to_string(), (file.size, file.modified.clone(), now));
             false
         }
-    }
+    };
+    // What was seen a day ago and not again: a file gone, or a folder not opened since.
+    seen.retain(|k, (_, _, since)| k == key || now.saturating_duration_since(*since) < 24 * Duration::from_secs(3600));
+    quiet
 }
 
 /// The longest name disks take: 255 bytes on Linux, 255 UTF-16 units on Windows (never more
@@ -275,9 +277,11 @@ impl Store {
     /// Whether a save's new file `file` may be touched: at once where only this computer writes
     /// (a disk, a phone), on a server once it has stayed as it is (`settled`).
     fn quiet(&self, file: &File, now: Instant) -> bool {
+        // The server by its address, not by its connection: one dropped when the folder is left
+        // and made anew when it is opened again is the same server.
         let server = match self {
-            Store::Ftp(s) => format!("ftp {:p}", std::sync::Arc::as_ptr(s)),
-            Store::Sftp(s) => format!("sftp {:p}", std::sync::Arc::as_ptr(s)),
+            Store::Ftp(s) => s.place(),
+            Store::Sftp(s) => s.place(),
             Store::Dal(_) | Store::Mtp(_) => return true,
         };
         let mut seen = SEEN_NEW.lock().unwrap();
@@ -590,6 +594,9 @@ mod tests {
             assert!(!settled(&mut seen, &key, &file(20, &modified), at(500)), "{modified}: grown, not yet quiet");
             assert!(settled(&mut seen, &key, &file(20, &modified), at(601)), "{modified}: quiet for five minutes");
         }
+        // Seen first more than a day before, still the same: settled, not forgotten.
+        assert!(!settled(&mut seen, "old", &file(5, "x"), at(0)));
+        assert!(settled(&mut seen, "old", &file(5, "x"), at(2 * 86400)));
         // Another date, same size: changed.
         assert!(!settled(&mut seen, "k", &file(1, "1795516205"), at(0)));
         assert!(!settled(&mut seen, "k", &file(1, "1795516265"), at(400)));
