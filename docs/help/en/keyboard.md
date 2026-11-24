@@ -131,7 +131,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | F2, Del, **Shift + Del** | Rename and delete, as in the grid |
 | **Ctrl + Shift + S** | Save the model as it is shown, as an image (**Ctrl + S**, which saves over the original, is greyed out on a model) |
 | Esc | Back to the grid, or closes EyeCanSee as above |
-| Enter | Back to the grid (while measuring, it closes an area) |
+| Enter | Back to the grid, also while measuring |
 
 ## In the viewer: CAD drawings
 
@@ -149,7 +149,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | **Ctrl + Shift + S** | Save the drawing as an image |
 | F2, Del, **Shift + Del** | Rename and delete, as in the grid |
 | Esc | Back to the grid, or closes EyeCanSee as above |
-| Enter | Back to the grid (while measuring, it closes an area) |
+| Enter | Back to the grid; while measuring it closes an area, and does nothing when there is none to close |
 
 ## In the slideshow
 

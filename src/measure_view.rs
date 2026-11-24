@@ -114,8 +114,11 @@ impl App {
         if m.shown.as_ref().is_some_and(|s| !s.lines.is_empty()) && ctx.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::C)) {
             self.copy_measure(ctx);
         }
+        // A model has no areas and no modes: Enter goes back to the grid as without Measure (#345),
+        // D, A and G do nothing (#342). On a drawing Enter stays Measure's, also with no area to close.
+        let model = self.viewed_mesh().is_some();
         let m = &mut self.model.measure;
-        let (esc, enter, back) = ctx.input_mut(|i| (i.consume_key(Modifiers::NONE, Key::Escape), i.consume_key(Modifiers::NONE, Key::Enter), i.consume_key(Modifiers::NONE, Key::Backspace)));
+        let (esc, enter, back) = ctx.input_mut(|i| (i.consume_key(Modifiers::NONE, Key::Escape), !model && i.consume_key(Modifiers::NONE, Key::Enter), i.consume_key(Modifiers::NONE, Key::Backspace)));
         if esc {
             if m.pts.is_empty() && m.pts3.is_empty() { m.on = false } else { m.clear() }
         }
@@ -128,7 +131,7 @@ impl App {
             m.pts3.pop();
         }
         for (key, mode) in [(Key::D, Mode::Distance), (Key::A, Mode::Area), (Key::G, Mode::Angle)] {
-            if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, key)) && m.mode != mode {
+            if !model && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, key)) && m.mode != mode {
                 m.mode = mode;
                 m.clear();
             }

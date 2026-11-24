@@ -131,7 +131,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | F2, Canc, **Maiusc + Canc** | Rinomina ed elimina, come nella griglia |
 | **Ctrl + Maiusc + S** | Salva il modello come si vede, come immagine (**Ctrl + S**, che salva sopra l'originale, su un modello è grigio) |
 | Esc | Torna alla griglia, o chiude EyeCanSee come sopra |
-| Invio | Torna alla griglia (mentre misuri, chiude un'area) |
+| Invio | Torna alla griglia, anche mentre misuri |
 
 ## Nel visore: disegni CAD
 
@@ -149,7 +149,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | **Ctrl + Maiusc + S** | Salva il disegno come immagine |
 | F2, Canc, **Maiusc + Canc** | Rinomina ed elimina, come nella griglia |
 | Esc | Torna alla griglia, o chiude EyeCanSee come sopra |
-| Invio | Torna alla griglia (mentre misuri, chiude un'area) |
+| Invio | Torna alla griglia; mentre misuri chiude un'area, e non fa niente quando non ce n'è una da chiudere |
 
 ## Nel carosello
 

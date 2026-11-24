@@ -106,7 +106,9 @@ impl App {
         if self.model.cad.compare.is_none() {
             return;
         }
-        let (next, back) = ctx.input_mut(|i| (i.consume_key(egui::Modifiers::NONE, egui::Key::N), i.consume_key(egui::Modifiers::SHIFT, egui::Key::N)));
+        // Shift+N first: egui's N alone takes it too, with Shift held (#341).
+        let back = ctx.input_mut(|i| i.consume_key(egui::Modifiers::SHIFT, egui::Key::N));
+        let next = ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::N));
         let Some(c) = &mut self.model.cad.compare else { return };
         let n = c.changes.len();
         if n > 0 && (next || back) {

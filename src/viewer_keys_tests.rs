@@ -60,20 +60,18 @@ fn enter_while_measuring() {
     if own_folder("viewer_keys_tests::enter_while_measuring") {
         return;
     }
-    let mut h = showing("keys-345", "a.obj");
+    let mut h = showing("keys-345", "c.dxf");
+    h.until(|a| a.measure_off().is_none(), "the drawing read");
     measure(&mut h);
     h.key(Key::Enter);
     h.frame(Vec::new());
-    assert!(h.app.viewing.is_none(), "Enter did not go back to the grid while measuring the model");
+    assert!(h.app.viewing.is_some() && h.app.model.measure.on, "Enter on a drawing without an area to close left Measure or the viewer");
 
-    open(&mut h, "c.dxf");
-    h.until(|a| a.measure_off().is_none(), "the drawing read");
-    if !h.app.model.measure.on {
-        measure(&mut h);
-    }
+    open(&mut h, "a.obj");
+    assert!(h.app.model.measure.on, "Measure went off from the drawing to the model");
     h.key(Key::Enter);
     h.frame(Vec::new());
-    assert!(h.app.viewing.is_some() && h.app.model.measure.on, "Enter on a drawing without an area to close left Measure or the viewer");
+    assert!(h.app.viewing.is_none(), "Enter did not go back to the grid while measuring the model");
 }
 
 /// #343: in the viewer Shift+F5 does what F5 does, reads the folder again: it does not make the
@@ -93,7 +91,9 @@ fn shift_f5_in_the_viewer() {
         let ev = |pressed| egui::Event::Key { key, physical_key: None, pressed, repeat: false, modifiers };
         h.frame(vec![egui::Event::ModifiersChanged(modifiers), ev(true), ev(false)]);
         let (tx, rx) = std::sync::mpsc::channel();
-        crate::thumbcache::forget("", Vec::new(), move || drop(tx.send(())));
+        crate::thumbcache::forget("", Vec::new(), move || {
+            let _ = tx.send(());
+        });
         rx.recv_timeout(std::time::Duration::from_secs(10)).expect("the cache's writer done");
         let n = crate::thumbcache::stats().0;
         h.frame(vec![egui::Event::ModifiersChanged(Modifiers::NONE)]);

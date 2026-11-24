@@ -237,7 +237,7 @@ fn boxed(kind: Kind) -> bool {
 
 /// Colours and the eyedropper: not for a piece of image, which has its own colours, nor for a
 /// spotlight, which has none.
-fn coloured(kind: Kind) -> bool {
+pub(super) fn coloured(kind: Kind) -> bool {
     !matches!(kind, Kind::Patch | Kind::Spotlight)
 }
 
