@@ -236,3 +236,95 @@ fn audit_5_15_b_save_as_that_fails_says_it() {
     let w = h.app.editor.as_ref().expect("the editor back");
     assert_eq!(w.doc.objects.len(), 1, "its changes kept");
 }
+
+/// The field where the letters are typed on the image, if drawn in the last frame.
+fn typing_field(h: &Harness) -> Option<egui::Rect> {
+    h.ctx.read_response(egui::Id::unique(super::typing::ON_IMAGE)).map(|r| r.rect)
+}
+
+/// A font with fixed widths installed here, if any: its "i" as wide as its "M", unlike the
+/// interface's font.
+fn fixed_width_font() -> Option<String> {
+    crate::decode::font_families().iter().find(|f| f.contains("Mono")).cloned()
+}
+
+/// How wide the letters of `text` in `font` are drawn, for letters of height 1 (the outlines of
+/// the glyphs, as `edit::render` lays them out).
+fn drawn_width(text: &str, font: &str) -> f32 {
+    use resvg::usvg;
+    let svg = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><text font-family="'{font}', sans-serif" font-size="100">{text}</text></svg>"#);
+    let tree = usvg::Tree::from_str(&svg, &crate::decode::usvg_options()).unwrap();
+    let b = tree.root().children().iter().find_map(|n| if let usvg::Node::Text(t) = n { Some(t.flattened().abs_bounding_box()) } else { None }).unwrap();
+    b.width() / 100.0
+}
+
+/// #310, first part: the letters being typed are in the text's font, as wide as they will be
+/// drawn. Until 0.77.0 the field showed them in the interface's font: in a font with fixed
+/// widths, "iiiiiiii" typed took a third of the room it takes once drawn.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn typed_letters_in_the_texts_font() {
+    if own_folder("edit_page::defects::typed_letters_in_the_texts_font") {
+        return;
+    }
+    let Some(font) = fixed_width_font() else {
+        eprintln!("no font with fixed widths on this system: nothing to compare");
+        return;
+    };
+    let mut h = Harness::new(&white("three-ten-font"));
+    editor(&mut h, "a.png", Tool::Draw(Kind::Text));
+    h.app.editor.as_mut().unwrap().text_font = Some(font.clone());
+    click(&mut h, MIDDLE);
+    typed(&mut h, "iiiiiiii");
+    for _ in 0..3 {
+        h.frame(Vec::new());
+    }
+    let w = h.app.editor.as_ref().unwrap();
+    assert_eq!(w.editing, Some(0), "the text being typed on the image");
+    let crate::edit::doc::Shape::Text { size, .. } = &w.doc.objects[0].shape else { panic!("a text") };
+    let pts = size * w.shown.1;
+    // The field is as wide as its letters and one more height of them (`typing::overlay`).
+    let field = typing_field(&h).expect("the field on the image").width() - pts;
+    let drawn = drawn_width("iiiiiiii", &font) * pts;
+    eprintln!("{font}: letters in the field {field:.0} points wide, drawn {drawn:.0}");
+    assert!((field / drawn - 1.0).abs() < 0.2, "the letters typed are {field:.0} points wide, drawn {drawn:.0}: another font");
+}
+
+/// The bar's widget of `typ` with `label`, in the last frame, if any (widget infos: debug only).
+fn widget(h: &Harness, typ: egui::Role, label: Option<&str>) -> Option<egui::Rect> {
+    h.ctx.viewport(|v| {
+        let w = &v.prev_pass.widgets;
+        w.layers().flat_map(|(_, ws)| ws.iter()).find(|r| w.info(r.id).is_some_and(|i| i.role == typ && label.is_none_or(|l| i.label.as_deref() == Some(l)))).map(|r| r.rect)
+    })
+}
+
+/// #310, second part: a font chosen from the list while a text is typed leaves the typing on,
+/// its cursor where it was: the next letter goes on. Until 0.77.0 the list took the keys from
+/// the field, the typing ended, and the text had to be clicked again.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+#[cfg_attr(not(debug_assertions), ignore = "the widgets are found by their infos, kept in debug builds")]
+fn choosing_a_font_keeps_the_typing() {
+    if own_folder("edit_page::defects::choosing_a_font_keeps_the_typing") {
+        return;
+    }
+    let Some(font) = crate::decode::font_families().first().cloned() else { return };
+    let mut h = Harness::new(&white("three-ten-list"));
+    // The infos of the widgets, to find the list of fonts and its lines.
+    h.ctx.global_style_mut(|s| s.debug.show_interactive_widgets = true);
+    editor(&mut h, "a.png", Tool::Draw(Kind::Text));
+    click(&mut h, MIDDLE);
+    typed(&mut h, "ab");
+    let list = widget(&h, egui::Role::ComboBox, None).expect("the list of fonts in the bar");
+    click(&mut h, list.center());
+    let line = widget(&h, egui::Role::Button, Some(&font)).expect("the font in the list");
+    click(&mut h, line.center());
+    for _ in 0..3 {
+        h.frame(Vec::new());
+    }
+    let w = h.app.editor.as_ref().unwrap();
+    assert_eq!(w.doc.objects[0].shape.clone().font_mut().cloned(), Some(Some(font.clone())), "the font chosen");
+    assert_eq!(w.editing, Some(0), "choosing a font ended the typing");
+    typed(&mut h, "c");
+    assert_eq!(texts(&h), ["abc"], "the next letter goes on");
+}
