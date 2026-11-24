@@ -468,6 +468,32 @@ mod tests {
         assert!(load(&source, &file).is_none());
     }
 
+    /// #335: before it, a phone's date without its zone was kept as Unix seconds, read in the
+    /// computer's time zone; now it is the phone's clock time as it is. With the computer still in
+    /// the same zone, the thumbnail, details and metadata saved under the old key are the same
+    /// file's: found under the new one, nothing read again from the phone.
+    #[test]
+    fn phone_thumbnails_kept_with_the_new_date_key() {
+        let source = format!("mtp://TEST335-{}/", std::process::id());
+        let clock = "2026-11-24T10:30:05";
+        let seconds = crate::human::parse_modified(clock).unwrap().as_second().to_string();
+        let before = File { path: "Internal storage/DCIM/a.jpg".into(), size: 10, modified: seconds };
+        save(&source, &before, &DynamicImage::new_rgb8(4, 3));
+        save_info(&source, &before, &crate::thumb_details::Info { pixels: Some([4, 3]), ..Default::default() });
+        save_meta(&source, &before, "{}".into());
+        for _ in 0..100 {
+            if load(&source, &before).is_some() && load_info(&source, &before).is_some() && load_meta(&source, &before).is_some() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert!(load(&source, &before).is_some(), "saved under the old key");
+        let now = File { modified: clock.into(), ..before.clone() };
+        assert!(load(&source, &now).is_some(), "the thumbnail is made again from the phone");
+        assert!(load_info(&source, &now).is_some(), "the details are read again from the phone");
+        assert!(load_meta(&source, &now).is_some(), "the metadata are read again from the phone");
+    }
+
     /// A float image with alpha (what OpenEXR decodes to) must be cached too (issue #2).
     #[test]
     fn float_image() {
