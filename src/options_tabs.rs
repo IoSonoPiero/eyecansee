@@ -167,4 +167,28 @@ mod tests {
         press(egui::Key::Space, &mut open);
         assert_eq!(open, OptTab::Viewer);
     }
+
+    /// #311: a row reached with Tab has a ring as strong as the selected one's, also in the light
+    /// theme: the pale fill of hovering, alone, could hardly be seen on white (Piero, 24/11).
+    #[test]
+    fn the_row_of_the_keyboard_has_a_ring() {
+        let (ctx, _) = headless();
+        ctx.set_visuals(egui::Visuals::light());
+        let mut id = None;
+        let run = |ctx: &egui::Context, id: &mut Option<egui::Id>| {
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 300.0))), ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| {
+                *id = Some(ui.next_auto_id());
+                row(ui, false, "Visore", Line::Settings);
+            });
+            out.textures_delta.clear();
+            out
+        };
+        run(&ctx, &mut id);
+        ctx.memory_mut(|m| m.request_focus(id.unwrap()));
+        run(&ctx, &mut id);
+        let out = run(&ctx, &mut id);
+        let ring = out.shapes.iter().any(|c| matches!(&c.shape, egui::Shape::Rect(r) if r.stroke.width >= 2.0 && r.stroke.color == crate::theme::accent(&egui::Visuals::light())));
+        assert!(ring, "the row with the keyboard has a ring of the accent colour");
+    }
 }
