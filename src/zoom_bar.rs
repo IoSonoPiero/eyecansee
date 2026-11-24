@@ -165,3 +165,39 @@ fn slider(ui: &mut egui::Ui, i18n: &I18n, zoom: f32, range: [f32; 2]) -> Option<
     });
     r.changed().then(|| zoom::from_slider(at, range))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::addons_ui::tests::{click, frame, headless};
+
+    /// #311: the zoom slider reached with Tab keeps the keyboard; dragged or clicked with the mouse
+    /// afterwards it lets it go, so ← and → change the picture again (Piero's test W5.2 on
+    /// Windows, 24/11: once reached with Tab it kept the keyboard after a drag too).
+    #[test]
+    fn the_slider_lets_the_keyboard_go_after_a_click() {
+        let (ctx, _) = headless();
+        let i18n = I18n::new("en");
+        let rect = std::cell::Cell::new(egui::Rect::NOTHING);
+        let mut draw = |ui: &mut egui::Ui| {
+            ui.add_space(20.0);
+            slider(ui, &i18n, 1.0, [0.1, 8.0]);
+            rect.set(ctx_slider_rect(ui));
+        };
+        let tab = egui::Event::Key { key: egui::Key::Tab, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+        frame(&ctx, Vec::new(), &mut draw);
+        frame(&ctx, vec![tab], &mut draw);
+        frame(&ctx, Vec::new(), &mut draw);
+        assert!(slider_focused(&ctx), "Tab did not give the slider the keyboard");
+        let at = rect.get().center();
+        click(&ctx, at, &mut draw);
+        frame(&ctx, Vec::new(), &mut draw);
+        assert!(!slider_focused(&ctx), "after a click the slider kept the keyboard");
+    }
+
+    /// The rectangle of the slider drawn last (`SLIDER_ID`).
+    fn ctx_slider_rect(ui: &egui::Ui) -> egui::Rect {
+        let id = ui.data(|d| d.get_temp::<egui::Id>(egui::Id::unique(SLIDER_ID)));
+        id.and_then(|id| ui.ctx().read_response(id)).map_or(egui::Rect::NOTHING, |r| r.rect)
+    }
+}
