@@ -185,7 +185,7 @@ pub(crate) fn keys_stay_over_viewer(h: &mut Harness, open: impl Fn(&App) -> bool
     assert!(h.app.viewing.is_some(), "the viewer is not open");
     let mut keys: Vec<(Key, Modifiers)> = [Key::ArrowRight, Key::ArrowLeft, Key::ArrowUp, Key::ArrowDown, Key::PageDown, Key::PageUp, Key::Home, Key::End, Key::Backspace, Key::Plus, Key::Minus, Key::Num0, Key::Num1, Key::Period, Key::Comma, Key::M, Key::S, Key::F11, Key::F5, Key::Delete, Key::F2].map(|k| (k, none)).to_vec();
     keys.extend([Key::R, Key::Z, Key::Y, Key::E, Key::S, Key::B, Key::D].map(|k| (k, ctrl)));
-    keys.extend([(Key::R, ctrl | Modifiers::SHIFT), (Key::S, ctrl | Modifiers::SHIFT), (Key::Delete, Modifiers::SHIFT)]);
+    keys.extend([(Key::R, ctrl | Modifiers::SHIFT), (Key::S, ctrl | Modifiers::SHIFT), (Key::Delete, Modifiers::SHIFT), (Key::Tab, none), (Key::Tab, Modifiers::SHIFT)]);
     for (key, modifiers) in keys {
         h.blur();
         if let Some(id) = focus {
@@ -220,14 +220,16 @@ pub(crate) fn focus_stays_in_window(h: &mut Harness) {
     let none = Modifiers::NONE;
     for (key, modifiers) in [(Key::Tab, none), (Key::Tab, Modifiers::SHIFT), (Key::ArrowDown, none), (Key::ArrowRight, none), (Key::ArrowUp, none), (Key::ArrowLeft, none)] {
         let mut seen = std::collections::HashSet::new();
-        for i in 1..=40 {
+        // Tab: more presses than controls, to go past the last one (fewer seen than pressed).
+        let times = if key == Key::Tab { 40 } else { 12 };
+        for i in 1..=times {
             h.key_with(key, modifiers);
             h.frame(Vec::new());
             assert_eq!(order(h), Some(egui::Order::Middle), "{key:?} {modifiers:?} pressed {i} times: the keyboard left the window");
             seen.extend(h.ctx.memory(|m| m.focused()));
         }
         // Round all of them, not stuck on one.
-        assert!(key != Key::Tab || seen.len() > 4, "{key:?} {modifiers:?} went through {} controls only", seen.len());
+        assert!(key != Key::Tab || (4..times).contains(&seen.len()), "{key:?} {modifiers:?} went through {} controls", seen.len());
     }
 }
 

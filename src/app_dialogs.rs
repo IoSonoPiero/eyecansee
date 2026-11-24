@@ -515,8 +515,13 @@ mod tests {
             return;
         }
         let mut h = options("opt-round");
-        crate::audit_family_1::focus_stays_in_window(&mut h);
-        assert!(h.app.options, "Options closed");
+        // Every page: its first and last controls differ (lists, fields, buttons greyed out).
+        for tab in [OptTab::General, OptTab::Look, OptTab::Viewer, OptTab::Slideshow, OptTab::Video, OptTab::Editor, OptTab::Resize, OptTab::Deleting, OptTab::Thumbnails, OptTab::Diagnostics, OptTab::Addons] {
+            h.app.options_tab = tab;
+            h.blur();
+            crate::audit_family_1::focus_stays_in_window(&mut h);
+            assert!(h.app.options && h.app.options_tab == tab, "Options closed, or left the page {tab:?}");
+        }
     }
 
     /// #311: Options open with nothing focused (as they open, or after a click on their body): Tab
@@ -530,15 +535,25 @@ mod tests {
             return;
         }
         let mut h = options("opt-enter");
+        (h.app.cursor, h.app.selected, h.app.focus) = (true, 0, crate::Focus::Grid);
+        let layer = |h: &Harness| h.ctx.memory(|m| m.focused()).and_then(|id| h.ctx.read_response(id)).map(|r| r.layer_id);
         for modifiers in [Modifiers::NONE, Modifiers::SHIFT] {
             h.blur();
             h.frame(Vec::new());
             h.key_with(Key::Tab, modifiers);
             h.frame(Vec::new());
-            let order = h.ctx.memory(|m| m.focused()).and_then(|id| h.ctx.read_response(id)).map(|r| r.layer_id.order);
-            assert_eq!(order, Some(Order::Middle), "Tab {modifiers:?} with nothing focused did not reach Options");
-            assert!(h.app.options && h.app.viewing.is_none(), "Options closed, or the picture under them opened");
+            assert_eq!(layer(&h).map(|l| l.order), Some(Order::Middle), "Tab {modifiers:?} with nothing focused did not reach Options");
+            let a = &h.app;
+            assert!(a.options && a.viewing.is_none() && (a.cursor, a.selected, a.focus) == (true, 0, crate::Focus::Grid), "Options closed, or the grid under them moved");
         }
+        // With the guide over them, the guide has the keys first: Tab does not go into Options.
+        h.key(Key::F1);
+        assert!(h.app.help.open, "F1 did not open the guide");
+        h.blur();
+        h.key(Key::Tab);
+        h.frame(Vec::new());
+        let options = eframe::egui::Id::unique("options");
+        assert!(layer(&h).is_none_or(|l| l.id != options), "Tab under the guide went into Options");
     }
 
     /// #311: Options over the viewer keep the keys of the viewer and the shortcuts, with the
