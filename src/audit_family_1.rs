@@ -157,6 +157,35 @@ pub(crate) fn keys_stay_in_window(h: &mut Harness, open: impl Fn(&App) -> bool) 
     }
 }
 
+/// #311: a window that is not modal open over the grid (New image, Options): Tab, Shift+Tab and
+/// the arrows, pressed many times, never take the keyboard out of it to the menus, the toolbar or
+/// the grid under it (Enter then pressed what they had reached there).
+pub(crate) fn focus_stays_in_window(h: &mut Harness) {
+    use egui::{Key, Modifiers};
+    let order = |h: &Harness| h.ctx.memory(|m| m.focused()).and_then(|id| h.ctx.read_response(id)).map(|r| r.layer_id.order);
+    for _ in 0..3 {
+        h.frame(Vec::new());
+    }
+    // Options opens with nothing focused: a click on its first control.
+    if h.ctx.memory(|m| m.focused()).is_none() {
+        let first = h.ctx.viewport(|v| v.prev_pass.widgets.layers().filter(|(l, _)| l.order == egui::Order::Middle).find_map(|(_, w)| w.iter().find(|w| w.enabled && w.sense.is_focusable()).map(|w| w.id)));
+        h.ctx.memory_mut(|m| m.request_focus(first.unwrap()));
+        h.frame(Vec::new());
+    }
+    let none = Modifiers::NONE;
+    for (key, modifiers) in [(Key::Tab, none), (Key::Tab, Modifiers::SHIFT), (Key::ArrowDown, none), (Key::ArrowRight, none), (Key::ArrowUp, none), (Key::ArrowLeft, none)] {
+        let mut seen = std::collections::HashSet::new();
+        for i in 1..=40 {
+            h.key_with(key, modifiers);
+            h.frame(Vec::new());
+            assert_eq!(order(h), Some(egui::Order::Middle), "{key:?} {modifiers:?} pressed {i} times: the keyboard left the window");
+            seen.extend(h.ctx.memory(|m| m.focused()));
+        }
+        // Round all of them, not stuck on one.
+        assert!(key != Key::Tab || seen.len() > 4, "{key:?} {modifiers:?} went through {} controls only", seen.len());
+    }
+}
+
 pub(crate) fn enter() -> egui::Key {
     egui::Key::Enter
 }

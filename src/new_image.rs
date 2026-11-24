@@ -336,6 +336,23 @@ mod tests {
         assert!(h.app.new_image.is_none() && h.app.editor.is_some() && h.app.viewing.is_none(), "Enter did not press Create, or reached the grid");
     }
 
+    /// #311: Tab past Cancel, the last button, went on to the menus under the window, and Enter
+    /// pressed what it reached there; Shift+Tab and the arrows too. The keyboard goes round inside.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn tab_goes_round_new_image() {
+        use crate::audit_family_1::{Harness, focus_stays_in_window, folder, own_folder};
+        if own_folder("new_image::tests::tab_goes_round_new_image") {
+            return;
+        }
+        let mut h = Harness::new(&folder("new-image-round", &["a.png"]));
+        h.app.new_image = Some(Form::new());
+        focus_stays_in_window(&mut h);
+        assert!(h.app.new_image.is_some() && h.app.editor.is_none(), "the window closed");
+    }
+
+    /// #311: a size too large greys Create out. Enter in a number field leaves the keys there, as
+    /// on a name that does not go in Rename: before, it highlighted Cancel and a second Enter
     /// #311: a size too large greys Create out. Enter in a number field leaves the keys there, as
     /// on a name that does not go in Rename: before, it highlighted Cancel and a second Enter
     /// closed the window.

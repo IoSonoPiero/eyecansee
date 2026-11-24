@@ -446,6 +446,20 @@ mod tests {
         assert!(!h.app.options, "Esc did not close Options");
     }
 
+    /// #311: Tab past the last control of Options went on to the menus under it, and Enter pressed
+    /// what it reached there; Shift+Tab and the arrows too. The keyboard goes round inside.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn tab_goes_round_options() {
+        if own_folder("app_dialogs::tests::tab_goes_round_options") {
+            return;
+        }
+        let mut h = options("opt-round");
+        crate::audit_family_1::focus_stays_in_window(&mut h);
+        assert!(h.app.options, "Options closed");
+    }
+
+    /// #311: "Empty the thumbnail cache?" opens on Empty: Enter empties it. Esc cancels the
     /// #311: "Empty the thumbnail cache?" opens on Empty: Enter empties it. Esc cancels the
     /// question first, then closes Options.
     #[test]
