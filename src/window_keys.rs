@@ -655,7 +655,9 @@ fn questions_during_convert_keep_their_keys() {
     h.app.batch.as_mut().unwrap().work_forever();
     h.frame(Vec::new());
     h.app.about = true;
-    let about = egui::LayerId::new(egui::Order::Middle, egui::Id::unique(h.app.i18n.t("menu-about")));
+    // The layer of a window is its title's (`egui::Window::new`).
+    let title = h.app.i18n.t("menu-about");
+    let about = egui::LayerId::new(egui::Order::Middle, egui::Id::unique(Some(title.as_str())));
     tab_goes_through(&mut h, |l| l == about, |a| a.about, 2, true);
     h.key(Key::Escape);
     assert!(!h.app.about, "Esc did not close About");

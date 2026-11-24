@@ -307,7 +307,7 @@ impl App {
         let picking = self.convert.as_ref().is_some_and(crate::convert::Window::picking) || (self.batch.is_some() && self.batch_form.as_ref().is_some_and(crate::batch_page::Form::picking));
         // Modals with fields and no row of buttons (`keys`): Tab with nothing focused goes to their
         // controls too, as in Server manager (Piero, 24/11).
-        let own_ring = picking || self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some() || self.editor.as_ref().is_some_and(crate::edit_page::Window::resizing);
+        let own_ring = picking || self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.as_ref().is_some_and(crate::batch_page::Window::asking) || self.editor.as_ref().is_some_and(crate::edit_page::Window::resizing);
         let fields = own_ring || self.forms();
         // A question inside a form has the keys of a question, unless a text field has them (#311).
         let fields = fields && !(self.form_asks() && !ctx.text_edit_focused());
