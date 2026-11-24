@@ -8,11 +8,34 @@ use crate::loader::Loader;
 use crate::source::{self, File};
 use crate::{App, devices, settings};
 
+/// #206: the folder to open instead of `dir` on the place `base`, entered from the place `from`:
+/// the last one visited there (`last`: place → its address with that folder), when it is inside
+/// `dir`. `None` on the same place, or with nothing remembered there.
+fn last_folder_in(last: &std::collections::HashMap<String, String>, from: &str, base: &str, dir: &str) -> Option<String> {
+    if base == from {
+        return None;
+    }
+    let folder = last.get(base)?.strip_prefix(base)?;
+    (folder.starts_with(dir) && folder != dir).then(|| folder.to_string())
+}
+
 impl App {
     /// Opens an address (path or URL). If it fails, stays on the current source. The image in the
     /// viewer with turns not saved is asked about first (audit 1.5, #198: an address typed in the
     /// bar dropped them, and the image opened next in the same place showed them).
     pub(crate) fn open_source(&mut self, ctx: &egui::Context, address: &str) {
+        self.open_place(ctx, address, false);
+    }
+
+    /// A phone or a saved server from the left panel: back there from another place, it opens at
+    /// the folder last visited there while EyeCanSee stays open, if that one is inside the folder
+    /// of `address` (a saved server's own folder, or the root); otherwise as `open_source`. A
+    /// folder gone meanwhile gives its first folder, as `listing_error` does (#206).
+    pub(crate) fn open_back(&mut self, ctx: &egui::Context, address: &str) {
+        self.open_place(ctx, address, true);
+    }
+
+    fn open_place(&mut self, ctx: &egui::Context, address: &str, back: bool) {
         if self.viewing.is_some() && self.hold_for_turn(crate::save_dialogs::After::Open(address.to_string())) {
             return;
         }
@@ -28,7 +51,11 @@ impl App {
             source::open(address.trim())
         };
         match opened {
-            Ok(s) => {
+            Ok(mut s) => {
+                if back && let Some(dir) = last_folder_in(&self.last_dirs, &self.base, &s.base, &s.dir) {
+                    log!("back on {:?}: {dir:?}", without_password(&s.base));
+                    (s.dir, s.start, s.home) = (dir, None, false);
+                }
                 if s.base != self.base {
                     self.leave_source();
                 }
@@ -435,6 +462,23 @@ fn release(editing: bool, held: &mut Option<String>) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// #206: the folder reopened back on a place: the last one there, inside the folder of the
+    /// address clicked. Two saved servers with the same login share the place: one saved on
+    /// `docs/` does not reopen a folder of the other's `photos/`.
+    #[test]
+    fn last_folder_back_on_a_place() {
+        let server = "sftp://me@nas/";
+        let last = std::collections::HashMap::from([(server.to_string(), format!("{server}photos/2024/")), ("mtp://SERIAL1234/".to_string(), "mtp://SERIAL1234/".to_string())]);
+        assert_eq!(last_folder_in(&last, "/", server, "").as_deref(), Some("photos/2024/"));
+        assert_eq!(last_folder_in(&last, "/", server, "photos/").as_deref(), Some("photos/2024/"));
+        assert_eq!(last_folder_in(&last, "/", server, "docs/"), None);
+        assert_eq!(last_folder_in(&last, "/", server, "photos/2024/"), None);
+        // Already there: the address as it is; nothing remembered, or the root: as before.
+        assert_eq!(last_folder_in(&last, server, server, ""), None);
+        assert_eq!(last_folder_in(&last, "/", "sftp://me@other/", ""), None);
+        assert_eq!(last_folder_in(&last, "/", "mtp://SERIAL1234/", ""), None);
+    }
 
     /// An address from outside while the editor is open is kept (the last one) and opened once it
     /// is closed; without the editor it opens at once, and "" (just come forward) is never kept.
