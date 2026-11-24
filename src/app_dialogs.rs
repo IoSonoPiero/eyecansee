@@ -239,8 +239,10 @@ impl App {
                     ui.add_space(8.0);
                     ui.label("© 2026 Pierluigi Montinaro");
                     ui.label(t("about-license"));
-                    ui.hyperlink_to(t("about-license-link"), "https://www.gnu.org/licenses/gpl-3.0.html");
-                    ui.hyperlink_to(t("about-source"), env!("CARGO_PKG_REPOSITORY"));
+                    // Tab goes through the links and the copy of the card, Enter or Space opens or
+                    // presses the one highlighted; none is at first, so Enter closes (#311).
+                    crate::confirm::join("about", &ui.hyperlink_to(t("about-license-link"), "https://www.gnu.org/licenses/gpl-3.0.html"));
+                    crate::confirm::join("about", &ui.hyperlink_to(t("about-source"), env!("CARGO_PKG_REPOSITORY")));
                     ui.add_space(8.0);
                     ui.weak(t("about-third-party"));
                     // The card the window is drawn with, to copy into a report of a problem (#319).
@@ -248,10 +250,13 @@ impl App {
                         ui.add_space(8.0);
                         ui.label(t("about-gpu"));
                         ui.label(card);
-                        if ui.button(t("about-gpu-copy")).clicked() {
+                        let copy = ui.button(t("about-gpu-copy"));
+                        crate::confirm::join("about", &copy);
+                        if copy.clicked() {
                             ui.ctx().copy_text(card.clone());
                         }
                     }
+                    crate::confirm::keys(ui, "about", &[], usize::MAX);
                 });
             });
         self.about = open;

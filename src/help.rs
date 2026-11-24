@@ -467,16 +467,16 @@ impl App {
         }
         let view = self.help_view();
         let mut open = true;
-        let todo = egui::Window::new(view.title.clone())
+        let window = egui::Window::new(view.title.clone())
             .id(id)
             .order(egui::Order::Foreground)
             .open(&mut open)
             .default_size([900.0, 620.0])
             .min_size([480.0, 320.0])
             .resizable(true)
-            .collapsible(false)
-            .show(ctx, |ui| draw(ui, &mut self.help, &view))
-            .and_then(|r| r.inner.flatten());
+            .collapsible(false);
+        // Tab with nothing focused goes into it, and stays inside it, not to the grid (#311).
+        let todo = crate::app_dialogs::in_ring(ctx, layer, || window.show(ctx, |ui| draw(ui, &mut self.help, &view))).and_then(|r| r.inner.flatten());
         self.help.open &= open;
         if let Some(todo) = todo {
             self.help.act(todo);

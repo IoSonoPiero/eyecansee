@@ -142,13 +142,17 @@ pub(crate) fn buttons_hint(ui: &mut egui::Ui, id: &str, labels: &[(String, bool)
 /// The keys of the frame for a row of buttons the caller drew itself (`rows`, greyed ones too, in
 /// any order: Tab goes from the left, as they are on screen, also when drawn from the right). The
 /// window on top takes them (`Nav`); `default`, an index of `rows`, is highlighted when the window
-/// opens, unless a text field has the keyboard. The index pressed, by the mouse or the keys.
+/// opens, unless a text field has the keyboard (beyond the rows: none is). The index pressed, by the mouse or the keys.
 pub(crate) fn keys(ui: &egui::Ui, id: &str, rows: &[egui::Response], default: usize) -> Option<usize> {
     let clicked = rows.iter().position(egui::Response::clicked);
     let opened = just_opened(ui.ctx(), id);
     if !on_top(ui.ctx(), id) {
         return clicked;
     }
+    // The controls joined to the row (`join`), drawn before it or after it in the frame before:
+    // the keys go through them too; what they do when pressed is theirs.
+    let n = rows.len();
+    let rows: Vec<egui::Response> = rows.iter().cloned().chain(joined(ui.ctx(), id).into_iter().filter_map(|j| ui.ctx().read_response(j))).collect();
     let nav = ui.ctx().data_mut(|d| {
         let n = d.get_temp::<Nav>(nav_id());
         d.remove::<Nav>(nav_id());
@@ -158,7 +162,21 @@ pub(crate) fn keys(ui: &egui::Ui, id: &str, rows: &[egui::Response], default: us
     let place = |i: usize| order.iter().position(|&o| o == i);
     let on: Vec<bool> = order.iter().map(|&i| rows[i].enabled()).collect();
     let focused = rows.iter().position(egui::Response::has_focus);
-    let (to, pressed) = step(&on, place(default)?, focused.and_then(place), nav)?;
+    let Some(start) = place(default).or(focused.and_then(place)) else {
+        // No button highlighted at first (`default` beyond the rows: About): Tab goes to the
+        // first control, Shift+Tab to the last one.
+        let mut usable = (0..on.len()).filter(|&i| on[i]);
+        let to = match nav {
+            Some(Nav::Next) => usable.next(),
+            Some(Nav::Prev) => usable.next_back(),
+            _ => None,
+        };
+        if let Some(to) = to {
+            rows[order[to]].request_focus();
+        }
+        return clicked;
+    };
+    let (to, pressed) = step(&on, start, focused.and_then(place), nav)?;
     let (to, pressed) = (order[to], pressed.map(|p| order[p]));
     // Another widget of the window (a check box) may hold the focus: left to it, unless a key moved
     // or the window just opened (the button that opened a question inside a form had it, #311).
@@ -166,7 +184,50 @@ pub(crate) fn keys(ui: &egui::Ui, id: &str, rows: &[egui::Response], default: us
     if focused != Some(to) && take {
         rows[to].request_focus();
     }
-    clicked.or(pressed)
+    clicked.or(pressed.filter(|&p| p < n))
+}
+
+/// The controls joined to rows of buttons (`join`): for each, its window and the frame it was
+/// drawn in.
+fn joined_id() -> egui::Id {
+    egui::Id::unique("confirm-joined")
+}
+
+/// A control of the window `id` that is not one of its buttons (a check box, a list, a link, the
+/// small Copy): Tab, Shift+Tab and the arrows go through it with the row of buttons (`keys`), in
+/// the order they are on screen; Enter and Space on it are its own, as a click (`chosen`), and
+/// never answer the window (#311). Called every frame it is drawn, before or after the row.
+pub(crate) fn join(id: &str, r: &egui::Response) {
+    let (window, now) = (egui::Id::unique(id), r.ctx.cumulative_frame_nr());
+    r.ctx.data_mut(|d| {
+        let all = d.get_temp_mut_or_default::<std::collections::HashMap<egui::Id, (egui::Id, u64)>>(joined_id());
+        all.retain(|_, (_, frame)| *frame + 1 >= now);
+        all.insert(r.id, (window, now));
+    });
+    // A list closed (Esc, or a choice made in it) with the keyboard in it: the keyboard comes back
+    // to the list, not lost (Space then pressed the highlighted button of the window).
+    let (open, was) = (egui::Popup::is_id_open(&r.ctx, r.id.with("popup")), r.id.with("list-open"));
+    if open {
+        r.ctx.data_mut(|d| d.insert_temp(was, ()));
+    } else if r.ctx.data_mut(|d| d.remove_temp::<()>(was)).is_some() && r.ctx.memory(|m| m.focused().is_none()) {
+        r.request_focus();
+    }
+}
+
+/// The controls joined to the window `id` in this frame or the one before (`join`).
+fn joined(ctx: &egui::Context, id: &str) -> Vec<egui::Id> {
+    let (window, now) = (egui::Id::unique(id), ctx.cumulative_frame_nr());
+    let all = ctx.data(|d| d.get_temp::<std::collections::HashMap<egui::Id, (egui::Id, u64)>>(joined_id())).unwrap_or_default();
+    let mut ids: Vec<egui::Id> = all.into_iter().filter(|(_, (w, frame))| *w == window && *frame + 1 >= now).map(|(j, _)| j).collect();
+    ids.sort_by_key(|j| j.value());
+    ids
+}
+
+/// The keyboard is on a control joined to a row of buttons (`join`): Enter and Space are its own.
+fn chosen(ctx: &egui::Context) -> bool {
+    let Some(focused) = ctx.memory(|m| m.focused()) else { return false };
+    let now = ctx.cumulative_frame_nr();
+    ctx.data(|d| d.get_temp::<std::collections::HashMap<egui::Id, (egui::Id, u64)>>(joined_id())).is_some_and(|all| all.get(&focused).is_some_and(|(_, frame)| *frame + 2 >= now))
 }
 
 /// The order of the widgets on screen (`rects`, as drawn): by rows from the top, a new row when one
@@ -244,13 +305,19 @@ impl App {
         // The folder chooser of Save as and Convert, a modal: its folders and buttons take Tab,
         // the arrows and Enter as egui gives them (Piero, 24/11, W3.4).
         let picking = self.convert.as_ref().is_some_and(crate::convert::Window::picking) || (self.batch.is_some() && self.batch_form.as_ref().is_some_and(crate::batch_page::Form::picking));
-        let fields = picking || self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some() || self.editor.as_ref().is_some_and(crate::edit_page::Window::resizing) || self.forms();
+        // Modals with fields and no row of buttons (`keys`): Tab with nothing focused goes to their
+        // controls too, as in Server manager (Piero, 24/11).
+        let own_ring = picking || self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.as_ref().is_some_and(crate::batch_page::Window::asking) || self.editor.as_ref().is_some_and(crate::edit_page::Window::resizing);
+        let fields = own_ring || self.forms();
         // A question inside a form has the keys of a question, unless a text field has them (#311).
         let fields = fields && !(self.form_asks() && !ctx.text_edit_focused());
         // An open drop-down list (Language, Unit) has its own keys too (`browser::menu_keys`). Under
         // the guide only a text field keeps them: Enter on a highlighted button answered the window.
         let own = ctx.text_edit_focused() || (!self.help.open && (ctx.egui_wants_keyboard_input() || egui::Popup::is_any_open(ctx)));
-        if !self.asking() || (fields && own) {
+        // A list of a question opened from the keyboard (`join`) takes its keys too: ↓ and Enter
+        // chose and pressed a button of the window, Esc cancelled it (#311).
+        let list = !self.help.open && egui::Popup::is_any_open(ctx);
+        if !self.asking() || (fields && own) || list {
             return false;
         }
         // The tip's first frame: egui keeps what is under a modal from the mouse only from the frame
@@ -262,8 +329,8 @@ impl App {
         // window's first control (`app_dialogs::in_ring`); not under the guide, which has it first.
         // Server manager, a modal, the same (Piero, 24/11): egui keeps the keyboard inside it.
         let options = self.options && ctx.memory(|m| m.top_modal_layer()).is_none();
-        // The folder chooser too (`picking`, above).
-        let free_tab = (options || self.server_manager.is_some() || picking) && self.notice.is_none() && !self.form_asks() && !self.help.open;
+        // The modals with fields too (`own_ring`, above).
+        let free_tab = (options || own_ring) && self.notice.is_none() && !self.form_asks() && !self.help.open;
         let (answer, typing) = (&mut self.key_answer, self.help.in_field());
         // The tip of the day (audit 1.13, D6): ← and → turn it, unless the guide is over it. A key
         // held down from before it came (Enter on Done of the first-start window) does not close it.
@@ -271,8 +338,11 @@ impl App {
         let tip = self.tip.is_some() && !self.help.open && on_top(ctx, "tip");
         let mut turn = None;
         let mut nav = None;
+        let chosen = chosen(ctx);
         raw_input.events.retain(|e| match e {
             e if crate::help::stays(typing, e) => true,
+            // A check box, a list or a link of the window (`join`): pressed as with a click.
+            egui::Event::Key { key: egui::Key::Enter | egui::Key::Space, .. } if chosen => true,
             egui::Event::Key { key: egui::Key::Tab, pressed: true, .. } if free_tab => true,
             egui::Event::Key { key, pressed: true, repeat, modifiers, .. } => {
                 use egui::Key::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Enter, Escape, Space, Tab};

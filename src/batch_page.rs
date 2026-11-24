@@ -321,6 +321,12 @@ impl Form {
 }
 
 impl Window {
+    /// The work under way, and it never ends (tests).
+    #[cfg(test)]
+    pub(crate) fn work_forever(&mut self) {
+        self.progress = Some(Arc::default());
+    }
+
     /// The choices are open (keys answer them).
     pub fn asking(&self) -> bool {
         self.progress.is_none()
@@ -500,7 +506,9 @@ impl App {
             form.picker = Some(Picker::open(&start, &rt, ctx));
         }
         let ready = form.why_not().is_none();
-        let answer = answer.or(keys).filter(|&yes| !yes || ready);
+        // With a control focused Esc reaches the window, not `keys` (#311).
+        let esc = ctx.input(|i| i.key_pressed(egui::Key::Escape)).then_some(false);
+        let answer = answer.or(keys).or(esc).filter(|&yes| !yes || ready);
         let keep = match answer {
             Some(true) => match self.batch_dest(&form, &w.dir) {
                 Ok((to, dest)) => {
@@ -593,9 +601,14 @@ impl App {
                 ui.label(egui::RichText::new(current).weak());
                 if stopping {
                     ui.label(self.i18n.t("batch-stopping"));
-                } else if ui.button(self.i18n.t("delete-no")).clicked() {
-                    log!("batch: Cancel pressed, {done} of {total} done");
-                    p.cancel.store(true, Ordering::Relaxed);
+                } else {
+                    // Reached with Tab after the folders of the tree (`box_keys`, #311).
+                    let cancel = ui.button(self.i18n.t("delete-no"));
+                    crate::box_keys::mark(&cancel);
+                    if cancel.clicked() {
+                        log!("batch: Cancel pressed, {done} of {total} done");
+                        p.cancel.store(true, Ordering::Relaxed);
+                    }
                 }
             });
         true

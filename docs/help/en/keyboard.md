@@ -8,6 +8,7 @@ Every key of EyeCanSee, by place. The menus show the key next to each item, and 
 |---|---|
 | F1 | Open this guide on the page about what you are doing; again to close it |
 | Esc twice, quickly | Close this guide, with the pointer on it or while typing in its search field (one Esc only leaves the field). Over a window, a message for instance, wherever the pointer is: the window stays open |
+| Tab, **Shift + Tab** (this guide open) | Go through the search field, the contents and the page of this guide; they do not reach the grid or the viewer under it |
 
 ## In the grid and the viewer
 
@@ -19,9 +20,11 @@ Every key of EyeCanSee, by place. The menus show the key next to each item, and 
 | **Ctrl + Z**, **Ctrl + Y** | In the viewer: undo, redo a turn or flip not saved |
 | **Ctrl + Shift + D** | Bookmarks: the list opens; ↓ enters it, Enter opens the bookmark chosen (see [Bookmarks](bookmarks.md)) |
 
-In the windows that tell how an operation went, **Enter** or **Esc** closes them. In those that ask for a choice, one button is highlighted when the window opens: the main choice, or **Cancel** when the main choice cannot be undone (deleting for good or in a trash, deleting folders, saving over many pictures or over an original deleted for good, trusting a new server, deleting a saved server or the master password) or would lose data. **Tab**, **Shift + Tab** and the arrows move between the buttons, **Enter** or **Space** presses the highlighted one, **Esc** cancels. When a name is already taken, **Keep both** is highlighted. With this guide open over the window, **Esc** goes to the guide first (two close it, as everywhere), **Enter** does not answer the window, and what you type in the search field of the guide stays there.
+In the windows that tell how an operation went, **Enter** or **Esc** closes them; after their buttons **Tab** reaches the small copy icon (**Copy the message**), and **Enter** on it copies the text. In those that ask for a choice, one button is highlighted when the window opens: the main choice, or **Cancel** when the main choice cannot be undone (deleting for good or in a trash, deleting folders, saving over many pictures or over an original deleted for good, trusting a new server, deleting a saved server or the master password) or would lose data. **Tab**, **Shift + Tab** and the arrows move between the buttons and the other controls of the window, in the order they have on screen, **Enter** or **Space** presses the highlighted one (on a check box, a list or a link they tick the box, open the list or the link; in an open list the arrows and **Enter** choose, **Esc** closes the list only), **Esc** cancels. When a name is already taken, **Keep both** is highlighted. With this guide open over the window, **Esc** goes to the guide first (two close it, as everywhere), **Enter** does not answer the window, and what you type in the search field of the guide stays there.
 
-In **New image** and **Options**, **Tab** and **Shift + Tab** go round their controls: from the last one back to the first, and the other way; they never reach the menus or the grid under the window. The same in **Server manager** and in the folder choice of **Save as** and **Convert**: **Tab** and the arrows go through places, folders and buttons, **Enter** on a folder goes into it.
+In **About EyeCanSee** nothing is highlighted when it opens: **Enter** or **Esc** closes it. **Tab** and **Shift + Tab** go through its links and **Copy (to report a problem)**, **Enter** or **Space** opens or presses the highlighted one.
+
+In **New image** and **Options**, **Tab** and **Shift + Tab** go round their controls: from the last one back to the first, and the other way; they never reach the menus or the grid under the window. The same in **Server manager** and in the folder choice of **Save as** and **Convert**: **Tab** and the arrows go through places, folders and buttons, **Enter** on a folder goes into it. In **Open location**, **Bookmarks > Configure…**, the master password, **Convert** and the editor's **Resize**, **Tab** with nothing highlighted goes to their fields, lists and buttons, and the arrows move between them.
 
 In the tip at startup, → and ← show the next and the previous tip; **Close** is highlighted when it opens, **Tab** and **Shift + Tab** move, in the order they have on screen, between **Read more in the guide**, **Back**, **Next**, **Close** and **Don't show at startup**, **Enter** or **Space** presses the highlighted one, **Esc** closes it; the other keys do nothing, except **F1**, which opens this guide (see [Getting started](start.md)).
 
@@ -38,7 +41,7 @@ In the first-start window each page opens with its main button highlighted (**Ne
 | Backspace | Parent folder |
 | **Ctrl + A** | Select everything in the folder |
 | Tab | Next item; from the last one to the devices |
-| **Shift + Tab** | Previous item; from the first one to the folder open on the left |
+| **Shift + Tab** | Previous item; from the first one to the box of a copy or of Convert under way, if there is one, otherwise to the folder open on the left |
 | **Ctrl + C**, **Ctrl + X**, **Ctrl + V** | Copy, cut, paste (see [Copying and moving](copy-move.md)) |
 | F2 | Rename (see [Renaming and new folders](rename.md)) |
 | **Ctrl + Shift + N** | New folder |
@@ -60,7 +63,7 @@ With the mouse: **Ctrl + click** adds or removes an item, **Shift + click** sele
 | → | Expand the folder; if already expanded, go to its first subfolder |
 | ← | Collapse the folder; if already collapsed, go to its parent |
 | Backspace | Parent folder |
-| Tab | Next folder; from the last one to the grid |
+| Tab | Next folder; from the last one to the box of a copy or of Convert under way, if there is one (its **Cancel**: **Enter** or **Space** presses it, **Tab** goes on to the grid, **Shift + Tab** back to the folders), otherwise to the grid |
 | **Shift + Tab** | Previous folder; from the first one to the last device |
 
 In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device enters its first folder), → and ← expand and collapse it, **Enter** opens it on the right, **Tab** goes to the next one and from the last one to the computer's folders, **Shift + Tab** to the previous one and from the first one to the last item of the grid.
@@ -69,6 +72,7 @@ In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device e
 
 | Key | Action |
 |---|---|
+| Tab, **Shift + Tab** | Go through the buttons of the bars; there ← and → no longer change the image, on the zoom slider they change the zoom |
 | →, Space, Page Down | Next image |
 | ←, Backspace, Page Up | Previous image |
 | Home, End | First, last image |
@@ -151,6 +155,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 
 | Key | Action |
 |---|---|
+| Tab, **Shift + Tab** | Go through the buttons of the bars and the image; on the zoom slider ← and → change the zoom |
 | V | Select |
 | M | Selection (a part of the image) |
 | A, L, P | Arrow, Line, Freehand |
@@ -181,5 +186,5 @@ See [Editing an image](editor.md).
 
 ## In other pages
 
-- **Save as**: **Esc** closes the page without saving.
-- **Find duplicates**: **↑** and **↓** move between the copies, **Space** ticks or unticks, **Esc** closes. Enter does not delete.
+- **Save as**: **Tab** and **Shift + Tab** go through its controls, the arrows move between them, **Enter** or **Space** presses the highlighted one; **Esc** closes the page without saving.
+- **Find duplicates**: **↑** and **↓** move between the copies, **Space** ticks or unticks, **Esc** closes. Enter does not delete. **Tab** goes to the controls of the page; there the arrows move between them.

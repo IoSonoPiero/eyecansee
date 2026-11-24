@@ -130,9 +130,28 @@ fn slider(ui: &mut egui::Ui, i18n: &I18n, zoom: f32, range: [f32; 2]) -> Option<
     let r = crate::ticked::styled(ui, |ui| ui.add_sized([SLIDER, thick + 6.0], slider)).on_hover_text(i18n.t("zoom-slider-hint"));
     let marks: Vec<f64> = zoom::slider_marks(range).into_iter().map(|z| f64::from(zoom::to_slider(z, range))).collect();
     crate::ticked::paint(ui, &r, 0.0..=1.0, &marks);
-    // The arrows change the image (or move what is selected): a focused slider would move as well.
-    if r.has_focus() {
+    // The arrows change the image (or move what is selected): a slider focused by a click would
+    // move as well, it lets the keyboard go. Reached with Tab it keeps it, and the arrows move it:
+    // letting it go, Tab was lost there (#311).
+    // Shift+Tab gives it the keyboard at the end of the frame, after it is drawn: the Tab of the
+    // frame before counts too (the frame it came in; `u64::MAX` once kept).
+    let (by_tab, now, tab) = (r.id.with("by-tab"), ui.ctx().cumulative_frame_nr(), ui.input(|i| i.key_pressed(egui::Key::Tab)));
+    let tabbed = ui.data(|d| d.get_temp::<u64>(by_tab)).is_some_and(|f| f.saturating_add(1) >= now);
+    if r.has_focus() && !(tab || tabbed) {
         r.surrender_focus();
     }
+    let keep = match (r.has_focus(), tab) {
+        (true, _) => Some(u64::MAX),
+        (false, true) => Some(now),
+        (false, false) => None,
+    };
+    ui.data_mut(|d| match keep {
+        Some(frame) => {
+            d.insert_temp(by_tab, frame);
+        }
+        None => {
+            d.remove::<u64>(by_tab);
+        }
+    });
     r.changed().then(|| zoom::from_slider(at, range))
 }

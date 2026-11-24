@@ -28,6 +28,7 @@ mod batch_summary;
 mod batch_video;
 mod bar_rows;
 mod bookmarks;
+mod box_keys;
 mod browser;
 mod cad;
 mod cad_engine;
@@ -227,6 +228,8 @@ mod zoom_bar;
 mod help_check;
 #[cfg(test)]
 mod audit_family_1;
+#[cfg(test)]
+mod window_keys;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -595,11 +598,13 @@ impl eframe::App for App {
         }
         let paste_to = if raw_input.events.iter().any(|e| matches!(e, egui::Event::Paste(_))) { self.paste_to.take().map(|(dir, _)| dir) } else { None };
         browser::menu_clicks(ctx, raw_input);
-        if self.asking_keys(ctx, raw_input) {
+        if self.asking_keys(ctx, raw_input) || self.box_keys(ctx, raw_input) {
             return;
         }
         self.first_start_keys(ctx, raw_input);
-        if ctx.egui_wants_keyboard_input() || egui::Popup::is_any_open(ctx) || self.rename.is_some() || self.new_folder.is_some() {
+        // Save as and Find duplicates cover the grid: Tab, copy and paste are theirs, not its (#311).
+        let page = self.convert.is_some() || self.dup_page_shown();
+        if page || ctx.egui_wants_keyboard_input() || egui::Popup::is_any_open(ctx) || self.rename.is_some() || self.new_folder.is_some() {
             return;
         }
         // Copy, cut and paste reach the app as events, not keys. On Windows Shift+Del is a cut
@@ -635,7 +640,8 @@ impl eframe::App for App {
             };
             false
         });
-        if self.viewing.is_some() {
+        // With the guide open Tab goes into it (`help_window`, #311).
+        if self.viewing.is_some() || self.help.open {
             return;
         }
         raw_input.events.retain(|e| match e {

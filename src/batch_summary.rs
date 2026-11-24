@@ -216,7 +216,7 @@ impl App {
                     None => {}
                 }
             });
-            copy_button(ui, &tip, || s.copy.clone());
+            copy_button(ui, id, &tip, || s.copy.clone());
         });
         if let Some(address) = go {
             log!("batch summary: Open the folder {:?}", crate::address::without_password(&address));

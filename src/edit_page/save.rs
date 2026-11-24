@@ -319,7 +319,8 @@ impl App {
         let i18n = &self.i18n;
         let mut extra = |ui: &mut egui::Ui| {
             if offers {
-                crate::convert::meta_choice(ui, &mut keep, i18n);
+                // Tab reaches the list with the buttons, Space opens it (#311).
+                crate::confirm::join("edit-save", &crate::convert::meta_choice(ui, &mut keep, i18n));
             }
         };
         let keys = crate::confirm::answer(ctx, &mut self.key_answer, "edit-save");

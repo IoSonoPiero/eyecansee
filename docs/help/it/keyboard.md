@@ -8,6 +8,7 @@ Tutti i tasti di EyeCanSee, divisi per posto. I menù mostrano il tasto accanto 
 |---|---|
 | F1 | Apre questa guida sulla pagina di ciò che stai facendo; di nuovo per chiuderla |
 | Esc due volte, di seguito | Chiude questa guida, col puntatore sopra o mentre scrivi nel suo campo di ricerca (un solo Esc esce dal campo). Sopra una finestra, per esempio un messaggio, ovunque sia il puntatore: la finestra resta aperta |
+| Tab, **Maiusc + Tab** (con questa guida aperta) | Passano tra il campo di ricerca, l'indice e la pagina di questa guida; non arrivano alla griglia o al visore sotto |
 
 ## Nella griglia e nel visore
 
@@ -19,9 +20,11 @@ Tutti i tasti di EyeCanSee, divisi per posto. I menù mostrano il tasto accanto 
 | **Ctrl + Z**, **Ctrl + Y** | Nel visore: annulla, ripete una rotazione o riflessione non salvata |
 | **Ctrl + Maiusc + D** | Segnalibri: si apre l'elenco; ↓ ci entra, Invio apre il segnalibro scelto (vedi [Segnalibri](bookmarks.md)) |
 
-Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** le chiudono. In quelle che chiedono una scelta, all'apertura è evidenziato un pulsante: la scelta principale, oppure **Annulla** quando la scelta principale non si può annullare (eliminare definitivamente o in un cestino, eliminare cartelle, salvare sopra molte foto o sopra un originale eliminato definitivamente, fidarsi di un server nuovo, eliminare un server salvato o la password principale) o farebbe perdere dati. **Tab**, **Maiusc + Tab** e le frecce passano da un pulsante all'altro, **Invio** o **Spazio** premono quello evidenziato, **Esc** annulla. Quando un nome è già usato, è evidenziato **Tieni entrambi**. Con questa guida aperta sopra la finestra, **Esc** va prima alla guida (due la chiudono, come ovunque), **Invio** non risponde alla finestra, e ciò che scrivi nel campo di ricerca della guida resta lì.
+Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** le chiudono; dopo i loro pulsanti **Tab** raggiunge la piccola icona di copia (**Copia il messaggio**), e **Invio** su di essa copia il testo. In quelle che chiedono una scelta, all'apertura è evidenziato un pulsante: la scelta principale, oppure **Annulla** quando la scelta principale non si può annullare (eliminare definitivamente o in un cestino, eliminare cartelle, salvare sopra molte foto o sopra un originale eliminato definitivamente, fidarsi di un server nuovo, eliminare un server salvato o la password principale) o farebbe perdere dati. **Tab**, **Maiusc + Tab** e le frecce passano tra i pulsanti e gli altri controlli della finestra, nell'ordine che hanno sullo schermo, **Invio** o **Spazio** premono quello evidenziato (su una casella, un elenco o un link spuntano la casella, aprono l'elenco o il link; in un elenco aperto le frecce e **Invio** scelgono, **Esc** chiude solo l'elenco), **Esc** annulla. Quando un nome è già usato, è evidenziato **Tieni entrambi**. Con questa guida aperta sopra la finestra, **Esc** va prima alla guida (due la chiudono, come ovunque), **Invio** non risponde alla finestra, e ciò che scrivi nel campo di ricerca della guida resta lì.
 
-In **Nuova immagine** e **Opzioni**, **Tab** e **Maiusc + Tab** fanno il giro dei loro controlli: dall'ultimo si torna al primo, e al contrario; non arrivano mai ai menu o alla griglia sotto la finestra. Lo stesso in **Gestione server** e nella scelta della cartella di **Salva come** e **Converti**: **Tab** e le frecce passano tra posti, cartelle e pulsanti, **Invio** su una cartella ci entra.
+In **Informazioni su EyeCanSee** all'apertura non è evidenziato niente: **Invio** o **Esc** la chiudono. **Tab** e **Maiusc + Tab** passano tra i suoi link e **Copia (per segnalare un problema)**, **Invio** o **Spazio** aprono o premono quello evidenziato.
+
+In **Nuova immagine** e **Opzioni**, **Tab** e **Maiusc + Tab** fanno il giro dei loro controlli: dall'ultimo si torna al primo, e al contrario; non arrivano mai ai menu o alla griglia sotto la finestra. Lo stesso in **Gestione server** e nella scelta della cartella di **Salva come** e **Converti**: **Tab** e le frecce passano tra posti, cartelle e pulsanti, **Invio** su una cartella ci entra. In **Apri indirizzo**, **Segnalibri > Configura…**, la password principale, **Converti** e **Ridimensiona** dell'editor, **Tab** con niente evidenziato va ai loro campi, elenchi e pulsanti, e le frecce passano dall'uno all'altro.
 
 Nel suggerimento all'avvio, → e ← mostrano il suggerimento successivo e quello precedente; all'apertura è evidenziato **Chiudi**, **Tab** e **Maiusc + Tab** passano, nell'ordine che hanno sullo schermo, tra **Leggi di più nella guida**, **Indietro**, **Avanti**, **Chiudi** e **Non mostrare più all'avvio**, **Invio** o **Spazio** premono quello evidenziato, **Esc** lo chiude; gli altri tasti non fanno niente, tranne **F1**, che apre questa guida (vedi [Per cominciare](start.md)).
 
@@ -38,7 +41,7 @@ Nella finestra del primo avvio ogni pagina si apre col suo pulsante principale e
 | Backspace | Cartella superiore |
 | **Ctrl + A** | Seleziona tutto nella cartella |
 | Tab | Elemento successivo; dall'ultimo passa ai dispositivi |
-| **Maiusc + Tab** | Elemento precedente; dal primo passa alla cartella aperta a sinistra |
+| **Maiusc + Tab** | Elemento precedente; dal primo passa al riquadro di una copia o di Converti in corso, se c'è, altrimenti alla cartella aperta a sinistra |
 | **Ctrl + C**, **Ctrl + X**, **Ctrl + V** | Copia, taglia, incolla (vedi [Copiare e spostare](copy-move.md)) |
 | F2 | Rinomina (vedi [Rinominare e nuove cartelle](rename.md)) |
 | **Ctrl + Maiusc + N** | Nuova cartella |
@@ -60,7 +63,7 @@ Con il mouse: **Ctrl + clic** aggiunge o toglie un elemento, **Maiusc + clic** s
 | → | Apre la cartella; se è già aperta, va alla prima sottocartella |
 | ← | Chiude la cartella; se è già chiusa, va a quella superiore |
 | Backspace | Cartella superiore |
-| Tab | Cartella successiva; dall'ultima passa alla griglia |
+| Tab | Cartella successiva; dall'ultima passa al riquadro di una copia o di Converti in corso, se c'è (il suo **Annulla**: **Invio** o **Spazio** lo premono, **Tab** prosegue alla griglia, **Maiusc + Tab** torna alle cartelle), altrimenti alla griglia |
 | **Maiusc + Tab** | Cartella precedente; dalla prima passa all'ultimo dispositivo |
 
 Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositivo aperto entra nella sua prima cartella), → e ← lo aprono e lo chiudono, **Invio** lo apre a destra, **Tab** passa al successivo e dall'ultimo alle cartelle del computer, **Maiusc + Tab** al precedente e dal primo all'ultimo elemento della griglia.
@@ -69,6 +72,7 @@ Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositiv
 
 | Tasto | Azione |
 |---|---|
+| Tab, **Maiusc + Tab** | Passano tra i pulsanti delle barre; lì ← e → non cambiano più immagine, sul cursore dello zoom cambiano lo zoom |
 | →, Spazio, Pagina giù | Immagine successiva |
 | ←, Backspace, Pagina su | Immagine precedente |
 | Inizio, Fine | Prima, ultima immagine |
@@ -151,6 +155,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 
 | Tasto | Azione |
 |---|---|
+| Tab, **Maiusc + Tab** | Passano tra i pulsanti delle barre e l'immagine; sul cursore dello zoom ← e → cambiano lo zoom |
 | V | Seleziona |
 | M | Selezione (una parte dell'immagine) |
 | A, L, P | Freccia, Linea, Mano libera |
@@ -181,5 +186,5 @@ Vedi [Modificare un'immagine](editor.md).
 
 ## In altre pagine
 
-- **Salva come**: **Esc** chiude la pagina senza salvare.
-- **Trova duplicati**: **↑** e **↓** passano tra le copie, **Spazio** spunta o toglie, **Esc** chiude. Invio non elimina.
+- **Salva come**: **Tab** e **Maiusc + Tab** passano tra i suoi controlli, le frecce dall'uno all'altro, **Invio** o **Spazio** preme quello evidenziato; **Esc** chiude la pagina senza salvare.
+- **Trova duplicati**: **↑** e **↓** passano tra le copie, **Spazio** spunta o toglie, **Esc** chiude. Invio non elimina. **Tab** va ai controlli della pagina; lì le frecce passano dall'uno all'altro.

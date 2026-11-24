@@ -422,6 +422,12 @@ impl Window {
         self.resizing.is_some()
     }
 
+    /// Its picture is read and shown (tests).
+    #[cfg(test)]
+    pub(crate) fn read(&self) -> bool {
+        matches!(self.original, Some(Ok(_)))
+    }
+
     /// Anything not saved yet.
     fn changed(&self) -> bool {
         self.history.as_ref().is_some_and(|h| h.changed() || self.doc != *h.doc())
