@@ -323,7 +323,7 @@ fn gltf_mesh<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>
 
 /// The base colour's picture and factor: metallic-roughness's, or the diffuse of a
 /// specular-glossiness material (KHR_materials_pbrSpecularGlossiness, written by older
-/// exporters; audit 6.16), which takes its place as Blender and three.js read it.
+/// exporters; audit 6.16), which takes its place as Blender reads it.
 fn base<'a>(mat: &gltf::Material<'a>) -> (Option<gltf::texture::Info<'a>>, [f32; 4]) {
     match mat.pbr_specular_glossiness() {
         Some(sg) => (sg.diffuse_texture(), sg.diffuse_factor()),
