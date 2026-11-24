@@ -89,6 +89,9 @@ pub struct Progress {
     /// message at the end of the copy, which is not an error (the rest was copied), and a move
     /// keeps the folders that hold them.
     pub refused: Mutex<Vec<String>>,
+    /// The items of the plan made in the folder of arrival, by their names there, in the order
+    /// made: the UI selects the last one (#323). Not what is copied below a folder.
+    pub made: Mutex<Vec<String>>,
     /// What a move left in the folders it moved without copying it (`originals`): items that
     /// arrived while it ran, or a folder holding what cannot be seen. They stay, with their
     /// folders, and a message at the end of the copy names them (#194).
@@ -813,6 +816,7 @@ mod tests {
             let (gone, r) = run(&c, &op, &base, "b/", &choices, &p).await;
             r.unwrap();
             assert!(gone.is_empty());
+            assert_eq!(*p.made.lock().unwrap(), ["b/x (2).jpg", "b/sub/"], "what the paste made, in order (#323)");
             assert_eq!(std::fs::read(dir.join("b/x (2).jpg")).unwrap().len(), 3 << 20);
             assert_eq!(std::fs::read(dir.join("b/x.jpg")).unwrap(), b"old");
             assert_eq!(std::fs::read(dir.join("b/sub/y.mp4")).unwrap(), b"video");
@@ -832,9 +836,11 @@ mod tests {
             assert!(dir.join("a/sub (2)/y.mp4").exists());
 
             // Move replacing: the old x.jpg is gone, the source too.
-            let (gone, r) = run(&clip(&["a/x.jpg"], true), &op, &base, "b/", &HashMap::new(), &Progress::default()).await;
+            let p = Progress::default();
+            let (gone, r) = run(&clip(&["a/x.jpg"], true), &op, &base, "b/", &HashMap::new(), &p).await;
             r.unwrap();
             assert_eq!(gone, vec!["a/x.jpg"]);
+            assert_eq!(*p.made.lock().unwrap(), ["b/x.jpg"], "a move by a rename made x.jpg there (#323)");
             assert_eq!(std::fs::read(dir.join("b/x.jpg")).unwrap().len(), 3 << 20);
             assert!(!dir.join("a/x.jpg").exists());
             assert_eq!(thumbcache::take("b/x.jpg", 3 << 20).as_ref(), Some(&thumb), "moved by a rename: the thumbnail waits too");
