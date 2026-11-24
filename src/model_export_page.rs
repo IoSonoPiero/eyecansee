@@ -6,6 +6,7 @@ use eframe::egui;
 use crate::App;
 use crate::i18n::I18n;
 use crate::model_export::Kind;
+use crate::confirm::FollowList;
 
 /// The window open: the models it works on (`None` = those chosen when it opened), the format,
 /// and the triangles of those already read (in the viewer, `model.meshes`).
@@ -58,7 +59,7 @@ fn form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer> {
     ui.add_space(6.0);
     ui.horizontal(|ui| {
         ui.label(t("model-export-format"));
-        egui::ComboBox::from_id_salt("model-export-format").width(160.0).selected_text(f.kind.label()).show_ui(ui, |ui| {
+        egui::ComboBox::from_id_salt("model-export-format").width(160.0).selected_text(f.kind.label()).show_list(ui, |ui| {
             for k in Kind::ALL {
                 ui.selectable_value(&mut f.kind, k, k.label());
             }

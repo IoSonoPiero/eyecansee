@@ -11,6 +11,7 @@ use crate::component::{Addon, Have};
 use crate::downloads::Downloads;
 use crate::first_start::{After, Answer, Card, Desktop, Page, Plan};
 use crate::settings::ThemeChoice;
+use crate::confirm::FollowArea;
 
 /// Width of the window.
 const WIDTH: f32 = 560.0;
@@ -377,7 +378,7 @@ fn card(ui: &mut egui::Ui, width: f32, name: &str, choices: impl FnOnce(&mut egu
             ui.label(egui::RichText::new(name).family(egui::FontFamily::Name(crate::BOLD.into())));
             ui.add_space(6.0);
             let height = CHOICES * CHOICE + (CHOICES - 1.0) * 2.0;
-            egui::ScrollArea::vertical().id_salt(name).max_height(height).auto_shrink([false, false]).show(ui, choices);
+            egui::ScrollArea::vertical().id_salt(name).max_height(height).auto_shrink([false, false]).show_follow(ui, choices);
         });
     });
 }
@@ -444,7 +445,7 @@ fn addons(ui: &mut egui::Ui, rows: &mut [(Addon, Have, bool)], downloads: &crate
     ui.add_space(18.0);
     let later = egui::Label::new(egui::RichText::new(i18n.t("first-start-addons-later")).weak()).wrap();
     let mut list = |ui: &mut egui::Ui| {
-        egui::ScrollArea::vertical().max_height(ui.available_height().min(BODY)).auto_shrink([false, true]).show(ui, |ui| {
+        egui::ScrollArea::vertical().max_height(ui.available_height().min(BODY)).auto_shrink([false, true]).show_follow(ui, |ui| {
             for (i, (a, have, ticked)) in rows.iter_mut().enumerate() {
                 if i > 0 {
                     ui.add_space(8.0);

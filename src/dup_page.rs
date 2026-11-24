@@ -10,6 +10,8 @@ use eframe::egui::{self, ColorImage, Key};
 use crate::duplicates::{Group, Keep, Order, Progress};
 use crate::mipmap::{self, Picture};
 use crate::{App, BOLD, browser, icons, source, theme};
+use crate::confirm::FollowList;
+use crate::confirm::FollowArea;
 
 /// Side of the thumbnail of each group.
 const THUMB: f32 = 96.0;
@@ -252,7 +254,7 @@ impl App {
             let before = w.order;
             egui::ComboBox::from_id_salt("dup-order")
                 .selected_text(t(order_label(w.order)))
-                .show_ui(ui, |ui| {
+                .show_list(ui, |ui| {
                     for o in [Order::Date, Order::Name, Order::Path] {
                         ui.selectable_value(&mut w.order, o, t(order_label(o)));
                     }
@@ -306,7 +308,7 @@ impl App {
         }
         let mut groups = groups;
         // ponytail: every group laid out at every frame; show_rows-style virtualising if thousands make it slow
-        egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+        egui::ScrollArea::vertical().auto_shrink(false).show_follow(ui, |ui| {
             for (gi, g) in groups.iter_mut().enumerate() {
                 if let Some(path) = self.dup_group(ui, w, gi, g) {
                     view = Some(path);

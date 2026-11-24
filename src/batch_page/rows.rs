@@ -2,6 +2,8 @@
 //! destination, and the buttons. Moved from `batch_page.rs` on 2026-11-14, unchanged.
 
 use super::*;
+use crate::confirm::FollowList;
+use crate::confirm::FollowArea;
 
 /// The choices of the window; `Some(true)` Convert, `Some(false)` Cancel.
 pub(super) fn form_ui(ui: &mut egui::Ui, f: &mut Form, dl: &mut crate::downloads::Slot, i18n: &I18n) -> Option<bool> {
@@ -16,7 +18,7 @@ pub(super) fn form_ui(ui: &mut egui::Ui, f: &mut Form, dl: &mut crate::downloads
     if scroll && f.part != Part::Resize {
         area = area.vertical_scroll_offset(0.0);
     }
-    area.show(ui, |ui| {
+    area.show_follow(ui, |ui| {
         if let Some(job) = f.audio {
             section(ui, t("batch-video"), |ui| audio_rows(ui, dl, job, i18n));
             section(ui, t("batch-where"), |ui| where_rows(ui, f, i18n));
@@ -83,7 +85,7 @@ fn section(ui: &mut egui::Ui, title: String, add: impl FnOnce(&mut egui::Ui)) {
 fn format_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
     let t = |id| i18n.t(id);
     let label = |format: Option<Format>| format.map_or_else(|| t("batch-same-format"), |f| f.label().to_string());
-    egui::ComboBox::from_id_salt("batch-format").selected_text(label(f.format)).show_ui(ui, |ui| {
+    egui::ComboBox::from_id_salt("batch-format").selected_text(label(f.format)).show_list(ui, |ui| {
         ui.selectable_value(&mut f.format, None, t("batch-same-format"));
         for format in Format::ALL {
             ui.selectable_value(&mut f.format, Some(format), format.label());
@@ -128,7 +130,7 @@ fn drawing_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
     let format = f.format.unwrap_or(Format::Png);
     let others = [(Drawn::Svg, "SVG"), (Drawn::Cad(Target::Dwg), "DWG"), (Drawn::Cad(Target::Dxf), "DXF")];
     let label = others.iter().find(|(d, _)| f.kept == Some(*d)).map_or(format.label(), |(_, l)| l);
-    egui::ComboBox::from_id_salt("drawing-format").selected_text(label).show_ui(ui, |ui| {
+    egui::ComboBox::from_id_salt("drawing-format").selected_text(label).show_list(ui, |ui| {
         for k in Format::ALL {
             if ui.selectable_label(f.kept.is_none() && k == format, k.label()).clicked() {
                 (f.kept, f.format) = (None, Some(k));
@@ -190,7 +192,7 @@ fn size_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
         if !f.images {
             return;
         }
-        egui::ComboBox::from_label(t("batch-filter")).selected_text(t(f.filter.label())).show_ui(ui, |ui| {
+        egui::ComboBox::from_label(t("batch-filter")).selected_text(t(f.filter.label())).show_list(ui, |ui| {
             for filter in Filter::ALL {
                 ui.selectable_value(&mut f.filter, filter, t(filter.label()));
             }

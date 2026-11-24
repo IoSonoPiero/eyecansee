@@ -11,6 +11,8 @@ use crate::batch::Size;
 use crate::browser::MenuItem;
 use crate::i18n::I18n;
 use crate::settings::Settings;
+use crate::confirm::FollowList;
+use crate::confirm::FollowArea;
 
 /// A size of Resize; the name may be empty (the menu then shows only the size).
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
@@ -73,7 +75,7 @@ pub fn options_ui(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
     let before = of(s, i18n);
     let mut list = before.clone();
     let mut remove = None;
-    egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+    egui::ScrollArea::vertical().max_height(200.0).show_follow(ui, |ui| {
         for (i, p) in list.iter_mut().enumerate() {
             ui.horizontal(|ui| {
                 ui.add(egui::TextEdit::singleline(&mut p.name).id_salt(("preset-name", i)).desired_width(130.0).hint_text(t("opt-resize-name")));
@@ -105,7 +107,7 @@ pub fn options_ui(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
 
 /// The kind of a preset's size; another kind starts from its first measures (`Size::KINDS`).
 fn kind_combo(ui: &mut egui::Ui, size: &mut Size, i: usize, i18n: &I18n) {
-    egui::ComboBox::from_id_salt(("preset-kind", i)).width(170.0).selected_text(i18n.t(size.label())).show_ui(ui, |ui| {
+    egui::ComboBox::from_id_salt(("preset-kind", i)).width(170.0).selected_text(i18n.t(size.label())).show_list(ui, |ui| {
         for kind in &Size::KINDS[1..] {
             if ui.selectable_label(size.same_kind(*kind), i18n.t(kind.label())).clicked() && !size.same_kind(*kind) {
                 *size = *kind;

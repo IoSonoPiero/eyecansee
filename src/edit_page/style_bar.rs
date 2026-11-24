@@ -13,6 +13,7 @@ use crate::edit::geom::Kind;
 use crate::edit::turn;
 use crate::i18n::I18n;
 use crate::icons::{self, Line};
+use crate::confirm::FollowList;
 
 /// Ready-made colours: red, orange, yellow, green, blue, purple, black, white.
 const COLOURS: [([u8; 3], &str); 8] = [
@@ -309,7 +310,7 @@ fn font_choice(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
     let default = i18n.t("edit-font-default");
     let (mut pointed, mut chosen) = (None, None);
     let families = crate::decode::font_families();
-    let r = egui::ComboBox::from_id_salt("edit-font").width(180.0).height(420.0).selected_text(own.clone().unwrap_or_else(|| default.clone())).show_ui(ui, |ui| {
+    let r = egui::ComboBox::from_id_salt("edit-font").width(180.0).height(420.0).selected_text(own.clone().unwrap_or_else(|| default.clone())).show_list(ui, |ui| {
         for f in std::iter::once(None).chain(families.iter().cloned().map(Some)) {
             let r = ui.selectable_label(own == f, f.clone().unwrap_or_else(|| default.clone()));
             if r.hovered() {

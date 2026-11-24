@@ -6,6 +6,7 @@ use eframe::egui;
 use crate::address::AddressForm;
 use crate::vault_page::Change;
 use crate::App;
+use crate::confirm::FollowArea;
 
 impl App {
     pub(crate) fn server_manager_window(&mut self, ctx: &egui::Context) {
@@ -79,7 +80,7 @@ impl App {
     /// The saved servers, the chosen one highlighted, and "New server" below.
     fn server_list(&self, ui: &mut egui::Ui, f: &mut AddressForm) {
         ui.set_width(190.0);
-        egui::ScrollArea::vertical().id_salt("srv-list").max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {
+        egui::ScrollArea::vertical().id_salt("srv-list").max_height(300.0).auto_shrink([false, true]).show_follow(ui, |ui| {
             if f.servers.is_empty() {
                 ui.label(egui::RichText::new(self.i18n.t("srv-empty")).weak());
             }

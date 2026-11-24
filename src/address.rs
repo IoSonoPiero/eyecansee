@@ -9,6 +9,7 @@ use percent_encoding::percent_decode_str;
 
 use crate::servers::{self, Saved};
 use crate::App;
+use crate::confirm::FollowList;
 
 /// Protocols of File > Open location.
 const SCHEMES: &[&str] = &["ftp", "ftps", "sftp"];
@@ -307,7 +308,7 @@ impl App {
             field(ui, t("addr-name"), &mut f.name, host_hint, false);
         }
         ui.label(t("addr-protocol"));
-        egui::ComboBox::from_id_salt("addr-scheme").selected_text(SCHEMES[f.scheme].to_uppercase()).show_ui(ui, |ui| {
+        egui::ComboBox::from_id_salt("addr-scheme").selected_text(SCHEMES[f.scheme].to_uppercase()).show_list(ui, |ui| {
             for (i, s) in SCHEMES.iter().enumerate() {
                 ui.selectable_value(&mut f.scheme, i, s.to_uppercase());
             }

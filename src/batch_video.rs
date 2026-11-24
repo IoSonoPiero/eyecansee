@@ -11,6 +11,7 @@ use crate::audio_job::AudioJob;
 use crate::downloads::Slot;
 use crate::ffmpeg::{CONTAINERS, Codec, Quality};
 use crate::i18n::I18n;
+use crate::confirm::FollowList;
 
 
 /// The choices for the videos.
@@ -98,7 +99,7 @@ pub(crate) fn sound_rows(ui: &mut egui::Ui, s: &mut SoundForm, dl: &mut Slot, i1
     if !formats.contains(&s.format) {
         s.format = first;
     }
-    egui::ComboBox::from_label(t("batch-sound-format")).selected_text(FORMATS[s.format].name).show_ui(ui, |ui| {
+    egui::ComboBox::from_label(t("batch-sound-format")).selected_text(FORMATS[s.format].name).show_list(ui, |ui| {
         for &i in &formats {
             ui.selectable_value(&mut s.format, i, FORMATS[i].name);
         }
@@ -170,7 +171,7 @@ pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, dl: &mut Slot, i1
             let text = egui::RichText::new(format!("{} ({e})", crate::ffmpeg::maker(e)));
             if crate::ffmpeg::hardware(e) { text.color(good) } else { text }
         };
-        egui::ComboBox::from_label(t("batch-video-encoder")).selected_text(name(v.encoder.unwrap_or_default())).show_ui(ui, |ui| {
+        egui::ComboBox::from_label(t("batch-video-encoder")).selected_text(name(v.encoder.unwrap_or_default())).show_list(ui, |ui| {
             for &e in &encoders {
                 ui.selectable_value(&mut v.encoder, Some(e), name(e));
             }
@@ -204,7 +205,7 @@ pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, dl: &mut Slot, i1
 fn container_codec_rows(ui: &mut egui::Ui, v: &mut VideoForm, probe: &crate::ffmpeg::Probe, copy_only: bool, i18n: &I18n) {
     let t = |id| i18n.t(id);
     let copy = v.codec == Codec::Copy;
-    egui::ComboBox::from_label(t("batch-video-container")).selected_text(CONTAINERS[v.container].name).show_ui(ui, |ui| {
+    egui::ComboBox::from_label(t("batch-video-container")).selected_text(CONTAINERS[v.container].name).show_list(ui, |ui| {
         for (i, c) in CONTAINERS.iter().enumerate().filter(|(i, _)| !copy || v.copy_into.contains(i)) {
             ui.selectable_value(&mut v.container, i, c.name);
         }
@@ -216,7 +217,7 @@ fn container_codec_rows(ui: &mut egui::Ui, v: &mut VideoForm, probe: &crate::ffm
         v.codec = c.codecs.iter().copied().find(|k| usable(*k)).unwrap_or(c.codecs[0]);
     }
     let label = |k: Codec| if k == Codec::Copy { t("batch-video-copy") } else { k.label().to_string() };
-    egui::ComboBox::from_label(t("batch-video-codec")).selected_text(label(v.codec)).show_ui(ui, |ui| {
+    egui::ComboBox::from_label(t("batch-video-codec")).selected_text(label(v.codec)).show_list(ui, |ui| {
         for &k in c.codecs {
             let usable = usable(k);
             let label = if usable { label(k) } else { i18n.t_args("batch-video-unavailable", &[("codec", k.label())]) };

@@ -8,12 +8,13 @@ use crate::batch::with_ext;
 use crate::encode::{Chroma, Format, Options, Original, PngFilter, TiffCompression};
 use crate::i18n::I18n;
 use crate::meta_strip::Keep;
+use crate::confirm::FollowList;
 
 /// The output format; the name takes its extension.
 pub(super) fn format_choice(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
     let o = &mut w.options;
     let before = o.format;
-    egui::ComboBox::from_label(i18n.t("convert-format")).selected_text(o.format.label()).show_ui(ui, |ui| {
+    egui::ComboBox::from_label(i18n.t("convert-format")).selected_text(o.format.label()).show_list(ui, |ui| {
         for f in Format::ALL {
             ui.selectable_value(&mut o.format, f, f.label());
         }
@@ -78,7 +79,7 @@ fn jpeg_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
                 Chroma::Quarter => "convert-chroma-quarter",
                 Chroma::Grey => "convert-chroma-grey",
             }))
-            .show_ui(ui, |ui| {
+            .show_list(ui, |ui| {
                 ui.selectable_value(&mut o.chroma, Chroma::Full, t("convert-chroma-full"));
                 ui.selectable_value(&mut o.chroma, Chroma::Half, t("convert-chroma-half"));
                 ui.selectable_value(&mut o.chroma, Chroma::Quarter, t("convert-chroma-quarter"));
@@ -103,7 +104,7 @@ fn png_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
         (PngFilter::Paeth, "Paeth".to_string()),
     ];
     let shown = filters.iter().find(|(f, _)| *f == o.png_filter).map(|(_, l)| l.clone()).unwrap_or_default();
-    egui::ComboBox::from_label(t("convert-png-filter")).selected_text(shown).show_ui(ui, |ui| {
+    egui::ComboBox::from_label(t("convert-png-filter")).selected_text(shown).show_list(ui, |ui| {
         for (f, label) in filters {
             ui.selectable_value(&mut o.png_filter, f, label);
         }
@@ -136,7 +137,7 @@ fn tiff_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
         (TiffCompression::PackBits, "PackBits".to_string()),
     ];
     let shown = kinds.iter().find(|(k, _)| *k == o.tiff).map(|(_, l)| l.clone()).unwrap_or_default();
-    egui::ComboBox::from_label(t("convert-compression")).selected_text(shown).show_ui(ui, |ui| {
+    egui::ComboBox::from_label(t("convert-compression")).selected_text(shown).show_list(ui, |ui| {
         for (k, label) in kinds {
             ui.selectable_value(&mut o.tiff, k, label);
         }
@@ -150,7 +151,7 @@ fn tiff_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
 /// the editor's confirmation.
 pub(crate) fn meta_choice(ui: &mut egui::Ui, keep: &mut Keep, i18n: &I18n) {
     ui.horizontal(|ui| {
-        egui::ComboBox::from_id_salt("meta-keep").selected_text(i18n.t(keep.label())).show_ui(ui, |ui| {
+        egui::ComboBox::from_id_salt("meta-keep").selected_text(i18n.t(keep.label())).show_list(ui, |ui| {
             for k in Keep::ALL {
                 ui.selectable_value(keep, k, i18n.t(k.label()));
             }

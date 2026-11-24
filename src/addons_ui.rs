@@ -11,6 +11,7 @@ use eframe::egui;
 use crate::component::{Addon, Have};
 use crate::downloads::Slot;
 use crate::i18n::I18n;
+use crate::confirm::FollowArea;
 
 /// Side of the icon of a row.
 const ICON: f32 = 40.0;
@@ -255,7 +256,7 @@ impl Tab {
         ui.add(egui::Label::new(i18n.t("opt-addons-text")).wrap());
         ui.add_space(8.0);
         let mut pressed = None;
-        egui::ScrollArea::vertical().auto_shrink([false, true]).show(ui, |ui| {
+        egui::ScrollArea::vertical().auto_shrink([false, true]).show_follow(ui, |ui| {
             for (i, (a, have)) in rows.iter().enumerate() {
                 if i > 0 {
                     ui.add_space(8.0);

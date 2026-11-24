@@ -12,6 +12,7 @@ use egui_commonmark::{CommonMarkCache, CommonMarkViewer, SearchOptions};
 
 use crate::help_search::{self, Area, Hit, Kind};
 use crate::{App, icons};
+use crate::confirm::FollowArea;
 
 /// The pages, listed once: each id has its file in every language.
 macro_rules! pages {
@@ -540,7 +541,7 @@ fn draw(ui: &mut egui::Ui, g: &mut Guide, v: &View) -> Option<Do> {
     egui::Panel::top("help-bar").show(ui, |ui| bar(ui, v, &mut todo));
     egui::Panel::left("help-side").resizable(true).default_size(260.0).size_range(160.0..=480.0).show(ui, |ui| side(ui, g, v, &mut todo));
     egui::CentralPanel::default().show(ui, |ui| {
-        egui::ScrollArea::vertical().id_salt(("help-page", g.page)).auto_shrink(false).show(ui, |ui| {
+        egui::ScrollArea::vertical().id_salt(("help-page", g.page)).auto_shrink(false).show_follow(ui, |ui| {
             CommonMarkViewer::new().default_implicit_uri_scheme(pages_uri(g.lang)).show_with_id(viewer_id(), ui, &mut g.cache, v.text);
         });
     });
@@ -581,7 +582,7 @@ fn side(ui: &mut egui::Ui, g: &mut Guide, v: &View, todo: &mut Option<Do>) {
     ui.add_space(4.0);
     search_field(ui, g, v, todo);
     ui.add_space(4.0);
-    egui::ScrollArea::vertical().id_salt("help-side").auto_shrink(false).show(ui, |ui| {
+    egui::ScrollArea::vertical().id_salt("help-side").auto_shrink(false).show_follow(ui, |ui| {
         if g.query.trim().is_empty() {
             for area in &v.areas {
                 ui.add_space(6.0);

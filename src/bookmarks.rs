@@ -15,6 +15,7 @@ use crate::browser::MenuItem;
 use crate::devices::{self, Device};
 use crate::icons::{self, Line};
 use crate::App;
+use crate::confirm::FollowArea;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, Default)]
 #[serde(default)]
@@ -318,7 +319,7 @@ impl App {
         let n = list.len();
         // (row, -1 up, 1 down, 0 remove), done after the rows are drawn.
         let mut change = None;
-        egui::ScrollArea::vertical().max_height(400.0).auto_shrink([false, true]).show(ui, |ui| {
+        egui::ScrollArea::vertical().max_height(400.0).auto_shrink([false, true]).show_follow(ui, |ui| {
             for (i, b) in list.iter_mut().enumerate() {
                 egui::Frame::group(ui.style()).inner_margin(8.0).show(ui, |ui| {
                     ui.set_width(ui.available_width());

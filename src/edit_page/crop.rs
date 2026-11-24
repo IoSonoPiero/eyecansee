@@ -8,6 +8,7 @@ use super::{ASPECTS, Aspect, Follow, Window};
 use crate::encode::Format;
 use crate::i18n::I18n;
 use crate::icons::{self, Line};
+use crate::confirm::FollowList;
 
 /// Everything in a row; `true` if the crop must be made again.
 pub(super) fn controls(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
@@ -61,7 +62,7 @@ fn crop_controls(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     };
     let before = (w.aspect, w.custom, w.swapped, w.follow);
     ui.label(t("rc-crop"));
-    egui::ComboBox::from_id_salt("rc-aspect").selected_text(label(w.aspect)).show_ui(ui, |ui| {
+    egui::ComboBox::from_id_salt("rc-aspect").selected_text(label(w.aspect)).show_list(ui, |ui| {
         for a in ASPECTS {
             ui.selectable_value(&mut w.aspect, a, label(a));
         }

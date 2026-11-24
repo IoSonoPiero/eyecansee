@@ -324,6 +324,61 @@ impl App {
     }
 }
 
+/// A combo box whose list follows the keyboard (`follow_focus`): `show_list` in place of egui's
+/// `show_ui`, in every combo box of the app.
+pub(crate) trait FollowList {
+    fn show_list<R>(self, ui: &mut egui::Ui, contents: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<Option<R>>;
+}
+
+impl FollowList for egui::ComboBox<'_> {
+    fn show_list<R>(self, ui: &mut egui::Ui, contents: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<Option<R>> {
+        self.show_ui(ui, |ui| {
+            let r = contents(ui);
+            follow_focus(ui);
+            r
+        })
+    }
+}
+
+/// A scroll area that follows the keyboard (`follow_focus`): `show_follow` in place of `show`, in
+/// the lists and pages of the windows (the grid and the tree move with their own keys).
+pub(crate) trait FollowArea {
+    fn show_follow<R>(self, ui: &mut egui::Ui, contents: impl FnOnce(&mut egui::Ui) -> R) -> egui::scroll_area::ScrollAreaOutput<R>;
+}
+
+impl FollowArea for egui::ScrollArea {
+    fn show_follow<R>(self, ui: &mut egui::Ui, contents: impl FnOnce(&mut egui::Ui) -> R) -> egui::scroll_area::ScrollAreaOutput<R> {
+        self.show(ui, |ui| {
+            let r = contents(ui);
+            follow_focus(ui);
+            r
+        })
+    }
+}
+
+/// A list or a page that scrolls follows the keyboard (#311): when the focus moves (Tab, the
+/// arrows) to a widget of `ui` out of sight, `ui` scrolls to show it. egui moves the focus but
+/// does not scroll (a long list of a combo box, opened with the keyboard, stayed still below its
+/// last visible row: Piero, 24/11, the sizes of New image). Called at the end of the contents of a
+/// scroll area: a combo box's list, a page, a list in a window. Only when the focus has just moved,
+/// so a scroll made with the mouse stays.
+pub(crate) fn follow_focus(ui: &egui::Ui) {
+    let ctx = ui.ctx();
+    let Some(id) = ctx.memory(|m| m.focused()) else { return };
+    let seen = ui.scope_id().with("follow-focus");
+    if ctx.data(|d| d.get_temp::<egui::Id>(seen)) == Some(id) {
+        return;
+    }
+    let Some(r) = ctx.read_response(id) else { return };
+    if r.layer_id != ui.layer_id() || !ui.min_rect().contains(r.rect.center()) {
+        return;
+    }
+    ctx.data_mut(|d| d.insert_temp(seen, id));
+    if !ui.clip_rect().contains_rect(r.rect) {
+        ui.scroll_to_rect(r.rect, None);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -364,5 +419,35 @@ mod tests {
         let small = egui::Rect::from_min_size(egui::pos2(150.0, 110.0), egui::vec2(20.0, 10.0));
         let rects = [at(0.0, 50.0), at(300.0, 100.0), at(200.0, 100.0), at(0.0, 140.0), small];
         assert_eq!(on_screen(&rects), [0, 4, 2, 1, 3]);
+    }
+
+    /// #311: the arrows move the focus down a long list in a scroll area, past its last visible
+    /// row: the list scrolls to show the row focused (before, it stayed still: Piero, 24/11, the
+    /// sizes of New image needed the mouse).
+    #[test]
+    fn a_list_follows_the_keyboard() {
+        let ctx = egui::Context::default();
+        let mut ids = Vec::new();
+        let mut offset = 0.0;
+        let draw = |ui: &mut egui::Ui, ids: &mut Vec<egui::Id>, offset: &mut f32| {
+            let out = egui::ScrollArea::vertical().max_height(100.0).show(ui, |ui| {
+                ids.clear();
+                for i in 0..40 {
+                    ids.push(ui.selectable_label(false, format!("row {i}")).id);
+                }
+                follow_focus(ui);
+            });
+            *offset = out.state.clamped_offset().y;
+        };
+        let key = |k| egui::Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+        crate::addons_ui::tests::frame(&ctx, Vec::new(), |ui| draw(ui, &mut ids, &mut offset));
+        ctx.memory_mut(|m| m.request_focus(ids[0]));
+        for _ in 0..20 {
+            crate::addons_ui::tests::frame(&ctx, vec![key(egui::Key::ArrowDown)], |ui| draw(ui, &mut ids, &mut offset));
+        }
+        crate::addons_ui::tests::frame(&ctx, Vec::new(), |ui| draw(ui, &mut ids, &mut offset));
+        let focused = ctx.memory(|m| m.focused()).and_then(|f| ids.iter().position(|i| *i == f));
+        assert!(focused.is_some_and(|i| i >= 10), "the arrows moved the focus down: {focused:?}");
+        assert!(offset > 100.0, "the list scrolled to the row focused: offset {offset}");
     }
 }

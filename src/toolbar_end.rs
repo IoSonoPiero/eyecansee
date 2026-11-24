@@ -13,6 +13,7 @@ use crate::loader::THUMB_SIDE;
 use crate::menu::address_id;
 use crate::settings::SortBy;
 use crate::{App, icons, ticked};
+use crate::confirm::FollowList;
 
 /// Width of the sort drop-down.
 const SORT: f32 = 150.0;
@@ -202,7 +203,7 @@ fn sort_buttons(ui: &mut egui::Ui, i18n: &I18n, (mut by, width): (SortBy, f32), 
     egui::ComboBox::from_id_salt("sort")
         .width(width)
         .selected_text(i18n.t(by.label()))
-        .show_ui(ui, |ui| {
+        .show_list(ui, |ui| {
             for b in SortBy::ALL {
                 ui.selectable_value(&mut by, b, i18n.t(b.label()));
             }

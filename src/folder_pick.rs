@@ -11,6 +11,7 @@ use crate::App;
 use crate::i18n::I18n;
 use crate::icons::{self, Icon};
 use crate::source::{self, Store};
+use crate::confirm::FollowArea;
 
 /// Height of the two columns, in points.
 const HEIGHT: f32 = 340.0;
@@ -217,7 +218,7 @@ pub fn pick_ui(ui: &mut egui::Ui, p: &mut Picker, places: &[Place], i18n: &I18n,
     let at = places.iter().enumerate().filter(|(_, pl)| current.starts_with(&pl.address)).max_by_key(|(_, pl)| pl.address.len()).map(|(i, _)| i);
     ui.horizontal_top(|ui| {
         boxed(ui, 160.0, |ui| {
-            egui::ScrollArea::vertical().id_salt("pick-places").auto_shrink([false, false]).show(ui, |ui| {
+            egui::ScrollArea::vertical().id_salt("pick-places").auto_shrink([false, false]).show_follow(ui, |ui| {
                 for (i, place) in places.iter().enumerate() {
                     let label = (icons::image(&ctx, place.icon, 16.0), place.label.as_str());
                     if ui.selectable_label(at == Some(i), label).on_hover_text(&place.address).clicked() {
@@ -285,7 +286,7 @@ fn folders_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
     ui.add_space(2.0);
     ui.separator();
     let dirs = p.dirs.lock().unwrap().clone();
-    egui::ScrollArea::vertical().id_salt("pick-dirs").auto_shrink([false, false]).show(ui, |ui| match dirs {
+    egui::ScrollArea::vertical().id_salt("pick-dirs").auto_shrink([false, false]).show_follow(ui, |ui| match dirs {
         None => {
             ui.spinner();
         }

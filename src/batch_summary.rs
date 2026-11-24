@@ -14,6 +14,7 @@ use crate::batch::{META_TOO_LARGE, SKIP_FORMAT, SKIP_INSIDE, SKIP_NOT_AUTOCAD, S
 use crate::fault::NOT_OPENED;
 use crate::i18n::I18n;
 use crate::save_dialogs::{Head, copy_button, md, notice_text};
+use crate::confirm::FollowArea;
 
 /// What the work did, as it ends.
 pub(crate) struct Outcome<'a> {
@@ -200,7 +201,7 @@ impl App {
                 ui.add_space(8.0);
                 // Hundreds of files left out: the window stays within the screen.
                 let max = ctx.content_rect().height() * 0.45;
-                egui::ScrollArea::vertical().max_height(max).auto_shrink([false, true]).show(ui, |ui| s.groups.iter().for_each(|g| group_ui(ui, g, None)));
+                egui::ScrollArea::vertical().max_height(max).auto_shrink([false, true]).show_follow(ui, |ui| s.groups.iter().for_each(|g| group_ui(ui, g, None)));
             }
             ui.add_space(8.0);
             ui.horizontal(|ui| {

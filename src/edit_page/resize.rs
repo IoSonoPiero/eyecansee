@@ -11,6 +11,7 @@ use crate::App;
 use crate::batch::Filter;
 use crate::edit::resize::{self, Form, MAX_PERCENT, MAX_SIDE};
 use crate::i18n::I18n;
+use crate::confirm::FollowList;
 
 impl Window {
     /// Resize (its button or Ctrl+Alt+I): the window opens on the size of the result now.
@@ -134,7 +135,7 @@ fn size_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
             }
         }
         let unit = |percent: bool| if percent { t("resize-percent") } else { t("resize-unit-pixels") };
-        egui::ComboBox::from_id_salt("resize-unit").selected_text(unit(f.percent)).show_ui(ui, |ui| {
+        egui::ComboBox::from_id_salt("resize-unit").selected_text(unit(f.percent)).show_list(ui, |ui| {
             for percent in [false, true] {
                 ui.selectable_value(&mut f.percent, percent, unit(percent));
             }
@@ -150,7 +151,7 @@ fn size_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
     ui.end_row();
     ui.label(t("batch-filter"));
     let shown = f.filter();
-    egui::ComboBox::from_id_salt("resize-filter").width(220.0).selected_text(t(shown.label())).show_ui(ui, |ui| {
+    egui::ComboBox::from_id_salt("resize-filter").width(220.0).selected_text(t(shown.label())).show_list(ui, |ui| {
         for filter in Filter::ALL {
             if ui.selectable_label(shown == filter, t(filter.label())).clicked() {
                 f.chosen = Some(filter);

@@ -8,6 +8,7 @@ use image::{DynamicImage, Rgba, RgbaImage};
 
 use crate::App;
 use crate::i18n::I18n;
+use crate::confirm::FollowList;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Unit {
@@ -157,7 +158,7 @@ fn new_image_form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer
     let lost = egui::Grid::new("new-image").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
         ui.label(t("new-size"));
         let shown = f.preset.map_or_else(|| t("new-custom"), |i| f.name(i18n, i));
-        egui::ComboBox::from_id_salt("new-preset").width(260.0).selected_text(shown).show_ui(ui, |ui| {
+        egui::ComboBox::from_id_salt("new-preset").width(260.0).selected_text(shown).show_list(ui, |ui| {
             for (i, &(_, w, h, unit)) in PRESETS.iter().enumerate() {
                 if ui.selectable_label(f.preset == Some(i), f.name(i18n, i)).clicked() {
                     (f.preset, f.w, f.h, f.unit) = (Some(i), w, h, unit);
@@ -175,7 +176,7 @@ fn new_image_form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer
             let speed = if f.unit == Unit::Px { 1.0 } else { 0.1 };
             let (w, _, h) = (ui.add(egui::DragValue::new(&mut f.w).range(0.1..=100_000.0).speed(speed)), ui.label("×"), ui.add(egui::DragValue::new(&mut f.h).range(0.1..=100_000.0).speed(speed)));
             let edited = w.changed() || h.changed();
-            egui::ComboBox::from_id_salt("new-unit").width(60.0).selected_text(f.unit.label()).show_ui(ui, |ui| {
+            egui::ComboBox::from_id_salt("new-unit").width(60.0).selected_text(f.unit.label()).show_list(ui, |ui| {
                 for u in Unit::ALL {
                     ui.selectable_value(&mut f.unit, u, u.label());
                 }

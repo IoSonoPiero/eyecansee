@@ -8,6 +8,7 @@ use eframe::egui;
 
 use crate::App;
 use crate::cad_layers::{Layer, listed};
+use crate::confirm::FollowArea;
 
 /// What the panel shows: the drawing's path, its layers, which are used and which are shown now.
 struct Rows {
@@ -101,7 +102,7 @@ impl App {
             }
         });
         ui.separator();
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        egui::ScrollArea::vertical().auto_shrink([false, false]).show_follow(ui, |ui| {
             for &i in &list {
                 let l = &rows.layers[i];
                 ui.horizontal(|ui| {
