@@ -644,6 +644,33 @@ mod tests {
         assert_eq!(tip(&h), None, "Close, highlighted, closes the tip");
     }
 
+    /// #311: Tab reaches the check box under the buttons and the link above them, in the order
+    /// they are on screen: Tab from Close is the check box, which Space ticks (once, the tip stays);
+    /// Tab from there goes round to the link, which Enter follows to the guide.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn tab_reaches_the_check_box_and_the_link() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("tips::tests::tab_reaches_the_check_box_and_the_link") {
+            return;
+        }
+        let mut h = Harness::new(&folder("tip-tab", &["a.png"]));
+        h.frame(Vec::new());
+        h.app.settings.tips = true;
+        h.app.tip_show(2);
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+        h.key(egui::Key::Tab);
+        h.key(egui::Key::Space);
+        assert!(!h.app.settings.tips, "Tab from Close goes to Don't show at startup, and Space ticks it");
+        assert_eq!(h.app.tip.as_ref().map(|t| t.i), Some(2), "the tip stays");
+        h.key(egui::Key::Space);
+        assert!(h.app.settings.tips, "Space again takes the tick away");
+        h.key(egui::Key::Tab);
+        h.key(egui::Key::Enter);
+        assert!(h.app.tip.is_none() && h.app.help.open, "Tab from the check box goes round to the link, and Enter opens the guide");
+    }
+
     /// #311: ↑ and ↓ do nothing in the tip, but a message over it keeps them for its buttons: ↑
     /// from Close (highlighted) to Save as…, which Enter presses.
     #[test]
