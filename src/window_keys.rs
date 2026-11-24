@@ -726,3 +726,28 @@ fn enter_on_cancel_cancels() {
     let w = h.app.editor.as_ref().expect("the editor closed");
     assert!(!w.resizing() && !crate::edit_page::Window::asking(w), "Enter on Cancel did not close Resize");
 }
+
+/// #311 (Piero, 24/11): in the viewer, with a button of the bars holding the keyboard (reached
+/// with Tab), the keys of the viewer work all the same: → goes to the next picture, Esc goes back
+/// to the grid. Before, with any button focused the viewer read none of its keys.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn the_viewer_keys_work_with_a_bar_button_focused() {
+    if own_folder("window_keys::the_viewer_keys_work_with_a_bar_button_focused") {
+        return;
+    }
+    let mut h = Harness::new(&folder("viewer-bar-keys", &["a.png", "b.png", "c.png"]));
+    h.app.activate(0);
+    h.until(|app| app.zoom_of == Some(0), "a.png shown");
+    let tab = |h: &mut Harness| {
+        h.key(Key::Tab);
+        h.frame(Vec::new());
+        assert!(focused(h).is_some(), "Tab gave the keyboard to no button of the bars");
+    };
+    tab(&mut h);
+    h.key(Key::ArrowRight);
+    h.until(|app| app.viewing == Some(1), "→ with a button focused went to the next picture");
+    tab(&mut h);
+    h.key(Key::Escape);
+    h.until(|app| app.viewing.is_none(), "Esc with a button focused went back to the grid");
+}
