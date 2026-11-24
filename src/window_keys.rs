@@ -352,3 +352,32 @@ fn tab_reaches_the_copy_of_the_messages() {
     h.app.batch_summary = Some(crate::batch_summary::Summary { title: "t".into(), text: "x".into(), groups: Vec::new(), open: Some(dir), copy: "x".into() });
     tab_goes_through(&mut h, modal("batch-summary"), |a| a.batch_summary.is_some(), 3, true);
 }
+
+/// #311: Help > About had no control reachable from the keyboard: Tab goes through its links
+/// (and the copy of the graphics card), Enter on a link opens it and the window stays; with
+/// nothing focused Enter closes it, as before, and Esc too (Piero, 24/11).
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn tab_goes_through_about() {
+    if own_folder("window_keys::tab_goes_through_about") {
+        return;
+    }
+    let mut h = on_grid("keys-about");
+    h.app.about = true;
+    tab_goes_through(&mut h, |l| l.order == egui::Order::Middle, |a| a.about, 2, true);
+    h.blur();
+    h.frame(Vec::new());
+    h.key(Key::Tab);
+    h.key(Key::Enter);
+    h.frame(Vec::new());
+    assert!(h.app.about, "Enter on a link closed About");
+    h.blur();
+    h.frame(Vec::new());
+    h.key(Key::Enter);
+    assert!(!h.app.about, "Enter with nothing focused did not close About");
+    h.app.about = true;
+    h.frame(Vec::new());
+    h.key(Key::Tab);
+    h.key(Key::Escape);
+    assert!(!h.app.about, "Esc did not close About");
+}
