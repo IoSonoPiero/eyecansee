@@ -118,7 +118,7 @@ fn tab_goes_through_the_windows_with_fields() {
     let mut h = on_grid("keys-address");
     h.app.open_address = Some(crate::address::AddressForm::new());
     tab_goes_through(&mut h, modal("open-address"), |a| a.open_address.is_some(), 3, true);
-    h.blur();
+    h.key(Key::Tab);
     h.key(Key::Escape);
     assert!(h.app.open_address.is_none(), "Esc did not close Open location");
 
@@ -127,14 +127,14 @@ fn tab_goes_through_the_windows_with_fields() {
     h.app.settings.bookmarks = vec![mark("x"), mark("y")];
     h.app.bookmarks.configuring = true;
     tab_goes_through(&mut h, modal("bookmarks"), |a| a.bookmarks.configuring, 3, true);
-    h.blur();
+    h.key(Key::Tab);
     h.key(Key::Escape);
     assert!(!h.app.bookmarks.configuring, "Esc did not close Bookmarks");
 
     let mut h = on_grid("keys-unlock");
     h.app.ask_master(crate::vault_page::Then::Manager);
     tab_goes_through(&mut h, modal("unlock"), |a| a.unlock.is_some(), 2, false);
-    h.blur();
+    h.key(Key::Tab);
     h.key(Key::Escape);
     assert!(h.app.unlock.is_none(), "Esc did not close the master password");
 
@@ -142,7 +142,7 @@ fn tab_goes_through_the_windows_with_fields() {
     let a = h.app.files()[0].path.clone();
     h.app.open_batch(Some(a));
     tab_goes_through(&mut h, modal("batch-ask"), |a| a.batch.is_some(), 3, true);
-    h.blur();
+    h.key(Key::Tab);
     h.key(Key::Escape);
     assert!(h.app.batch.is_none(), "Esc did not close Convert");
 
@@ -151,7 +151,7 @@ fn tab_goes_through_the_windows_with_fields() {
     let resizing = |a: &App| a.editor.as_ref().is_some_and(crate::edit_page::Window::resizing);
     assert!(resizing(&h.app), "Ctrl+Alt+I did not open Resize");
     tab_goes_through(&mut h, modal("edit-resize"), resizing, 3, true);
-    h.blur();
+    h.key(Key::Tab);
     h.key(Key::Escape);
     assert!(!resizing(&h.app) && h.app.editor.is_some(), "Esc did not close Resize only");
 }
@@ -188,7 +188,7 @@ fn tab_goes_through_the_pages() {
     h.frame(Vec::new());
     assert!(saving(&h.app), "Ctrl+Shift+S did not open Save as from the editor");
     tab_goes_through(&mut h, page, saving, 3, true);
-    h.blur();
+    h.key(Key::Tab);
     h.key(Key::Escape);
     assert!(!saving(&h.app) && h.app.editor.is_some(), "Esc did not go back to the editor");
 
@@ -199,7 +199,7 @@ fn tab_goes_through_the_pages() {
     h.key(Key::Enter);
     h.until(App::dup_page_shown, "the results of Find duplicates");
     tab_goes_through(&mut h, page, App::dup_page_shown, 3, true);
-    h.blur();
+    h.key(Key::Tab);
     h.key(Key::Escape);
     assert!(h.app.duplicates.is_none(), "Esc did not close Find duplicates");
 }
@@ -465,7 +465,7 @@ fn tab_goes_through_the_rows_of_buttons() {
     h.key(Key::Delete);
     assert!(h.app.delete_confirm.is_some(), "Del did not ask");
     tab_goes_through(&mut h, modal("delete"), |a| a.delete_confirm.is_some(), 2, true);
-    h.blur();
+    h.key(Key::Tab);
     h.key(Key::Escape);
     assert!(h.app.delete_confirm.is_none(), "Esc did not cancel the deletion");
 
@@ -473,7 +473,7 @@ fn tab_goes_through_the_rows_of_buttons() {
     h.key_with(Key::R, Modifiers::COMMAND);
     assert!(h.app.batch_turn.is_some(), "Ctrl+R on the grid did not ask");
     tab_goes_through(&mut h, modal("batch-turn"), |a| a.batch_turn.is_some(), 2, true);
-    h.blur();
+    h.key(Key::Tab);
     h.key(Key::Escape);
     assert!(h.app.batch_turn.is_none(), "Esc did not cancel the turn");
 
@@ -482,7 +482,7 @@ fn tab_goes_through_the_rows_of_buttons() {
     h.frame(Vec::new());
     assert!(h.app.after_turn.is_some(), "Esc on a turn not saved did not ask");
     tab_goes_through(&mut h, modal("turn-leave"), |a| a.after_turn.is_some(), 3, true);
-    h.blur();
+    h.key(Key::Tab);
     h.key(Key::Escape);
     assert!(h.app.after_turn.is_none() && h.app.viewing.is_some(), "Esc did not stay in the viewer");
 
@@ -493,21 +493,21 @@ fn tab_goes_through_the_rows_of_buttons() {
     let asked = |a: &App| a.editor.as_ref().is_some_and(crate::edit_page::Window::asking);
     assert!(asked(&h.app), "Esc on changes not saved did not ask");
     tab_goes_through(&mut h, modal("rotate-leave"), asked, 3, true);
-    h.blur();
+    h.key(Key::Tab);
     h.key(Key::Escape);
     assert!(!asked(&h.app) && h.app.editor.is_some(), "Esc did not go back to the editor");
 
     let mut h = on_grid("keys-rename");
     h.app.ask_rename(None);
     tab_goes_through(&mut h, modal("rename"), |a| a.rename.is_some(), 3, true);
-    h.blur();
+    h.key(Key::Tab);
     h.key(Key::Escape);
     assert!(h.app.rename.is_none(), "Esc did not cancel Rename");
 
     let mut h = on_grid("keys-new-folder");
     h.app.ask_new_folder(None);
     tab_goes_through(&mut h, modal("new-folder"), |a| a.new_folder.is_some(), 3, true);
-    h.blur();
+    h.key(Key::Tab);
     h.key(Key::Escape);
     assert!(h.app.new_folder.is_none(), "Esc did not cancel New folder");
 
@@ -515,14 +515,14 @@ fn tab_goes_through_the_rows_of_buttons() {
     h.key_with(Key::S, Modifiers::COMMAND);
     h.until(|a| a.save_ready.is_some(), "the question before saving the turn");
     tab_goes_through(&mut h, modal("save"), |a| a.save_ready.is_some(), 2, true);
-    h.blur();
+    h.key(Key::Tab);
     h.key(Key::Escape);
     assert!(h.app.save_ready.is_none() && h.app.turn_unsaved(), "Esc did not cancel the save");
 
     let mut h = on_grid("keys-kiod");
     h.app.kiod_ask = true;
     tab_goes_through(&mut h, modal("kiod"), |a| a.kiod_ask, 2, true);
-    h.blur();
+    h.key(Key::Tab);
     h.key(Key::Escape);
     assert!(!h.app.kiod_ask, "Esc did not cancel");
 }
@@ -696,4 +696,33 @@ fn esc_closes_with_a_control_focused() {
     h.key(Key::Escape);
     h.frame(Vec::new());
     assert!(h.app.batch.is_none(), "Esc with a control focused did not close Convert");
+}
+
+/// #311: in the windows with fields, Enter on Cancel (the last control, reached with Shift+Tab)
+/// cancels: the window does not also read it as Open, Unlock or Resize.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn enter_on_cancel_cancels() {
+    if own_folder("window_keys::enter_on_cancel_cancels") {
+        return;
+    }
+    let mut h = on_grid("keys-cancel-address");
+    let dir = h.app.dir.clone();
+    h.app.open_address = Some(crate::address::AddressForm { url: "/".into(), ..crate::address::AddressForm::new() });
+    h.frame(Vec::new());
+    h.blur();
+    h.key_with(Key::Tab, Modifiers::SHIFT);
+    h.key(Key::Enter);
+    h.frame(Vec::new());
+    assert!(h.app.open_address.is_none() && h.app.dir == dir, "Enter on Cancel did not cancel Open location, or opened the address");
+
+    let mut h = in_editor("keys-cancel-resize");
+    h.key_with(Key::I, Modifiers::COMMAND | Modifiers::ALT);
+    h.frame(Vec::new());
+    h.blur();
+    h.key_with(Key::Tab, Modifiers::SHIFT);
+    h.key(Key::Enter);
+    h.frame(Vec::new());
+    let w = h.app.editor.as_ref().expect("the editor closed");
+    assert!(!w.resizing() && !crate::edit_page::Window::asking(w), "Enter on Cancel did not close Resize");
 }
