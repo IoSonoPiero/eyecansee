@@ -902,6 +902,28 @@ mod tests {
         assert_eq!(page(&h), Some(0), "Next greyed while the page waits: Back highlighted");
     }
 
+    /// #311: Tab goes along the buttons as they are on screen, from the left: Shift+Tab from Next
+    /// (highlighted) is Back on the page in the middle, and the buttons stay at the right edge of
+    /// the window (before, drawn from the right, Shift+Tab left the buttons for the page's choices).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn tab_goes_along_the_buttons_from_the_left() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("first_start_ui::tests::tab_goes_along_the_buttons_from_the_left") {
+            return;
+        }
+        let mut h = Harness::new(&folder("first-start-left", &["a.png"]));
+        three_pages(&mut h, Desktop::No);
+        // The window centred on its size of the frame before.
+        h.frame(Vec::new());
+        let window = h.ctx.memory(|m| m.area_rect(egui::Id::unique(PAGES_ID))).expect("the window of the pages");
+        let next = h.ctx.memory(egui::Memory::focused).and_then(|id| h.ctx.read_response(id)).expect("Next highlighted").rect;
+        assert!((window.right() - f32::from(SIDE) - next.right()).abs() < 2.0, "Next at the right edge: {next:?} in {window:?}");
+        h.key_with(egui::Key::Tab, egui::Modifiers::SHIFT);
+        h.key(egui::Key::Enter);
+        assert_eq!(h.app.first_start.as_ref().map(|o| o.page), Some(0), "Shift+Tab from Next goes to Back, Enter presses it");
+    }
+
     /// #311: with the guide open over the pages (F1) their keys stay the guide's, also once its
     /// search field has let the keyboard go: Enter, Space and Tab do not turn the page.
     #[test]
