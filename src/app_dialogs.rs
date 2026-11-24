@@ -519,6 +519,28 @@ mod tests {
         assert!(h.app.options, "Options closed");
     }
 
+    /// #311: Options open with nothing focused (as they open, or after a click on their body): Tab
+    /// gives the keyboard to their first control, Shift+Tab to their last one. Both did nothing:
+    /// the keys of the window went to rows of buttons, and Options have none.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn tab_enters_options() {
+        use eframe::egui::{Modifiers, Order};
+        if own_folder("app_dialogs::tests::tab_enters_options") {
+            return;
+        }
+        let mut h = options("opt-enter");
+        for modifiers in [Modifiers::NONE, Modifiers::SHIFT] {
+            h.blur();
+            h.frame(Vec::new());
+            h.key_with(Key::Tab, modifiers);
+            h.frame(Vec::new());
+            let order = h.ctx.memory(|m| m.focused()).and_then(|id| h.ctx.read_response(id)).map(|r| r.layer_id.order);
+            assert_eq!(order, Some(Order::Middle), "Tab {modifiers:?} with nothing focused did not reach Options");
+            assert!(h.app.options && h.app.viewing.is_none(), "Options closed, or the picture under them opened");
+        }
+    }
+
     /// #311: Options over the viewer keep the keys of the viewer and the shortcuts, with the
     /// keyboard nowhere or on a control: the picture, its zoom, its turn not saved and full screen
     /// stay as they were.
