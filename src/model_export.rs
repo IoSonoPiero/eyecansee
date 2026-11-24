@@ -2,14 +2,15 @@
 //! GLB (glTF) keeps the pictures, their coordinates, the normals and the
 //! surfaces (metal, roughness, bumps, occlusion, glow); OBJ the normals and colours on the
 //! vertices, and the pictures and materials in a `.mtl` next to it (`model_export_obj`); PLY
-//! (binary) and STL (binary, VisCAM colours) a colour per triangle. Where the
+//! (binary) the normals and the colours on the points and on the triangles; STL (binary, VisCAM
+//! colours) a colour per triangle. Where the
 //! format cannot hold a picture, its colours are taken from it. Each is written with the up axis
 //! other programs expect, so that it opens standing (tried with Blender 4.5, 2026-11-02): Z for
 //! STL and PLY (with a mark EyeCanSee reads, `model_ply::PLY_Z_UP`), Y for OBJ and glTF. glTF counts
 //! in metres: a model whose unit is known is converted; the others keep their numbers and say the
 //! unit in their header (`unit_line`), which other programs take as a comment.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
 use crate::model::{DEFAULT, Mesh};
@@ -256,26 +257,76 @@ fn stl(v: &View, tick: Tick) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// Binary PLY (audit 6.16): the points shared by the triangles, split only where their normals
+/// differ; normals on the points when the model has them; colours on the points (the average of
+/// what its corners show, which Blender reads) and on the faces (each triangle's own, which
+/// EyeCanSee and MeshLab read).
 fn ply(v: &View, tick: Tick) -> Option<Vec<u8>> {
-    let colored = v.colored();
+    let m = v.mesh;
+    let n = m.tris.len();
+    let (colored, smooth) = (v.colored(), !m.normals.is_empty());
+    // Three rounds over the triangles: the points, their colours, the faces; each a third of the way.
+    let third = |t: usize, round: u8| !t.is_multiple_of(TICK_EVERY) || tick((t as f32 / n.max(1) as f32 + f32::from(round)) / 3.0);
+    // Each point: its position (an index in `pos`) and its normal.
+    let mut points: Vec<(u32, [f32; 3])> = Vec::new();
+    let mut corners: Vec<[u32; 3]> = Vec::new();
+    if smooth {
+        let mut seen: HashMap<(u32, [u32; 3]), u32> = HashMap::new();
+        corners.reserve(n);
+        for (t, tri) in m.tris.iter().enumerate() {
+            if !third(t, 0) {
+                return None;
+            }
+            let normals = v.normals(t);
+            corners.push(std::array::from_fn(|k| {
+                let key = (tri[k], normals[k].map(f32::to_bits));
+                *seen.entry(key).or_insert_with(|| {
+                    points.push((key.0, normals[k]));
+                    points.len() as u32 - 1
+                })
+            }));
+        }
+    }
+    let count = if smooth { points.len() } else { m.pos.len() };
+    let corner = |t: usize| if smooth { corners[t] } else { m.tris[t] };
+    let mut sums = if colored { vec![[0u32; 4]; count] } else { Vec::new() };
+    for t in (0..n).filter(|_| colored) {
+        if !third(t, 1) {
+            return None;
+        }
+        for (k, c) in v.corner_colors(t).into_iter().enumerate() {
+            let s = &mut sums[corner(t)[k] as usize];
+            *s = [s[0] + u32::from(c[0]), s[1] + u32::from(c[1]), s[2] + u32::from(c[2]), s[3] + 1];
+        }
+    }
+    let rgb = "property uchar red\nproperty uchar green\nproperty uchar blue\n";
     let mut out = format!(
-        "ply\nformat binary_little_endian 1.0\n{}\n{}element vertex {}\nproperty float x\nproperty float y\nproperty float z\nelement face {}\nproperty list uchar uint vertex_indices\n{}end_header\n",
+        "ply\nformat binary_little_endian 1.0\n{}\n{}element vertex {count}\nproperty float x\nproperty float y\nproperty float z\n{}{}element face {n}\nproperty list uchar uint vertex_indices\n{}end_header\n",
         crate::model_ply::PLY_Z_UP,
-        unit_line(v.mesh, "comment"),
-        v.mesh.pos.len(),
-        v.mesh.tris.len(),
-        if colored { "property uchar red\nproperty uchar green\nproperty uchar blue\n" } else { "" }
+        unit_line(m, "comment"),
+        if smooth { "property float nx\nproperty float ny\nproperty float nz\n" } else { "" },
+        if colored { rgb } else { "" },
+        if colored { rgb } else { "" },
     )
     .into_bytes();
-    for p in &v.mesh.pos {
-        floats(&mut out, &v.turn(*p).map(|c| c * v.scale));
+    for i in 0..count {
+        let (at, normal) = if smooth { points[i] } else { (i as u32, [0.0; 3]) };
+        floats(&mut out, &v.turn(m.pos[at as usize]).map(|c| c * v.scale));
+        if smooth {
+            // Turned already (`View::normals`).
+            floats(&mut out, &normal);
+        }
+        if colored {
+            let s = sums[i];
+            out.extend((0..3).map(|j| (s[j] / s[3].max(1)) as u8));
+        }
     }
-    for (t, tri) in v.mesh.tris.iter().enumerate() {
-        if !ticked(tick, t, v.mesh.tris.len()) {
+    for t in 0..n {
+        if !third(t, 2) {
             return None;
         }
         out.push(3);
-        out.extend(tri.iter().flat_map(|i| i.to_le_bytes()));
+        out.extend(corner(t).iter().flat_map(|i| i.to_le_bytes()));
         if colored {
             out.extend(v.face_color(t));
         }
@@ -688,5 +739,18 @@ pub(crate) mod tests {
         for p in ["property float nx", "property float ny", "property float nz", "property uchar red"] {
             assert!(points.contains(p), "no {p:?} on the points:\n{head}");
         }
+        // The quad's four points, shared: its normals are the same at each.
+        assert!(points.starts_with("element vertex 4\n"), "{head}");
+        // Each point: x y z, nx ny nz, red green blue; the normal +Z of the model (Y up) is -Y with Z up.
+        let body = &out[end + "end_header\n".len()..];
+        let point = |i: usize| &body[i * 27..(i + 1) * 27];
+        let f = |b: &[u8], k: usize| f32::from_le_bytes(b[k * 4..k * 4 + 4].try_into().unwrap());
+        assert_eq!([3, 4, 5].map(|k| f(point(0), k)), [0.0, -1.0, 0.0]);
+        // The first point is on the green triangle and on the red one: its colour is between.
+        let [r, g, _] = [24, 25, 26].map(|k| point(0)[k]);
+        assert!(r > 50 && g > 50, "{:?}", &point(0)[24..]);
+        // Read back by EyeCanSee: the faces' own colours.
+        let back = crate::model::parse(&out, "x.ply").unwrap();
+        assert!(back.colors[0][1] > 150 && back.colors[1][0] > 150, "{:?}", back.colors);
     }
 }
