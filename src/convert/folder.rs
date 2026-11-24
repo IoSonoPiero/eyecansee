@@ -185,6 +185,45 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
 
+    /// #311: the folder chooser of Save as… is gone through with the keys (Piero, 24/11, W3.4):
+    /// with nothing focused Tab gives the keyboard to its controls and goes on, the arrows move
+    /// on; the page and the chooser stay.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn the_folder_chooser_takes_the_keys() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        use eframe::egui::Key;
+        if own_folder("convert::folder::tests::the_folder_chooser_takes_the_keys") {
+            return;
+        }
+        let dir = folder("save-as-keys", &["a.png"]);
+        std::fs::create_dir_all(dir.join("Inside")).unwrap();
+        let mut h = Harness::new(&dir);
+        let a = h.app.files()[0].path.clone();
+        h.app.open_convert(Some(a));
+        h.frame(Vec::new());
+        h.app.convert.as_mut().unwrap().browse = true;
+        let picker = |app: &App| app.convert.as_ref().and_then(|w| w.picker.clone());
+        h.until(|app| picker(app).is_some_and(|p| p.dirs_listed()), "the chooser open and listed");
+        h.blur();
+        h.frame(Vec::new());
+        let focused = |h: &Harness| h.ctx.memory(|m| m.focused());
+        let mut seen = std::collections::HashSet::new();
+        for i in 1..=4 {
+            h.key(Key::Tab);
+            h.frame(Vec::new());
+            assert!(focused(&h).is_some(), "Tab pressed {i} times: nothing has the keyboard");
+            seen.extend(focused(&h));
+        }
+        assert!(seen.len() >= 3, "Tab went through {} controls", seen.len());
+        assert!(picker(&h.app).is_some(), "the chooser closed");
+        let before = focused(&h);
+        h.key(Key::ArrowDown);
+        h.frame(Vec::new());
+        assert!(focused(&h).is_some() && focused(&h) != before, "the arrow moved nothing");
+        assert!(picker(&h.app).is_some(), "the chooser closed");
+    }
+
     /// #311: in Save as…, the name of a new folder in the folder chooser takes what is typed (the
     /// chooser's keys were all dropped, as a question's: nothing could be written); Enter makes
     /// the folder and goes into it; Esc leaves the name, and the chooser and the page stay.

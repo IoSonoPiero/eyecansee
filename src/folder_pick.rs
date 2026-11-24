@@ -164,6 +164,11 @@ impl Picker {
         });
     }
 
+    /// Its folders are listed (or failed): what is in it can be gone through.
+    pub(crate) fn dirs_listed(&self) -> bool {
+        self.dirs.lock().unwrap().is_some()
+    }
+
     /// The name of a new folder being typed, if any.
     pub(crate) fn naming(&self) -> Option<&str> {
         self.naming.as_ref().map(|(name, _)| name.as_str())
