@@ -49,6 +49,8 @@ pub(crate) struct Open {
     desktop: Desktop,
     /// The page whose main button was given the keyboard (#311): a page shown anew gives it again.
     shown: Option<usize>,
+    /// Next was pressed on a page waiting for its answer: the page says to give one (D9).
+    reminded: bool,
 }
 
 /// What a button at the bottom does.
@@ -76,7 +78,7 @@ impl Open {
             Some("failed") => Desktop::Failed("debug".into()),
             _ => Desktop::Ask,
         };
-        Open { plan, page, rows, running: Vec::new(), asking: false, closing: None, desktop, shown: None }
+        Open { plan, page, rows, running: Vec::new(), asking: false, closing: None, desktop, shown: None, reminded: false }
     }
 
     /// The question on closing is open: Enter and Esc are its own (`App::asking`).
@@ -237,7 +239,7 @@ impl App {
         self.options_changed(ctx, &before);
         match press {
             Some(Press::Back) => self.first_start_turn(-1),
-            Some(Press::Next) => self.first_start_turn(1),
+            Some(Press::Next) => self.first_start_next(),
             Some(Press::Download) => self.first_start_download(ctx),
             // Done is the Close of the last page; Skip that of the others.
             Some(Press::Close) => {
@@ -248,6 +250,19 @@ impl App {
         }
         self.first_start_ask(ctx);
         self.first_start_closing();
+    }
+
+    /// Next: the page after, unless this one waits for an answer (the desktop icon, Yes or No):
+    /// then it stays, does nothing and says to choose (D9, Piero, 24/11: Enter means Next on
+    /// every page, and the program never answers in place of the user).
+    fn first_start_next(&mut self) {
+        let Some(open) = &mut self.first_start else { return };
+        if crate::first_start::waits(open.plan.pages[open.page], &open.desktop).is_some() {
+            open.reminded = true;
+            log!("first start: Next before an answer, the page asks for one");
+            return;
+        }
+        self.first_start_turn(1);
     }
 
     fn first_start_turn(&mut self, by: isize) {
@@ -302,7 +317,7 @@ impl App {
                 }
                 match page {
                     Page::Welcome => welcome(ui, logo, s, i18n, languages),
-                    Page::Desktop => crate::first_start_desktop::page(ui, logo, &mut open.desktop, i18n),
+                    Page::Desktop => crate::first_start_desktop::page(ui, logo, &mut open.desktop, open.reminded, i18n),
                     Page::Addons => addons(ui, &mut open.rows, downloads, i18n, paged),
                 }
             });
@@ -463,8 +478,6 @@ struct Button {
     press: Press,
     enabled: bool,
     main: bool,
-    /// Why it cannot be pressed, said when the pointer is on it greyed.
-    hint: Option<&'static str>,
 }
 
 /// The buttons of page `n` of `of`, from the left: Skip and Next, with Back between them on a
@@ -472,10 +485,10 @@ struct Button {
 /// would be Done).
 /// The main one is Next, then Done; with an add-on ticked it is Download (a choice of the
 /// redesign, not yet seen by Piero), and Done then asks before leaving the ticks behind
-/// (`Open::leave`). `waits`: the page wants an answer first (`first_start::waits`), so Next is
-/// greyed, with this hint; Back and Skip stay.
-fn buttons(n: usize, of: usize, ticked: bool, waits: Option<&'static str>) -> Vec<Button> {
-    let button = |text, press, enabled, main| Button { text, press, enabled, main, hint: None };
+/// (`Open::leave`). Next stays on also on a page that waits for an answer: there it says to give
+/// one (`App::first_start_next`).
+fn buttons(n: usize, of: usize, ticked: bool) -> Vec<Button> {
+    let button = |text, press, enabled, main| Button { text, press, enabled, main };
     let mut all = Vec::new();
     if n < of {
         all.push(button("first-start-skip", Press::Close, true, false));
@@ -484,7 +497,7 @@ fn buttons(n: usize, of: usize, ticked: bool, waits: Option<&'static str>) -> Ve
         all.push(button("first-start-back", Press::Back, true, false));
     }
     if n < of {
-        all.push(Button { hint: waits, ..button("first-start-next", Press::Next, waits.is_none(), true) });
+        all.push(button("first-start-next", Press::Next, true, true));
     } else {
         all.push(button("first-start-download", Press::Download, ticked, ticked));
         all.push(button("first-start-done", Press::Close, true, !ticked));
@@ -514,8 +527,7 @@ fn footer(ui: &mut egui::Ui, open: &mut Open, i18n: &crate::i18n::I18n) -> Optio
             dots(ui, n, of);
             ui.weak(i18n.t_args("first-start-count", &[("n", &n.to_string()), ("of", &of.to_string())]));
         }
-        let waits = crate::first_start::waits(open.plan.pages[open.page], &open.desktop);
-        let drawn = buttons(n, of, open.rows.iter().any(|r| r.2), waits);
+        let drawn = buttons(n, of, open.rows.iter().any(|r| r.2));
         let make = |ui: &egui::Ui, b: &Button| {
             let text = i18n.t(b.text);
             let button = if b.main { crate::theme::main_button(ui, text) } else { egui::Button::new(text) };
@@ -527,13 +539,7 @@ fn footer(ui: &mut egui::Ui, open: &mut Open, i18n: &crate::i18n::I18n) -> Optio
         let seen: Vec<egui::Rect> = drawn.iter().map(|b| probe.add(make(&probe, b)).rect).collect();
         let width = seen.last().zip(seen.first()).map_or(0.0, |(last, first)| last.right() - first.left());
         ui.add_space((ui.available_width() - width).max(0.0));
-        let rows: Vec<egui::Response> = drawn
-            .iter()
-            .map(|b| {
-                let response = ui.add_enabled(b.enabled, make(ui, b));
-                if let Some(hint) = b.hint { response.on_disabled_hover_text(i18n.t(hint)) } else { response }
-            })
-            .collect();
+        let rows: Vec<egui::Response> = drawn.iter().map(|b| ui.add_enabled(b.enabled, make(ui, b))).collect();
         // A page shown anew: the button of the page before had the keyboard, its main one takes it.
         if open.shown != Some(open.page) {
             open.shown = Some(open.page);
@@ -702,7 +708,7 @@ mod tests {
         let rows: Vec<_> = crate::component::addons().into_iter().map(|a| (a, Have::Missing, false)).collect();
         let Some(kind) = rows.first().map(|r| r.0.component.kind) else { return };
         let plan = Plan { pages: vec![Page::Welcome, Page::Addons], addons: rows.iter().map(|r| r.0.component.kind).collect() };
-        let mut open = Open { plan, page: 1, rows, running: Vec::new(), asking: false, closing: None, desktop: Desktop::Ask, shown: None };
+        let mut open = Open { plan, page: 1, rows, running: Vec::new(), asking: false, closing: None, desktop: Desktop::Ask, shown: None, reminded: false };
         let mut downloads = Downloads::default();
         assert!(open.leave(&downloads), "nothing ticked");
         open.rows[0].2 = true;
@@ -727,27 +733,20 @@ mod tests {
     }
 
     /// Skip and Next on the first page; Back, Download and Done on the last, without Back when
-    /// it is the only one; Skip, Back and Next on one in the middle, Next greyed while its page
-    /// waits for an answer. One button is the main one: Download once an add-on is ticked.
+    /// it is the only one; Skip, Back and Next on one in the middle. One button is the main one:
+    /// Download once an add-on is ticked.
     #[test]
     fn buttons_of_each_page() {
-        assert_eq!(named(&buttons(1, 2, false, None)), [("skip", true, false), ("next", true, true)]);
-        assert_eq!(named(&buttons(2, 2, false, None)), [("back", true, false), ("download", false, false), ("done", true, true)]);
-        assert_eq!(named(&buttons(2, 2, true, None)), [("back", true, false), ("download", true, true), ("done", true, false)]);
-        assert_eq!(named(&buttons(1, 1, false, None)), [("download", false, false), ("done", true, true)]);
+        assert_eq!(named(&buttons(1, 2, false)), [("skip", true, false), ("next", true, true)]);
+        assert_eq!(named(&buttons(2, 2, false)), [("back", true, false), ("download", false, false), ("done", true, true)]);
+        assert_eq!(named(&buttons(2, 2, true)), [("back", true, false), ("download", true, true), ("done", true, false)]);
+        assert_eq!(named(&buttons(1, 1, false)), [("download", false, false), ("done", true, true)]);
         // Three pages (Windows, the desktop icon in the middle): Skip, Back and Next there.
-        assert_eq!(named(&buttons(1, 3, false, None)), [("skip", true, false), ("next", true, true)]);
-        assert_eq!(named(&buttons(2, 3, true, None)), [("skip", true, false), ("back", true, false), ("next", true, true)]);
-        assert_eq!(named(&buttons(3, 3, true, None)), [("back", true, false), ("download", true, true), ("done", true, false)]);
-        // A page that waits for an answer (the desktop icon): Next greyed, with why; Skip and Back
-        // as they are. The last page has no Next: nothing changes there.
-        let waiting = buttons(2, 3, false, Some("desktop-icon-choose"));
-        assert_eq!(named(&waiting), [("skip", true, false), ("back", true, false), ("next", false, true)]);
-        assert_eq!(waiting.iter().map(|b| b.hint).collect::<Vec<_>>(), [None, None, Some("desktop-icon-choose")]);
-        assert_eq!(buttons(3, 3, false, Some("desktop-icon-choose")), buttons(3, 3, false, None));
-        assert!(buttons(2, 3, false, None).iter().all(|b| b.hint.is_none()));
+        assert_eq!(named(&buttons(1, 3, false)), [("skip", true, false), ("next", true, true)]);
+        assert_eq!(named(&buttons(2, 3, true)), [("skip", true, false), ("back", true, false), ("next", true, true)]);
+        assert_eq!(named(&buttons(3, 3, true)), [("back", true, false), ("download", true, true), ("done", true, false)]);
         for (n, of, ticked) in [(1, 2, false), (2, 2, false), (2, 2, true), (1, 1, true), (2, 3, false), (3, 3, false)] {
-            assert_eq!(buttons(n, of, ticked, None).iter().filter(|b| b.main).count(), 1);
+            assert_eq!(buttons(n, of, ticked).iter().filter(|b| b.main).count(), 1);
         }
     }
 
@@ -770,7 +769,7 @@ mod tests {
             let mut rows: Vec<_> = crate::component::addons().into_iter().map(|a| (a, Have::Missing, false)).collect();
             rows[0].2 = true;
             let plan = Plan { pages: vec![Page::Welcome, Page::Addons], addons: rows.iter().map(|r| r.0.component.kind).collect() };
-            let open = Open { plan, page: 1, rows, running: Vec::new(), asking: false, closing: None, desktop: Desktop::Ask, shown: None };
+            let open = Open { plan, page: 1, rows, running: Vec::new(), asking: false, closing: None, desktop: Desktop::Ask, shown: None, reminded: false };
             h.app.first_start = Some(open);
             h.frame(Vec::new());
             h.key(egui::Key::Escape);
@@ -818,7 +817,7 @@ mod tests {
         let mut h = Harness::new(&folder("first-start-pages/inner", &["a.png", "b.png", "c.png"]));
         let rows: Vec<_> = crate::component::addons().into_iter().map(|a| (a, Have::Missing, false)).collect();
         let plan = Plan { pages: vec![Page::Welcome, Page::Addons], addons: rows.iter().map(|r| r.0.component.kind).collect() };
-        h.app.first_start = Some(Open { plan, page: 0, rows, running: Vec::new(), asking: false, closing: None, desktop: Desktop::Ask, shown: None });
+        h.app.first_start = Some(Open { plan, page: 0, rows, running: Vec::new(), asking: false, closing: None, desktop: Desktop::Ask, shown: None, reminded: false });
         h.frame(Vec::new());
         h.frame(Vec::new());
         let grid = |a: &crate::App| (a.selected, a.cursor, a.up_selected, a.marked.len(), a.dir.clone(), a.viewing, a.delete_confirm.is_some(), a.rename.is_some());
@@ -871,7 +870,7 @@ mod tests {
         h.app.settings.theme = ThemeChoice::System;
         let rows: Vec<_> = crate::component::addons().into_iter().map(|a| (a, Have::Missing, false)).collect();
         let plan = Plan { pages: vec![Page::Welcome, Page::Addons], addons: rows.iter().map(|r| r.0.component.kind).collect() };
-        h.app.first_start = Some(Open { plan, page: 0, rows, running: Vec::new(), asking: false, closing: None, desktop: Desktop::Ask, shown: None });
+        h.app.first_start = Some(Open { plan, page: 0, rows, running: Vec::new(), asking: false, closing: None, desktop: Desktop::Ask, shown: None, reminded: false });
         h.frame(Vec::new());
         h.frame(Vec::new());
         h.key_with(egui::Key::Tab, egui::Modifiers::SHIFT);
@@ -887,7 +886,7 @@ mod tests {
         let rows: Vec<_> = crate::component::addons().into_iter().map(|a| (a, Have::Missing, false)).collect();
         let plan = Plan { pages: vec![Page::Welcome, Page::Desktop, Page::Addons], addons: rows.iter().map(|r| r.0.component.kind).collect() };
         h.frame(Vec::new());
-        h.app.first_start = Some(Open { plan, page: 1, rows, running: Vec::new(), asking: false, closing: None, desktop, shown: None });
+        h.app.first_start = Some(Open { plan, page: 1, rows, running: Vec::new(), asking: false, closing: None, desktop, shown: None, reminded: false });
         h.frame(Vec::new());
         h.frame(Vec::new());
     }
@@ -919,6 +918,7 @@ mod tests {
         h.key(egui::Key::Enter);
         h.frame(Vec::new());
         assert_eq!((page(&h), desktop(&h)), (Some(1), Some(Desktop::Ask)), "Enter on Next without an answer stays and answers nothing");
+        assert!(h.app.first_start.as_ref().is_some_and(|o| o.reminded), "the page says to choose Yes or No");
         h.key(egui::Key::Tab);
         h.frame(Vec::new());
         h.key(egui::Key::Tab);

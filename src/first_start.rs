@@ -104,9 +104,9 @@ pub(crate) fn chosen(now: Desktop, yes: bool, create: impl FnOnce() -> Result<cr
     }
 }
 
-/// What a page waits for before Next: the id of the sentence its greyed Next says under the
-/// pointer. The desktop icon page waits for Yes or No (Piero, 22/11); a Yes that failed is an
-/// answer, with its error on the page. Back, Skip and Esc never wait.
+/// What a page waits for before Next: the id of the sentence the page shows when Next is pressed
+/// before an answer (D9, Piero, 24/11). The desktop icon page waits for Yes or No (Piero, 22/11);
+/// a Yes that failed is an answer, with its error on the page. Back, Skip and Esc never wait.
 pub(crate) fn waits(page: Page, desktop: &Desktop) -> Option<&'static str> {
     (page == Page::Desktop && *desktop == Desktop::Ask).then_some("desktop-icon-choose")
 }
