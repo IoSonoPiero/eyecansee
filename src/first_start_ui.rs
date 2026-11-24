@@ -895,7 +895,7 @@ mod tests {
     /// #311: a page shown anew gives the keyboard to its own main button, not to the button in
     /// the same place on the page before: Back from the middle page, then Enter, is Next on the
     /// first page (Skip is there, and closed the window). On the middle page waiting for its
-    /// answer Next is greyed: Back is highlighted.
+    /// answer Next is highlighted too, and Enter on it does not go on.
     #[test]
     #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
     fn a_page_shown_anew_highlights_its_main_button() {
@@ -912,9 +912,18 @@ mod tests {
         h.frame(Vec::new());
         h.key(egui::Key::Enter);
         assert_eq!(page(&h), Some(1), "Enter on the first page is Next, highlighted");
+        // Waiting for Yes or No (D9, Piero, 24/11): Next highlighted all the same, Enter on it
+        // stays on the page and answers nothing; Tab from Next goes round to Yes, then No.
         three_pages(&mut h, Desktop::Ask);
+        let desktop = |h: &Harness| h.app.first_start.as_ref().map(|o| o.desktop.clone());
         h.key(egui::Key::Enter);
-        assert_eq!(page(&h), Some(0), "Next greyed while the page waits: Back highlighted");
+        h.frame(Vec::new());
+        assert_eq!((page(&h), desktop(&h)), (Some(1), Some(Desktop::Ask)), "Enter on Next without an answer stays and answers nothing");
+        h.key(egui::Key::Tab);
+        h.frame(Vec::new());
+        h.key(egui::Key::Tab);
+        h.key(egui::Key::Enter);
+        assert_eq!((page(&h), desktop(&h)), (Some(1), Some(Desktop::No)), "Tab from Next reaches Yes, then No, which Enter chooses");
     }
 
     /// #311: Tab goes along the buttons as they are on screen, from the left: Shift+Tab from Next
