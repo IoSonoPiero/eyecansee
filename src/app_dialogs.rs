@@ -556,6 +556,38 @@ mod tests {
         assert!(layer(&h).is_none_or(|l| l.id != options), "Tab under the guide went into Options");
     }
 
+    /// #311: in Server manager, with nothing focused (as it opens, or after a click on a button),
+    /// Tab gives the keyboard to its first control and goes on through them; the arrows too. Tab
+    /// did nothing: it went to a row of buttons that the manager has not (Piero, 24/11).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn tab_goes_through_the_server_manager() {
+        use eframe::egui::Key;
+        if own_folder("app_dialogs::tests::tab_goes_through_the_server_manager") {
+            return;
+        }
+        let mut h = Harness::new(&folder("srv-tab", &["a.png"]));
+        h.app.server_manager = Some(crate::address::AddressForm::manager());
+        h.frame(Vec::new());
+        h.blur();
+        h.frame(Vec::new());
+        let focused = |h: &Harness| h.ctx.memory(|m| m.focused());
+        let mut seen = std::collections::HashSet::new();
+        for i in 1..=4 {
+            h.key(Key::Tab);
+            h.frame(Vec::new());
+            let now = focused(&h);
+            assert!(now.is_some(), "Tab pressed {i} times: nothing has the keyboard");
+            seen.extend(now);
+        }
+        assert!(seen.len() >= 3, "Tab went through {} controls", seen.len());
+        let before = focused(&h);
+        h.key(Key::ArrowDown);
+        h.frame(Vec::new());
+        assert!(focused(&h).is_some() && focused(&h) != before, "the arrow moved nothing");
+        assert!(h.app.server_manager.is_some(), "the manager closed");
+    }
+
     /// #311: Options over the viewer keep the keys of the viewer and the shortcuts, with the
     /// keyboard nowhere or on a control: the picture, its zoom, its turn not saved and full screen
     /// stay as they were.
