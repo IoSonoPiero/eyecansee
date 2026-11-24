@@ -1,3 +1,5 @@
 /target
 # Private development notes: a separate private repository, cloned here.
 /notes/
+# Personal Claude Code instructions of each computer (they import the private notes).
+/CLAUDE.local.md

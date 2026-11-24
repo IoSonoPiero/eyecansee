@@ -10,6 +10,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 ### Next
 
+- Encrypting files and folders with a password ([#19](https://github.com/IoSonoPiero/eyecansee/issues/19)).
 - Upload to Immich ([#13](https://github.com/IoSonoPiero/eyecansee/issues/13)).
 - Lens correction for Camera RAW photos (lensfun) ([#14](https://github.com/IoSonoPiero/eyecansee/issues/14)).
 - Drag and drop to copy and move ([#15](https://github.com/IoSonoPiero/eyecansee/issues/15)).
@@ -28,7 +29,6 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 - A picture open from a phone or a server kept on this computer, so that saving does not download it again ([#313](https://github.com/IoSonoPiero/eyecansee/issues/313)).
 - Options per saved server in the server manager (FTP active mode, text encoding, ciphers) when a server needs them ([#18](https://github.com/IoSonoPiero/eyecansee/issues/18)).
-- Encrypting files and folders with a password ([#19](https://github.com/IoSonoPiero/eyecansee/issues/19)).
 - Faster HEIC thumbnails from the preview stored in the file ([#20](https://github.com/IoSonoPiero/eyecansee/issues/20)).
 - Windows: phone photos opened from File Explorer go through the direct connection, so they can be saved back to the phone ([#52](https://github.com/IoSonoPiero/eyecansee/issues/52)).
 - Side panel: the folders of the open server, down to the one open, as for This computer ([#110](https://github.com/IoSonoPiero/eyecansee/issues/110)).
