@@ -167,3 +167,35 @@ impl App {
         self.model.cad.forget(path);
     }
 }
+
+#[cfg(test)]
+mod keys {
+    use std::sync::Arc;
+
+    use eframe::egui::{self, Modifiers};
+
+    use crate::audit_family_1::{Harness, folder, own_folder};
+
+    /// N pressed with `modifiers` held, read by the comparison's keys only; the change shown after.
+    fn press(h: &mut Harness, modifiers: Modifiers) -> Option<usize> {
+        let ev = |pressed| egui::Event::Key { key: egui::Key::N, physical_key: None, pressed, repeat: false, modifiers };
+        let raw = egui::RawInput { events: vec![egui::Event::ModifiersChanged(modifiers), ev(true), ev(false)], ..Default::default() };
+        let (ctx, app) = (h.ctx.clone(), &mut h.app);
+        let _ = ctx.run_ui(raw, |ui| app.compare_keys(ui.ctx()));
+        h.app.model.cad.compare.as_ref().and_then(|c| c.at)
+    }
+
+    /// #341: Shift+N in a comparison goes to the change before, N to the one after.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn shift_n_goes_back() {
+        if own_folder("cad_compare_view::keys::shift_n_goes_back") {
+            return;
+        }
+        let mut h = Harness::new(&folder("keys-341", &["a.png"]));
+        let changes = vec![[0.0; 4]; 3];
+        h.app.model.cad.compare = Some(super::Comparison { paths: ["a.dxf".into(), "b.dxf".into()], first: Arc::new(crate::cad::Drawing::default()), units: [None, None], changes, at: Some(1), jump: false });
+        assert_eq!(press(&mut h, Modifiers::SHIFT), Some(0), "Shift+N did not go to the change before");
+        assert_eq!(press(&mut h, Modifiers::NONE), Some(1), "N did not go to the change after");
+    }
+}

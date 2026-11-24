@@ -231,6 +231,8 @@ mod help_check;
 mod audit_family_1;
 #[cfg(test)]
 mod window_keys;
+#[cfg(test)]
+mod viewer_keys_tests;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
