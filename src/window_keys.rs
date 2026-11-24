@@ -413,3 +413,41 @@ fn tab_goes_into_the_guide() {
     assert!(h.app.help.open, "F1 did not open the guide");
     tab_and_arrows(&mut h, &guide, &|a: &App| a.help.open && a.viewing == Some(1), 3, true);
 }
+
+/// #311: the box of a copy under way (and of Convert under way), in a corner while the program
+/// is used: its Cancel could not be reached from the keyboard. It comes in the round of Tab
+/// after the folders of the tree, before the grid (Piero, 24/11): Shift+Tab on the first item
+/// of the grid goes to it, Tab on it to the grid, Shift+Tab on it to the tree; Enter presses it.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn the_box_of_a_copy_is_in_the_round_of_tab() {
+    use crate::Focus;
+    if own_folder("window_keys::the_box_of_a_copy_is_in_the_round_of_tab") {
+        return;
+    }
+    let mut h = on_grid("keys-copy-box");
+    let p = std::sync::Arc::new(crate::transfer::Progress::default());
+    h.app.transfer = Some((p.clone(), false, h.app.base.clone(), h.app.dir.clone()));
+    h.frame(Vec::new());
+    let in_box = |h: &Harness| focused(h).is_some_and(|(_, l)| l.order == egui::Order::Middle);
+    h.key_with(Key::Tab, Modifiers::SHIFT);
+    h.frame(Vec::new());
+    assert!(in_box(&h), "Shift+Tab on the first item of the grid did not reach the box");
+    h.key(Key::Tab);
+    h.frame(Vec::new());
+    assert!(!in_box(&h) && h.app.focus == Focus::Grid && (h.app.cursor, h.app.selected) == (true, 0), "Tab on the box did not go to the first item of the grid");
+    h.key_with(Key::Tab, Modifiers::SHIFT);
+    h.frame(Vec::new());
+    assert!(in_box(&h), "Shift+Tab did not come back to the box");
+    h.key_with(Key::Tab, Modifiers::SHIFT);
+    h.frame(Vec::new());
+    assert!(!in_box(&h) && h.app.focus == Focus::Tree, "Shift+Tab on the box did not go to the tree");
+    h.app.focus = Focus::Grid;
+    (h.app.cursor, h.app.selected) = (true, 0);
+    h.key_with(Key::Tab, Modifiers::SHIFT);
+    h.frame(Vec::new());
+    assert!(in_box(&h), "Shift+Tab did not come back to the box");
+    h.key(Key::Enter);
+    h.frame(Vec::new());
+    assert!(p.cancel.load(std::sync::atomic::Ordering::Relaxed), "Enter on Cancel did not stop the copy");
+}
