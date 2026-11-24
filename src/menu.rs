@@ -14,6 +14,26 @@ pub(crate) fn address_id() -> egui::Id {
     egui::Id::unique("address")
 }
 
+/// The menus of the bar are not in the round of Tab (Piero, 24/11): they will be reached with Alt
+/// and F10 (#322). One reached by Tab gives the keyboard on, in the same direction, to the next
+/// control drawn (or, with Shift+Tab, to the last one: egui's way with nothing focused).
+fn skip_tab(r: egui::Response) {
+    let ctx = &r.ctx;
+    let (now, tab, back) = (ctx.cumulative_frame_nr(), ctx.input(|i| i.key_pressed(egui::Key::Tab)), ctx.input(|i| i.modifiers.shift));
+    let key = egui::Id::unique("menu-tab-frame");
+    if tab {
+        ctx.data_mut(|d| d.insert_temp(key, now));
+    }
+    // Shift+Tab gives the focus a frame later (egui's `id_next_frame`).
+    let by_tab = ctx.data(|d| d.get_temp::<u64>(key)).is_some_and(|f| f + 1 >= now);
+    if r.has_focus() && by_tab && !egui::Popup::is_any_open(ctx) {
+        ctx.memory_mut(|m| {
+            m.surrender_focus(r.id);
+            m.move_focus(if back { egui::FocusDirection::Previous } else { egui::FocusDirection::Next });
+        });
+    }
+}
+
 impl App {
     /// Every keyboard or double-click action also has a menu item, with the shortcut next to it.
     /// The menus only record the chosen item; the action runs afterwards, with access to the whole app.
@@ -24,17 +44,17 @@ impl App {
         // (Rename and Delete in File); no Go menu, as image viewers; Bookmarks as the browsers.
         // On more rows in a narrow window (`bar_rows`): Help was cut at 400 px.
         egui::MenuBar::new().ui(ui, |ui| crate::bar_rows::rows(ui, |ui| {
-            ui.menu_button(self.i18n.t("menu-file"), |ui| self.file_menu(ui, &act));
-            ui.menu_button(self.i18n.t("menu-edit"), |ui| self.edit_menu(ui, &act));
-            ui.menu_button(self.i18n.t("menu-image"), |ui| self.image_menu(ui, &act));
-            ui.menu_button(self.i18n.t("menu-view"), |ui| self.view_menu(ui, &act));
-            ui.menu_button(self.i18n.t("menu-bookmarks"), |ui| {
+            skip_tab(ui.menu_button(self.i18n.t("menu-file"), |ui| self.file_menu(ui, &act)).response);
+            skip_tab(ui.menu_button(self.i18n.t("menu-edit"), |ui| self.edit_menu(ui, &act)).response);
+            skip_tab(ui.menu_button(self.i18n.t("menu-image"), |ui| self.image_menu(ui, &act)).response);
+            skip_tab(ui.menu_button(self.i18n.t("menu-view"), |ui| self.view_menu(ui, &act)).response);
+            skip_tab(ui.menu_button(self.i18n.t("menu-bookmarks"), |ui| {
                 if let Some(a) = self.bookmark_items(ui, true) {
                     act.set(Some(a));
                 }
-            });
-            ui.menu_button(self.i18n.t("menu-tools"), |ui| self.tools_menu(ui, &act));
-            ui.menu_button(self.i18n.t("menu-help"), |ui| self.help_menu(ui, &act));
+            }).response);
+            skip_tab(ui.menu_button(self.i18n.t("menu-tools"), |ui| self.tools_menu(ui, &act)).response);
+            skip_tab(ui.menu_button(self.i18n.t("menu-help"), |ui| self.help_menu(ui, &act)).response);
             crate::bar_rows::right_end(ui, "menu", |ui| {
                 // Left out of the guide's pictures, which it would date.
                 #[cfg(feature = "shots")]
