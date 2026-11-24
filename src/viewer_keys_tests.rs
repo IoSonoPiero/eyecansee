@@ -109,3 +109,28 @@ fn shift_f5_in_the_viewer() {
     h.frame(Vec::new());
     assert_eq!(h.app.viewing, Some(1), "Shift+F5 in the viewer left the picture open");
 }
+
+/// M1 (24/11): a drawing opened after a 3D model, with the grid in between, can be measured
+/// as one opened first: its drawing is read again.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn a_drawing_after_a_model_can_be_measured() {
+    if own_folder("viewer_keys_tests::a_drawing_after_a_model_can_be_measured") {
+        return;
+    }
+    for (k, (measuring, back)) in [(false, Key::Escape), (false, Key::Enter), (true, Key::Escape), (true, Key::Enter)].into_iter().enumerate() {
+        let mut h = showing(&format!("keys-m1-{k}"), "a.obj");
+        if measuring {
+            measure(&mut h);
+        }
+        h.key(back);
+        h.until(|a| a.viewing.is_none(), "back to the grid");
+        open(&mut h, "c.dxf");
+        let start = std::time::Instant::now();
+        while h.app.measure_off().is_some() && start.elapsed().as_secs() < 8 {
+            h.frame(Vec::new());
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        assert!(h.app.measure_off().is_none(), "measuring {measuring}, back with {back:?}: the drawing opened after the model cannot be measured (Measure on: {})", h.app.model.measure.on);
+    }
+}
