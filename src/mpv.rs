@@ -666,13 +666,30 @@ pub(crate) mod tests {
             return;
         }
         if std::env::var_os(CHILD).is_none() {
-            let out = std::process::Command::new(std::env::current_exe().unwrap())
+            // ALSA with no configuration at all: mpv cannot reach the sound card either. Through
+            // it mpv once opened the card itself, which waited for ever while it was busy (the whole
+            // suite with other builds, 24/11/2026), and it must not touch this computer's sound.
+            let mut child = std::process::Command::new(std::env::current_exe().unwrap())
                 .args(["--exact", "mpv::tests::sound_without_an_output_says_why", "--test-threads", "1", "--nocapture"])
                 .env(CHILD, "1")
                 .env("PIPEWIRE_REMOTE", "nowhere")
                 .env("PULSE_SERVER", "unix:/nowhere")
-                .output()
+                .env("ALSA_CONFIG_PATH", "/dev/null")
+                .env("JACK_NO_START_SERVER", "1")
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
                 .unwrap();
+            // A child that hangs fails the test, instead of holding the whole suite.
+            let start = Instant::now();
+            while child.try_wait().unwrap().is_none() {
+                if start.elapsed() > Duration::from_secs(120) {
+                    let _ = child.kill();
+                    panic!("the child with no sound output did not end in 120 s");
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            let out = child.wait_with_output().unwrap();
             let said = String::from_utf8_lossy(&out.stdout).to_string() + &String::from_utf8_lossy(&out.stderr);
             assert!(out.status.success() && said.contains("1 passed"), "{said}");
             return;
