@@ -16,7 +16,7 @@ In the viewer **New image…** is greyed out and **Ctrl + N** does nothing: go b
 ## Size
 
 - Ready-made sizes: A3, A4, A5, Letter, Legal (paper), Full HD, 4K UHD, HD (screens), **Square** (1080 × 1080) and **Upright, for stories** (1080 × 1920).
-- **Width × height**: your own numbers, in px, mm, cm or in. Changing a number or the unit turns the size into **Custom**.
+- **Width × Height**: your own numbers, in px, mm, cm or in. Changing a number or the unit turns the size into **Custom**.
 - ![Swap width and height](icon://arrow-left-right) swaps width and height, for landscape or portrait.
 - **Resolution**: for sizes in millimetres, centimetres or inches, how many dots per inch. The window shows below how many pixels that makes. It starts at A4 at 300 dpi.
 

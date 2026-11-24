@@ -16,7 +16,7 @@ Nel visore **Nuova immagine…** è grigia e **Ctrl + N** non fa niente: prima t
 ## Misura
 
 - Misure pronte: A3, A4, A5, Lettera, Legale (fogli), Full HD, 4K UHD, HD (schermi), **Quadrata** (1080 × 1080) e **Verticale per le storie** (1080 × 1920).
-- **Larghezza × altezza**: i tuoi numeri, in px, mm, cm o in (pollici). Cambiando un numero o l'unità la misura diventa **Personalizzata**.
+- **Larghezza × Altezza**: i tuoi numeri, in px, mm, cm o in (pollici). Cambiando un numero o l'unità la misura diventa **Personalizzata**.
 - ![Scambia larghezza e altezza](icon://arrow-left-right) scambia larghezza e altezza, per l'orizzontale o il verticale.
 - **Risoluzione**: per le misure in millimetri, centimetri o pollici, quanti punti per pollice. Sotto, la finestra mostra quanti pixel fanno. All'inizio è A4 a 300 dpi.
 
