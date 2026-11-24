@@ -710,6 +710,23 @@ impl Phone {
 #[cfg(test)]
 mod tests {
 
+    /// Audit 2.13: a phone's date without a time zone (what phones write) is part of the key of
+    /// its thumbnails (`File::modified`). Read in the computer's time zone, the same photo had
+    /// another key once the zone changed (a laptop on a journey): no thumbnail of the phone
+    /// matched any more, and the maintenance read every photo and video of the phone again,
+    /// whole. The key must be the same in any zone; a date with its zone stays an instant.
+    #[test]
+    fn phone_date_key_ignores_the_time_zone() {
+        use jiff::tz::{Offset, TimeZone};
+        let taken = mtp_rs::DateTime::new(2026, 11, 24, 10, 30, 5).unwrap();
+        let rome = TimeZone::fixed(Offset::constant(1));
+        let new_york = TimeZone::fixed(Offset::constant(-5));
+        assert_eq!(super::phone_modified(taken, &rome), super::phone_modified(taken, &new_york), "the key changed with the time zone");
+        let utc = taken.with_offset(mtp_rs::UtcOffset::UTC);
+        assert_eq!(super::phone_modified(utc, &rome), "1795516205");
+        assert_eq!(super::phone_modified(utc, &new_york), "1795516205");
+    }
+
     #[test]
     fn windows_abort_is_disconnected() {
         let other = |d: &str| super::error(mtp_rs::Error::Other { detail: d.into() }).0;
