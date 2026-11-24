@@ -227,6 +227,8 @@ mod zoom_bar;
 mod help_check;
 #[cfg(test)]
 mod audit_family_1;
+#[cfg(test)]
+mod window_keys;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
