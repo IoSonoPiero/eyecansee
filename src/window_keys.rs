@@ -158,6 +158,13 @@ fn tab_goes_through_the_windows_with_fields() {
     assert!(!resizing(&h.app) && h.app.editor.is_some(), "Esc did not close Resize only");
 }
 
+/// Save as has its picture: until then the page is a spinner, with no control for Tab to reach
+/// (it is read, or made from the editor's result, in the background; with the whole suite the
+/// three frames of `tab_goes_through` were not always enough, 9 runs in 32 of 32 copies at once).
+fn save_as_read(a: &App) -> bool {
+    a.convert.as_ref().is_some_and(|w| w.read().is_some())
+}
+
 /// A page covering the window (Save as, Find duplicates): its controls are on the bottom layer.
 fn page(l: egui::LayerId) -> bool {
     l.order == egui::Order::Background
@@ -176,6 +183,7 @@ fn tab_goes_through_the_pages() {
     let mut h = on_grid("keys-save-as");
     let a = h.app.files()[0].path.clone();
     h.app.open_convert(Some(a));
+    h.until(save_as_read, "the picture of Save as read");
     tab_goes_through(&mut h, page, saving, 3, true);
 
     let mut h = on_grid("keys-save-as-viewer");
@@ -183,12 +191,15 @@ fn tab_goes_through_the_pages() {
     h.until(|a| a.zoom_of == Some(1), "b.png shown");
     let b = h.app.files()[1].path.clone();
     h.app.open_convert(Some(b));
+    h.until(save_as_read, "the picture of Save as read");
     tab_goes_through(&mut h, page, saving, 3, true);
 
     let mut h = in_editor("keys-save-as-editor");
     h.key_with(Key::S, Modifiers::COMMAND | Modifiers::SHIFT);
     h.frame(Vec::new());
     assert!(saving(&h.app), "Ctrl+Shift+S did not open Save as from the editor");
+    // Made from the editor's result in the background, as the others are read.
+    h.until(save_as_read, "the picture of Save as made from the editor");
     tab_goes_through(&mut h, page, saving, 3, true);
     h.key(Key::Tab);
     h.key(Key::Escape);
