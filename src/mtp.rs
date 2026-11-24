@@ -71,14 +71,15 @@ pub struct Download<'a> {
     _turn: tokio::sync::MutexGuard<'a, ()>,
 }
 
-/// Unix seconds of a phone date. Usually the phone does not write the time zone, and then mtp-rs
-/// does not convert it (`to_unix_seconds` = `None`): it is the phone's clock time, taken as the
-/// computer's local time (almost always the same time zone).
-fn unix_seconds(m: mtp_rs::DateTime) -> Option<i64> {
-    m.to_unix_seconds().or_else(|| {
+/// A phone date as `File::modified`: Unix seconds. Usually the phone does not write the time
+/// zone, and then mtp-rs does not convert it (`to_unix_seconds` = `None`): it is the phone's clock
+/// time, taken as the local time of `tz`, the computer's (almost always the same time zone).
+fn phone_modified(m: mtp_rs::DateTime, tz: &jiff::tz::TimeZone) -> String {
+    let seconds = m.to_unix_seconds().or_else(|| {
         let civil = jiff::civil::DateTime::new(m.year as i16, m.month as i8, m.day as i8, m.hour as i8, m.minute as i8, m.second as i8, 0).ok()?;
-        Some(civil.to_zoned(jiff::tz::TimeZone::system()).ok()?.timestamp().as_second())
-    })
+        Some(civil.to_zoned(tz.clone()).ok()?.timestamp().as_second())
+    });
+    seconds.map(|s| s.to_string()).unwrap_or_default()
 }
 
 /// The call a phone is answering right now (what, path, start or last data written): the status
@@ -303,7 +304,7 @@ impl Phone {
             let path = format!("{dir}{}{}", o.filename, if o.is_folder() { "/" } else { "" });
             // Hidden items too: `locate` finds them here (the files of an interrupted "Save").
             handles.insert(path.clone(), o.handle);
-            let modified = o.modified.and_then(unix_seconds).map(|s| s.to_string()).unwrap_or_default();
+            let modified = o.modified.map(|m| phone_modified(m, &jiff::tz::TimeZone::system())).unwrap_or_default();
             listing.add(path, &o.filename, o.is_folder(), o.size, modified, true);
         }
         listing.sort();
