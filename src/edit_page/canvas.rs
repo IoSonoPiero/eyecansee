@@ -75,15 +75,16 @@ pub(super) fn canvas(ui: &mut egui::Ui, w: &mut Window, tex: &Picture, size: Vec
     // A text or bubble that takes the keys is typed on the image.
     if w.focus_text && let Some(i) = w.selected.filter(|&i| super::typing::can(&w.doc, i)) {
         w.editing = Some(i);
+        // A typing that starts has no pause of the one before (`typing::paused`).
+        w.typing_paused = false;
     }
     let view = View { centre: rect.center(), at, k };
     paint(ui, w, tex, &view, rect);
     // While the list of fonts is open the letters drawn show the font pointed at, and the field
     // waits for the list to close, which took its keys: every font pointed at would be given to
     // egui (#310).
-    if w.font_preview.is_some() && w.editing.is_some() {
-        w.typing_paused = true;
-    }
+    // Paused only while there is a text being typed (`typing::paused`).
+    w.typing_paused = w.editing.is_some() && (w.typing_paused || w.font_preview.is_some());
     if let Some(i) = w.editing.filter(|_| !crop_tool && w.font_preview.is_none()) {
         let centre = match &w.doc.objects.get(i).map(|o| &o.shape) {
             Some(Shape::Text { at, .. }) => *at,
