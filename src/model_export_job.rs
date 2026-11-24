@@ -70,6 +70,9 @@ static ONE_AT_A_TIME: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(())
 pub(crate) async fn run(op: Store, jobs: Vec<(String, String)>, kind: Kind, p: Arc<Progress>, send: impl Fn(Exported)) {
     let _turn = ONE_AT_A_TIME.lock().await;
     for (path, to) in jobs {
+        // Asked of the folder too: the grid may not have read it yet, and a file of that name
+        // (the original itself, exported into its own format) is never written over.
+        let to = free_in_folder(&op, to).await;
         if !p.stopped() {
             *p.current.lock().unwrap() = crate::source::name(&path).to_string();
             p.part.store(0, Ordering::Relaxed);
@@ -116,6 +119,18 @@ async fn one(op: &Store, path: &str, to: &str, kind: Kind, p: &Arc<Progress>) ->
         written.push(path);
     }
     Ok(notes)
+}
+
+/// `to`, or the next free name in its folder when a file has that name.
+async fn free_in_folder(op: &Store, to: String) -> String {
+    let dir = crate::source::parent(&to);
+    let mut given = std::collections::HashSet::new();
+    let mut name = crate::source::name(&to).to_string();
+    while op.exists(&format!("{dir}{name}")).await {
+        given.insert(name.clone());
+        name = crate::source::free_name(&given, crate::source::name(&to));
+    }
+    format!("{dir}{name}")
 }
 
 /// Free names in the folder of `to` for the files next to it, asked of the folder itself: a
