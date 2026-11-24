@@ -643,4 +643,26 @@ mod tests {
         h.key(egui::Key::Enter);
         assert_eq!(tip(&h), None, "Close, highlighted, closes the tip");
     }
+
+    /// #311: ↑ and ↓ do nothing in the tip, but a message over it keeps them for its buttons: ↑
+    /// from Close (highlighted) to Save as…, which Enter presses.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn arrows_of_a_message_over_the_tip() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("tips::tests::arrows_of_a_message_over_the_tip") {
+            return;
+        }
+        let mut h = Harness::new(&folder("tip-message", &["a.png"]));
+        h.app.tip_show(0);
+        h.frame(Vec::new());
+        h.app.notice = Some(crate::save_dialogs::Notice { save_as: Some(crate::actions::Act::Save), ..crate::save_dialogs::Notice::new("Title".into(), "Text".into()) });
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+        h.key(egui::Key::ArrowUp);
+        h.key(egui::Key::Enter);
+        assert!(h.app.notice.is_none(), "Enter closes the message");
+        assert!(h.app.tip.is_some(), "the tip under it stays");
+        assert!(h.app.act.is_some(), "↑ over the tip did not reach the buttons of the message");
+    }
 }

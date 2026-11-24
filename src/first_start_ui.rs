@@ -866,4 +866,61 @@ mod tests {
         h.frame(Vec::new());
         assert_eq!((h.app.settings.theme, page(&h)), (ThemeChoice::Dark, Some(0)), "Shift+Tab and Space from Next took the dark colours");
     }
+
+    /// The window of three pages (Windows: the desktop icon in the middle, `buttons`).
+    fn three_pages(h: &mut crate::audit_family_1::Harness, desktop: Desktop) {
+        let rows: Vec<_> = crate::component::addons().into_iter().map(|a| (a, Have::Missing, false)).collect();
+        let plan = Plan { pages: vec![Page::Welcome, Page::Desktop, Page::Addons], addons: rows.iter().map(|r| r.0.component.kind).collect() };
+        h.frame(Vec::new());
+        h.app.first_start = Some(Open { plan, page: 1, rows, running: Vec::new(), asking: false, closing: None, desktop, shown: None });
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+    }
+
+    /// #311: a page shown anew gives the keyboard to its own main button, not to the button in
+    /// the same place on the page before: Back from the middle page, then Enter, is Next on the
+    /// first page (Skip is there, and closed the window). On the middle page waiting for its
+    /// answer Next is greyed: Back is highlighted.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn a_page_shown_anew_highlights_its_main_button() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("first_start_ui::tests::a_page_shown_anew_highlights_its_main_button") {
+            return;
+        }
+        let mut h = Harness::new(&folder("first-start-three", &["a.png"]));
+        let page = |h: &Harness| h.app.first_start.as_ref().map(|o| o.page);
+        three_pages(&mut h, Desktop::No);
+        h.key(egui::Key::Tab);
+        h.key(egui::Key::Enter);
+        assert_eq!(page(&h), Some(0), "Tab from Next goes to Back, Enter presses it");
+        h.frame(Vec::new());
+        h.key(egui::Key::Enter);
+        assert_eq!(page(&h), Some(1), "Enter on the first page is Next, highlighted");
+        three_pages(&mut h, Desktop::Ask);
+        h.key(egui::Key::Enter);
+        assert_eq!(page(&h), Some(0), "Next greyed while the page waits: Back highlighted");
+    }
+
+    /// #311: with the guide open over the pages (F1) their keys stay the guide's, also once its
+    /// search field has let the keyboard go: Enter, Space and Tab do not turn the page.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn the_guide_over_the_pages_keeps_their_keys() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("first_start_ui::tests::the_guide_over_the_pages_keeps_their_keys") {
+            return;
+        }
+        let mut h = Harness::new(&folder("first-start-guide", &["a.png"]));
+        three_pages(&mut h, Desktop::No);
+        h.key(egui::Key::F1);
+        h.frame(Vec::new());
+        assert!(h.app.help.open, "F1 opens the guide over the pages");
+        for key in [egui::Key::Enter, egui::Key::Enter, egui::Key::Space, egui::Key::Tab, egui::Key::Enter, egui::Key::Space] {
+            h.key(key);
+            h.frame(Vec::new());
+            assert_eq!(h.app.first_start.as_ref().map(|o| o.page), Some(1), "{key:?} in the guide reached the pages under it");
+        }
+        assert!(h.app.help.open, "the guide stays open");
+    }
 }

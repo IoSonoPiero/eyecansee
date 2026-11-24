@@ -235,7 +235,8 @@ impl App {
         let (answer, typing) = (&mut self.key_answer, self.help.in_field());
         // The tip of the day (audit 1.13, D6): ← and → turn it, unless the guide is over it. A key
         // held down from before it came (Enter on Done of the first-start window) does not close it.
-        let tip = self.tip.is_some() && !self.help.open;
+        // Only with the tip on top: a message over it keeps its arrows for its buttons (#311).
+        let tip = self.tip.is_some() && !self.help.open && on_top(ctx, "tip");
         let mut turn = None;
         let mut nav = None;
         raw_input.events.retain(|e| match e {
