@@ -448,7 +448,6 @@ pub fn apply(ready: &Ready) -> Result<(), String> {
     }
 }
 
-/// A PowerShell literal string: in single quotes, a quote is written twice.
 /// EyeCanSee started again once this process has exited (the caller closes the window): after the
 /// video engine is downloaded, which loaded only after a restart on Windows (2026-10-27). It opens
 /// on the last folder, saved at closing.
@@ -478,8 +477,20 @@ pub fn restart() -> Result<(), String> {
     }
 }
 
+/// A PowerShell literal string: in single quotes, a quote is written twice. PowerShell takes the
+/// typographic quotes ‘ ’ ‚ ‛ for one too (`IsSingleQuote` in its tokenizer): a folder "D’Angelo"
+/// ended the string there, and the update's script did not run (audit 2.22). Each is doubled the
+/// same way, and stays as it is in the path.
 fn quote(path: &Path) -> String {
-    format!("'{}'", path.to_string_lossy().replace('\'', "''"))
+    let mut quoted = String::from("'");
+    for c in path.to_string_lossy().chars() {
+        if matches!(c, '\'' | '\u{2018}' | '\u{2019}' | '\u{201a}' | '\u{201b}') {
+            quoted.push(c);
+        }
+        quoted.push(c);
+    }
+    quoted.push('\'');
+    quoted
 }
 
 fn powershell(script: &str) -> Result<(), String> {
