@@ -874,6 +874,27 @@ pub(crate) mod tests {
         assert_eq!(names, ["x.png", "x.mtl"]);
     }
 
+    /// #340: pictures read smaller (beyond 2048 pixels) or left out (beyond 64) are said at the
+    /// end of an export into a format that keeps pictures (glTF, OBJ): there it is not "all".
+    #[test]
+    fn pictures_smaller_or_left_out_said() {
+        let none: crate::model::Sibling = &|_| None;
+        let notes = |m: &Mesh, kind| export_file(&export(m, Kind::Glb), "q.glb", none, kind, &|_| true, &Beside { stem: "q", free: &|n| n.to_string() }).unwrap().1;
+        let mut big = pictured();
+        big.textures[0] = std::sync::Arc::new(image::RgbaImage::from_pixel(3000, 4, image::Rgba([0, 200, 0, 255])));
+        for kind in [Kind::Glb, Kind::Obj] {
+            assert!(notes(&big, kind).contains(&"model-export-lost-smaller"), "{kind:?}: {:?}", notes(&big, kind));
+        }
+        assert!(!notes(&pictured(), Kind::Glb).contains(&"model-export-lost-smaller"));
+        // 65 triangles, each with a picture of its own.
+        let obj: String = (0..65).map(|i| format!("v {i} 0 0\nv {i}.5 0 0\nv {i} 1 0\n")).chain((0..65).map(|i| format!("f {} {} {}\n", 3 * i + 1, 3 * i + 2, 3 * i + 3))).collect();
+        let mut many = crate::model::parse(obj.as_bytes(), "m.obj").unwrap();
+        many.textures = (0..65).map(|i| std::sync::Arc::new(image::RgbaImage::from_pixel(2, 2, image::Rgba([i as u8, 0, 0, 255])))).collect();
+        many.tex = (1..=65).collect();
+        many.uv = vec![[[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]; 65];
+        assert!(notes(&many, Kind::Glb).contains(&"model-export-lost-left-out"), "{:?}", notes(&many, Kind::Glb));
+    }
+
     /// #312: every writer stops when told to, also on a model of one material (glTF wrote a
     /// material's triangles before asking), and says how far it is on the way.
     #[test]
