@@ -649,6 +649,16 @@ impl App {
     }
 }
 
+
+/// A Convert under way on `paths` (the box in the corner), for the tests of other modules.
+#[cfg(test)]
+pub(crate) fn running(dir: &str, paths: Vec<String>) -> (Window, Arc<Progress>) {
+    let p = Arc::new(Progress::default());
+    p.total.store(paths.len(), Ordering::Relaxed);
+    let w = Window { paths, dir: dir.to_string(), progress: Some(p.clone()), dest: Default::default(), left_out: Vec::new(), kinds: &[], preset: false, before: None, started: Some(std::time::Instant::now()) };
+    (w, p)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

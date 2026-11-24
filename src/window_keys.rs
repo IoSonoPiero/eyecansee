@@ -831,3 +831,75 @@ fn tab_goes_into_the_guide_over_about() {
     assert!(seen.iter().any(|id| Some(*id) != start), "Tab over About did not move inside the guide (Piero's test W1.4)");
     assert!(h.app.about, "About closed");
 }
+
+/// A few frames, until `n` boxes under way have their Cancel ready (a window new on screen
+/// is measured first, with its buttons off).
+fn boxes_up(h: &mut Harness, n: usize) {
+    for _ in 0..10 {
+        h.frame(Vec::new());
+        if crate::box_keys::controls(&h.ctx).len() == n {
+            return;
+        }
+    }
+    panic!("the Cancel of {n} boxes never ready");
+}
+
+/// #324: F6 takes the keyboard to Cancel of a job under way, from the grid and from the viewer;
+/// with a copy and a conversion it goes from one to the other, and their boxes do not overlap.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn f6_goes_to_cancel_of_the_jobs() {
+    if own_folder("window_keys::f6_goes_to_cancel_of_the_jobs") {
+        return;
+    }
+    let mut h = Harness::new(&folder("keys-f6", &["a.png", "b.png"]));
+    // No job: F6 does nothing.
+    h.key(Key::F6);
+    h.frame(Vec::new());
+    assert!(h.ctx.memory(|m| m.focused()).is_none(), "F6 with no job took the keyboard");
+    let copy = std::sync::Arc::new(crate::transfer::Progress::default());
+    h.app.transfer = Some((copy.clone(), false, h.app.base.clone(), h.app.dir.clone()));
+    boxes_up(&mut h, 1);
+    let (w, convert) = crate::batch_page::running(&h.app.dir.clone(), vec![format!("{}a.png", h.app.dir)]);
+    h.app.batch = Some(w);
+    boxes_up(&mut h, 2);
+    let boxes = crate::box_keys::controls(&h.ctx);
+    let area = |h: &Harness, id: egui::Id| h.ctx.read_response(id).and_then(|r| h.ctx.memory(|m| m.area_rect(r.layer_id.id))).expect("box drawn");
+    assert!(!area(&h, boxes[0]).intersects(area(&h, boxes[1])), "the two boxes overlap");
+    let f6 = |h: &mut Harness| {
+        h.key(Key::F6);
+        h.frame(Vec::new());
+        h.ctx.memory(|m| m.focused())
+    };
+    let first = f6(&mut h).expect("F6 from the grid took the keyboard nowhere");
+    assert!(boxes.contains(&first), "F6 went elsewhere than a Cancel");
+    let second = f6(&mut h).expect("F6 again lost the keyboard");
+    assert!(boxes.contains(&second) && second != first, "F6 again did not go to the other job");
+    assert_eq!(f6(&mut h), Some(first), "F6 a third time did not come back");
+    // The Tab of the grid is unchanged; Enter stops the job focused.
+    h.key(Key::Enter);
+    h.frame(Vec::new());
+    assert!(copy.cancel.load(std::sync::atomic::Ordering::Relaxed) || convert.cancel.load(std::sync::atomic::Ordering::Relaxed), "Enter on Cancel stopped nothing");
+}
+
+/// #324: in the viewer F6 reaches Cancel of a copy, and Space presses it without changing picture.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn f6_in_the_viewer() {
+    if own_folder("window_keys::f6_in_the_viewer") {
+        return;
+    }
+    let mut h = Harness::new(&folder("keys-f6-viewer", &["a.png", "b.png"]));
+    h.app.activate(0);
+    h.until(|app| app.zoom_of == Some(0), "a.png shown");
+    let copy = std::sync::Arc::new(crate::transfer::Progress::default());
+    h.app.transfer = Some((copy.clone(), false, h.app.base.clone(), h.app.dir.clone()));
+    boxes_up(&mut h, 1);
+    h.key(Key::F6);
+    h.frame(Vec::new());
+    assert!(h.ctx.memory(|m| m.focused()).is_some_and(|f| crate::box_keys::controls(&h.ctx).contains(&f)), "F6 in the viewer did not reach Cancel");
+    h.key(Key::Space);
+    h.frame(Vec::new());
+    assert!(copy.cancel.load(std::sync::atomic::Ordering::Relaxed), "Space on Cancel did not stop the copy");
+    assert_eq!(h.app.viewing, Some(0), "Space on Cancel changed picture");
+}
