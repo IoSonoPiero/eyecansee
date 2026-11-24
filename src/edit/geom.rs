@@ -563,4 +563,56 @@ mod curves {
         assert_eq!(size(&with_handle_kept(&o, 2, Pt::new(60.0, 12.0), true)), (60.0, 30.0));
         assert_eq!(size(&with_handle_kept(&o, 2, Pt::new(60.0, 12.0), false)), (60.0, 12.0));
     }
+
+    /// Where the letters of the text `shape` are drawn on a white photo 1600 × 600 (as saved):
+    /// the leftmost and rightmost columns and the top and bottom rows with ink, in the document's
+    /// pixels (from the middle of the image); `None` without a font to draw them.
+    fn ink(shape: &Shape) -> Option<(f32, f32, f32, f32)> {
+        let mut doc = crate::edit::doc::Doc::new(1600, 600, None);
+        doc.objects.push(Obj { shape: shape.clone(), style: Style { color: [0, 0, 0], ..Style::default() } });
+        let photo = image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(1600, 600, image::Rgb([255, 255, 255])));
+        let img = crate::edit::save::result(&doc, &crate::encode::Original::with_meta(photo, &[]), &crate::decode::usvg_options()).to_rgb8();
+        let dark: Vec<(u32, u32)> = img.enumerate_pixels().filter(|(_, _, p)| p.0[0] < 128).map(|(x, y, _)| (x, y)).collect();
+        let xs = dark.iter().map(|p| p.0 as f32 - 800.0);
+        let ys = dark.iter().map(|p| p.1 as f32 - 300.0);
+        let (l, r) = xs.fold((f32::INFINITY, f32::NEG_INFINITY), |(a, b), x| (a.min(x), b.max(x + 1.0)));
+        let (t, b) = ys.fold((f32::INFINITY, f32::NEG_INFINITY), |(a, b), y| (a.min(y), b.max(y + 1.0)));
+        (!dark.is_empty()).then_some((l, r, t, b))
+    }
+
+    /// #174: the box of a text (its frame when selected, where a click takes it, its turn handle,
+    /// whether it is outside the result) holds its letters as they are drawn, in its font, and is
+    /// not much wider: capitals, small letters, two lines, a font chosen, turned. Until 0.77.0 it
+    /// was 0.6 of the height a character whatever the font: capitals came out of it ("ORDER
+    /// NUMBER" at 96 px, 412 px of letters in a frame of 366), small letters left it half empty,
+    /// and a click on the first or last letter missed the text.
+    #[test]
+    fn text_box_follows_the_letters() {
+        let families = crate::decode::font_families();
+        let chosen = [families.first(), families.get(families.len() / 2), families.last()].into_iter().flatten().cloned().map(Some);
+        let mut measured = 0;
+        for font in std::iter::once(None).chain(chosen) {
+            for text in ["ORDER NUMBER", "Order number", "iiii\nWWWWWW"] {
+                let shape = Shape::Text { at: Pt::new(0.0, 0.0), text: text.into(), size: 96.0, rot: 0.0, font: font.clone(), path: None };
+                let Some((l, r, t, b)) = ink(&shape) else { continue };
+                measured += 1;
+                let a = crate::edit::turn::turn_box(&shape).unwrap();
+                let (bl, br) = (a.centre.x - a.w / 2.0, a.centre.x + a.w / 2.0);
+                let what = format!("{text:?} in {font:?}: letters {l}..{r}, frame {bl}..{br}");
+                assert!(bl <= l + 1.0 && br >= r - 1.0, "letters out of the frame: {what}");
+                assert!(br - bl <= r - l + 0.25 * 96.0, "frame much wider than the letters: {what}");
+                let o = Obj { shape: shape.clone(), style: Style::default() };
+                let middle = (t + b) / 2.0;
+                assert!(hit(&o, Pt::new(l + 1.0, middle), 0.0) && hit(&o, Pt::new(r - 1.0, middle), 0.0), "a click on the first or last letter misses: {what}");
+                assert!(!hit(&o, Pt::new(br + 2.0, middle), 0.0), "a click past the frame takes it: {what}");
+            }
+        }
+        assert!(measured > 0 || families.is_empty(), "no text drawn with the fonts of this system");
+        // Turned by 90°: the letters go down, the frame with them.
+        let shape = Shape::Text { at: Pt::new(0.0, 0.0), text: "ORDER NUMBER".into(), size: 60.0, rot: 90.0, font: None, path: None };
+        if let Some((_, _, t, b)) = ink(&shape) {
+            let a = crate::edit::turn::turn_box(&shape).unwrap();
+            assert!(a.w / 2.0 >= t.abs().max(b.abs()) - 1.0, "letters {t}..{b} out of a frame {} long", a.w);
+        }
+    }
 }
