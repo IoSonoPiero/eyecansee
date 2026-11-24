@@ -135,3 +135,96 @@ fn audit_5_8_lens_after_undo_shows_what_a_cover_hides() {
     assert_eq!(w.doc.objects.len(), 2, "the arrow undone, the lens and the cover left");
     assert_eq!(lens_middle(&h).map(|p| p[0]), Some(0), "after Undo the lens shows what the cover hides");
 }
+
+/// A cover box in the middle of the picture, red.
+fn red_cover(h: &mut Harness) {
+    use crate::edit::doc::{Area, Obj, Pt, Shape, Style};
+    let w = h.app.editor.as_mut().unwrap();
+    w.doc.objects.push(Obj { shape: Shape::Cover(Area { centre: Pt::new(0.0, 0.0), w: 40.0, h: 30.0, rot: 0.0 }), style: Style { color: [255, 0, 0], ..Style::default() } });
+}
+
+/// The buttons of the bottom row of the window on top (a question), from the left.
+fn question_buttons(h: &Harness) -> Vec<egui::Rect> {
+    // The buttons, not the shade over the window behind it nor the lines of text.
+    let rects: Vec<egui::Rect> = h.ctx.viewport(|v| {
+        let over = v.prev_pass.widgets.layers().filter(|(l, _)| l.order == egui::Order::Foreground).flat_map(|(_, w)| w.iter());
+        over.filter(|w| w.sense.is_focusable() && w.rect.width() < 600.0).map(|w| w.rect).collect()
+    });
+    let bottom = rects.iter().map(|r| r.bottom()).fold(f32::NEG_INFINITY, f32::max);
+    let mut row: Vec<egui::Rect> = rects.into_iter().filter(|r| (r.bottom() - bottom).abs() < 2.0).collect();
+    row.sort_by(|a, b| a.left().total_cmp(&b.left()));
+    row
+}
+
+/// Audit 5.15 (a) (L4 of 23/11): closing with changes not saved while the save before is still
+/// being sent (a phone, a server). Save… in the question did nothing: the question closed, the
+/// page stayed, nothing said why. Now Save… is greyed out there while the save before is sent,
+/// with the reason, as the main button.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn audit_5_15_a_save_on_closing_while_the_last_save_is_sent() {
+    if own_folder("edit_page::defects::audit_5_15_a_save_on_closing_while_the_last_save_is_sent") {
+        return;
+    }
+    let mut h = Harness::new(&white("five-fifteen-a"));
+    editor(&mut h, "a.png", Tool::Select);
+    red_cover(&mut h);
+    h.key_with(Key::S, Modifiers::COMMAND);
+    h.until(|app| app.editor.as_ref().is_some_and(|w| w.ready.is_some()), "the confirmation");
+    h.key(crate::audit_family_1::enter());
+    h.until(|app| app.saving.is_empty() && app.editor.as_ref().is_some_and(|w| w.ready.is_none() && w.copy.done.is_some()), "the copy written");
+    // The copy written is still being sent, as `kept::send` keeps it in `saving` until it is there.
+    let copy = h.app.editor.as_ref().unwrap().copy.done.as_ref().unwrap().path.clone();
+    h.app.saving.insert(copy);
+    red_cover(&mut h);
+    h.key(Key::Escape);
+    h.frame(Vec::new());
+    h.frame(Vec::new());
+    assert!(h.app.editor.as_ref().unwrap().leaving, "the question on closing");
+    let buttons = question_buttons(&h);
+    assert_eq!(buttons.len(), 4, "Save…, Save as…, Don't save, Cancel: {buttons:?}");
+    click(&mut h, buttons[0].center());
+    let w = h.app.editor.as_ref().unwrap();
+    eprintln!("after Save…: question open {}, closing {}, preparing {}, note {:?}", w.leaving, w.closing, w.preparing, w.note);
+    assert!(w.leaving || w.closing || w.preparing || w.note.is_some(), "Save… did nothing and nothing says why");
+}
+
+/// Audit 5.15 (c): a fault while the result is made for Copy (a panic in its thread) left
+/// `copying` on: the Copy button greyed out with its wheel for ever, nothing said. Now the error
+/// bar says it, and Copy works again.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn audit_5_15_c_copy_that_fails_says_it() {
+    if own_folder("edit_page::defects::audit_5_15_c_copy_that_fails_says_it") {
+        return;
+    }
+    let mut h = Harness::new(&white("five-fifteen-c"));
+    editor(&mut h, "a.png", Tool::Select);
+    red_cover(&mut h);
+    crate::edit::save::FAULT.store(true, std::sync::atomic::Ordering::Relaxed);
+    h.frame(vec![Event::Copy]);
+    assert!(h.app.editor.as_ref().unwrap().copying, "the copy being made");
+    h.until(|app| app.editor.as_ref().is_some_and(|w| !w.copying), "the copy over (Copy greyed out for ever)");
+    assert!(h.app.error.is_some(), "nothing says the copy failed");
+}
+
+/// Audit 5.15 (b): a fault while the result is made for Save as… (a panic in its job) left the
+/// page of Save as… loading for ever, nothing said. Now that page closes, the error bar says
+/// why, and the editor is back with its changes.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn audit_5_15_b_save_as_that_fails_says_it() {
+    if own_folder("edit_page::defects::audit_5_15_b_save_as_that_fails_says_it") {
+        return;
+    }
+    let mut h = Harness::new(&white("five-fifteen-b"));
+    editor(&mut h, "a.png", Tool::Select);
+    red_cover(&mut h);
+    crate::edit::save::FAULT.store(true, std::sync::atomic::Ordering::Relaxed);
+    h.key_with(Key::S, Modifiers::COMMAND | Modifiers::SHIFT);
+    assert!(h.app.convert.is_some(), "Save as… open");
+    h.until(|app| app.convert.is_none() || app.convert.as_ref().is_some_and(|c| c.read().is_some()), "Save as… left loading for ever");
+    assert!(h.app.convert.is_none() && h.app.error.is_some(), "the page closed, the error said");
+    let w = h.app.editor.as_ref().expect("the editor back");
+    assert_eq!(w.doc.objects.len(), 1, "its changes kept");
+}
