@@ -180,14 +180,15 @@ jobs-report-title = Lavori finiti
 transfer-copy-cancelled = Copia annullata
 transfer-move-cancelled = Spostamento annullato
 transfer-files-copied = { $n ->
-    [one] **1 file** copiato.
-   *[other] **{ $n } file** copiati.
+    [one] **1 file** copiato in { $dir }.
+   *[other] **{ $n } file** copiati in { $dir }.
 }
 transfer-files-moved = { $n ->
-    [one] **1 file** spostato.
-   *[other] **{ $n } file** spostati.
+    [one] **1 file** spostato in { $dir }.
+   *[other] **{ $n } file** spostati in { $dir }.
 }
-transfer-done-before-cancel = **{ $n } file su { $total }** fatti prima di Annulla.
+transfer-done-before-cancel = **{ $n } file su { $total }** copiati in { $dir } prima di Annulla.
+transfer-moved-before-cancel = **{ $n } file su { $total }** spostati in { $dir } prima di Annulla.
 transfer-copy-stopped = Copia interrotta
 transfer-move-stopped = Spostamento interrotto
 transfer-links-heading = { $n ->

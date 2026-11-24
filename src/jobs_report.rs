@@ -86,22 +86,20 @@ impl Waiting {
 /// cancelled, finished, or stopped by an error the red bar says (`r`); `cut`: a move.
 pub(crate) fn quiet_copy(i18n: &crate::i18n::I18n, cut: bool, to: &str, r: &Result<(), crate::source::Error>, p: &crate::transfer::Progress) -> Part {
     let (files, total) = (p.files.load(Ordering::Relaxed), p.files_total.load(Ordering::Relaxed));
-    let n = |id: &str, args: &[(&str, &str)]| i18n.t_args(id, args);
-    let (title, line) = match (r, cut) {
-        (Err((id, _)), _) if *id == "error-cancelled" => {
-            let line = (total > 0).then(|| n("transfer-done-before-cancel", &[("n", &files.to_string()), ("total", &total.to_string())]));
-            (if cut { "transfer-move-cancelled" } else { "transfer-copy-cancelled" }, line)
+    let dir = md(&crate::address::without_password(to));
+    let to_line = || i18n.t_args("transfer-to", &[("dir", &dir)]);
+    // One line, as Convert's "3 files saved in …" (Piero, 24/11): the count and the folder.
+    let counted = |id: &str, n: usize| i18n.t_args(id, &[("n", &n.to_string()), ("total", &total.to_string()), ("dir", &dir)]);
+    let (title, text) = match r {
+        Err((id, _)) if *id == "error-cancelled" => {
+            let text = if total > 0 { counted(if cut { "transfer-moved-before-cancel" } else { "transfer-done-before-cancel" }, files) } else { to_line() };
+            (if cut { "transfer-move-cancelled" } else { "transfer-copy-cancelled" }, text)
         }
-        (Ok(()), _) => {
-            let line = (total > 0).then(|| n(if cut { "transfer-files-moved" } else { "transfer-files-copied" }, &[("n", &total.to_string())]));
-            (if cut { "transfer-moved" } else { "transfer-copied" }, line)
+        Ok(()) => {
+            let text = if total > 0 { counted(if cut { "transfer-files-moved" } else { "transfer-files-copied" }, total) } else { to_line() };
+            (if cut { "transfer-moved" } else { "transfer-copied" }, text)
         }
-        (Err((id, detail)), _) => (if cut { "transfer-move-stopped" } else { "transfer-copy-stopped" }, Some(md(&i18n.error(id, detail)))),
-    };
-    let to = i18n.t_args("transfer-to", &[("dir", &md(&crate::address::without_password(to)))]);
-    let text = match line {
-        Some(l) => format!("{to}\n{l}"),
-        None => to,
+        Err((id, detail)) => (if cut { "transfer-move-stopped" } else { "transfer-copy-stopped" }, format!("{}\n{}", to_line(), md(&i18n.error(id, detail)))),
     };
     Part { title: i18n.t(title), copy: plain(&text), text, groups: Vec::new(), warning: false, help: None }
 }
@@ -395,7 +393,7 @@ mod tests {
         let r = h.app.jobs_report.clone().expect("no jobs report");
         let titles: Vec<&str> = r.parts.iter().map(|p| p.title.as_str()).collect();
         assert_eq!(titles, ["Copia finita", "Copia annullata", "Converti"], "the quiet copies at the top");
-        assert!(r.parts[1].text.ends_with("**2 file su 5** fatti prima di Annulla."), "{}", r.parts[1].text);
+        assert!(r.parts[1].text.starts_with("**2 file su 5** copiati in ") && r.parts[1].text.ends_with(" prima di Annulla."), "{}", r.parts[1].text);
         h.key(egui::Key::Enter);
         h.frame(Vec::new());
         assert!(h.app.jobs_quiet.is_empty() && h.app.jobs_report.is_none());
@@ -456,8 +454,8 @@ mod tests {
         p.files.store(1, Ordering::Relaxed);
         p.files_total.store(3, Ordering::Relaxed);
         for (lang, done, moved, cancelled) in [
-            ("en", "Copy finished|To /to/\n3 files copied.", "Move finished|To /to/\n3 files moved.", "Copy cancelled|To /to/\n1 of 3 files done before Cancel."),
-            ("it", "Copia finita|In /to/\n3 file copiati.", "Spostamento finito|In /to/\n3 file spostati.", "Copia annullata|In /to/\n1 file su 3 fatti prima di Annulla."),
+            ("en", "Copy finished|3 files copied to /to/.", "Move finished|3 files moved to /to/.", "Copy cancelled|1 of 3 files copied to /to/ before Cancel."),
+            ("it", "Copia finita|3 file copiati in /to/.", "Spostamento finito|3 file spostati in /to/.", "Copia annullata|1 file su 3 copiati in /to/ prima di Annulla."),
         ] {
             let i18n = crate::i18n::I18n::new(lang);
             let said = |cut, r: Result<(), crate::source::Error>| {

@@ -181,14 +181,15 @@ jobs-report-title = Jobs finished
 transfer-copy-cancelled = Copy cancelled
 transfer-move-cancelled = Move cancelled
 transfer-files-copied = { $n ->
-    [one] **1 file** copied.
-   *[other] **{ $n } files** copied.
+    [one] **1 file** copied to { $dir }.
+   *[other] **{ $n } files** copied to { $dir }.
 }
 transfer-files-moved = { $n ->
-    [one] **1 file** moved.
-   *[other] **{ $n } files** moved.
+    [one] **1 file** moved to { $dir }.
+   *[other] **{ $n } files** moved to { $dir }.
 }
-transfer-done-before-cancel = **{ $n } of { $total } files** done before Cancel.
+transfer-done-before-cancel = **{ $n } of { $total } files** copied to { $dir } before Cancel.
+transfer-moved-before-cancel = **{ $n } of { $total } files** moved to { $dir } before Cancel.
 transfer-copy-stopped = Copy stopped
 transfer-move-stopped = Move stopped
 transfer-links-heading = { $n ->
