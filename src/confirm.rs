@@ -136,7 +136,16 @@ pub(crate) fn buttons_hint(ui: &mut egui::Ui, id: &str, labels: &[(String, bool)
             }
         })
         .collect();
+    keys(ui, id, &rows, default)
+}
+
+/// The keys of the frame for a row of buttons the caller drew itself (`rows`, greyed ones too, in
+/// any order: Tab goes from the left, as they are on screen, also when drawn from the right). The
+/// window on top takes them (`Nav`); `default`, an index of `rows`, is highlighted when the window
+/// opens, unless a text field has the keyboard. The index pressed, by the mouse or the keys.
+pub(crate) fn keys(ui: &egui::Ui, id: &str, rows: &[egui::Response], default: usize) -> Option<usize> {
     let clicked = rows.iter().position(egui::Response::clicked);
+    let opened = just_opened(ui.ctx(), id);
     if !on_top(ui.ctx(), id) {
         return clicked;
     }
@@ -145,14 +154,37 @@ pub(crate) fn buttons_hint(ui: &mut egui::Ui, id: &str, labels: &[(String, bool)
         d.remove::<Nav>(nav_id());
         n
     });
-    let on: Vec<bool> = labels.iter().map(|(_, on)| *on).collect();
+    let order = on_screen(&rows.iter().map(|r| r.rect.left()).collect::<Vec<_>>());
+    let place = |i: usize| order.iter().position(|&o| o == i);
+    let on: Vec<bool> = order.iter().map(|&i| rows[i].enabled()).collect();
     let focused = rows.iter().position(egui::Response::has_focus);
-    let (to, pressed) = step(&on, default, focused, nav)?;
-    // Another widget of the window (a check box) may hold the focus: left to it, unless a key moved.
-    if focused != Some(to) && (nav.is_some() || ui.memory(|m| m.focused().is_none())) {
+    let (to, pressed) = step(&on, place(default)?, focused.and_then(place), nav)?;
+    let (to, pressed) = (order[to], pressed.map(|p| order[p]));
+    // Another widget of the window (a check box) may hold the focus: left to it, unless a key moved
+    // or the window just opened (the button that opened a question inside a form had it, #311).
+    let take = nav.is_some() || ui.memory(|m| m.focused().is_none()) || (opened && !ui.ctx().text_edit_focused());
+    if focused != Some(to) && take {
         rows[to].request_focus();
     }
     clicked.or(pressed)
+}
+
+/// The order of buttons on screen, from the left, by the left edge of each (`lefts`, as drawn).
+fn on_screen(lefts: &[f32]) -> Vec<usize> {
+    let mut order: Vec<usize> = (0..lefts.len()).collect();
+    order.sort_by(|&a, &b| lefts[a].total_cmp(&lefts[b]));
+    order
+}
+
+/// The row of buttons of `id` was not drawn in the frame before: its window has just opened.
+fn just_opened(ctx: &egui::Context, id: &str) -> bool {
+    let (key, now) = (egui::Id::unique(id).with("confirm-drawn"), ctx.cumulative_frame_nr());
+    let before = ctx.data_mut(|d| {
+        let b = d.get_temp::<u64>(key);
+        d.insert_temp(key, now);
+        b
+    });
+    before.is_none_or(|b| b + 1 < now)
 }
 
 /// The layer of the modal window `id` (`egui::Modal::new(egui::Id::unique(id))`).
@@ -281,5 +313,7 @@ mod tests {
         let off = [true, false, true, true];
         assert_eq!(step(&off, 0, Some(0), Some(Nav::Next)), Some((2, None)));
         assert_eq!(step(&[false, false], 0, None, None), None);
+        // Drawn from the right (Close, Next, Back): Tab still goes from the left.
+        assert_eq!(on_screen(&[300.0, 200.0, 100.0]), [2, 1, 0]);
     }
 }
