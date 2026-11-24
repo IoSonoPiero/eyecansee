@@ -123,7 +123,13 @@ fn a_drawing_after_a_model_can_be_measured() {
         if measuring {
             measure(&mut h);
         }
-        h.key(back);
+        // With Measure on, the first Esc closes Measure, the second the viewer.
+        for _ in 0..2 {
+            if h.app.viewing.is_some() {
+                h.key(back);
+                h.frame(Vec::new());
+            }
+        }
         h.until(|a| a.viewing.is_none(), "back to the grid");
         open(&mut h, "c.dxf");
         let start = std::time::Instant::now();

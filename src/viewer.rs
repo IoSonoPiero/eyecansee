@@ -303,7 +303,12 @@ impl App {
             if crate::decode::is_played(&listing.files[i].path) {
                 continue;
             }
-            if !self.full.contains_key(&i) && self.pending.insert(i) {
+            // A drawing whose picture is here without its drawing is read again: its drawing
+            // comes first, its picture later, and closing the viewer in between dropped the one
+            // and kept the other, so Measure never came on it again (#348).
+            let path = &listing.files[i].path;
+            let lost = crate::cad::is_cad(path) && matches!(self.full.get(&i), Some(Ok(_))) && !self.model.cad.drawings.contains_key(path) && !self.comparing(path);
+            if (!self.full.contains_key(&i) || lost) && self.pending.insert(i) {
                 loader.load_full(self.generation, i, listing.files[i].path.clone(), Some(listing.files[i].size), crate::view_memory::Wanted::of(i == current));
             }
         }
