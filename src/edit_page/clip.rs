@@ -25,14 +25,18 @@ impl App {
         let (doc, original, tx, ctx) = (w.doc.clone(), original.clone(), self.tx.clone(), ctx.clone());
         let size = watch_size(w);
         crate::logging::spawn_named("edit-copy", move || {
-            let img = crate::edit::save::result(&doc, &original, &crate::decode::usvg_options());
-            if let Some(size) = size {
-                let too_large = |i: &image::RgbaImage| crate::edit::clip_limit::too_large(i.as_raw(), i.width(), i.height());
-                if let Some(n) = img.as_rgba8().map_or_else(|| too_large(&img.to_rgba8()), too_large) {
-                    let _ = size.send(n);
+            // A fault while it is made is said, not a Copy greyed out for ever (audit 5.15).
+            let made = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| crate::edit::save::result(&doc, &original, &crate::decode::usvg_options())));
+            let r = made.map_err(|p| super::fault_text(p.as_ref())).map(|img| {
+                if let Some(size) = size {
+                    let too_large = |i: &image::RgbaImage| crate::edit::clip_limit::too_large(i.as_raw(), i.width(), i.height());
+                    if let Some(n) = img.as_rgba8().map_or_else(|| too_large(&img.to_rgba8()), too_large) {
+                        let _ = size.send(n);
+                    }
                 }
-            }
-            if tx.send(crate::loader::Msg::EditCopy(crate::decode::to_color_image(img))).is_ok() {
+                crate::decode::to_color_image(img)
+            });
+            if tx.send(crate::loader::Msg::EditCopy(r)).is_ok() {
                 ctx.request_repaint();
             }
         });
@@ -147,11 +151,19 @@ impl App {
         w.marquee = None;
     }
 
-    pub(crate) fn on_edit_copy(&mut self, ctx: &egui::Context, img: ColorImage) {
+    pub(crate) fn on_edit_copy(&mut self, ctx: &egui::Context, r: Result<ColorImage, String>) {
         let Some(w) = &mut self.editor else { return };
         w.copying = false;
-        ctx.copy_image(img);
-        w.note = Some((self.i18n.t("edit-copied"), ctx.input(|i| i.time) + 4.0));
+        match r {
+            Ok(img) => {
+                ctx.copy_image(img);
+                w.note = Some((self.i18n.t("edit-copied"), ctx.input(|i| i.time) + 4.0));
+            }
+            Err(e) => {
+                log!("edit: copy failed: {e}");
+                self.error = Some(self.i18n.error(super::RESULT_FAILED, &e));
+            }
+        }
     }
 }
 

@@ -65,6 +65,14 @@ pub(crate) struct Place {
 const GRAB: f32 = 12.0;
 /// The error of `Loader::load_original` for an image the editor does not take.
 pub(crate) const ANIMATED: &str = "edit-animated";
+/// The Fluent id of the result (for Copy, Save as…) that could not be made: a fault while it
+/// was made (audit 5.15).
+pub(crate) const RESULT_FAILED: &str = "edit-result-failed";
+
+/// What a panic said, for the error bar.
+fn fault_text(payload: &(dyn std::any::Any + Send)) -> String {
+    payload.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| payload.downcast_ref::<String>().cloned()).unwrap_or_default()
+}
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Aspect {

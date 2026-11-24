@@ -1134,6 +1134,7 @@ edit-picked = Colore preso: { $codes } (il codice esadecimale è negli appunti)
 edit-pick-size = Un pixel, o la media dei pixel intorno
 edit-pick-screen-busy = Scegli il punto dello schermo nella finestra del sistema.
 edit-pick-failed = Il sistema non ha dato il colore: { $detail }
+edit-result-failed = Non è stato possibile creare l'immagine modificata: { $detail }
 edit-tip-pick = Clic sull'immagine per prenderne il colore; Esc annulla.
 edit-props-next = Prossimo oggetto:
 edit-props-next-hint = Colore, spessore e opacità valgono per il prossimo oggetto che disegni con questo strumento. Per cambiare un oggetto già disegnato, selezionalo.

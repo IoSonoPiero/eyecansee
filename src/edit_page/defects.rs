@@ -189,6 +189,13 @@ fn audit_5_15_a_save_on_closing_while_the_last_save_is_sent() {
     assert!(w.leaving || w.closing || w.preparing || w.note.is_some(), "Save… did nothing and nothing says why");
 }
 
+/// The error bar says the edited image could not be made (`RESULT_FAILED`), in the app's language.
+fn said_failed(h: &Harness) -> bool {
+    let sentence = h.app.i18n.t_args(super::RESULT_FAILED, &[("detail", "")]);
+    let head = sentence.trim_end().trim_end_matches(':');
+    h.app.error.as_ref().is_some_and(|e| e.starts_with(head))
+}
+
 /// Audit 5.15 (c): a fault while the result is made for Copy (a panic in its thread) left
 /// `copying` on: the Copy button greyed out with its wheel for ever, nothing said. Now the error
 /// bar says it, and Copy works again.
@@ -205,7 +212,8 @@ fn audit_5_15_c_copy_that_fails_says_it() {
     h.frame(vec![Event::Copy]);
     assert!(h.app.editor.as_ref().unwrap().copying, "the copy being made");
     h.until(|app| app.editor.as_ref().is_some_and(|w| !w.copying), "the copy over (Copy greyed out for ever)");
-    assert!(h.app.error.is_some(), "nothing says the copy failed");
+    assert!(said_failed(&h), "nothing says the copy failed: {:?}", h.app.error);
+    assert!(!h.app.editor.as_ref().unwrap().copying, "Copy works again");
 }
 
 /// Audit 5.15 (b): a fault while the result is made for Save as… (a panic in its job) left the
@@ -224,7 +232,7 @@ fn audit_5_15_b_save_as_that_fails_says_it() {
     h.key_with(Key::S, Modifiers::COMMAND | Modifiers::SHIFT);
     assert!(h.app.convert.is_some(), "Save as… open");
     h.until(|app| app.convert.is_none() || app.convert.as_ref().is_some_and(|c| c.read().is_some()), "Save as… left loading for ever");
-    assert!(h.app.convert.is_none() && h.app.error.is_some(), "the page closed, the error said");
+    assert!(h.app.convert.is_none() && said_failed(&h), "the page closed, the error said: {:?}", h.app.error);
     let w = h.app.editor.as_ref().expect("the editor back");
     assert_eq!(w.doc.objects.len(), 1, "its changes kept");
 }
