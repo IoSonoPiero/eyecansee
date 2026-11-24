@@ -179,4 +179,42 @@ mod tests {
         assert_eq!(crate::source::free_name(&w.folder.as_ref().unwrap().taken(), "b.png"), "b (2).png");
         std::fs::remove_dir_all(root).unwrap();
     }
+
+    /// #311: in Save as…, the name of a new folder in the folder chooser takes what is typed (the
+    /// chooser's keys were all dropped, as a question's: nothing could be written); Enter makes
+    /// the folder and goes into it; Esc leaves the name, and the chooser and the page stay.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn new_folder_named_from_save_as() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        use eframe::egui::{Event, Key};
+        if own_folder("convert::folder::tests::new_folder_named_from_save_as") {
+            return;
+        }
+        let dir = folder("save-as-new-folder", &["a.png"]);
+        let mut h = Harness::new(&dir);
+        let a = h.app.files()[0].path.clone();
+        h.app.open_convert(Some(a));
+        h.frame(Vec::new());
+        h.app.convert.as_mut().unwrap().browse = true;
+        let picker = |app: &App| app.convert.as_ref().and_then(|w| w.picker.clone());
+        h.until(|app| picker(app).is_some(), "the chooser open");
+        let ask = |h: &mut Harness| {
+            h.app.convert.as_mut().and_then(|w| w.picker.as_mut()).unwrap().ask_name();
+            for _ in 0..3 {
+                h.frame(Vec::new());
+            }
+        };
+        ask(&mut h);
+        h.frame(vec![Event::Text("Trips".into())]);
+        assert_eq!(picker(&h.app).as_ref().and_then(Picker::naming), Some("Trips"), "what was typed did not reach the name");
+        h.key(Key::Enter);
+        h.until(|app| picker(app).is_some_and(|p| p.address().ends_with("Trips/")), "the folder made and gone into");
+        assert!(dir.join("Trips").is_dir());
+        ask(&mut h);
+        h.key(Key::Escape);
+        h.frame(Vec::new());
+        let p = picker(&h.app);
+        assert!(p.as_ref().is_some_and(|p| p.naming().is_none()), "Esc did not leave the name, or closed the chooser");
+    }
 }

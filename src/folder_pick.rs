@@ -163,6 +163,16 @@ impl Picker {
         });
     }
 
+    /// The name of a new folder being typed, if any.
+    pub(crate) fn naming(&self) -> Option<&str> {
+        self.naming.as_deref()
+    }
+
+    /// New folder: its name asked.
+    pub(crate) fn ask_name(&mut self) {
+        self.naming = Some(String::new());
+    }
+
     /// As the address bar takes it.
     pub fn address(&self) -> String {
         crate::navigation::shown(&self.base, &self.dir)
@@ -262,7 +272,7 @@ fn folders_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
         let can = listed && p.naming.is_none() && !(p.base.starts_with("mtp://") && p.dir.is_empty());
         let new = egui::Button::image(icons::line(ui, icons::Line::NewFolder, 16.0));
         if ui.add_enabled(can, new).on_hover_text(i18n.t("menu-new-folder")).clicked() {
-            p.naming = Some(String::new());
+            p.ask_name();
         }
         ui.add(egui::Label::new(egui::RichText::new(p.address()).strong()).truncate());
     });
