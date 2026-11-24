@@ -117,6 +117,15 @@ fn field(ui: &mut egui::Ui, i18n: &I18n, salt: &str, zoom: f32) -> Option<f32> {
     if enter { zoom::typed(&typing.text) } else { None }
 }
 
+/// Where the slider's id is kept, for `slider_focused`.
+const SLIDER_ID: &str = "zoom-slider-id";
+
+/// The zoom slider has the keyboard: ← and → are its own (`App::viewer_bar_keys`).
+pub(crate) fn slider_focused(ctx: &egui::Context) -> bool {
+    let id = ctx.data(|d| d.get_temp::<egui::Id>(egui::Id::unique(SLIDER_ID)));
+    id.is_some() && ctx.memory(|m| m.focused()) == id
+}
+
 /// The slider from the smallest zoom to the largest, at `zoom`.
 fn slider(ui: &mut egui::Ui, i18n: &I18n, zoom: f32, range: [f32; 2]) -> Option<f32> {
     if range[1] <= range[0] {
@@ -128,6 +137,7 @@ fn slider(ui: &mut egui::Ui, i18n: &I18n, zoom: f32, range: [f32; 2]) -> Option<
     let thick = ui.text_style_height(&egui::TextStyle::Body).max(ui.spacing().interact_size.y);
     let slider = egui::Slider::new(&mut at, 0.0..=1.0).show_value(false);
     let r = crate::ticked::styled(ui, |ui| ui.add_sized([SLIDER, thick + 6.0], slider)).on_hover_text(i18n.t("zoom-slider-hint"));
+    ui.data_mut(|d| d.insert_temp(egui::Id::unique(SLIDER_ID), r.id));
     let marks: Vec<f64> = zoom::slider_marks(range).into_iter().map(|z| f64::from(zoom::to_slider(z, range))).collect();
     crate::ticked::paint(ui, &r, 0.0..=1.0, &marks);
     // The arrows change the image (or move what is selected): a slider focused by a click would

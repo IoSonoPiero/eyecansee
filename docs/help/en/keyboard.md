@@ -72,7 +72,7 @@ In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device e
 
 | Key | Action |
 |---|---|
-| Tab, **Shift + Tab** | Go through the buttons of the bars; there ← and → no longer change the image, on the zoom slider they change the zoom |
+| Tab, **Shift + Tab** | Go through the buttons of the bars: **Enter** and **Space** press the highlighted button, the other keys of the viewer work as always (← and → change the image, **Esc** goes back to the grid); on the zoom slider ← and → change the zoom |
 | →, Space, Page Down | Next image |
 | ←, Backspace, Page Up | Previous image |
 | Home, End | First, last image |

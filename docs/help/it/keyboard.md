@@ -72,7 +72,7 @@ Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositiv
 
 | Tasto | Azione |
 |---|---|
-| Tab, **Maiusc + Tab** | Passano tra i pulsanti delle barre; lì ← e → non cambiano più immagine, sul cursore dello zoom cambiano lo zoom |
+| Tab, **Maiusc + Tab** | Passano tra i pulsanti delle barre: **Invio** e **Spazio** premono il pulsante col bordo, gli altri tasti del visore funzionano come sempre (← e → cambiano immagine, **Esc** torna alla griglia); sul cursore dello zoom ← e → cambiano lo zoom |
 | →, Spazio, Pagina giù | Immagine successiva |
 | ←, Backspace, Pagina su | Immagine precedente |
 | Inizio, Fine | Prima, ultima immagine |

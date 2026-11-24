@@ -114,6 +114,33 @@ impl App {
         }
     }
 
+    /// #311 (Piero, 24/11): in the viewer a button of the bars that has the keyboard (reached with
+    /// Tab) keeps only Tab, Enter and Space, and on the zoom slider ← and →; any other key lets it
+    /// go first, so the viewer reads the key as with nothing focused: Esc, the arrows, and the own
+    /// keys of a video, a panorama, a model or a drawing. Before the pass (`raw_input_hook`), so
+    /// that egui does not move the keyboard to another button with the arrows.
+    pub(crate) fn viewer_bar_keys(&mut self, ctx: &egui::Context, raw: &egui::RawInput) {
+        let modal = ctx.memory(|m| m.top_modal_layer()).is_some();
+        // Not with a page over the viewer (Save as, Find duplicates): its controls keep the keys.
+        let page = self.convert.is_some() || self.dup_page_shown();
+        if self.viewing.is_none() || self.editor.is_some() || page || modal || ctx.text_edit_focused() || egui::Popup::is_any_open(ctx) {
+            return;
+        }
+        let Some(id) = ctx.memory(|m| m.focused()) else { return };
+        // Only a button of the viewer's own bars, not a window over it (Options, New image, the guide).
+        if ctx.read_response(id).is_none_or(|r| r.layer_id.order != egui::Order::Background) {
+            return;
+        }
+        let slider = crate::zoom_bar::slider_focused(ctx);
+        let other = raw.events.iter().any(|e| match e {
+            egui::Event::Key { key, pressed: true, .. } => !matches!(key, Key::Tab | Key::Enter | Key::Space) && !(slider && matches!(key, Key::ArrowLeft | Key::ArrowRight)),
+            _ => false,
+        });
+        if other {
+            ctx.memory_mut(|m| m.surrender_focus(id));
+        }
+    }
+
     pub(crate) fn viewer_keys(&mut self, ctx: &egui::Context) {
         // A modal window (Rename, Delete…) has the keys: its Esc closed the viewer and was taken,
         // the window stayed open over the grid (Piero, 17/11). Egui drops the text field's focus
