@@ -310,8 +310,8 @@ impl App {
                 failed = Some((crate::source::name(from).to_string(), e.clone()));
             }
         }
-        if let Some(said) = self.export_said.done(again, failed) {
-            self.notice = export_notice(&self.i18n, &said).or(self.notice.take());
+        if let Some(n) = self.export_said.done(again, failed).and_then(|said| export_notice(&self.i18n, &said)) {
+            self.tell_notice(n);
         }
     }
 }

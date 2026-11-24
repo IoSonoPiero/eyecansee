@@ -176,6 +176,18 @@ transfer-removing = Tolgo gli originali
 transfer-removed = { $n } di { $total } file tolti da dove erano
 transfer-copied = Copia finita
 transfer-moved = Spostamento finito
+jobs-report-title = Lavori finiti
+transfer-copy-cancelled = Copia annullata
+transfer-move-cancelled = Spostamento annullato
+transfer-files-copied = { $n ->
+    [one] 1 file copiato.
+   *[other] { $n } file copiati.
+}
+transfer-files-moved = { $n ->
+    [one] 1 file spostato.
+   *[other] { $n } file spostati.
+}
+transfer-done-before-cancel = { $n } file su { $total } fatti prima di Annulla.
 transfer-copy-stopped = Copia interrotta
 transfer-move-stopped = Spostamento interrotto
 transfer-links-heading = { $n ->

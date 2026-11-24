@@ -454,6 +454,11 @@ struct App {
     batch_turn: Option<(Vec<String>, transform::Op)>,
     /// The window at the end of Convert… and the commands that share its work (`batch_summary`).
     batch_summary: Option<batch_summary::Summary>,
+    /// The report of several jobs that ended (#328), the copies that ended quietly while another
+    /// job ran, for the next report, and the windows waiting for the one open (#329).
+    jobs_report: Option<jobs_report::Report>,
+    jobs_quiet: Vec<jobs_report::Part>,
+    waiting: std::collections::VecDeque<jobs_report::Waiting>,
     pan: egui::Vec2,
     /// Zoom shown, for the status bar.
     zoom_shown: f32,

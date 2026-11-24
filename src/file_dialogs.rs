@@ -360,7 +360,15 @@ impl App {
         if self.quit_after_transfer {
             return;
         }
-        self.notice = transfer_notice(&self.i18n, cut, to, r, p).or(self.notice.take());
+        // A part of the report of the jobs when another job's is up, or remembered for it (#328);
+        // alone it waits behind a message open (#329).
+        match transfer_notice(&self.i18n, cut, to, r, p) {
+            Some(n) => {
+                let n = Notice { job: true, ..n };
+                self.job_ended(crate::jobs_report::Part::of_notice(&n), None, crate::jobs_report::Waiting::Notice(n));
+            }
+            None => self.quiet_job(crate::jobs_report::quiet_copy(&self.i18n, cut, to, r, p)),
+        }
     }
 
     pub(crate) fn ask_rename(&mut self, path: Option<String>) {

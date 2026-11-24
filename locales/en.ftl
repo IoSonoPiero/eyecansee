@@ -177,6 +177,18 @@ transfer-removing = Removing the originals
 transfer-removed = { $n } of { $total } files removed from where they were
 transfer-copied = Copy finished
 transfer-moved = Move finished
+jobs-report-title = Jobs finished
+transfer-copy-cancelled = Copy cancelled
+transfer-move-cancelled = Move cancelled
+transfer-files-copied = { $n ->
+    [one] 1 file copied.
+   *[other] { $n } files copied.
+}
+transfer-files-moved = { $n ->
+    [one] 1 file moved.
+   *[other] { $n } files moved.
+}
+transfer-done-before-cancel = { $n } of { $total } files done before Cancel.
 transfer-copy-stopped = Copy stopped
 transfer-move-stopped = Move stopped
 transfer-links-heading = { $n ->

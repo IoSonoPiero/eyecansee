@@ -575,7 +575,7 @@ impl App {
             let title = self.i18n.t_args("batch-done-title", &args);
             let text = self.i18n.t_args("batch-done", &args);
             let (skipped, large) = (std::mem::take(&mut self.skipped), std::mem::take(&mut self.skipped_large));
-            self.notice = Some(crate::notice_list::turned(&self.i18n, title, &text, &skipped, &large));
+            self.tell_notice(crate::notice_list::turned(&self.i18n, title, &text, &skipped, &large));
         }
     }
 

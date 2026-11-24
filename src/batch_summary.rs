@@ -40,6 +40,7 @@ pub(crate) struct Outcome<'a> {
 }
 
 /// The window, ready to draw.
+#[derive(Clone)]
 pub(crate) struct Summary {
     pub(crate) title: String,
     /// The outcomes, then the time and the sizes: lines of a message (`notice_text`).
@@ -52,7 +53,7 @@ pub(crate) struct Summary {
 }
 
 /// Files left out for the same reason.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub(crate) struct Group {
     pub(crate) heading: String,
     /// The names, or for errors the error of each file, as a message line (`md`).
@@ -223,7 +224,9 @@ impl App {
             self.open_folder_after_batch(ctx, address);
             close = true;
         }
-        if !close {
+        if close {
+            self.next_waiting();
+        } else {
             self.batch_summary = Some(s);
         }
     }
@@ -240,7 +243,7 @@ impl App {
 /// A group: its heading in bold, as the headings of the other messages (`notice_list`), and the
 /// files; folded when long, its files then in line with those of the other groups. `open`: a
 /// folded group held open or closed, whatever was clicked (`None` in the window: as clicked).
-fn group_ui(ui: &mut egui::Ui, g: &Group, open: Option<bool>) {
+pub(crate) fn group_ui(ui: &mut egui::Ui, g: &Group, open: Option<bool>) {
     let items: String = g.items.iter().map(|i| format!("- {i}\n")).collect();
     let heading = egui::RichText::new(&g.heading).family(egui::FontFamily::Name(crate::BOLD.into()));
     if g.items.len() > FOLD {

@@ -346,6 +346,7 @@ impl App {
         });
         if close {
             self.notice = None;
+            self.next_waiting();
         }
     }
 
@@ -387,11 +388,13 @@ pub(crate) struct Notice {
     /// (F1)."): F1 opens it while the message is up (`help_spot`). `None`: the page of what is
     /// under the message.
     pub(crate) help: Option<&'static str>,
+    /// The end of a job in a corner box (a copy): another job's part joins it (#328).
+    pub(crate) job: bool,
 }
 
 impl Notice {
     pub(crate) fn new(title: String, text: String) -> Self {
-        Notice { title, text, save_as: None, warning: false, copy: None, help: None }
+        Notice { title, text, save_as: None, warning: false, copy: None, help: None, job: false }
     }
 }
 

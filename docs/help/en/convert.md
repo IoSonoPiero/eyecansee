@@ -84,6 +84,8 @@ At the end a summary, titled with the command, says:
 
 **Open the folder** shows the thumbnails of the folder where the files went, on this computer, a phone or a server; it is there only when something was saved in another folder than the one on screen, and it is greyed out while a page (the editor, Save as, the slideshow or the duplicates) covers the thumbnails. **Close**, **Enter** or **Esc** close the summary.
 
+When a copy or a move ends while this summary is open, or ends with something to say while the work runs, there is one report, **Jobs finished**, with a part for each job in the order they ended: **Enter** or **Esc** close it all. A message that comes while another is open waits for it to close.
+
 ## Things to know
 
 - Animated images and images with several pages are left out: the new file would keep only the first picture.

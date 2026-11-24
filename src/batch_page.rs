@@ -321,6 +321,11 @@ impl Form {
 }
 
 impl Window {
+    /// The work has started (the box in the corner), until its summary.
+    pub(crate) fn running(&self) -> bool {
+        self.progress.is_some()
+    }
+
     /// The work under way, and it never ends (tests).
     #[cfg(test)]
     pub(crate) fn work_forever(&mut self) {
@@ -644,7 +649,9 @@ impl App {
         if w.dest.1.as_ref() == Some(&self.dir) {
             s.open = None;
         }
-        self.batch_summary = Some(s);
+        // With another job's report up, a part of it (#328).
+        let part = crate::jobs_report::Part::of_summary(&s);
+        self.job_ended(part, s.open.clone(), crate::jobs_report::Waiting::Summary(s));
         self.relist(w.dir.clone());
         if let Some(dest) = w.dest.1.clone().filter(|d| *d != w.dir) {
             self.relist(dest);
