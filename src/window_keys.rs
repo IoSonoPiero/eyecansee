@@ -319,3 +319,36 @@ fn tab_reaches_the_list_of_the_editor_save() {
     }
     assert!(asked(&h.app) && egui::Popup::is_any_open(&h.ctx), "Space did not open the list of what to keep, or answered the question");
 }
+
+/// #311: the small Copy of the message windows (the end of a check for updates, a message, the
+/// summary of Convert) could not be reached from the keyboard: Tab goes to it after the buttons
+/// (Piero, 24/11), and Enter on it copies, the window stays.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn tab_reaches_the_copy_of_the_messages() {
+    if own_folder("window_keys::tab_reaches_the_copy_of_the_messages") {
+        return;
+    }
+    let mut h = on_grid("keys-update");
+    h.app.update_note = Some("x".into());
+    tab_goes_through(&mut h, modal("update"), |a| a.update_note.is_some(), 2, true);
+    // Close highlighted when it opens, Copy after it.
+    h.app.update_note = None;
+    h.frame(Vec::new());
+    h.app.update_note = Some("x".into());
+    h.frame(Vec::new());
+    h.frame(Vec::new());
+    h.key(Key::Tab);
+    h.key(Key::Enter);
+    h.frame(Vec::new());
+    assert!(h.app.update_note.is_some(), "Enter on Copy closed the window");
+
+    let mut h = on_grid("keys-notice");
+    h.app.notice = Some(crate::save_dialogs::Notice::new("t".into(), "x".into()));
+    tab_goes_through(&mut h, modal("notice"), |a| a.notice.is_some(), 2, true);
+
+    let mut h = on_grid("keys-summary");
+    let dir = h.app.dir.clone();
+    h.app.batch_summary = Some(crate::batch_summary::Summary { title: "t".into(), text: "x".into(), groups: Vec::new(), open: Some(dir), copy: "x".into() });
+    tab_goes_through(&mut h, modal("batch-summary"), |a| a.batch_summary.is_some(), 3, true);
+}
