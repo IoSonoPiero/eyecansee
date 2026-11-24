@@ -459,6 +459,7 @@ impl Window {
         if let Some([r, g, b]) = self.doc.fill {
             self.color = Color32::from_rgb(r, g, b);
         }
+        self.lenses_again();
     }
 
     /// Esc, one thing at a time (Esc after placing a text closed the page): the
