@@ -8,6 +8,7 @@ Every key of EyeCanSee, by place. The menus show the key next to each item, and 
 |---|---|
 | F1 | Open this guide on the page about what you are doing; again to close it |
 | Esc twice, quickly | Close this guide, with the pointer on it or while typing in its search field (one Esc only leaves the field). Over a window, a message for instance, wherever the pointer is: the window stays open |
+| Tab, **Shift + Tab** (this guide open) | Go through the search field, the contents and the page of this guide; they do not reach the grid or the viewer under it |
 
 ## In the grid and the viewer
 

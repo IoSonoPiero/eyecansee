@@ -639,7 +639,8 @@ impl eframe::App for App {
             };
             false
         });
-        if self.viewing.is_some() {
+        // With the guide open Tab goes into it (`help_window`, #311).
+        if self.viewing.is_some() || self.help.open {
             return;
         }
         raw_input.events.retain(|e| match e {

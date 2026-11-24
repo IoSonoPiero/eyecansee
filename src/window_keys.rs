@@ -32,6 +32,18 @@ fn under(a: &App) -> String {
 /// or more). A copy (Ctrl+C) with nothing focused copies nothing of the grid under it. The window
 /// stays open and nothing under it moves.
 pub(crate) fn tab_goes_through(h: &mut Harness, on: impl Fn(egui::LayerId) -> bool, open: impl Fn(&App) -> bool, least: usize, arrows: bool) {
+    let before = under(&h.app);
+    tab_and_arrows(h, on, &open, least, arrows);
+    h.blur();
+    h.frame(vec![egui::Event::Copy]);
+    h.frame(Vec::new());
+    assert!(open(&h.app), "the window closed");
+    assert_eq!(under(&h.app), before, "the keys or the copy reached what is under the window");
+}
+
+/// `tab_goes_through` without the copy: for the guide, a window beside the app, where Ctrl+C
+/// with nothing focused still copies the files of the grid.
+fn tab_and_arrows(h: &mut Harness, on: impl Fn(egui::LayerId) -> bool, open: &impl Fn(&App) -> bool, least: usize, arrows: bool) {
     for _ in 0..3 {
         h.frame(Vec::new());
     }
@@ -72,11 +84,8 @@ pub(crate) fn tab_goes_through(h: &mut Harness, on: impl Fn(egui::LayerId) -> bo
         }
         assert!(moved, "the arrows moved the keyboard nowhere");
     }
-    h.blur();
-    h.frame(vec![egui::Event::Copy]);
-    h.frame(Vec::new());
     assert!(open(&h.app), "the window closed");
-    assert_eq!(under(&h.app), before, "the keys or the copy reached what is under the window");
+    assert_eq!(under(&h.app), before, "the keys reached what is under the window");
 }
 
 /// The folder of a test, with three small pictures, the app open on it and the grid on the first.
@@ -395,12 +404,12 @@ fn tab_goes_into_the_guide() {
     let mut h = on_grid("keys-guide");
     h.key(Key::F1);
     assert!(h.app.help.open, "F1 did not open the guide");
-    tab_goes_through(&mut h, &guide, |a| a.help.open, 3, true);
+    tab_and_arrows(&mut h, &guide, &|a: &App| a.help.open, 3, true);
 
     let mut h = on_grid("keys-guide-viewer");
     h.app.activate(1);
     h.until(|a| a.zoom_of == Some(1), "b.png shown");
     h.key(Key::F1);
     assert!(h.app.help.open, "F1 did not open the guide");
-    tab_goes_through(&mut h, &guide, |a| a.help.open && a.viewing == Some(1), 3, true);
+    tab_and_arrows(&mut h, &guide, &|a: &App| a.help.open && a.viewing == Some(1), 3, true);
 }
