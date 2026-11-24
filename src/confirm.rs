@@ -432,6 +432,11 @@ impl FollowArea for egui::ScrollArea {
     }
 }
 
+/// An entry of a drop-down list opened with `show_list`: as `selectable_value`.
+pub(crate) fn choice<V: PartialEq>(ui: &mut egui::Ui, current: &mut V, value: V, text: impl Into<egui::WidgetText>) -> egui::Response {
+    ui.selectable_value(current, value, text)
+}
+
 /// A list or a page that scrolls follows the keyboard (#311): when the focus moves (Tab, the
 /// arrows) to a widget of `ui` out of sight, `ui` scrolls to show it. egui moves the focus but
 /// does not scroll (a long list of a combo box, opened with the keyboard, stayed still below its
@@ -525,5 +530,35 @@ mod tests {
         let focused = ctx.memory(|m| m.focused()).and_then(|f| ids.iter().position(|i| *i == f));
         assert!(focused.is_some_and(|i| i >= 10), "the arrows moved the focus down: {focused:?}");
         assert!(offset > 100.0, "the list scrolled to the row focused: offset {offset}");
+    }
+
+    /// #311 (Piero, 24/11): a drop-down list opened from the keyboard starts on the entry chosen,
+    /// not on the first; the arrows go on from there; Enter chooses the entry and closes the list.
+    #[test]
+    fn a_list_opens_on_its_choice_and_enter_closes_it() {
+        let ctx = egui::Context::default();
+        let mut chosen = 6usize;
+        let draw = |ui: &mut egui::Ui, chosen: &mut usize| {
+            egui::ComboBox::from_id_salt("list-test").selected_text(chosen.to_string()).show_list(ui, |ui| {
+                for i in 0..10 {
+                    choice(ui, chosen, i, format!("entry {i}"));
+                }
+            });
+        };
+        let key = |k| egui::Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+        let frame = |ctx: &egui::Context, events, chosen: &mut usize| crate::addons_ui::tests::frame(ctx, events, |ui| draw(ui, chosen));
+        frame(&ctx, Vec::new(), &mut chosen);
+        frame(&ctx, vec![key(egui::Key::Tab)], &mut chosen);
+        frame(&ctx, vec![key(egui::Key::Space)], &mut chosen);
+        frame(&ctx, Vec::new(), &mut chosen);
+        frame(&ctx, Vec::new(), &mut chosen);
+        assert!(egui::Popup::is_any_open(&ctx), "Space did not open the list");
+        frame(&ctx, vec![key(egui::Key::ArrowDown)], &mut chosen);
+        frame(&ctx, Vec::new(), &mut chosen);
+        frame(&ctx, vec![key(egui::Key::Enter)], &mut chosen);
+        frame(&ctx, Vec::new(), &mut chosen);
+        frame(&ctx, Vec::new(), &mut chosen);
+        assert_eq!(chosen, 7, "the arrow did not go on from the entry chosen (6), or Enter did not choose");
+        assert!(!egui::Popup::is_any_open(&ctx), "Enter chose but left the list open");
     }
 }
