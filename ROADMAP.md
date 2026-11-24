@@ -57,6 +57,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Menus: the menu bar opened from the keyboard (Alt, F10, Alt + letter), as in other desktop apps ([#322](https://github.com/IoSonoPiero/eyecansee/issues/322)).
 - Paste: what was pasted is selected in the folder, the last item when there are several ([#323](https://github.com/IoSonoPiero/eyecansee/issues/323)).
 - F6 takes the keyboard to Cancel of a copy or a conversion under way ([#324](https://github.com/IoSonoPiero/eyecansee/issues/324)).
+- Windows: EyeCanSee in Default apps with all its formats, a button to open that page, and "Open with EyeCanSee" in the right-click menu ([#325](https://github.com/IoSonoPiero/eyecansee/issues/325)).
 - Image editor: light and colour corrections (exposure, saturation, automatic levels, colour temperature, invert) ([#60](https://github.com/IoSonoPiero/eyecansee/issues/60)).
 - Image editor: magic wand and fill by colour ([#146](https://github.com/IoSonoPiero/eyecansee/issues/146)).
 - Image editor: clone stamp ([#147](https://github.com/IoSonoPiero/eyecansee/issues/147)).
