@@ -407,6 +407,33 @@ mod tests {
     use super::*;
     use crate::i18n::I18n;
 
+    /// #312: while models are exported a box in the corner says so, with its Cancel among the
+    /// controls of the boxes (F6, Tab), as a copy's; it stays until the last model is done.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn an_export_shows_its_box_until_done() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("model_view::tests::an_export_shows_its_box_until_done") {
+            return;
+        }
+        let mut h = Harness::new(&folder("export-box", &["a.png"]));
+        let dir = h.app.dir.clone();
+        h.app.export_said.start(2);
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+        assert_eq!(crate::box_keys::controls(&h.ctx).len(), 1, "nothing on screen says that the export is running");
+        let exported = |name: &str| crate::loader::Msg::Exported(Ok((format!("{dir}{name}.obj"), format!("{dir}{name}.ply"), Vec::new())));
+        h.app.tx.send(exported("a")).unwrap();
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+        assert_eq!(crate::box_keys::controls(&h.ctx).len(), 1, "the box went before the last model");
+        h.app.tx.send(exported("b")).unwrap();
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+        assert!(crate::box_keys::controls(&h.ctx).is_empty(), "the box stayed after the export");
+    }
+
     /// Three models, the second failed: the names of the first and the third, in their order, and
     /// the second with why, only once the last is done; an export with nothing to say says
     /// nothing; a second export started while the first runs is said with it, at the end of both.
