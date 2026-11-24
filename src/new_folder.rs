@@ -35,9 +35,9 @@ impl App {
         let Some((mut name, dir, first)) = self.new_folder.clone() else { return };
         let trimmed = name.trim().to_string();
         let problem = self.name_problem(&dir, &trimmed, None);
-        let texts = (self.i18n.t("new-folder-title"), self.i18n.t("new-folder-ok"));
+        let texts = (self.i18n.t("new-folder-title"), self.i18n.t("new-folder-ok"), self.i18n.t("delete-no"));
         let select = first.then(|| name.chars().count());
-        match crate::file_dialogs::name_window(ctx, "new-folder", texts, &mut name, select, problem, &self.i18n) {
+        match crate::file_dialogs::name_window(ctx, "new-folder", texts, &mut name, select, problem, &mut self.key_answer) {
             Some(true) => {
                 if let Some(loader) = &self.loader {
                     loader.make_folder(format!("{dir}{trimmed}/"));

@@ -378,8 +378,8 @@ impl App {
         let problem = self.name_problem(&source::parent(&path), &trimmed, Some(&old));
         // The name selected without the extension, as file managers do.
         let end = if path.ends_with('/') { old.chars().count() } else { old.rfind('.').map_or(old.chars().count(), |i| old[..i].chars().count()) };
-        let texts = (self.i18n.t("rename-title"), self.i18n.t("rename-ok"));
-        let answer = name_window(ctx, "rename", texts, &mut name, first.then_some(end), problem, &self.i18n);
+        let texts = (self.i18n.t("rename-title"), self.i18n.t("rename-ok"), self.i18n.t("delete-no"));
+        let answer = name_window(ctx, "rename", texts, &mut name, first.then_some(end), problem, &mut self.key_answer);
         match answer {
             Some(true) => {
                 if trimmed != old
@@ -466,10 +466,13 @@ impl App {
 }
 
 /// A name in a text field, as Rename and New folder ask it: `select` = on the first frame, the
-/// field takes the focus with the first characters selected. Enter confirms (when there is no
-/// `problem`), Esc cancels. `Some(true)` OK, `Some(false)` cancelled.
-pub(crate) fn name_window(ctx: &egui::Context, id: &str, (title, ok): (String, String), name: &mut String, select: Option<usize>, problem: Option<String>, i18n: &crate::i18n::I18n) -> Option<bool> {
-    let mut answer = None;
+/// field takes the focus with the first characters selected. Enter in the field confirms (when
+/// there is no `problem`); OK and Cancel as every question's buttons (#311), OK highlighted (greyed
+/// out with the `problem` over it); Esc cancels, also as `key` (`App::key_answer`, nothing
+/// focused). `Some(true)` OK, `Some(false)` cancelled.
+pub(crate) fn name_window(ctx: &egui::Context, id: &str, (title, ok, cancel): (String, String, String), name: &mut String, select: Option<usize>, problem: Option<String>, key: &mut Option<bool>) -> Option<bool> {
+    let esc = crate::confirm::answer(ctx, key, id) == Some(false) || ctx.input(|i| i.key_pressed(Key::Escape));
+    let mut answer = esc.then_some(false);
     egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
         ui.set_width(420.0);
         crate::theme::title(ui, title);
@@ -481,19 +484,22 @@ pub(crate) fn name_window(ctx: &egui::Context, id: &str, (title, ok): (String, S
             out.state.cursor.set_char_range(Some(range));
             out.state.store(ui.ctx(), out.response.id);
         }
+        let enter = out.response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
+        if enter && problem.is_some() {
+            // The field keeps the keyboard: without it Cancel took the highlight (OK is greyed out).
+            out.response.request_focus();
+        }
         if let Some(p) = &problem {
             crate::error_bar::hint(ui, p.as_str());
         }
         ui.add_space(8.0);
-        let enter = out.response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
-        ui.horizontal(|ui| {
-            if ui.add_enabled(problem.is_none(), egui::Button::new(ok)).clicked() || (enter && problem.is_none()) {
-                answer = Some(true);
-            }
-            if ui.button(i18n.t("delete-no")).clicked() || ui.input(|i| i.key_pressed(Key::Escape)) {
-                answer = Some(false);
-            }
-        });
+        let labels = [(ok, problem.is_none()), (cancel, true)];
+        match ui.horizontal(|ui| crate::confirm::buttons_hint(ui, id, &labels, 0, std::slice::from_ref(&problem))).inner {
+            Some(0) => answer = Some(true),
+            Some(_) => answer = Some(false),
+            None if enter && problem.is_none() => answer = Some(true),
+            None => {}
+        }
     });
     answer
 }
@@ -717,5 +723,49 @@ mod tests {
         assert_eq!(en.title, "Move finished");
         assert_eq!(plain(&en.text), "To /in/\n\n1 file not copied for its name:\nIts name is not valid on this computer: it stayed where it was.\n- album/a:b.jpg\n\n2 items not moved:\nThey arrived during the move, or they are not shown here: they stayed where they were, with their folders.\n- a.jpg\n- b.jpg");
         assert_eq!(en.copy.as_deref(), Some(plain(&en.text).as_str()));
+    }
+
+    /// #311: Rename and New folder keep their keys, also with nothing focused (a click on the
+    /// body of the window): the grid and the shortcuts under them get none. Enter with nothing
+    /// focused presses OK, Esc cancels; Enter in the field on a name that does not go leaves the
+    /// field where it is (the highlight went to Cancel, and the next Enter opened the picture).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn name_windows_keep_their_keys() {
+        use crate::audit_family_1::{Harness, folder, keys_stay_in_window, own_folder};
+        use eframe::egui::Key;
+        if own_folder("file_dialogs::tests::name_windows_keep_their_keys") {
+            return;
+        }
+        let dir = folder("name-keys", &["a.png", "b.png", "c.png"]);
+        let mut h = Harness::new(&dir);
+        (h.app.cursor, h.app.selected, h.app.focus) = (true, 0, crate::Focus::Grid);
+        h.app.ask_rename(None);
+        h.frame(Vec::new());
+        keys_stay_in_window(&mut h, |a| a.rename.is_some());
+        h.blur();
+        h.key(Key::Escape);
+        assert!(h.app.rename.is_none(), "Esc did not close Rename");
+        h.app.ask_rename(None);
+        h.frame(Vec::new());
+        h.blur();
+        h.key(Key::Enter);
+        assert!(h.app.rename.is_none() && h.app.viewing.is_none() && dir.join("a.png").exists(), "Enter did not press OK, or reached the grid");
+        // A name with a separator: Enter in the field twice, the window stays and the grid has nothing.
+        h.app.ask_rename(None);
+        h.frame(Vec::new());
+        h.app.rename.as_mut().unwrap().0 = "x/y.png".into();
+        for _ in 0..2 {
+            h.key(Key::Enter);
+            h.frame(Vec::new());
+            assert!(h.app.rename.is_some() && h.app.viewing.is_none() && h.ctx.text_edit_focused(), "Enter on a name that does not go");
+        }
+        h.app.rename = None;
+        h.app.ask_new_folder(None);
+        h.frame(Vec::new());
+        keys_stay_in_window(&mut h, |a| a.new_folder.is_some());
+        h.blur();
+        h.key(Key::Escape);
+        assert!(h.app.new_folder.is_none(), "Esc did not close New folder");
     }
 }
