@@ -10,9 +10,12 @@ impl Window {
     /// or turned back as it was, one being drawn gone, the view as before; a selection being
     /// drawn goes. Rotate and crop: the crop and the view as before, no line to straighten.
     pub(super) fn cancel_drag(&mut self) -> bool {
-        if let Some((_, crop, view, _)) = self.drag.take() {
+        if let Some((grab, crop, view, _)) = self.drag.take() {
             self.doc.crop = crop;
-            self.view = Some(view);
+            // Only a drag of the view moved it: the others leave it fitted, as it was.
+            if grab == super::Grab::Pan {
+                self.view = Some(view);
+            }
             self.line_end = None;
             return true;
         }
@@ -96,15 +99,22 @@ mod tests {
         assert!(!page().cancel_drag());
     }
 
-    /// Rotate and crop: Esc during a drag of the crop puts back the crop and the view as they
-    /// were when it started (it went on to close the page).
+    /// Rotate and crop: Esc during a drag of the crop puts back the crop as it was when it
+    /// started (it went on to close the page), the view left fitted; during a drag of the view,
+    /// the view as it was.
     #[test]
     fn esc_undoes_a_drag_of_the_crop() {
+        use super::super::Grab;
+        let at = (eframe::egui::vec2(1.0, 2.0), 3.0);
         let mut w = page();
         let before = w.doc.crop;
-        w.drag = Some((super::super::Grab::Move, before, (eframe::egui::vec2(1.0, 2.0), 3.0), eframe::egui::pos2(0.0, 0.0)));
+        w.drag = Some((Grab::Move, before, at, eframe::egui::pos2(0.0, 0.0)));
         w.doc.crop.cx += 20.0;
         assert!(w.cancel_drag());
-        assert_eq!((w.doc.crop, w.view, w.drag.is_none()), (before, Some((eframe::egui::vec2(1.0, 2.0), 3.0)), true));
+        assert_eq!((w.doc.crop, w.view, w.drag.is_none()), (before, None, true));
+        w.drag = Some((Grab::Pan, before, at, eframe::egui::pos2(0.0, 0.0)));
+        w.view = Some((eframe::egui::vec2(40.0, 2.0), 3.0));
+        assert!(w.cancel_drag());
+        assert_eq!(w.view, Some(at));
     }
 }
