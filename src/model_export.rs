@@ -409,11 +409,8 @@ fn glb(v: &View, tick: Tick) -> Option<Vec<u8>> {
     let (mut primitives, mut materials) = (Vec::new(), Vec::new());
     let mut written = 0;
     for (&(tex, surface), tris) in &groups {
-        if !tick(written as f32 / m.tris.len().max(1) as f32) {
-            return None;
-        }
+        let attributes = glb_attributes(v, &mut bin, tris, (written, tick))?;
         written += tris.len();
-        let attributes = glb_attributes(v, &mut bin, tris);
         let material = if tex > 0 || surface > 0 {
             materials.push(glb_material(m, tex, surface));
             format!(r#","material":{}"#, materials.len() - 1)
@@ -466,10 +463,14 @@ fn glb(v: &View, tick: Tick) -> Option<Vec<u8>> {
 
 /// Positions, normals, picture coordinates and colours of the triangles `tris`, each its own
 /// corners: the `attributes` of their primitive.
-fn glb_attributes(v: &View, bin: &mut Bin, tris: &[usize]) -> String {
+/// `tick` told how far, the triangles before these being `before`; `None` when it stops.
+fn glb_attributes(v: &View, bin: &mut Bin, tris: &[usize], (before, tick): (usize, Tick)) -> Option<String> {
     let m = v.mesh;
     let (mut pos, mut normals, mut uvs, mut colors) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-    for &t in tris {
+    for (i, &t) in tris.iter().enumerate() {
+        if !ticked(tick, before + i, m.tris.len()) {
+            return None;
+        }
         pos.extend((0..3).flat_map(|k| v.corner(t, k)));
         if !m.normals.is_empty() {
             normals.extend(v.normals(t).into_iter().flatten());
@@ -489,7 +490,7 @@ fn glb_attributes(v: &View, bin: &mut Bin, tris: &[usize]) -> String {
             let _ = write!(a, r#","{name}":{}"#, bin.accessor(data, n, false));
         }
     }
-    a
+    Some(a)
 }
 
 /// The material of a picture (`tex`, 0 = none) and a surface (0 = matte): glTF's metallic-roughness.
@@ -777,6 +778,104 @@ pub(crate) mod tests {
         let back = crate::model::parse(&out, "x.ply").unwrap();
         assert!(back.colors[0][1] > 150 && back.colors[1][0] > 150, "{:?}", back.colors);
     }
+    /// A bent sheet of `n` × `n` squares as OBJ text: a curved surface, read with the normals
+    /// EyeCanSee works out.
+    fn bent(n: usize) -> String {
+        let mut s = String::new();
+        for i in 0..=n {
+            for j in 0..=n {
+                let (x, y) = (i as f32 / n as f32, j as f32 / n as f32);
+                s += &format!("v {x} {y} {}\n", (x * 3.0).sin() * (y * 2.0).cos() * 0.3);
+            }
+        }
+        let at = |i: usize, j: usize| i * (n + 1) + j + 1;
+        for i in 0..n {
+            for j in 0..n {
+                s += &format!("f {} {} {}\nf {} {} {}\n", at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j), at(i + 1, j + 1), at(i, j + 1));
+            }
+        }
+        s
+    }
+
+    /// Audit 6.16: on a curved model read from a file (normals worked out by EyeCanSee), PLY and
+    /// OBJ write each point once, not once per triangle.
+    #[test]
+    fn audit_6_16_curved_points_shared() {
+        let m = crate::model::parse(bent(16).as_bytes(), "s.obj").unwrap();
+        assert!(!m.normals.is_empty());
+        let out = export(&m, Kind::Ply);
+        let head = String::from_utf8_lossy(&out[..out.windows(10).position(|w| w == b"end_header").unwrap()]).to_string();
+        let points: usize = head.lines().find_map(|l| l.strip_prefix("element vertex ")).unwrap().parse().unwrap();
+        assert_eq!(points, m.pos.len(), "PLY: {points} points for {} in the model, {} triangles", m.pos.len(), m.tris.len());
+        let text = String::from_utf8(export(&m, Kind::Obj)).unwrap();
+        let normals = text.lines().filter(|l| l.starts_with("vn ")).count();
+        assert!(normals <= m.pos.len(), "OBJ: {normals} normals for {} points", m.pos.len());
+    }
+
+    /// #312: a scan of about 10 million triangles (a binary PLY of 190 MB, as the one of the
+    /// issue) read and exported as `EYECANSEE_BIG_KIND` (obj, ply…): the time of each step and
+    /// the size of the new file; the peak of memory from outside (`/usr/bin/time -v`).
+    #[test]
+    #[ignore]
+    fn export_big_live() {
+        let Some(kind) = std::env::var("EYECANSEE_BIG_KIND").ok().and_then(|k| Kind::of_ext(&k)) else { return };
+        let n = 2236u32;
+        let mut ply = format!("ply\nformat binary_little_endian 1.0\nelement vertex {}\nproperty float x\nproperty float y\nproperty float z\nelement face {}\nproperty list uchar uint vertex_indices\nend_header\n", (n + 1) * (n + 1), 2 * n * n).into_bytes();
+        for i in 0..=n {
+            for j in 0..=n {
+                let (x, y) = (i as f32 / n as f32, j as f32 / n as f32);
+                floats(&mut ply, &[x, y, (x * 3.0).sin() * (y * 2.0).cos() * 0.3]);
+            }
+        }
+        let at = |i: u32, j: u32| i * (n + 1) + j;
+        for i in 0..n {
+            for j in 0..n {
+                for t in [[at(i, j), at(i + 1, j), at(i + 1, j + 1)], [at(i, j), at(i + 1, j + 1), at(i, j + 1)]] {
+                    ply.push(3);
+                    ply.extend(t.iter().flat_map(|v| v.to_le_bytes()));
+                }
+            }
+        }
+        println!("PLY of {} MB, {} triangles", ply.len() >> 20, 2 * n * n);
+        let start = std::time::Instant::now();
+        let m = crate::model::parse(&ply, "big.ply").unwrap();
+        drop(ply);
+        println!("read in {:?}", start.elapsed());
+        let start = std::time::Instant::now();
+        let made = export_made(&m, kind);
+        println!("{} written in {:?}: {} MB", kind.label(), start.elapsed(), made.main.len() >> 20);
+    }
+
+    /// Audit 6.16: a model whose name has spaces, the picture's name taken ("my model.png"):
+    /// read back with the files next to it, the `.mtl` and the picture are found.
+    #[test]
+    fn audit_6_16_obj_names_with_spaces_read_back() {
+        let free = |n: &str| if n == "my model.png" { "my model (2).png".to_string() } else { n.to_string() };
+        let made = export_with(&pictured(), Kind::Obj, &|_| true, &Beside { stem: "my model", free: &free }).unwrap();
+        let names: Vec<&str> = made.beside.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, ["my model (2).png", "my model.mtl"]);
+        let beside = |rel: &str| made.beside.iter().find(|(n, _)| n == rel).map(|(_, d)| d.clone());
+        let back = crate::model::parse_with(&made.main, "my model.obj", &beside).unwrap();
+        assert_eq!((back.textures.len(), back.tex.clone()), (1, vec![1, 1]), "the .mtl or the picture not found");
+    }
+
+    /// #312: every writer stops when told to, also on a model of one material (glTF wrote a
+    /// material's triangles before asking), and says how far it is on the way.
+    #[test]
+    fn every_writer_stops_and_tells() {
+        let m = crate::model::parse(bent(300).as_bytes(), "s.obj").unwrap();
+        assert!(m.tris.len() > 2 * TICK_EVERY);
+        for kind in Kind::ALL {
+            let seen = std::cell::RefCell::new(Vec::new());
+            let stop = |f: f32| {
+                seen.borrow_mut().push(f);
+                f < 0.3
+            };
+            assert!(export_with(&m, kind, &stop, &Beside { stem: "x", free: &|n| n.to_string() }).is_none(), "{kind:?} did not stop");
+            assert!(seen.borrow().len() >= 2, "{kind:?}: {:?}", seen.borrow());
+        }
+    }
+
     /// Audit 6.16: what the new format cannot hold is said (project rule): a model with a
     /// picture and a shiny surface, as STL and PLY, says the picture became colours and the
     /// surface is lost; as OBJ and glTF, which hold them, nothing.
