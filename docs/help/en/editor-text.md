@@ -11,7 +11,7 @@
 
 While you type you can choose the font, the size or the colour in the properties bar: the typing goes on where it was.
 
-A text left empty goes away when you are done with it. A click outside the image places no text. While you type, the letters are shown in the interface's font; they take their own font when you are done.
+A text left empty goes away when you are done with it. A click outside the image places no text. While you type, the letters are already in their own font, size and colour.
 
 To change a text already written, double-click it (with Text or Select), or select it and change it in the field of the properties bar. Undo takes back the whole change at once.
 

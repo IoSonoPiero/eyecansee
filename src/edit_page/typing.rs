@@ -1,7 +1,8 @@
 //! Typing a text or a bubble's letters on the image itself ("I want to select
 //! the text on the image too"): while it is being typed, a field without a frame lies over it,
 //! where the pointer selects letters as in any field; the letters drawn by `edit::render` are
-//! hidden meanwhile (the field shows them, in the interface's font), and are back when it ends.
+//! hidden meanwhile (the field shows them, in the text's own font: `field_font`, #310), and are
+//! back when it ends.
 //! A text on a curve is typed in the bar only.
 
 use eframe::egui::{self, Color32, Pos2};
@@ -45,9 +46,9 @@ pub(super) fn hidden(doc: &Doc, editing: Option<usize>) -> Doc {
 }
 
 /// The field over the text `i`, centred on `centre` (on the screen), `k` points a pixel of the
-/// image; `on_image`: the image was pressed or clicked in this frame (off the field). Ends when the object
-/// is no longer the selected one, and when it loses the keys (Esc, a press on the image), but to
-/// a control of the bars (`paused`).
+/// image; `on_image`: the image was pressed or clicked in this frame (off the field). Ends when
+/// the object is no longer the selected one, and when it loses the keys (Esc, a press on the
+/// image), but to a control of the bars (`paused`).
 pub(super) fn overlay(ui: &mut egui::Ui, w: &mut Window, i: usize, (centre, on_image): (Pos2, bool), k: f32) {
     if w.selected != Some(i) || !can(&w.doc, i) {
         w.editing = None;
@@ -63,10 +64,11 @@ pub(super) fn overlay(ui: &mut egui::Ui, w: &mut Window, i: usize, (centre, on_i
         _ => return,
     };
     let pts = (size * k).max(6.0);
-    let font = egui::FontId::proportional(pts);
+    let face = o.shape.font_mut().and_then(|f| f.clone());
+    let font = egui::FontId::new(pts, super::field_font::family(ui.ctx(), face.as_deref()));
     let Some(now) = o.shape.text_mut().map(|t| format!("{t} ")) else { return };
-    // The lines as the field will show them (its font is the interface's: they may break
-    // elsewhere than the drawn ones), for its size and the bubble's height.
+    // The lines as the field will show them (in the text's font, laid out by egui: they may break
+    // a little elsewhere than the drawn ones), for its size and the bubble's height.
     let wrap_at = wrap.map_or(f32::INFINITY, |w| w * k);
     let shown = ui.painter().layout(now, font.clone(), Color32::WHITE, wrap_at).size();
     let rect = egui::Rect::from_center_size(centre, egui::vec2(wrap.map_or(shown.x + pts, |w| w * k).max(2.0 * pts), shown.y + 0.2 * pts));

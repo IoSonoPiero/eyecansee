@@ -27,6 +27,7 @@ mod clip;
 mod crop;
 #[cfg(test)]
 mod defects;
+mod field_font;
 mod keys;
 mod open;
 mod patch;

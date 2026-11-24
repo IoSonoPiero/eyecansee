@@ -53,6 +53,9 @@ opendal = { version = "0.59.5", default-features = false, features = ["services-
 percent-encoding = "2.3.2"
 rawler = "0.8.0"
 resvg = "0.48.1"
+# The font of a text typed on the image checked before egui takes it (edit_page/field_font.rs):
+# egui closes the program on a face it cannot read. The version egui already builds.
+skrifa = "0.44.0"
 # SFTP servers on Linux and Windows (sftp.rs): one SSH connection per server, keys from the agent or
 # ~/.ssh, ~/.ssh/config and known_hosts read as ssh does. On ring, already built for the updates.
 russh = { version = "0.65.0", default-features = false, features = ["ring", "flate2", "rsa"] }

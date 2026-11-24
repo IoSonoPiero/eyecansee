@@ -11,7 +11,7 @@
 
 Mentre scrivi puoi scegliere il font, la dimensione o il colore nella barra delle proprietà: la scrittura continua da dove era.
 
-Un testo lasciato vuoto sparisce quando hai finito. Un clic fuori dall'immagine non mette nessun testo. Mentre scrivi, le lettere sono nel font dell'interfaccia; prendono il loro font quando hai finito.
+Un testo lasciato vuoto sparisce quando hai finito. Un clic fuori dall'immagine non mette nessun testo. Mentre scrivi, le lettere sono già nel loro font, nella loro dimensione e nel loro colore.
 
 Per cambiare un testo già scritto fai doppio clic (con Testo o Seleziona), oppure selezionalo e cambialo nel campo della barra delle proprietà. Annulla toglie tutta la modifica in una volta.
 

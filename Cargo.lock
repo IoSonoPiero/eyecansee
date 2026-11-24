@@ -2270,6 +2270,7 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
+ "skrifa",
  "stl_io",
  "suppaftp",
  "sys-locale",

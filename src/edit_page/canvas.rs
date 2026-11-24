@@ -78,7 +78,13 @@ pub(super) fn canvas(ui: &mut egui::Ui, w: &mut Window, tex: &Picture, size: Vec
     }
     let view = View { centre: rect.center(), at, k };
     paint(ui, w, tex, &view, rect);
-    if let Some(i) = w.editing.filter(|_| !crop_tool) {
+    // While the list of fonts is open the letters drawn show the font pointed at, and the field
+    // waits for the list to close, which took its keys: every font pointed at would be given to
+    // egui (#310).
+    if w.font_preview.is_some() && w.editing.is_some() {
+        w.typing_paused = true;
+    }
+    if let Some(i) = w.editing.filter(|_| !crop_tool && w.font_preview.is_none()) {
         let centre = match &w.doc.objects.get(i).map(|o| &o.shape) {
             Some(Shape::Text { at, .. }) => *at,
             Some(Shape::Bubble { area, .. }) => area.centre,
@@ -239,7 +245,7 @@ fn objects_texture(ui: &egui::Ui, w: &mut Window, view: &View, rect: Rect) -> Op
     }
     let ppp = ui.ctx().pixels_per_point();
     // The letters being typed on the image are hidden: the field over them shows them.
-    let doc = super::typing::hidden(&w.doc, w.editing);
+    let doc = super::typing::hidden(&w.doc, w.editing.filter(|_| w.font_preview.is_none()));
     let key = Drawn { doc, made: w.filters_made, at: view.at, k: view.k, rect, ppp };
     if let Some((drawn, tex)) = &w.objects
         && *drawn == key
