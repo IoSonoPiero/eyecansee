@@ -244,7 +244,10 @@ impl App {
         // The folder chooser of Save as and Convert, a modal: its folders and buttons take Tab,
         // the arrows and Enter as egui gives them (Piero, 24/11, W3.4).
         let picking = self.convert.as_ref().is_some_and(crate::convert::Window::picking) || (self.batch.is_some() && self.batch_form.as_ref().is_some_and(crate::batch_page::Form::picking));
-        let fields = picking || self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some() || self.editor.as_ref().is_some_and(crate::edit_page::Window::resizing) || self.forms();
+        // Modals with fields and no row of buttons (`keys`): Tab with nothing focused goes to their
+        // controls too, as in Server manager (Piero, 24/11).
+        let own_ring = picking || self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some() || self.editor.as_ref().is_some_and(crate::edit_page::Window::resizing);
+        let fields = own_ring || self.forms();
         // A question inside a form has the keys of a question, unless a text field has them (#311).
         let fields = fields && !(self.form_asks() && !ctx.text_edit_focused());
         // An open drop-down list (Language, Unit) has its own keys too (`browser::menu_keys`). Under
@@ -262,8 +265,8 @@ impl App {
         // window's first control (`app_dialogs::in_ring`); not under the guide, which has it first.
         // Server manager, a modal, the same (Piero, 24/11): egui keeps the keyboard inside it.
         let options = self.options && ctx.memory(|m| m.top_modal_layer()).is_none();
-        // The folder chooser too (`picking`, above).
-        let free_tab = (options || self.server_manager.is_some() || picking) && self.notice.is_none() && !self.form_asks() && !self.help.open;
+        // The modals with fields too (`own_ring`, above).
+        let free_tab = (options || own_ring) && self.notice.is_none() && !self.form_asks() && !self.help.open;
         let (answer, typing) = (&mut self.key_answer, self.help.in_field());
         // The tip of the day (audit 1.13, D6): ← and → turn it, unless the guide is over it. A key
         // held down from before it came (Enter on Done of the first-start window) does not close it.
