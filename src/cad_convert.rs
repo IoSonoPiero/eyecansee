@@ -43,7 +43,8 @@ pub enum Refused {
     NotRead(String),
     /// The new file could not be written or read back: the library's text.
     NotMade(String),
-    /// The new file would show less than the original: what would be lost.
+    /// The new file would show less than the original: what would be lost, as `lost` writes it
+    /// for `said`.
     WouldLose(String),
 }
 
@@ -61,19 +62,26 @@ pub fn convert_checked(bytes: &[u8], name: &str, to: Target) -> Result<Vec<u8>, 
     }
 }
 
+/// Between the parts of what a drawing would lose (`lost`), and between the fields of a part:
+/// said in the user's language only when shown (`said`, #340).
+const PART: char = '\u{3}';
+const FIELD: char = '\u{4}';
+
 /// What `after`, the drawing read back from the new file, shows less than `before`; `None` when
 /// nothing. The model, each layout by its name and the layers are compared (audit 6.16: the
-/// totals let a layout's elements moved into the model, or a layer lost, pass).
+/// totals let a layout's elements moved into the model, or a layer lost, pass). Written for
+/// `said`: the parts apart by `PART`, each a letter and its numbers or names apart by `FIELD`.
 fn lost(before: &crate::cad::Drawing, after: &crate::cad::Drawing) -> Option<String> {
     let (items, sheets) = ((before.items.len(), after.items.len()), (before.sheets.len(), after.sheets.len()));
+    let part = |fields: Vec<String>| fields.join(&FIELD.to_string());
     let mut what = Vec::new();
     if items.1 < items.0 || sheets.1 < sheets.0 {
-        what.push(format!("{} → {} elements, {} → {} layouts", items.0, items.1, sheets.0, sheets.1));
+        what.push(part(vec!["T".into(), items.0.to_string(), items.1.to_string(), sheets.0.to_string(), sheets.1.to_string()]));
     }
     for (name, sheet) in &before.sheets {
         let kept = after.sheets.iter().find(|(n, _)| n == name).map_or(0, |(_, s)| s.items.len());
         if kept < sheet.items.len() {
-            what.push(format!("layout {name}: {} → {kept} elements", sheet.items.len()));
+            what.push(part(vec!["L".into(), name.clone(), sheet.items.len().to_string(), kept.to_string()]));
         }
     }
     // A layer with something on it, gone: what is on it can no longer be shown or hidden as
@@ -82,9 +90,30 @@ fn lost(before: &crate::cad::Drawing, after: &crate::cad::Drawing) -> Option<Str
     let kept = names(after);
     let gone: Vec<&str> = used_layers(before).into_iter().filter(|l| !kept.contains(&l.to_lowercase())).collect();
     if !gone.is_empty() {
-        what.push(format!("layers {}", gone.join(", ")));
+        what.push(part(std::iter::once("Y").chain(gone).map(String::from).collect()));
     }
-    (!what.is_empty()).then(|| what.join(", "))
+    (!what.is_empty()).then(|| what.join(&PART.to_string()))
+}
+
+/// The detail of a drawing not saved (`batch::SKIP_WOULD_LOSE`): its name, `\u{1}`, and what it
+/// would lose (`lost`).
+pub(crate) fn would_lose(name: &str, lost: &str) -> String {
+    format!("{name}\u{1}{lost}")
+}
+
+/// That detail as the summary shows it, in the language of `i18n`: "a.dxf (2 → 1 elements, …)".
+pub(crate) fn said(i18n: &crate::i18n::I18n, detail: &str) -> String {
+    let Some((name, lost)) = detail.split_once('\u{1}') else { return detail.to_string() };
+    let parts: Vec<String> = lost
+        .split(PART)
+        .filter_map(|p| match p.split(FIELD).collect::<Vec<_>>().as_slice() {
+            ["T", a, b, c, d] => Some(i18n.t_args("drawing-lost-totals", &[("before", a), ("after", b), ("layouts_before", c), ("layouts_after", d)])),
+            ["L", layout, a, b] => Some(i18n.t_args("drawing-lost-layout", &[("name", layout), ("before", a), ("after", b)])),
+            ["Y", layers @ ..] => Some(i18n.t_args("drawing-lost-layers", &[("n", &layers.len().to_string()), ("names", &layers.join(", "))])),
+            _ => None,
+        })
+        .collect();
+    format!("{name} ({})", parts.join(", "))
 }
 
 /// The names of the layers something is on, in the model or in a layout.
@@ -147,7 +176,9 @@ mod tests {
         let before = drawing(2, 3, &["0", "walls"]);
         assert_eq!(lost(&before, &drawing(2, 3, &["0", "walls"])), None);
         assert!(lost(&before, &drawing(5, 0, &["0", "walls"])).is_some(), "the layout's elements moved into the model");
-        assert_eq!(lost(&before, &drawing(2, 3, &["0", "doors"])).as_deref(), Some("layers walls"), "a layer with something on it lost");
+        let en = crate::i18n::I18n::new("en");
+        let gone = lost(&before, &drawing(2, 3, &["0", "doors"])).expect("a layer with something on it lost");
+        assert_eq!(said(&en, &would_lose("a.dxf", &gone)), "a.dxf (layer walls)");
         // An empty layer of the table that goes changes nothing that is seen.
         assert_eq!(lost(&drawing(2, 3, &["0", "walls", "empty"]), &drawing(2, 3, &["0", "walls"])), None);
         // More is accepted, as before.
@@ -163,11 +194,14 @@ mod tests {
         let sheet = |n: usize| ("Layout1".to_string(), std::sync::Arc::new(Drawing { items: (0..n).map(|_| line()).collect(), ..Default::default() }));
         let before = Drawing { items: vec![line(), line()], sheets: vec![sheet(2)], ..Default::default() };
         let after = Drawing { items: vec![line()], ..Default::default() };
-        let detail = format!("a.dxf ({})", lost(&before, &after).unwrap());
+        let detail = would_lose("a.dxf", &lost(&before, &after).unwrap());
         let it = crate::i18n::I18n::new("it").error(crate::batch::SKIP_WOULD_LOSE, &detail);
         assert!(it.starts_with("a.dxf (2 → 1 elementi, 1 → 0 layout, layout Layout1: 2 → 0 elementi)"), "{it}");
         let en = crate::i18n::I18n::new("en").error(crate::batch::SKIP_WOULD_LOSE, &detail);
         assert!(en.starts_with("a.dxf (2 → 1 elements, 1 → 0 layouts, layout Layout1: 2 → 0 elements)"), "{en}");
+        // In the list of the summary too.
+        let (line, _) = crate::batch_summary::item(&crate::i18n::I18n::new("it"), crate::batch::SKIP_WOULD_LOSE, &detail, true);
+        assert!(line.contains("2 → 0 elementi") && !line.contains("elements"), "{line}");
     }
 
     /// Every DWG and DXF under `EYECANSEE_CAD` (subfolders too) saved as the other format and
@@ -215,7 +249,7 @@ mod tests {
                         println!("{name} -> {}: items {} -> {}, layouts {} -> {}{}", to.ext(), before.items.len(), after.items.len(), before.sheets.len(), after.sheets.len(), if ok { "" } else { "  <-- DIFFERENT" });
                         // What `convert_checked` would say: refused, and why.
                         if let Some(what) = lost(&before, &after) {
-                            println!("    refused: {what}");
+                            println!("    refused: {}", said(&crate::i18n::I18n::new("en"), &would_lose(&name, &what)));
                         }
                         if let Some(out) = &out {
                             for (d, tag) in [(&before, "a"), (&after, "b")] {

@@ -210,6 +210,10 @@ impl I18n {
         if let Some((name, raw)) = detail.split_once('\u{1}').filter(|_| id == NOT_OPENED) {
             return self.not_opened(name, raw).0;
         }
+        // What a drawing would lose in the other format, in the user's language (#340).
+        if id == crate::batch::SKIP_WOULD_LOSE {
+            return self.t_args(id, &[("detail", &crate::cad_convert::said(self, detail))]);
+        }
         if let Some((name, raw)) = detail.split_once('\u{1}').filter(|_| id == SERVER_CUT) {
             let text = self.t_args(id, &[("name", name)]);
             return if raw.is_empty() { text } else { format!("{text}\n({raw})") };

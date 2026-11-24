@@ -2006,6 +2006,13 @@ batch-sound-keeps-tags = The tags (title, artist, album…) are kept; this forma
 batch-sound-not-ready = Choose how to convert the audio files.
 drawing-skip-not-autocad = { $detail }: not an AutoCAD drawing (DWG or DXF), so it cannot be saved as one.
 drawing-skip-would-lose = { $detail }: in the other format part of the drawing would be lost, so it was not saved.
+# What a drawing would lose in the other format, in brackets after its name (`cad_convert::said`).
+drawing-lost-totals = { $before } → { $after } elements, { $layouts_before } → { $layouts_after } layouts
+drawing-lost-layout = layout { $name }: { $before } → { $after } elements
+drawing-lost-layers = { $n ->
+    [one] layer { $names }
+   *[other] layers { $names }
+}
 batch-no-audio = { $detail }: the video has no audio.
 
 video-codec-h264 = Plays everywhere: phones, TVs, browsers, old computers. Larger files than HEVC and AV1.

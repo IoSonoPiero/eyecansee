@@ -344,7 +344,8 @@ fn drawing(bytes: &[u8], name: &str, job: &Job, drawn: Drawn, sibling: crate::mo
                 // A drawing that does not open is said as everywhere, not with its library's text.
                 Err(Refused::NotRead(e)) => Err(crate::fault::not_opened(name, e)),
                 Err(Refused::NotMade(e)) => Err(failed(e)),
-                Err(Refused::WouldLose(lost)) => Err((SKIP_WOULD_LOSE, format!("{name} ({lost})"))),
+                // Said in the user's language when shown (`cad_convert::said`).
+                Err(Refused::WouldLose(lost)) => Err((SKIP_WOULD_LOSE, crate::cad_convert::would_lose(name, &lost))),
             };
         }
         Drawn::Svg => {
