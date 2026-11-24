@@ -10,6 +10,8 @@
 //! - `/links/`, listed as SFTPGo lists a folder (a Hetzner Storage Box, L17 of 2026-11-21, `GO`):
 //!   `due.jpg`, `self` (a link to the folder itself), `uno.jpg`, and `zeta.jpg`, a link to `uno.jpg`;
 //! - `/cut/`: `a.jpg`, `b.jpg`, which the server stops sending before its end, and `c.jpg`.
+//! - `/shared/`: `a.jpg` and `.a.jpg.eyecansee-new`, the new version of it another computer is
+//!   sending (audit 2.29 (h)), dated as LIST dates it: the server's clock, in its own time zone.
 //!
 //! Files are measured (SIZE), read (RETR) and deleted (DELE), folders deleted only when empty
 //! (RMD), as a real server does. A file sent (STOR) is kept apart, by its path (`Seen::stored`),
@@ -73,6 +75,9 @@ const ITEMS: &[(&str, &str, Kind)] = &[
     ("cut", "a.jpg", Kind::File(PHOTO)),
     ("cut", "b.jpg", Kind::Broken(10)),
     ("cut", "c.jpg", Kind::File(PHOTO)),
+    ("", "shared", Kind::Dir),
+    ("shared", "a.jpg", Kind::File(PHOTO)),
+    ("shared", ".a.jpg.eyecansee-new", Kind::File(b"being sent")),
 ];
 
 /// What the client did: the folders listed, in order, and the items deleted.
@@ -88,6 +93,11 @@ pub struct Seen {
 }
 
 impl Seen {
+    /// Whether the item `name` of the real folder `dir` was deleted.
+    pub fn deleted(&self, dir: &str, name: &str) -> bool {
+        self.removed.lock().unwrap().contains(&(dir.to_string(), name.to_string()))
+    }
+
     /// The item `name` of the real folder `dir`, unless deleted.
     fn item(&self, dir: &str, name: &str) -> Option<&'static Kind> {
         let gone = self.removed.lock().unwrap().contains(&(dir.to_string(), name.to_string()));

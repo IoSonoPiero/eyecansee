@@ -36,21 +36,46 @@ pub fn rsa_login() -> Option<String> {
     RSA.lock().unwrap().1.take()
 }
 
-/// A server key not in known_hosts, waiting for the user's answer (`trust`): host label, host,
-/// port and key.
-static UNKNOWN: Mutex<Option<(String, String, u16, PublicKey)>> = Mutex::new(None);
+/// A server key not in known_hosts, to ask the user about.
+#[derive(Clone, PartialEq, Debug)]
+pub struct Unknown {
+    /// The server, as the question names it.
+    pub label: String,
+    host: String,
+    port: u16,
+    key: PublicKey,
+}
 
-/// The server whose key the app has to ask about: its name and the key's fingerprint.
+impl Unknown {
+    /// The key's fingerprint, as ssh shows it.
+    pub fn fingerprint(&self) -> String {
+        self.key.fingerprint(HashAlg::Sha256).to_string()
+    }
+}
+
+/// The key of the last connection refused for it, waiting for the app to ask (`take`).
+static UNKNOWN: Mutex<Option<Unknown>> = Mutex::new(None);
+
+/// The server whose key is waiting to be asked about: its name and the key's fingerprint.
 pub fn unknown() -> Option<(String, String)> {
-    UNKNOWN.lock().unwrap().as_ref().map(|(label, _, _, key)| (label.clone(), key.fingerprint(HashAlg::Sha256).to_string()))
+    UNKNOWN.lock().unwrap().as_ref().map(|u| (u.label.clone(), u.fingerprint()))
+}
+
+/// The key waiting, to be asked about: the question keeps it, and what it shows is what `trust`
+/// saves (audit 2.10). It stays waiting until the answer (`forget`).
+pub fn pending() -> Option<Unknown> {
+    UNKNOWN.lock().unwrap().clone()
+}
+
+/// After an answer: what connections left meanwhile is not asked about with the next server.
+pub fn forget() {
+    UNKNOWN.lock().unwrap().take();
 }
 
 /// The user trusts the key asked about: written to `~/.ssh/known_hosts`, as ssh does.
-pub fn trust() {
-    if let Some((label, host, port, key)) = UNKNOWN.lock().unwrap().take() {
-        let r = keys::known_hosts::learn_known_hosts(&host, port, &key);
-        log!("sftp: key of {label} trusted: {r:?}");
-    }
+pub fn trust(u: &Unknown) {
+    let r = keys::known_hosts::learn_known_hosts(&u.host, u.port, &u.key);
+    log!("sftp: key of {} trusted: {r:?}", u.label);
 }
 
 pub(super) struct Client {
@@ -80,7 +105,7 @@ impl client::Handler for Client {
             Err(keys::Error::KeyChanged { line }) => ("error-host-changed", format!("{} (known_hosts, line {line})", self.label)),
             // Not there, or no known_hosts yet.
             _ => {
-                *UNKNOWN.lock().unwrap() = Some((self.label.clone(), self.host.clone(), self.port, key.clone()));
+                *UNKNOWN.lock().unwrap() = Some(Unknown { label: self.label.clone(), host: self.host.clone(), port: self.port, key: key.clone() });
                 ("error-host-unknown", self.label.clone())
             }
         };

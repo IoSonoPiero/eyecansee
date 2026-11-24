@@ -101,13 +101,19 @@ impl App {
         // Said in the window that asks about it: not in the bar too, nor after Cancel (Piero, 20/11).
         if let Err((id, detail)) = r
             && dir == self.dir
-            && crate::error_bar::said_in_window(id, crate::ftp::unknown().is_some() || crate::sftp::unknown().is_some(), self.open_address.is_some())
+            && crate::error_bar::said_in_window(id, self.host_question.is_some() || crate::ftp::unknown().is_some() || crate::sftp::unknown().is_some(), self.open_address.is_some())
         {
             self.lasting_closed = Some(self.i18n.error(id, detail));
         }
         match r {
             Err(("error-device-kde" | "error-device-kde-back", _)) => self.kiod_ask = true,
-            Err(("error-host-unknown" | "error-cert-unknown", _)) => self.host_ask = true,
+            // The question about the first server refused; asked, it stays until answered.
+            Err((id @ ("error-host-unknown" | "error-cert-unknown"), _)) => {
+                if self.host_question.is_none() {
+                    self.host_question = crate::host_question::Question::of(id);
+                }
+                self.host_ask = self.host_question.is_some();
+            }
             // A server that refused the login: File > Open location asks for the password.
             Err((id @ ("error-login" | "error-login-ssh"), detail)) if dir == self.dir && self.open_address.is_none() => {
                 self.open_address = AddressForm::for_password(&format!("{}{}", self.base, self.dir));

@@ -60,8 +60,9 @@ pub struct Listing {
     /// The trash folder in this folder, if any: kept out of `dirs`, it opens from its own button
     /// in the toolbar (among the folders it was in the way).
     pub trash: Option<String>,
-    /// Hidden files of an interrupted "Save" (`save_names`), for `Store::recover`.
-    pub leftovers: Vec<String>,
+    /// Hidden files of an interrupted "Save" (`save_names`), for `Store::recover`: their size and
+    /// date tell whether one is still being written.
+    pub leftovers: Vec<File>,
     /// Files in Android's trash (`android_trashed`): shown in the folder's trash, not here.
     pub trashed: Vec<File>,
     /// Names of what the grid leaves out: files that are not media, hidden items (a name starting
@@ -86,7 +87,7 @@ impl Listing {
     /// (Windows' hidden attribute, a file being written). Folder paths end in "/".
     pub(crate) fn add(&mut self, path: String, name: &str, is_dir: bool, size: u64, modified: String, shown: bool) {
         if !is_dir && leftover(name) {
-            self.leftovers.push(path.clone());
+            self.leftovers.push(File { path: path.clone(), size, modified: modified.clone() });
         }
         if !is_dir && android_trashed(name).is_some() {
             self.unseen.push(name.to_string());

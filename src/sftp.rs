@@ -20,7 +20,7 @@ use crate::source::{Error, Listing, NOT_FOUND, SILENT};
 
 mod connect;
 mod watch;
-pub use connect::{Target, rsa_login, trust, unknown};
+pub use connect::{Target, Unknown, forget, pending, rsa_login, trust, unknown};
 use watch::{SILENCE, Watch, lost};
 
 /// Requests in flight for one read or write.
@@ -155,6 +155,12 @@ impl Server {
     #[cfg(test)]
     fn with_ssh_dir(target: Target, ssh: std::path::PathBuf) -> Arc<Server> {
         Arc::new(Server { target, ssh: Some(ssh), conn: tokio::sync::Mutex::const_new(None) })
+    }
+
+    /// Which server this is, whatever its password or key, for as long as the app runs.
+    pub(crate) fn place(&self) -> String {
+        let t = &self.target;
+        format!("sftp {}@{}:{:?}", t.user, t.host, t.port)
     }
 
     /// The servers in use at this host, port and user, whatever their key or password.

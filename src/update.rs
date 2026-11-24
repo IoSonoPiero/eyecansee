@@ -448,7 +448,6 @@ pub fn apply(ready: &Ready) -> Result<(), String> {
     }
 }
 
-/// A PowerShell literal string: in single quotes, a quote is written twice.
 /// EyeCanSee started again once this process has exited (the caller closes the window): after the
 /// video engine is downloaded, which loaded only after a restart on Windows (2026-10-27). It opens
 /// on the last folder, saved at closing.
@@ -478,8 +477,20 @@ pub fn restart() -> Result<(), String> {
     }
 }
 
+/// A PowerShell literal string: in single quotes, a quote is written twice. PowerShell takes the
+/// typographic quotes ‘ ’ ‚ ‛ for one too (`IsSingleQuote` in its tokenizer): a folder "D’Angelo"
+/// ended the string there, and the update's script did not run (audit 2.22). Each is doubled the
+/// same way, and stays as it is in the path.
 fn quote(path: &Path) -> String {
-    format!("'{}'", path.to_string_lossy().replace('\'', "''"))
+    let mut quoted = String::from("'");
+    for c in path.to_string_lossy().chars() {
+        if matches!(c, '\'' | '\u{2018}' | '\u{2019}' | '\u{201a}' | '\u{201b}') {
+            quoted.push(c);
+        }
+        quoted.push(c);
+    }
+    quoted.push('\'');
+    quoted
 }
 
 fn powershell(script: &str) -> Result<(), String> {
@@ -509,6 +520,42 @@ pub(crate) mod tests {
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
         assert_eq!(quote(Path::new(r"C:\Users\O'Neil\a.exe")), r"'C:\Users\O''Neil\a.exe'");
+    }
+
+    /// A PowerShell single-quoted string at the start of `s`, read as PowerShell reads it: it
+    /// opens and closes with any of ' ‘ ’ ‚ ‛, and two of them in a row inside it stand for the first
+    /// one (its tokenizer, `IsSingleQuote`). The text, and what follows the closing quote.
+    fn ps_literal(s: &str) -> Option<(String, &str)> {
+        let quote = |c: char| matches!(c, '\'' | '\u{2018}' | '\u{2019}' | '\u{201a}' | '\u{201b}');
+        let mut chars = s.char_indices().peekable();
+        if !chars.next().is_some_and(|(_, c)| quote(c)) {
+            return None;
+        }
+        let mut text = String::new();
+        while let Some((i, c)) = chars.next() {
+            if !quote(c) {
+                text.push(c);
+            } else if chars.peek().is_some_and(|(_, n)| quote(*n)) {
+                text.push(c);
+                chars.next();
+            } else {
+                return Some((text, &s[i + c.len_utf8()..]));
+            }
+        }
+        None
+    }
+
+    /// Audit 2.22: a folder with a typographic apostrophe (’, as Word and phones write it) in the
+    /// path of the exe or of the download. PowerShell ends a single-quoted string at any of four
+    /// quote characters besides ': the path was cut there, the rest of it read as commands, and
+    /// the script of the update did not run (EyeCanSee closed, nothing installed, not started
+    /// again). The path must come back whole from its literal, with nothing after it.
+    #[test]
+    fn quoted_paths_with_typographic_apostrophes() {
+        for path in [r"C:\Users\O'Neil\a.exe", r"C:\Users\D’Angelo\AppData\Local\EyeCanSee\eyecansee.exe", r"D:\‘Foto’\‚x‛\''’’\a.zip"] {
+            let quoted = quote(Path::new(path));
+            assert_eq!(ps_literal(&quoted), Some((path.to_string(), "")), "{quoted}");
+        }
     }
 
     /// Issue #69: the Fedora package says how the system updates it, rpm-ostree on Fedora Atomic.

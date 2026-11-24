@@ -12,28 +12,49 @@ use rustls::crypto::{CryptoProvider, verify_tls12_signature, verify_tls13_signat
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{DigitallySignedStruct, SignatureScheme};
 
-/// A certificate not trusted yet, waiting for the user's answer (`trust`): label, "host:port"
-/// and fingerprint.
-static UNKNOWN: Mutex<Option<(String, String, String)>> = Mutex::new(None);
+/// A certificate no authority vouches for, to ask the user about.
+#[derive(Clone, PartialEq, Debug)]
+pub struct Unknown {
+    /// The server, as the question names it.
+    pub label: String,
+    /// "host:port", as `known_certs` writes it.
+    key: String,
+    /// SHA-256, as browsers show it.
+    pub fingerprint: String,
+}
 
-/// The server whose certificate the app has to ask about: its name and the fingerprint.
+/// The certificate of the last connection refused for it, waiting for the app to ask (`take`).
+static UNKNOWN: Mutex<Option<Unknown>> = Mutex::new(None);
+
+/// The server whose certificate is waiting to be asked about: its name and the fingerprint.
 pub fn unknown() -> Option<(String, String)> {
-    UNKNOWN.lock().unwrap().as_ref().map(|(label, _, fp)| (label.clone(), fp.clone()))
+    UNKNOWN.lock().unwrap().as_ref().map(|u| (u.label.clone(), u.fingerprint.clone()))
+}
+
+/// The certificate waiting, to be asked about: the question keeps it, and what it shows is what
+/// `trust` saves, whatever another connection leaves meanwhile (audit 2.10). It stays waiting
+/// until the answer (`forget`): a connection refused meanwhile still says why (`waiting`).
+pub fn pending() -> Option<Unknown> {
+    UNKNOWN.lock().unwrap().clone()
+}
+
+/// After an answer: what connections left meanwhile is not asked about with the next server.
+pub fn forget() {
+    UNKNOWN.lock().unwrap().take();
 }
 
 /// Is a certificate of `key` ("host:port") waiting for the user?
 pub(super) fn waiting(key: &str) -> bool {
-    UNKNOWN.lock().unwrap().as_ref().is_some_and(|(_, k, _)| k == key)
+    UNKNOWN.lock().unwrap().as_ref().is_some_and(|u| u.key == key)
 }
 
 /// The user trusts the certificate asked about: its fingerprint is added to `known_certs`.
-pub fn trust() {
-    let Some((label, key, fp)) = UNKNOWN.lock().unwrap().take() else { return };
+pub fn trust(u: &Unknown) {
     let Some(path) = crate::settings::config_path("known_certs") else { return };
     let mut text = std::fs::read_to_string(&path).unwrap_or_default();
-    text.push_str(&format!("{key} {fp}\n"));
+    text.push_str(&format!("{} {}\n", u.key, u.fingerprint));
     let r = path.parent().map(std::fs::create_dir_all).transpose().and_then(|_| std::fs::write(&path, text));
-    log!("ftps: certificate of {label} trusted: {r:?}");
+    log!("ftps: certificate of {} trusted: {r:?}", u.label);
 }
 
 fn known(key: &str, fp: &str) -> bool {
@@ -73,7 +94,7 @@ impl ServerCertVerifier for Verifier {
             return Ok(ServerCertVerified::assertion());
         }
         log!("ftps: certificate of {} not trusted ({e}): {fp}", self.label);
-        *UNKNOWN.lock().unwrap() = Some((self.label.clone(), self.key.clone(), fp));
+        *UNKNOWN.lock().unwrap() = Some(Unknown { label: self.label.clone(), key: self.key.clone(), fingerprint: fp });
         Err(e)
     }
 

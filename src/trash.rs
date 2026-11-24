@@ -2,12 +2,13 @@
 //! (`source::Store` methods and the name helpers they share). Local files go to the system trash
 //! (the `trash` crate); phones and servers use `.EyeCanSee-trash/` inside the folder.
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use crate::decode::is_media;
 use crate::settings::RemoteDelete;
-use crate::source::{dal_error, in_gvfs, local_path, name, parent, Error, Store, NOT_FOUND};
+use crate::source::{dal_error, in_gvfs, local_path, name, parent, Error, File, Store, NOT_FOUND};
 
 /// Hidden folder, next to the image, where images deleted on phones and servers go.
 pub const TRASH_DIR: &str = ".EyeCanSee-trash";
@@ -28,6 +29,31 @@ const ENDS: [&str; 4] = [NEW, OLD, INPLACE, ASIDE];
 
 /// Images being saved over themselves: `Store::recover` leaves their hidden files alone.
 pub static SAVING: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
+
+/// How long the new file of a save on a server must stay as it is, same size and same date,
+/// before it is taken for the rest of a save cut short (audit 2.29 (h)).
+const QUIET: Duration = Duration::from_secs(5 * 60);
+
+/// The new files of saves seen on servers (`Store::quiet`): server and path, size and date, and
+/// when this process first saw them so.
+static SEEN_NEW: Mutex<BTreeMap<String, (u64, String, Instant)>> = Mutex::new(BTreeMap::new());
+
+/// Whether `file` (`key`: its server and path) was seen with the same size and date at least
+/// `QUIET` before `now`, by this computer's clock; a file seen for the first time, or changed
+/// since, is remembered from `now`. Its date is never compared with this computer's clock: it is
+/// the server's, which may be off, and LIST gives it in the server's time zone, to the minute.
+fn settled(seen: &mut BTreeMap<String, (u64, String, Instant)>, key: &str, file: &File, now: Instant) -> bool {
+    let quiet = match seen.get(key) {
+        Some((size, modified, since)) if *size == file.size && *modified == file.modified => now.saturating_duration_since(*since) >= QUIET,
+        _ => {
+            seen.insert(key.to_string(), (file.size, file.modified.clone(), now));
+            false
+        }
+    };
+    // What was seen a day ago and not again: a file gone, or a folder not opened since.
+    seen.retain(|k, (_, _, since)| k == key || now.saturating_duration_since(*since) < 24 * Duration::from_secs(3600));
+    quiet
+}
 
 /// The longest name disks take: 255 bytes on Linux, 255 UTF-16 units on Windows (never more
 /// than the bytes of the same name).
@@ -201,10 +227,21 @@ impl Store {
     /// copy is made again, or the new file takes the name if it is free. A file a paste put aside
     /// (`aside_name`) is an original too, and the one that gets the name back before an older
     /// original a save left.
-    pub(crate) async fn recover(&self, dir: &str, leftovers: &[String]) {
+    pub(crate) async fn recover(&self, dir: &str, leftovers: &[File]) {
+        self.recover_at(dir, leftovers, Instant::now()).await;
+    }
+
+    /// `recover`, `now` by this computer's clock. On a server a new file may be another
+    /// computer's save on its way (`SAVING` holds only this process's): it is touched only once
+    /// it has stayed as it is for a while (`settled`), audit 2.29 (h).
+    pub(crate) async fn recover_at(&self, dir: &str, leftovers: &[File], now: Instant) {
         let Ok(names) = self.names(dir).await else { return };
-        for path in leftovers {
-            let own = name(path);
+        for file in leftovers {
+            let (path, own) = (&file.path, name(&file.path));
+            if own.ends_with(NEW) && !self.quiet(file, now) {
+                log!("recover {path:?}: a server's new file, still changing or seen for the first time: left");
+                continue;
+            }
             let Some(original) = owner(dir, own, &names) else {
                 // A cut name whose image is not there: a new file goes, an original stays hidden.
                 if own.ends_with(NEW) && inner(own).is_some() {
@@ -235,6 +272,25 @@ impl Store {
             };
             log!("recover {path:?}: {r:?}");
         }
+    }
+
+    /// Whether a save's new file `file` may be touched: at once where only this computer writes
+    /// (a disk, a phone), on a server once it has stayed as it is (`settled`).
+    fn quiet(&self, file: &File, now: Instant) -> bool {
+        // The server by its address, not by its connection: one dropped when the folder is left
+        // and made anew when it is opened again is the same server.
+        let server = match self {
+            Store::Ftp(s) => s.place(),
+            Store::Sftp(s) => s.place(),
+            Store::Dal(_) | Store::Mtp(_) => return true,
+        };
+        let mut seen = SEEN_NEW.lock().unwrap();
+        let key = format!("{server} {}", file.path);
+        let quiet = settled(&mut seen, &key, file, now);
+        if quiet {
+            seen.remove(&key);
+        }
+        quiet
     }
 
     /// The whole new file `from`, left by a copy in place cut short, copied into `to` again. Only
@@ -518,6 +574,32 @@ mod tests {
         assert!(!p.join(".b.jpg.eyecansee-new").exists() && !p.join(".a.jpg.eyecansee-old").exists());
         assert!(p.join(".c.jpg.eyecansee-old").exists() && p.join(".d.jpg.eyecansee-new").exists());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Audit 2.29 (h): a save's new file on a server is taken for a rest only once it has stayed
+    /// the same for `QUIET` by this computer's clock, whatever its date says: the server's clock
+    /// three hours behind or a day ahead, a LIST date in the server's own time zone.
+    #[test]
+    fn new_file_on_a_server_settles_by_this_computers_clock() {
+        let mut seen = BTreeMap::new();
+        let t0 = Instant::now();
+        let at = |s: u64| t0 + Duration::from_secs(s);
+        let file = |size, modified: &str| File { path: "shared/.a.jpg.eyecansee-new".into(), size, modified: modified.into() };
+        for modified in [(jiff::Timestamp::now() - jiff::SignedDuration::from_hours(3)).as_second().to_string(), (jiff::Timestamp::now() + jiff::SignedDuration::from_hours(24)).as_second().to_string(), String::new()] {
+            let key = format!("server {modified}");
+            assert!(!settled(&mut seen, &key, &file(10, &modified), at(0)), "{modified}: first seen");
+            assert!(!settled(&mut seen, &key, &file(10, &modified), at(60)), "{modified}: a minute later");
+            // Still growing: seen anew.
+            assert!(!settled(&mut seen, &key, &file(20, &modified), at(301)), "{modified}: grown");
+            assert!(!settled(&mut seen, &key, &file(20, &modified), at(500)), "{modified}: grown, not yet quiet");
+            assert!(settled(&mut seen, &key, &file(20, &modified), at(601)), "{modified}: quiet for five minutes");
+        }
+        // Seen first more than a day before, still the same: settled, not forgotten.
+        assert!(!settled(&mut seen, "old", &file(5, "x"), at(0)));
+        assert!(settled(&mut seen, "old", &file(5, "x"), at(2 * 86400)));
+        // Another date, same size: changed.
+        assert!(!settled(&mut seen, "k", &file(1, "1795516205"), at(0)));
+        assert!(!settled(&mut seen, "k", &file(1, "1795516265"), at(400)));
     }
 
     /// What a paste cut short left (issue #91): a file put aside alone takes its name back; with

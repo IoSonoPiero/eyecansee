@@ -69,7 +69,7 @@ impl App {
         } else if self.base == "/" && d.path.starts_with('/') {
             self.set_dir(d.path.trim_start_matches('/').to_string());
         } else {
-            self.open_source(ctx, &d.path);
+            self.open_back(ctx, &d.path);
         }
     }
 
@@ -237,7 +237,8 @@ impl App {
     }
 
     /// The saved servers (File > Server manager): a click opens one in its saved folder (none: the
-    /// folder the server starts in), the open one is highlighted; right click: close its
+    /// folder the server starts in), or back there in the last folder visited inside it
+    /// (`open_back`, #206), the open one is highlighted; right click: close its
     /// connection, edit it.
     fn server_block(&mut self, ui: &mut Ui) {
         // Encrypted and not unlocked yet: one row asking for the master password.
@@ -264,7 +265,8 @@ impl App {
             let icon = icons::image(ui.ctx(), Icon::Server, TREE_ICON);
             let r = ui.selectable_label(here, (icon, s.name.as_str())).on_hover_text(crate::address::without_password(&address));
             // Its own address, not the last folder of the connection: that one is shared by the
-            // servers with the same login, and its root ("") opened as the home.
+            // servers with the same login, and its root ("") opened as the home. Back there, the
+            // last folder visited reopens only inside its own folder (`open_back`).
             if r.clicked() {
                 log!("panel: server {}", s.name);
                 open = Some(address.clone());
@@ -282,7 +284,7 @@ impl App {
         ui.separator();
         let ctx = ui.ctx().clone();
         if let Some(address) = open {
-            self.open_source(&ctx, &address);
+            self.open_back(&ctx, &address);
         }
         if let Some((here, s)) = close {
             // Away from the server first, or the next listing would connect again.

@@ -71,14 +71,17 @@ pub struct Download<'a> {
     _turn: tokio::sync::MutexGuard<'a, ()>,
 }
 
-/// Unix seconds of a phone date. Usually the phone does not write the time zone, and then mtp-rs
-/// does not convert it (`to_unix_seconds` = `None`): it is the phone's clock time, taken as the
-/// computer's local time (almost always the same time zone).
-fn unix_seconds(m: mtp_rs::DateTime) -> Option<i64> {
-    m.to_unix_seconds().or_else(|| {
-        let civil = jiff::civil::DateTime::new(m.year as i16, m.month as i8, m.day as i8, m.hour as i8, m.minute as i8, m.second as i8, 0).ok()?;
-        Some(civil.to_zoned(jiff::tz::TimeZone::system()).ok()?.timestamp().as_second())
-    })
+/// A phone date as `File::modified`, part of the key of its thumbnails. Usually the phone does
+/// not write the time zone (mtp-rs: `to_unix_seconds` = `None`): its clock time as it is,
+/// "2026-11-24T10:30:05", read in the computer's time zone only to be shown and sorted
+/// (`human::parse_modified`). Converted here, the key changed with the computer's zone, and every
+/// thumbnail of the phone was made again (audit 2.13). With its zone: Unix seconds.
+fn phone_modified(m: mtp_rs::DateTime) -> String {
+    if let Some(seconds) = m.to_unix_seconds() {
+        return seconds.to_string();
+    }
+    let civil = jiff::civil::DateTime::new(m.year as i16, m.month as i8, m.day as i8, m.hour as i8, m.minute as i8, m.second as i8, 0);
+    civil.map(|c| c.to_string()).unwrap_or_default()
 }
 
 /// The call a phone is answering right now (what, path, start or last data written): the status
@@ -303,7 +306,7 @@ impl Phone {
             let path = format!("{dir}{}{}", o.filename, if o.is_folder() { "/" } else { "" });
             // Hidden items too: `locate` finds them here (the files of an interrupted "Save").
             handles.insert(path.clone(), o.handle);
-            let modified = o.modified.and_then(unix_seconds).map(|s| s.to_string()).unwrap_or_default();
+            let modified = o.modified.map(phone_modified).unwrap_or_default();
             listing.add(path, &o.filename, o.is_folder(), o.size, modified, true);
         }
         listing.sort();
@@ -708,6 +711,28 @@ impl Phone {
 
 #[cfg(test)]
 mod tests {
+
+    /// Audit 2.13: a phone's date without a time zone (what phones write) is part of the key of
+    /// its thumbnails (`File::modified`). Read in the computer's time zone, the same photo had
+    /// another key once the zone changed (a laptop on a journey): no thumbnail of the phone
+    /// matched any more, and the maintenance read every photo and video of the phone again,
+    /// whole. The key must be the same in any zone; a date with its zone stays an instant.
+    #[test]
+    fn phone_date_key_ignores_the_time_zone() {
+        use jiff::tz::{Offset, TimeZone};
+        let taken = mtp_rs::DateTime::new(2026, 11, 24, 10, 30, 5).unwrap();
+        let rome = TimeZone::fixed(Offset::constant(1));
+        let new_york = TimeZone::fixed(Offset::constant(-5));
+        let key = super::phone_modified(taken);
+        assert_eq!(key, "2026-11-24T10:30:05");
+        // Shown and sorted in the computer's zone: the phone's clock time, whatever the zone.
+        let at = |tz: &TimeZone| crate::human::parse_modified_in(&key, tz).unwrap().to_zoned(tz.clone()).datetime();
+        let clock = jiff::civil::date(2026, 11, 24).at(10, 30, 5, 0);
+        assert_eq!((at(&rome), at(&new_york)), (clock, clock));
+        assert_eq!(crate::human::parse_modified_in(&key, &rome).unwrap().as_second(), 1795516205 - 3600);
+        let utc = taken.with_offset(mtp_rs::UtcOffset::UTC);
+        assert_eq!(super::phone_modified(utc), "1795516205");
+    }
 
     #[test]
     fn windows_abort_is_disconnected() {

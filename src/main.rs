@@ -89,6 +89,7 @@ mod gpu_start;
 mod grid;
 mod help;
 mod help_search;
+mod host_question;
 mod human;
 mod help_icons;
 mod i18n;
@@ -229,6 +230,8 @@ mod zoom_bar;
 mod help_check;
 #[cfg(test)]
 mod audit_family_1;
+#[cfg(test)]
+mod audit_servers;
 #[cfg(test)]
 mod window_keys;
 
@@ -424,8 +427,10 @@ struct App {
     notice: Option<save_dialogs::Notice>,
     /// KDE holds the phone: asking whether to terminate kiod (`kiod_window`).
     kiod_ask: bool,
-    /// An SFTP server never used from this computer: asking whether to trust its key (`host_window`).
+    /// An SFTP server never used from this computer, or an FTPS server whose certificate no
+    /// authority vouches for: asking whether to trust it (`host_window`), about `host_question`.
     host_ask: bool,
+    host_question: Option<host_question::Question>,
     /// In the status bar until the next source: the phone is open through the desktop's mount.
     status_note: Option<String>,
     /// An address from outside that arrived while the editor was open: opened once it closes
@@ -446,8 +451,10 @@ struct App {
     unlock: Option<vault_page::Unlock>,
     /// The saved servers, listed in the left panel.
     saved_servers: Vec<servers::Saved>,
-    /// The folder last open in each source (by base), to go back to it from the left panel.
+    /// The folder last open in each source (by base; a phone or a server entered from its row in
+    /// the left panel, by that row's address: `place_key`), to go back to it from the left panel.
     last_dirs: HashMap<String, String>,
+    place_key: Option<String>,
     /// File > Open location: the window, with what is typed in it.
     open_address: Option<AddressForm>,
     /// A transform on images of the grid: the images and the operation, to confirm.

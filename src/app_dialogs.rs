@@ -177,8 +177,8 @@ impl App {
 
     /// First connection to an SFTP server (its key's fingerprint, as ssh shows it) or to an FTPS
     /// server whose certificate no known authority vouches for (its fingerprint, as browsers show it). Trusted, the
-    /// key goes to known_hosts and the address opens again (in the server's starting folder if
-    /// it had none).
+    /// key goes to known_hosts and the folder is read again (the server's starting folder if it
+    /// had none).
     /// Also the warning, once per server, after a login with an RSA key (RUSTSEC-2023-0071).
     pub(crate) fn host_window(&mut self, ctx: &egui::Context) {
         if self.notice.is_none()
@@ -191,14 +191,11 @@ impl App {
             return;
         }
         // An FTPS certificate or an SSH key, the same question.
-        let (cert, asked) = match crate::ftp::unknown() {
-            Some(c) => (true, Some(c)),
-            None => (false, crate::sftp::unknown()),
-        };
-        let Some((host, fingerprint)) = asked else {
+        let Some(question) = &self.host_question else {
             self.host_ask = false;
             return;
         };
+        let (cert, (host, fingerprint)) = (question.cert(), question.shown());
         let text = self.i18n.t_args(if cert { "cert-ask" } else { "host-ask" }, &[("host", &host), ("fingerprint", &fingerprint)]);
         let title = self.i18n.t(if cert { "cert-title" } else { "host-title" });
         let (ok, cancel) = (self.i18n.t("host-ok"), self.i18n.t("delete-no"));
@@ -206,16 +203,25 @@ impl App {
         // Cancel highlighted: trusting a server is for good, its fingerprint is to be read (#311).
         match confirm::yes_no(ctx, "host", 460.0, (title, text), ok, true, cancel, answer, true) {
             Some(true) => {
-                if cert {
-                    crate::ftp::trust();
-                } else {
-                    crate::sftp::trust();
+                if let Some(q) = self.host_question.take() {
+                    q.trust();
                 }
+                crate::host_question::forget_all();
                 self.host_ask = false;
-                let address = format!("{}{}", self.base, self.dir);
-                self.open_source(ctx, &address);
+                // The same connection again, with the password it was opened with: the address
+                // never holds it, and the login went without it (audit 2.14).
+                if self.dir.is_empty()
+                    && let Some(loader) = &self.loader
+                {
+                    loader.home();
+                }
+                self.refresh();
             }
-            Some(false) => self.host_ask = false,
+            Some(false) => {
+                self.host_question = None;
+                crate::host_question::forget_all();
+                self.host_ask = false;
+            }
             None => {}
         }
     }
