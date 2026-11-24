@@ -238,7 +238,8 @@ impl App {
                 crate::viewer::enter_full(ctx);
             }
         }
-        if refresh && shift {
+        // In the viewer as F5, where the menu's item is greyed out (#343).
+        if refresh && shift && self.viewing.is_none() {
             self.redo_all_thumbs(ctx);
         } else if refresh {
             self.refresh();

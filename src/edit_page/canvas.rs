@@ -367,8 +367,9 @@ fn mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View, 
 /// The other tools: Select picks, moves and resizes objects, the drawing tools draw them, a text
 /// is placed with a click; the right or middle button moves the view.
 fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View, rect: Rect) {
-    // Alt with a drawing tool: the eyedropper for a click, the tool stays (as in Photoshop).
-    if w.picking || (matches!(w.tool, Tool::Draw(_)) && ui.input(|i| i.modifiers.alt)) {
+    // Alt with a drawing tool: the eyedropper for a click, the tool stays (as in Photoshop). Not
+    // with one without colours (the Spotlight), whose bar has no eyedropper (#344).
+    if w.picking || (matches!(w.tool, Tool::Draw(kind) if super::style_bar::coloured(kind)) && ui.input(|i| i.modifiers.alt)) {
         return super::pick::mouse(ui, w, response, view);
     }
     let angle = w.doc.angle;
@@ -831,5 +832,57 @@ mod tests {
             draw(&mut w, Pt::new(-10.0, 30.0), Pt::new(10.0, 10.0));
             assert_eq!((w.doc.objects.len(), w.selected, w.focus_text), (2, Some(1), kind == Kind::Bubble), "{kind:?} reaching in");
         }
+    }
+}
+
+#[cfg(test)]
+mod keys {
+    use eframe::egui;
+
+    use crate::audit_family_1::{Harness, folder, own_folder};
+    use crate::edit::geom::Kind;
+    use crate::edit_page::Tool;
+
+    /// A frame of the app with `events` and the modifiers held.
+    fn frame(h: &mut Harness, events: Vec<egui::Event>, modifiers: egui::Modifiers) -> egui::FullOutput {
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0));
+        let events = std::iter::once(egui::Event::ModifiersChanged(modifiers)).chain(events).collect();
+        let mut raw = egui::RawInput { screen_rect: Some(screen), events, max_texture_side: Some(16384), ..Default::default() };
+        eframe::App::raw_input_hook(&mut h.app, &h.ctx, &mut raw);
+        let (ctx, app) = (h.ctx.clone(), &mut h.app);
+        let mut out = ctx.run_ui(raw, |ui| eframe::App::ui(app, ui, &mut eframe::Frame::_new_kittest()));
+        out.textures_delta.clear();
+        out
+    }
+
+    /// #344: Alt + click with the Spotlight, which has no colour, does nothing: no colour taken,
+    /// nothing on the clipboard.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn alt_click_with_the_spotlight() {
+        if own_folder("edit_page::canvas::keys::alt_click_with_the_spotlight") {
+            return;
+        }
+        let mut h = Harness::new(&folder("keys-344", &["a.png"]));
+        let a = h.app.files()[0].path.clone();
+        h.app.open_editor(Some(a), Tool::Select);
+        h.until(|a| a.editor.as_ref().is_some_and(crate::edit_page::Window::read), "the editor's picture read");
+        h.app.editor.as_mut().unwrap().choose(Tool::Draw(Kind::Spotlight));
+        for _ in 0..3 {
+            h.frame(Vec::new());
+        }
+        let at = h.ctx.content_rect().center();
+        let alt = egui::Modifiers::ALT;
+        let button = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: alt };
+        let mut copied = Vec::new();
+        for events in [vec![egui::Event::PointerMoved(at)], vec![button(true)], vec![button(false)], vec![], vec![]] {
+            let out = frame(&mut h, events, alt);
+            copied.extend(out.platform_output.commands.into_iter().filter_map(|c| match c {
+                egui::OutputCommand::CopyText(t) => Some(t),
+                _ => None,
+            }));
+        }
+        let w = h.app.editor.as_ref().unwrap();
+        assert!(copied.is_empty() && w.note.is_none(), "Alt + click with the Spotlight took a colour: {copied:?} {:?}", w.note.as_ref().map(|n| &n.0));
     }
 }
