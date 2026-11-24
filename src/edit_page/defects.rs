@@ -248,14 +248,13 @@ fn fixed_width_font() -> Option<String> {
     crate::decode::font_families().iter().find(|f| f.contains("Mono")).cloned()
 }
 
-/// How wide the letters of `text` in `font` are drawn, for letters of height 1 (the outlines of
-/// the glyphs, as `edit::render` lays them out).
+/// How much room the letters of `text` in `font` take as drawn (their advances, as
+/// `edit::render` lays them out), for letters of height 1.
 fn drawn_width(text: &str, font: &str) -> f32 {
     use resvg::usvg;
     let svg = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><text font-family="'{font}', sans-serif" font-size="100">{text}</text></svg>"#);
     let tree = usvg::Tree::from_str(&svg, &crate::decode::usvg_options()).unwrap();
-    let b = tree.root().children().iter().find_map(|n| if let usvg::Node::Text(t) = n { Some(t.flattened().abs_bounding_box()) } else { None }).unwrap();
-    b.width() / 100.0
+    tree.root().abs_bounding_box().width() / 100.0
 }
 
 /// #310, first part: the letters being typed are in the text's font, as wide as they will be
@@ -283,11 +282,12 @@ fn typed_letters_in_the_texts_font() {
     assert_eq!(w.editing, Some(0), "the text being typed on the image");
     let crate::edit::doc::Shape::Text { size, .. } = &w.doc.objects[0].shape else { panic!("a text") };
     let pts = size * w.shown.1;
-    // The field is as wide as its letters and one more height of them (`typing::overlay`).
+    // The field is as wide as its letters with a space after them, and one more height of them
+    // (`typing::overlay`); in a font with fixed widths the space is a ninth of the nine.
     let field = typing_field(&h).expect("the field on the image").width() - pts;
-    let drawn = drawn_width("iiiiiiii", &font) * pts;
-    eprintln!("{font}: letters in the field {field:.0} points wide, drawn {drawn:.0}");
-    assert!((field / drawn - 1.0).abs() < 0.2, "the letters typed are {field:.0} points wide, drawn {drawn:.0}: another font");
+    let drawn = drawn_width("iiiiiiii", &font) * pts * 9.0 / 8.0;
+    eprintln!("{font}: letters in the field {field:.1} points wide, drawn {drawn:.1}");
+    assert!((field / drawn - 1.0).abs() < 0.03, "the letters typed are {field:.0} points wide, drawn {drawn:.0}: another font");
 }
 
 /// The bar's widget of `typ` with `label`, in the last frame, if any (widget infos: debug only).
@@ -327,4 +327,29 @@ fn choosing_a_font_keeps_the_typing() {
     assert_eq!(w.editing, Some(0), "choosing a font ended the typing");
     typed(&mut h, "c");
     assert_eq!(texts(&h), ["abc"], "the next letter goes on");
+}
+
+/// #310: a text typed, the field of the bar clicked (it takes the keys: the typing on the image
+/// waits), another tool and Text again, a new text placed and typed: its letters go into it. The
+/// pause of the first typing does not end the second one.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn a_pause_does_not_outlive_its_typing() {
+    if own_folder("edit_page::defects::a_pause_does_not_outlive_its_typing") {
+        return;
+    }
+    let mut h = Harness::new(&white("three-ten-pause"));
+    editor(&mut h, "a.png", Tool::Draw(Kind::Text));
+    click(&mut h, MIDDLE);
+    typed(&mut h, "ab");
+    let bar = h.ctx.read_response(egui::Id::unique(super::typing::IN_BAR)).expect("the field of the bar").rect;
+    click(&mut h, bar.center());
+    assert!(h.ctx.text_edit_focused(), "the field of the bar has the keys");
+    h.app.editor.as_mut().unwrap().choose(Tool::Draw(Kind::Rect));
+    h.frame(Vec::new());
+    h.app.editor.as_mut().unwrap().choose(Tool::Draw(Kind::Text));
+    h.frame(Vec::new());
+    click(&mut h, MIDDLE + vec2(0.0, 120.0));
+    typed(&mut h, "cd");
+    assert_eq!(texts(&h), ["ab", "cd"], "the second text typed");
 }
