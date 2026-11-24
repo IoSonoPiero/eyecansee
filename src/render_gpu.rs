@@ -157,7 +157,14 @@ pub fn adapter_selector(graphics: Graphics) -> eframe::egui_wgpu::NativeAdapterS
         for a in adapters {
             let i = a.get_info();
             let can = usable.iter().any(|u| std::ptr::eq(*u, a));
-            log!("graphics card found: {} ({:?}, {:?}, driver {}){}", i.name, i.device_type, i.backend, i.driver, if can { "" } else { ", cannot draw this window" });
+            // An OpenGL card is dropped when its EGL has no native-renderable config, which wgpu
+            // asks for on Linux: the NVIDIA proprietary driver has none (#321, gfx-rs/wgpu#10708).
+            let why = match (can, i.backend) {
+                (true, _) => "",
+                (false, wgpu::Backend::Gl) => ", cannot draw this window (its EGL has no native-renderable config, which wgpu's OpenGL asks for: gfx-rs/wgpu#10708)",
+                (false, _) => ", cannot draw this window",
+            };
+            log!("graphics card found: {} ({:?}, {:?}, driver {}){why}", i.name, i.device_type, i.backend, i.driver);
         }
         let chosen = pick(&cards, wanted, first).map(|i| usable[i]).ok_or("no graphics card can draw this window")?;
         let mailbox = surface.is_some_and(|s| s.get_capabilities(chosen).present_modes.contains(&wgpu::PresentMode::Mailbox));
