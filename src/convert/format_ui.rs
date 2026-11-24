@@ -149,15 +149,17 @@ fn tiff_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
 /// Whether the format loses quality, and the metadata kept when both the original and the format have some.
 /// What the new file keeps of the original's metadata (#55), as a list: in Save as, Convert and
 /// the editor's confirmation.
-pub(crate) fn meta_choice(ui: &mut egui::Ui, keep: &mut Keep, i18n: &I18n) {
+pub(crate) fn meta_choice(ui: &mut egui::Ui, keep: &mut Keep, i18n: &I18n) -> egui::Response {
     ui.horizontal(|ui| {
-        egui::ComboBox::from_id_salt("meta-keep").selected_text(i18n.t(keep.label())).show_list(ui, |ui| {
+        let list = egui::ComboBox::from_id_salt("meta-keep").selected_text(i18n.t(keep.label())).show_list(ui, |ui| {
             for k in Keep::ALL {
                 ui.selectable_value(keep, k, i18n.t(k.label()));
             }
         });
         ui.label(i18n.t("meta-keep")).on_hover_text(i18n.t("meta-keep-hint"));
-    });
+        list.response
+    })
+    .inner
 }
 
 pub(super) fn meta_options(ui: &mut egui::Ui, o: &mut Options, original: &Original, i18n: &I18n) {

@@ -109,7 +109,7 @@ impl App {
             crate::save_dialogs::Head::new(&title).show(ui);
             crate::save_dialogs::notice_text(ui, &text);
             if many {
-                ui.checkbox(&mut ask.all, all_label);
+                crate::confirm::join(id, &ui.checkbox(&mut ask.all, all_label));
             }
             ui.add_space(8.0);
             ui.horizontal(|ui| {

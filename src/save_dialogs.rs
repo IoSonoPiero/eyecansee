@@ -323,7 +323,7 @@ impl App {
         message_copying(ctx, id, Head { title: &title, warning }, &text, whole.as_deref(), &tip, |ui| {
             // A stalled phone (`phone_stall`): our page on why, in the app's language.
             if stalled {
-                ui.hyperlink_to(why, url);
+                crate::confirm::join(id, &ui.hyperlink_to(why, url));
             }
             ui.horizontal(|ui| {
                 // Close highlighted; Save as… before it when it helps (#311).

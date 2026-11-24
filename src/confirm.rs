@@ -149,6 +149,10 @@ pub(crate) fn keys(ui: &egui::Ui, id: &str, rows: &[egui::Response], default: us
     if !on_top(ui.ctx(), id) {
         return clicked;
     }
+    // The controls joined to the row (`join`), drawn before it or after it in the frame before:
+    // the keys go through them too; what they do when pressed is theirs.
+    let n = rows.len();
+    let rows: Vec<egui::Response> = rows.iter().cloned().chain(joined(ui.ctx(), id).into_iter().filter_map(|j| ui.ctx().read_response(j))).collect();
     let nav = ui.ctx().data_mut(|d| {
         let n = d.get_temp::<Nav>(nav_id());
         d.remove::<Nav>(nav_id());
@@ -166,7 +170,42 @@ pub(crate) fn keys(ui: &egui::Ui, id: &str, rows: &[egui::Response], default: us
     if focused != Some(to) && take {
         rows[to].request_focus();
     }
-    clicked.or(pressed)
+    clicked.or(pressed.filter(|&p| p < n))
+}
+
+/// The controls joined to rows of buttons (`join`): for each, its window and the frame it was
+/// drawn in.
+fn joined_id() -> egui::Id {
+    egui::Id::unique("confirm-joined")
+}
+
+/// A control of the window `id` that is not one of its buttons (a check box, a list, a link, the
+/// small Copy): Tab, Shift+Tab and the arrows go through it with the row of buttons (`keys`), in
+/// the order they are on screen; Enter and Space on it are its own, as a click (`chosen`), and
+/// never answer the window (#311). Called every frame it is drawn, before or after the row.
+pub(crate) fn join(id: &str, r: &egui::Response) {
+    let (window, now) = (egui::Id::unique(id), r.ctx.cumulative_frame_nr());
+    r.ctx.data_mut(|d| {
+        let all = d.get_temp_mut_or_default::<std::collections::HashMap<egui::Id, (egui::Id, u64)>>(joined_id());
+        all.retain(|_, (_, frame)| *frame + 1 >= now);
+        all.insert(r.id, (window, now));
+    });
+}
+
+/// The controls joined to the window `id` in this frame or the one before (`join`).
+fn joined(ctx: &egui::Context, id: &str) -> Vec<egui::Id> {
+    let (window, now) = (egui::Id::unique(id), ctx.cumulative_frame_nr());
+    let all = ctx.data(|d| d.get_temp::<std::collections::HashMap<egui::Id, (egui::Id, u64)>>(joined_id())).unwrap_or_default();
+    let mut ids: Vec<egui::Id> = all.into_iter().filter(|(_, (w, frame))| *w == window && *frame + 1 >= now).map(|(j, _)| j).collect();
+    ids.sort_by_key(|j| j.value());
+    ids
+}
+
+/// The keyboard is on a control joined to a row of buttons (`join`): Enter and Space are its own.
+fn chosen(ctx: &egui::Context) -> bool {
+    let Some(focused) = ctx.memory(|m| m.focused()) else { return false };
+    let now = ctx.cumulative_frame_nr();
+    ctx.data(|d| d.get_temp::<std::collections::HashMap<egui::Id, (egui::Id, u64)>>(joined_id())).is_some_and(|all| all.get(&focused).is_some_and(|(_, frame)| *frame + 2 >= now))
 }
 
 /// The order of the widgets on screen (`rects`, as drawn): by rows from the top, a new row when one
@@ -274,8 +313,11 @@ impl App {
         let tip = self.tip.is_some() && !self.help.open && on_top(ctx, "tip");
         let mut turn = None;
         let mut nav = None;
+        let chosen = chosen(ctx);
         raw_input.events.retain(|e| match e {
             e if crate::help::stays(typing, e) => true,
+            // A check box, a list or a link of the window (`join`): pressed as with a click.
+            egui::Event::Key { key: egui::Key::Enter | egui::Key::Space, .. } if chosen => true,
             egui::Event::Key { key: egui::Key::Tab, pressed: true, .. } if free_tab => true,
             egui::Event::Key { key, pressed: true, repeat, modifiers, .. } => {
                 use egui::Key::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Enter, Escape, Space, Tab};

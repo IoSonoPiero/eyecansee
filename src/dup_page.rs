@@ -152,7 +152,8 @@ impl App {
             let folder = crate::save_dialogs::md(&self.display(&w.dir));
             crate::save_dialogs::notice_text(ui, &self.i18n.t_args("dup-ask", &[("folder", &folder)]));
             ui.add_space(6.0);
-            ui.checkbox(&mut w.sub, t("dup-sub"));
+            // Tab reaches it with the buttons (#311).
+            crate::confirm::join("dup-ask", &ui.checkbox(&mut w.sub, t("dup-sub")));
             if self.base.starts_with("mtp://") || source::in_gvfs(&self.base, &w.dir) {
                 ui.add_space(4.0);
                 ui.label(t("dup-phone"));
@@ -181,7 +182,8 @@ impl App {
             let (n, m, size) = (examined.to_string(), found.to_string(), self.human_size(read));
             ui.label(self.i18n.t_args("dup-progress", &[("n", &n), ("m", &m), ("size", &size)]));
             ui.add_space(8.0);
-            if ui.button(self.i18n.t("delete-no")).clicked() {
+            // Cancel highlighted: Enter and Space press it (#311).
+            if crate::confirm::buttons(ui, "dup-progress", &[(self.i18n.t("delete-no"), true)], 0).is_some() {
                 open = false;
             }
         });
