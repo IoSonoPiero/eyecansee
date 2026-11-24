@@ -121,17 +121,17 @@ impl App {
         true
     }
 
-    /// Help > Check for updates: the outcome, until closed (also with Enter or Esc, as the other
-    /// windows that tell how something went: issue #12).
+    /// Help > Check for updates: the outcome, until closed (also with Esc, and with Enter on Close,
+    /// highlighted, as the other windows that tell how something went: issues #12, #311).
     /// Drawn as every message window (issue #11: one style for all of them).
     pub(crate) fn update_window(&mut self, ctx: &egui::Context) {
         let Some(text) = &self.update_note else { return };
         let title = self.i18n.t("menu-check-updates");
         let id = "update";
-        let mut open = crate::confirm::answer(ctx, &mut self.key_answer, id).is_none();
+        let mut open = crate::confirm::answer(ctx, &mut self.key_answer, id) != Some(false);
         let tip = self.i18n.t("notice-copy");
         crate::save_dialogs::message(ctx, id, crate::save_dialogs::Head::new(&title), text, &tip, |ui| {
-            if ui.button(self.i18n.t("notice-close")).clicked() {
+            if crate::confirm::buttons(ui, id, &[(self.i18n.t("notice-close"), true)], 0).is_some() {
                 open = false;
             }
         });
@@ -405,4 +405,30 @@ fn thumbnails_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n, confirm: &mu
         }
     });
     purged
+}
+
+#[cfg(test)]
+mod tests {
+    use eframe::egui;
+
+    /// #311: the outcome of Check for updates opens with Close highlighted, which Enter presses;
+    /// Esc closes it too.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn update_note_opens_on_close() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("app_dialogs::tests::update_note_opens_on_close") {
+            return;
+        }
+        let mut h = Harness::new(&folder("update-note", &["a.png"]));
+        for key in [egui::Key::Enter, egui::Key::Escape] {
+            h.frame(Vec::new());
+            h.app.update_note = Some("EyeCanSee is up to date.".into());
+            h.frame(Vec::new());
+            h.frame(Vec::new());
+            assert!(h.ctx.memory(|m| m.focused()).is_some(), "Close not highlighted");
+            h.key(key);
+            assert!(h.app.update_note.is_none(), "{key:?} did not close the window");
+        }
+    }
 }
