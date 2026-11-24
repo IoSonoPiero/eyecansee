@@ -6,7 +6,7 @@
 //! point is fixed its test runs with the others: `own_folder` runs it again in a child process
 //! with such a folder.
 
-mod fake_ftp;
+pub(crate) mod fake_ftp;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
