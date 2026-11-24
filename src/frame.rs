@@ -137,7 +137,7 @@ impl App {
                             self.keys_open = !self.keys_open;
                         }
                         if self.keys_open || button.hovered() {
-                            self.keys_window(ctx, id, status.response.rect.height());
+                            self.keys_window(ctx, &[id], status.response.rect.height());
                         }
                     }
                     if self.cad_layers_shown() {
@@ -164,7 +164,7 @@ impl App {
                         self.keys_open = !self.keys_open;
                     }
                     if self.keys_open || status.inner.hovered() {
-                        self.keys_window(ctx, "hint-grid", status.response.rect.height());
+                        self.keys_window(ctx, &["hint-grid"], status.response.rect.height());
                     }
                     self.meta_bottom(ui, ctx);
                     egui::Panel::left("tree").resizable(true).default_size(240.0).show(ui, |ui| self.tree(ui));

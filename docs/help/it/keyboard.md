@@ -38,7 +38,7 @@ Nella finestra del primo avvio ogni pagina si apre col suo pulsante principale e
 | Tasto | Azione |
 |---|---|
 | Frecce | Spostano la selezione (la prima pressione seleziona il primo elemento; a sinistra dal primo si va su **..**) |
-| **Maiusc + frecce** | Allargano la selezione |
+| **Maiusc + frecce**, **Maiusc + Inizio**, **Maiusc + Fine** | Allargano la selezione |
 | Inizio, Fine | Primo, ultimo elemento |
 | Invio | Apre la cartella o l'immagine; su **..** sale di un livello |
 | Backspace | Cartella superiore |
@@ -102,9 +102,10 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 |---|---|
 | Spazio | Riproduce e mette in pausa |
 | **Ctrl + ←**, **Ctrl + →** | 5 secondi indietro, avanti |
-| **.**, **,** | Un fotogramma avanti, indietro (in pausa) |
+| **.**, **,** | Un fotogramma avanti, indietro (in pausa; non su un file audio) |
 | **Ctrl + R**, **Ctrl + Maiusc + R** | Ruota il video a destra, a sinistra (vedi [Ruotare e riflettere](rotate.md)) |
 | **Ctrl + Z**, **Ctrl + Y** | Annulla, ripeti una rotazione non salvata |
+| **Ctrl + S** | Salva la rotazione del video |
 | ↑, ↓ (o la rotellina sul video) | Alza, abbassa il volume |
 | M | Toglie e rimette l'audio |
 | **Ctrl + Maiusc + S** | Mette in pausa e salva come immagine il fotogramma mostrato (vedi [Riprodurre i video](video.md)) |
@@ -122,10 +123,12 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | Maiusc e trascinare, o trascinare col tasto centrale | Sposta il modello nella finestra |
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce |
 | 0 | Torna alla vista iniziale |
-| M | Misura: ingombro, superficie, volume e la distanza tra due punti cliccati |
+| M | Misura: ingombro, superficie, volume e la distanza tra due punti cliccati (Backspace toglie l'ultimo punto, Esc cancella i punti e poi chiude la misura, **Ctrl + C** copia i risultati, M di nuovo la chiude) |
 | S | Sezione: taglia il modello con un piano (X, Y, Z l'asse; **Alt + rotellina**, virgola e punto lo spostano; F l'altro lato) |
 | Pagina giù, Spazio | Elemento successivo |
 | Pagina su, Backspace | Elemento precedente |
+| Inizio, Fine | Primo, ultimo elemento |
+| F2, Canc, **Maiusc + Canc** | Rinomina ed elimina, come nella griglia |
 | **Ctrl + Maiusc + S** | Salva il modello come si vede, come immagine (**Ctrl + S**, che salva sopra l'originale, su un modello è grigio) |
 | Esc | Torna alla griglia, o chiude EyeCanSee come sopra |
 | Invio | Torna alla griglia (mentre misuri, chiude un'area) |
@@ -136,12 +139,15 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 |---|---|
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce; trascina per spostarti |
 | 0 | Tutto il disegno |
-| ←, → | File precedente, successivo |
+| →, Spazio, Pagina giù | File successivo |
+| ←, Backspace, Pagina su | File precedente |
+| Inizio, Fine | Primo, ultimo file |
 | L, **Maiusc + L** | Layout successivo, precedente |
 | **Ctrl + L** | Riquadro dei livelli |
-| M | Misura (poi D distanza, A area, G angolo; Invio chiude un'area, Backspace toglie l'ultimo punto, Esc cancella) |
+| M | Misura (poi D distanza, A area, G angolo; Invio chiude un'area, Backspace toglie l'ultimo punto, Esc cancella i punti e poi chiude la misura, **Ctrl + C** copia i risultati, M di nuovo la chiude) |
 | N, **Maiusc + N** | Modifica successiva, precedente, confrontando due disegni |
 | **Ctrl + Maiusc + S** | Salva il disegno come immagine |
+| F2, Canc, **Maiusc + Canc** | Rinomina ed elimina, come nella griglia |
 | Esc | Torna alla griglia, o chiude EyeCanSee come sopra |
 | Invio | Torna alla griglia (mentre misuri, chiude un'area) |
 
@@ -180,7 +186,9 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | **Ctrl + Alt + I** | Ridimensiona l'immagine (vedi [Modificare un'immagine](editor.md)) |
 | **Maiusc + rotellina** | Con Ritaglia e ruota: ruota di 0,1° |
 | Invio | Con Ritaglia e ruota: applica il ritaglio |
-| + e −, 0 | Ingrandisce e rimpicciolisce, tutto in vista |
+| + e − (o la rotellina del mouse), 0 | Ingrandisce e rimpicciolisce, tutto in vista |
+| Trascinare col tasto destro o centrale | Sposta la vista (con Ritaglia e ruota: trascinare fuori dal ritaglio, con qualunque tasto) |
+| Doppio clic | Con Ritaglia e ruota: tutto in vista |
 | **Ctrl + S** | Salva copia, o Sovrascrivi l'originale se scelto nelle Opzioni (vedi [Salvare un'immagine modificata](editor-save.md)) |
 | **Ctrl + Maiusc + S** | Salva come |
 | Esc | Un passo alla volta: ferma ciò che è in corso, chiude il testo, lascia la selezione; poi chiude l'editor |

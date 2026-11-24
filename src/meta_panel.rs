@@ -428,9 +428,13 @@ impl App {
     }
 
     /// The keys of the viewer, one a row, over its bottom right corner above the status bar
-    /// (`bar`: its height): in place of a band whose letters got smaller to fit.
-    pub(crate) fn keys_window(&self, ctx: &egui::Context, id: &str, bar: f32) {
-        let text = self.i18n.t(id);
+    /// (`bar`: its height): in place of a band whose letters got smaller to fit. `ids`: the
+    /// Fluent ids of the lists, one after the other (a tool of the editor, then the keys of every
+    /// tool). A list taller than the window scrolls (#331), so no key is cut.
+    pub(crate) fn keys_window(&self, ctx: &egui::Context, ids: &[&str], bar: f32) {
+        let text = ids.iter().map(|id| self.i18n.t(id)).collect::<Vec<_>>().join(" | ");
+        // The room above the status bar, less the title, the frame and a margin.
+        let room = (ctx.content_rect().height() - bar - 90.0).max(120.0);
         egui::Area::new(egui::Id::unique("viewer-keys")).order(egui::Order::Foreground).anchor(Align2::RIGHT_BOTTOM, vec2(-8.0, -bar - 8.0)).show(ctx, |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
                 ui.label(egui::RichText::new(self.i18n.t("keys-button")).strong().size(16.0));
@@ -438,12 +442,15 @@ impl App {
                 // A row for each key, in alternating stripes, so a key stays with what it does. The
                 // dark theme's stripe was the popup's own grey, the light one too faint.
                 ui.visuals_mut().faint_bg_color = if ui.visuals().dark_mode { Color32::from_gray(60) } else { Color32::from_gray(228) };
-                egui::Grid::new("viewer-keys-grid").num_columns(2).spacing([18.0, 6.0]).striped(true).show(ui, |ui| {
-                    for (keys, what) in key_rows(&text) {
-                        ui.label(egui::RichText::new(keys).strong());
-                        ui.label(what);
-                        ui.end_row();
-                    }
+                // Its own scroll for each list: another one opens at its top.
+                ScrollArea::vertical().id_salt(ids).max_height(room).show(ui, |ui| {
+                    egui::Grid::new("viewer-keys-grid").num_columns(2).spacing([18.0, 6.0]).striped(true).show(ui, |ui| {
+                        for (keys, what) in key_rows(&text) {
+                            ui.label(egui::RichText::new(keys).strong());
+                            ui.label(what);
+                            ui.end_row();
+                        }
+                    });
                 });
             });
         });
@@ -461,7 +468,7 @@ impl App {
             return Some("hint-model");
         }
         let path = &self.files().get(current)?.path;
-        Some(file_keys(path, self.cad_has_sheets(current), self.sphere_shown()))
+        Some(file_keys(path, self.cad_has_sheets(current), self.sphere_shown(), self.playing_motion()))
     }
 
     /// Value of a metadata field as shown: Fluent ids translated, dates in the language's format.
@@ -512,10 +519,14 @@ fn boxes(alone: bool, drawing: bool, shown: impl Fn(Group) -> bool) -> Vec<Group
 }
 
 /// The Fluent id of the keys of the file at `path` in the viewer (not a model, not measuring):
-/// `sheets`, a drawing with layouts; `sphere`, a 360° panorama seen from inside (#188).
-fn file_keys(path: &str, sheets: bool, sphere: bool) -> &'static str {
+/// `sheets`, a drawing with layouts; `sphere`, a 360° panorama seen from inside (#188); `motion`,
+/// a motion photo playing its video, which has the keys of a video (`viewer_keys`, #331).
+fn file_keys(path: &str, sheets: bool, sphere: bool, motion: bool) -> &'static str {
     match () {
+        _ if motion => "hint-video",
         _ if crate::cad::is_cad(path) => if sheets { "hint-cad-layouts" } else { "hint-cad" },
+        // No turns, no frames and no saves on a sound (#331).
+        _ if crate::decode::is_audio(path) => "hint-audio",
         _ if crate::decode::is_played(path) => "hint-video",
         _ if sphere => "hint-pano",
         _ => "hint-image",
@@ -580,12 +591,55 @@ mod tests {
     /// frames and the saves of a video, which do nothing there.
     #[test]
     fn keys_of_a_sound_file() {
-        assert_eq!(super::file_keys("music/song.mp3", false, false), "hint-audio");
-        assert_eq!(super::file_keys("music/song.flac", false, false), "hint-audio");
-        assert_eq!(super::file_keys("clips/trip.mp4", false, false), "hint-video");
-        assert_eq!(super::file_keys("photos/a.jpg", false, false), "hint-image");
-        assert_eq!(super::file_keys("photos/a.jpg", false, true), "hint-pano");
-        assert_eq!(super::file_keys("plans/a.dxf", true, false), "hint-cad-layouts");
+        assert_eq!(super::file_keys("music/song.mp3", false, false, false), "hint-audio");
+        assert_eq!(super::file_keys("music/song.flac", false, false, false), "hint-audio");
+        assert_eq!(super::file_keys("clips/trip.mp4", false, false, false), "hint-video");
+        assert_eq!(super::file_keys("photos/a.jpg", false, false, false), "hint-image");
+        assert_eq!(super::file_keys("photos/a.jpg", false, true, false), "hint-pano");
+        assert_eq!(super::file_keys("plans/a.dxf", true, false, false), "hint-cad-layouts");
+    }
+
+    /// A motion photo playing its video lists the keys of a video, which are those it takes then
+    /// (#331); before and after, those of a picture.
+    #[test]
+    fn keys_of_a_motion_photo_playing() {
+        assert_eq!(super::file_keys("DCIM/PXL_1.MP.jpg", false, false, true), "hint-video");
+        assert_eq!(super::file_keys("DCIM/PXL_1.MP.jpg", false, false, false), "hint-image");
+    }
+
+    /// Every list of keys (the slideshow's too) is in both languages, with as many rows in each
+    /// (#331): a row missing in a translation would leave a key out.
+    #[test]
+    fn hints_alike_in_both_languages() {
+        let lists = |ftl: &'static str| -> std::collections::BTreeMap<&str, usize> {
+            ftl.lines().filter(|l| l.starts_with("hint-") || l.starts_with("show-hint = ")).filter_map(|l| l.split_once(" = ")).map(|(id, text)| (id, text.split('|').count())).collect()
+        };
+        let (en, it) = (lists(include_str!("../locales/en.ftl")), lists(include_str!("../locales/it.ftl")));
+        assert_eq!(en, it);
+        for id in ["hint-audio", "hint-edit-common", "show-hint"] {
+            assert!(en.contains_key(id), "{id}");
+        }
+    }
+
+    /// A list of keys taller than the window scrolls (#331): on a screen 600 points high the
+    /// longest list of the viewer stays on it, title included, above the status bar.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn keys_scroll_on_a_low_screen() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        use eframe::egui;
+        if own_folder("meta_panel::tests::keys_scroll_on_a_low_screen") {
+            return;
+        }
+        let h = Harness::new(&folder("keys-scroll", &["a.png"]));
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 600.0));
+        for _ in 0..3 {
+            let raw = egui::RawInput { screen_rect: Some(screen), ..Default::default() };
+            // No painter: the textures are dropped as handled.
+            h.ctx.run_ui(raw, |ui| h.app.keys_window(ui.ctx(), &["hint-image"], 30.0)).textures_delta.clear();
+        }
+        let rect = h.ctx.memory(|m| m.area_rect(egui::Id::unique("viewer-keys"))).expect("the keys window drawn");
+        assert!(rect.top() >= 0.0 && rect.bottom() <= 600.0 - 30.0, "{rect:?}");
     }
 
     /// The grid's tooltip on a file: full name, size, date, and the pixels only once known.
