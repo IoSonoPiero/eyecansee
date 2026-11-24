@@ -55,11 +55,17 @@ pub fn convert_checked(bytes: &[u8], name: &str, to: Target) -> Result<Vec<u8>, 
     let before = crate::cad::read(bytes, name).map_err(Refused::NotRead)?;
     let out = convert(bytes, name, to).map_err(Refused::NotMade)?;
     let after = crate::cad::read(&out, &format!("x.{}", to.ext())).map_err(Refused::NotMade)?;
-    let (items, sheets) = ((before.items.len(), after.items.len()), (before.sheets.len(), after.sheets.len()));
-    if items.1 < items.0 || sheets.1 < sheets.0 {
-        return Err(Refused::WouldLose(format!("{} → {} elements, {} → {} layouts", items.0, items.1, sheets.0, sheets.1)));
+    match lost(&before, &after) {
+        Some(what) => Err(Refused::WouldLose(what)),
+        None => Ok(out),
     }
-    Ok(out)
+}
+
+/// What `after`, the drawing read back from the new file, shows less than `before`; `None` when
+/// nothing.
+fn lost(before: &crate::cad::Drawing, after: &crate::cad::Drawing) -> Option<String> {
+    let (items, sheets) = ((before.items.len(), after.items.len()), (before.sheets.len(), after.sheets.len()));
+    (items.1 < items.0 || sheets.1 < sheets.0).then(|| format!("{} → {} elements, {} → {} layouts", items.0, items.1, sheets.0, sheets.1))
 }
 
 /// The drawing `bytes` (named `name`) as `to`, in the AutoCAD version it was saved with.
@@ -134,6 +140,10 @@ mod tests {
                         let ok = after.items.len() == before.items.len() && after.sheets.len() == before.sheets.len();
                         same += usize::from(ok);
                         println!("{name} -> {}: items {} -> {}, layouts {} -> {}{}", to.ext(), before.items.len(), after.items.len(), before.sheets.len(), after.sheets.len(), if ok { "" } else { "  <-- DIFFERENT" });
+                        // What `convert_checked` would say: refused, and why.
+                        if let Some(what) = lost(&before, &after) {
+                            println!("    refused: {what}");
+                        }
                         if let Some(out) = &out {
                             for (d, tag) in [(&before, "a"), (&after, "b")] {
                                 if let Ok(img) = crate::decode::cad_render(d, 1200, None) {
