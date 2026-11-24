@@ -150,7 +150,8 @@ fn new_image_form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer
     let t = |id| i18n.t(id);
     // Enter in a field creates; on a button (Swap, the colour, Cancel) it presses that one only (#311).
     let enter_creates = !ui.ctx().egui_wants_keyboard_input() || ui.ctx().text_edit_focused();
-    egui::Grid::new("new-image").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
+    // The number field Enter left (`lost`): with Create greyed out it keeps the keys, as Rename's name.
+    let lost = egui::Grid::new("new-image").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
         ui.label(t("new-size"));
         let shown = f.preset.map_or_else(|| t("new-custom"), |i| f.name(i18n, i));
         egui::ComboBox::from_id_salt("new-preset").width(260.0).selected_text(shown).show_ui(ui, |ui| {
@@ -165,13 +166,12 @@ fn new_image_form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer
         });
         ui.end_row();
         ui.label(t("new-width-height"));
-        ui.horizontal(|ui| {
+        let sizes = ui.horizontal(|ui| {
             // One's own size once a number or the unit changes.
             let unit = f.unit;
             let speed = if f.unit == Unit::Px { 1.0 } else { 0.1 };
-            let mut edited = ui.add(egui::DragValue::new(&mut f.w).range(0.1..=100_000.0).speed(speed)).changed();
-            ui.label("×");
-            edited |= ui.add(egui::DragValue::new(&mut f.h).range(0.1..=100_000.0).speed(speed)).changed();
+            let (w, _, h) = (ui.add(egui::DragValue::new(&mut f.w).range(0.1..=100_000.0).speed(speed)), ui.label("×"), ui.add(egui::DragValue::new(&mut f.h).range(0.1..=100_000.0).speed(speed)));
+            let edited = w.changed() || h.changed();
             egui::ComboBox::from_id_salt("new-unit").width(60.0).selected_text(f.unit.label()).show_ui(ui, |ui| {
                 for u in Unit::ALL {
                     ui.selectable_value(&mut f.unit, u, u.label());
@@ -183,10 +183,12 @@ fn new_image_form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer
             if ui.add(crate::icons::button(ui, crate::icons::Line::Swap)).on_hover_text(t("new-swap")).clicked() {
                 (f.w, f.h) = (f.h, f.w);
             }
-        });
+            [w, h]
+        })
+        .inner;
         ui.end_row();
         ui.label(t("new-dpi"));
-        ui.add_enabled(f.unit != Unit::Px, egui::DragValue::new(&mut f.dpi).range(10.0..=2400.0).suffix(" dpi")).on_disabled_hover_text(t("new-dpi-off"));
+        let dpi = ui.add_enabled(f.unit != Unit::Px, egui::DragValue::new(&mut f.dpi).range(10.0..=2400.0).suffix(" dpi")).on_disabled_hover_text(t("new-dpi-off"));
         ui.end_row();
         ui.label(t("new-background"));
         ui.horizontal(|ui| {
@@ -205,7 +207,9 @@ fn new_image_form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer
             }
         });
         ui.end_row();
-    });
+        sizes.into_iter().chain([dpi]).find(egui::Response::lost_focus).map(|r| r.id)
+    })
+    .inner;
     let (w, h) = pixels(f.w, f.h, f.unit, f.dpi);
     let big = too_many((w, h));
     ui.add_space(6.0);
@@ -215,6 +219,9 @@ fn new_image_form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer
         crate::error_bar::hint(ui, &too_big);
     } else {
         ui.weak(i18n.t_args("new-pixels", &[("w", &ws), ("h", &hs)]));
+    }
+    if let Some(id) = lost.filter(|_| big && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
+        ui.memory_mut(|m| m.request_focus(id));
     }
     ui.add_space(6.0);
     ui.horizontal(|ui| form_buttons(ui, if big { Err(too_big.as_str()) } else { Ok(()) }, enter_creates, i18n)).inner
@@ -327,5 +334,36 @@ mod tests {
         h.blur();
         h.key(Key::Enter);
         assert!(h.app.new_image.is_none() && h.app.editor.is_some() && h.app.viewing.is_none(), "Enter did not press Create, or reached the grid");
+    }
+
+    /// #311: a size too large greys Create out. Enter in a number field leaves the keys there, as
+    /// on a name that does not go in Rename: before, it highlighted Cancel and a second Enter
+    /// closed the window.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn enter_on_a_size_too_large_stays_in_the_field() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        use egui::{Key, Modifiers};
+        if own_folder("new_image::tests::enter_on_a_size_too_large_stays_in_the_field") {
+            return;
+        }
+        let mut h = Harness::new(&folder("new-image-big", &["a.png"]));
+        h.app.new_image = Some(Form { preset: None, w: 100_000.0, h: 100_000.0, unit: Unit::Px, ..Form::new() });
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+        // From Cancel, highlighted, back to a number field with the keyboard.
+        for _ in 0..12 {
+            if h.ctx.text_edit_focused() {
+                break;
+            }
+            h.key_with(Key::Tab, Modifiers::SHIFT);
+        }
+        assert!(h.ctx.text_edit_focused(), "no number field reached with Shift+Tab");
+        for _ in 0..2 {
+            h.key(Key::Enter);
+            h.frame(Vec::new());
+            assert!(h.app.new_image.is_some() && h.app.editor.is_none(), "Enter in the field closed the window or made the image");
+        }
+        assert!(h.ctx.text_edit_focused(), "Enter in the field took the keys away from it");
     }
 }
