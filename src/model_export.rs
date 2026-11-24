@@ -173,11 +173,16 @@ pub struct Beside<'a> {
 pub(crate) const LOST_PICTURES: &str = "model-export-lost-pictures";
 /// A model exported into a format that cannot hold all of how its surfaces take the light.
 pub(crate) const LOST_SURFACES: &str = "model-export-lost-surfaces";
+/// A model whose pictures beyond `model::TEXTURE_SIDE` were read, and so exported, smaller.
+pub(crate) const LOST_SMALLER: &str = "model-export-lost-smaller";
+/// A model whose pictures beyond `model::MAX_TEXTURES` were left out at reading.
+pub(crate) const LOST_LEFT_OUT: &str = "model-export-lost-left-out";
 
 /// What `kind` cannot hold of `mesh`, said at the end of the export (audit 6.16, the project's
 /// rule): STL and PLY have no place for pictures (their colours are put on the model) nor for
 /// surfaces; a `.mtl` has none for the pictures of roughness and metal and of the shadows in the
-/// creases. glTF holds all a `Mesh` has.
+/// creases. glTF holds all a `Mesh` has, but not what the reading left behind of the pictures
+/// (`Mesh::pictures_cut`).
 /// A surface counts when it shows: smoother than matte, glowing, or with pictures; a glTF
 /// without a material (metal, as rough as matte, by the format's default) is not named.
 pub(crate) fn lost(mesh: &Mesh, kind: Kind) -> Vec<&'static str> {
@@ -187,8 +192,12 @@ pub(crate) fn lost(mesh: &Mesh, kind: Kind) -> Vec<&'static str> {
     let pictures = mesh.tex.iter().any(|&k| k > 0);
     match kind {
         Kind::Stl | Kind::Ply => [(pictures, LOST_PICTURES), (shiny, LOST_SURFACES)].into_iter().filter_map(|(lost, id)| lost.then_some(id)).collect(),
-        Kind::Obj if maps => vec![LOST_SURFACES],
-        Kind::Obj | Kind::Glb => Vec::new(),
+        Kind::Obj | Kind::Glb => {
+            let mut out: Vec<&'static str> = (kind == Kind::Obj && maps).then_some(LOST_SURFACES).into_iter().collect();
+            // The pictures read smaller or left out (#340): a format that keeps pictures keeps them so.
+            out.extend(&mesh.pictures_cut);
+            out
+        }
     }
 }
 

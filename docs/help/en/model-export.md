@@ -25,7 +25,7 @@ EyeCanSee keeps as much of the original as the new format can hold:
 - **PLY** keeps the normals and the colours, both on the points (which most programs read) and on each triangle.
 - **STL** keeps a colour for each triangle.
 
-Where a format cannot hold a picture, its colours are taken from the picture, so the model does not come out grey. What the new format cannot hold is said in the **Export finished** message: the models exported without their pictures (STL and PLY), and those exported without all of their materials (STL and PLY have no place for them; OBJ none for the pictures of roughness, metal and shadows in the creases). glTF (GLB) keeps them all.
+Where a format cannot hold a picture, its colours are taken from the picture, so the model does not come out grey. What the new format cannot hold is said in the **Export finished** message: the models exported without their pictures (STL and PLY), and those exported without all of their materials (STL and PLY have no place for them; OBJ none for the pictures of roughness, metal and shadows in the creases). glTF (GLB) keeps them all, as EyeCanSee read them: pictures larger than 2048 pixels are read, and saved, at 2048, and of a model with more than 64 pictures only the first 64 are kept; the **Export finished** message says so for each model.
 
 Names of the parts, groups and their hierarchy, and transparency are not kept in any format: EyeCanSee reads a model as one set of triangles.
 

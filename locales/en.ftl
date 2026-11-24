@@ -790,6 +790,22 @@ model-export-surfaces-why = { $n ->
     [one] Its new format cannot hold all of how its surfaces take the light (how smooth or metallic they are, bumps, shadows in the creases, their own light). glTF (GLB) keeps it all.
    *[other] Their new format cannot hold all of how their surfaces take the light (how smooth or metallic they are, bumps, shadows in the creases, their own light). glTF (GLB) keeps it all.
 }
+model-export-smaller-heading = { $n ->
+    [one] 1 model exported with smaller pictures:
+   *[other] { $n } models exported with smaller pictures:
+}
+model-export-smaller-why = { $n ->
+    [one] EyeCanSee reads pictures larger than 2048 pixels at 2048, and saves them so.
+   *[other] EyeCanSee reads pictures larger than 2048 pixels at 2048, and saves them so.
+}
+model-export-left-out-heading = { $n ->
+    [one] 1 model exported without some of its pictures:
+   *[other] { $n } models exported without some of their pictures:
+}
+model-export-left-out-why = { $n ->
+    [one] It has more than 64 pictures: EyeCanSee reads the first 64, and saves those.
+   *[other] They have more than 64 pictures: EyeCanSee reads the first 64, and saves those.
+}
 model-export-running = Exporting 3D models
 model-export-counts = Model { $n } of { $total }
 model-export-files = { $n ->

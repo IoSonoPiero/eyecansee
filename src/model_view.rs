@@ -373,6 +373,9 @@ pub(crate) struct Said {
     /// (`model_export::lost`, audit 6.16).
     pub(crate) pictures: Vec<String>,
     pub(crate) surfaces: Vec<String>,
+    /// With pictures read smaller, or some left out (`Mesh::pictures_cut`, #340).
+    pub(crate) smaller: Vec<String>,
+    pub(crate) left_out: Vec<String>,
 }
 
 impl ExportSaid {
@@ -423,7 +426,9 @@ impl ExportSaid {
     /// `model_export::lost`): said at the end.
     pub(crate) fn lost(&mut self, from: &str, notes: &[&'static str]) {
         let name = crate::source::name(from).to_string();
-        for (id, names) in [(crate::model_export::LOST_PICTURES, &mut self.said.pictures), (crate::model_export::LOST_SURFACES, &mut self.said.surfaces)] {
+        use crate::model_export::{LOST_LEFT_OUT, LOST_PICTURES, LOST_SMALLER, LOST_SURFACES};
+        let said = &mut self.said;
+        for (id, names) in [(LOST_PICTURES, &mut said.pictures), (LOST_SURFACES, &mut said.surfaces), (LOST_SMALLER, &mut said.smaller), (LOST_LEFT_OUT, &mut said.left_out)] {
             if notes.contains(&id) {
                 names.push(name.clone());
             }
@@ -459,6 +464,8 @@ pub(crate) fn export_notice(i18n: &crate::i18n::I18n, said: &Said, stopped: Opti
         Part::of(i18n, "model-export-beyond-heading", "model-export-beyond-why", beyond.collect()),
         Part::named(i18n, "model-export-pictures-heading", "model-export-pictures-why", &said.pictures),
         Part::named(i18n, "model-export-surfaces-heading", "model-export-surfaces-why", &said.surfaces),
+        Part::named(i18n, "model-export-smaller-heading", "model-export-smaller-why", &said.smaller),
+        Part::named(i18n, "model-export-left-out-heading", "model-export-left-out-why", &said.left_out),
     ];
     let title = i18n.t(if stopped.is_some() { "model-export-cancelled" } else { "model-export-done-title" });
     (*said != Said::default()).then(|| crate::notice_list::told(i18n, title, stopped.unwrap_or_default(), parts))
@@ -566,6 +573,15 @@ mod tests {
         let text = crate::save_dialogs::plain(&export_notice(&en, &said, None).unwrap().text);
         assert!(text.starts_with("1 model exported without its pictures:\nIts new format cannot hold pictures"), "{text}");
         assert!(text.contains("\n\n2 models exported without all of their materials:\n") && !text.contains("plain.stl"), "{text}");
+        // Pictures read smaller (#340), in both languages.
+        let mut s = ExportSaid::default();
+        s.start(1);
+        s.lost("d/big.glb", &[crate::model_export::LOST_SMALLER]);
+        let said = s.done(None, None).unwrap();
+        for (lang, line) in [("en", "1 model exported with smaller pictures:\nEyeCanSee reads pictures larger than 2048 pixels at 2048"), ("it", "1 modello esportato con immagini più piccole:\nEyeCanSee legge le immagini più grandi di 2048 pixel")] {
+            let text = crate::save_dialogs::plain(&export_notice(&I18n::new(lang), &said, None).unwrap().text);
+            assert!(text.starts_with(line) && text.ends_with("- big.glb"), "{lang}: {text}");
+        }
     }
 
     /// Three models, the second failed: the names of the first and the third, in their order, and
