@@ -38,7 +38,7 @@ In the first-start window each page opens with its main button highlighted (**Ne
 | Key | Action |
 |---|---|
 | Arrows | Move the selection (the first press selects the first item; left from the first item goes to **..**) |
-| **Shift + arrows** | Extend the selection |
+| **Shift + arrows**, **Shift + Home**, **Shift + End** | Extend the selection |
 | Home, End | First, last item |
 | Enter | Open the folder or the image; on **..** go up |
 | Backspace | Parent folder |
@@ -102,9 +102,10 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 |---|---|
 | Space | Play and pause |
 | **Ctrl + ←**, **Ctrl + →** | 5 seconds back, forward |
-| **.**, **,** | One frame forward, back (paused) |
+| **.**, **,** | One frame forward, back (paused; not on an audio file) |
 | **Ctrl + R**, **Ctrl + Shift + R** | Turn the video right, left (see [Rotating and flipping](rotate.md)) |
 | **Ctrl + Z**, **Ctrl + Y** | Undo, redo a turn not saved |
+| **Ctrl + S** | Save the turn of the video |
 | ↑, ↓ (or the mouse wheel on the video) | Volume up, down |
 | M | Audio off and on |
 | **Ctrl + Shift + S** | Pause and save the frame shown as a picture (see [Playing videos](video.md)) |
@@ -122,10 +123,12 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | Shift and drag, or drag with the middle button | Move the model in the window |
 | + and − (or the mouse wheel) | Zoom in and out |
 | 0 | Back to the starting view |
-| M | Measure: size, surface, volume, and the distance between two points clicked |
+| M | Measure: size, surface, volume, and the distance between two points clicked (Backspace takes back a point, Esc clears the points and then closes Measure, **Ctrl + C** copies the results, M again closes it) |
 | S | Section: cut the model with a plane (X, Y, Z its axis; **Alt + wheel**, comma and full stop move it; F the other side) |
 | Page Down, Space | Next item |
 | Page Up, Backspace | Previous item |
+| Home, End | First, last item |
+| F2, Del, **Shift + Del** | Rename and delete, as in the grid |
 | **Ctrl + Shift + S** | Save the model as it is shown, as an image (**Ctrl + S**, which saves over the original, is greyed out on a model) |
 | Esc | Back to the grid, or closes EyeCanSee as above |
 | Enter | Back to the grid (while measuring, it closes an area) |
@@ -136,12 +139,15 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 |---|---|
 | + and − (or the mouse wheel) | Zoom in and out; drag to move |
 | 0 | The whole drawing |
-| ←, → | Previous, next file |
+| →, Space, Page Down | Next file |
+| ←, Backspace, Page Up | Previous file |
+| Home, End | First, last file |
 | L, **Shift + L** | Next, previous layout |
 | **Ctrl + L** | Layers panel |
-| M | Measure (then D distance, A area, G angle; Enter closes an area, Backspace takes back a point, Esc clears) |
+| M | Measure (then D distance, A area, G angle; Enter closes an area, Backspace takes back a point, Esc clears the points and then closes Measure, **Ctrl + C** copies the results, M again closes it) |
 | N, **Shift + N** | Next, previous change, when comparing two drawings |
 | **Ctrl + Shift + S** | Save the drawing as an image |
+| F2, Del, **Shift + Del** | Rename and delete, as in the grid |
 | Esc | Back to the grid, or closes EyeCanSee as above |
 | Enter | Back to the grid (while measuring, it closes an area) |
 
@@ -180,7 +186,9 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | **Ctrl + Alt + I** | Resize the image (see [Editing an image](editor.md)) |
 | **Shift + wheel** | With Crop and rotate: turn by 0.1° |
 | Enter | With Crop and rotate: apply the crop |
-| + and −, 0 | Zoom in and out, everything in view |
+| + and − (or the mouse wheel), 0 | Zoom in and out, everything in view |
+| Drag with the right or middle button | Move the view (with Crop and rotate: drag outside the crop, with any button) |
+| Double click | With Crop and rotate: everything in view |
 | **Ctrl + S** | Save copy, or Overwrite the original when chosen in the Options (see [Saving an edited image](editor-save.md)) |
 | **Ctrl + Shift + S** | Save as |
 | Esc | One step at a time: stops what is under way, ends the text, lets go of the selection; then closes the editor |

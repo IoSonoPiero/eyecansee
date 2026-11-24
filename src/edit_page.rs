@@ -637,7 +637,7 @@ impl App {
                 w.keys_open = !w.keys_open;
             }
             if w.keys_open || status.inner.hovered() {
-                self.keys_window(ui.ctx(), tools::keys_id(w.tool), status.response.rect.height());
+                self.keys_window(ui.ctx(), &tools::keys_ids(w.tool), status.response.rect.height());
             }
             // Undo, Redo from the keys or the bars: the photo at the size they take it back to.
             w.follow_size(ui.ctx());

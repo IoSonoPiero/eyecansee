@@ -234,7 +234,7 @@ impl App {
             self.keys_open = !self.keys_open;
         }
         if self.keys_open || foot.inner.hovered() {
-            self.keys_window(&ctx, "hint-dup", foot.response.rect.height());
+            self.keys_window(&ctx, &["hint-dup"], foot.response.rect.height());
         }
         let mut view = None;
         egui::CentralPanel::default()

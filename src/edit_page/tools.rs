@@ -402,6 +402,12 @@ fn hint_id(tool: Tool) -> &'static str {
     }
 }
 
+/// The Fluent ids of the keys listed for `tool`: its own, then those of every tool (#331), which
+/// its own list does not repeat.
+pub(super) fn keys_ids(tool: Tool) -> [&'static str; 2] {
+    [keys_id(tool), "hint-edit-common"]
+}
+
 /// The Fluent id of the keys of `tool`, for the Keys button: only those of the tool in use (user,
 /// 2026-11-06: "only the commands of the tool selected, not all").
 pub(super) fn keys_id(tool: Tool) -> &'static str {
@@ -549,6 +555,29 @@ mod tests {
         }
         use crate::edit::filter::Filter;
         assert!(Filter::Blur.hides() && Filter::Pixelate.hides() && !Filter::Gray.hides());
+    }
+
+    /// Every tool lists its own keys, then those of every tool (#331); its own list does not
+    /// repeat a row of those.
+    #[test]
+    fn keys_with_those_of_every_tool() {
+        for (tool, ..) in super::TOOLS {
+            assert_eq!(super::keys_ids(tool), [super::keys_id(tool), "hint-edit-common"]);
+        }
+        for kind in [super::Kind::Patch, super::Kind::Filter] {
+            assert_eq!(super::keys_ids(Tool::Draw(kind)), ["hint-edit-select", "hint-edit-common"]);
+        }
+        for ftl in [include_str!("../../locales/en.ftl"), include_str!("../../locales/it.ftl")] {
+            let keys = |id: &str| -> Vec<String> {
+                let text = ftl.lines().find_map(|l| l.strip_prefix(&format!("{id} = "))).unwrap_or_else(|| panic!("{id}"));
+                text.split('|').filter_map(|row| row.split_once(':')).map(|(k, _)| k.trim().to_string()).collect()
+            };
+            let common = keys("hint-edit-common");
+            for (tool, ..) in super::TOOLS {
+                let own = keys(super::keys_id(tool));
+                assert!(own.iter().all(|k| !common.contains(k)), "{tool:?} repeats a row of every tool: {own:?}");
+            }
+        }
     }
 
     /// Every tool has its list of keys, in both languages.
