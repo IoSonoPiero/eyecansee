@@ -72,6 +72,7 @@ Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositiv
 
 | Tasto | Azione |
 |---|---|
+| Tab, **Maiusc + Tab** | Passano tra i pulsanti delle barre; lì ← e → non cambiano più immagine, sul cursore dello zoom cambiano lo zoom |
 | →, Spazio, Pagina giù | Immagine successiva |
 | ←, Backspace, Pagina su | Immagine precedente |
 | Inizio, Fine | Prima, ultima immagine |
@@ -154,6 +155,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 
 | Tasto | Azione |
 |---|---|
+| Tab, **Maiusc + Tab** | Passano tra i pulsanti delle barre e l'immagine; sul cursore dello zoom ← e → cambiano lo zoom |
 | V | Seleziona |
 | M | Selezione (una parte dell'immagine) |
 | A, L, P | Freccia, Linea, Mano libera |

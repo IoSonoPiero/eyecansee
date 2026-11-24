@@ -72,6 +72,7 @@ In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device e
 
 | Key | Action |
 |---|---|
+| Tab, **Shift + Tab** | Go through the buttons of the bars; there ← and → no longer change the image, on the zoom slider they change the zoom |
 | →, Space, Page Down | Next image |
 | ←, Backspace, Page Up | Previous image |
 | Home, End | First, last image |
@@ -154,6 +155,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 
 | Key | Action |
 |---|---|
+| Tab, **Shift + Tab** | Go through the buttons of the bars and the image; on the zoom slider ← and → change the zoom |
 | V | Select |
 | M | Selection (a part of the image) |
 | A, L, P | Arrow, Line, Freehand |
