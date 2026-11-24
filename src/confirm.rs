@@ -142,7 +142,7 @@ pub(crate) fn buttons_hint(ui: &mut egui::Ui, id: &str, labels: &[(String, bool)
 /// The keys of the frame for a row of buttons the caller drew itself (`rows`, greyed ones too, in
 /// any order: Tab goes from the left, as they are on screen, also when drawn from the right). The
 /// window on top takes them (`Nav`); `default`, an index of `rows`, is highlighted when the window
-/// opens, unless a text field has the keyboard. The index pressed, by the mouse or the keys.
+/// opens, unless a text field has the keyboard (beyond the rows: none is). The index pressed, by the mouse or the keys.
 pub(crate) fn keys(ui: &egui::Ui, id: &str, rows: &[egui::Response], default: usize) -> Option<usize> {
     let clicked = rows.iter().position(egui::Response::clicked);
     let opened = just_opened(ui.ctx(), id);
@@ -162,7 +162,21 @@ pub(crate) fn keys(ui: &egui::Ui, id: &str, rows: &[egui::Response], default: us
     let place = |i: usize| order.iter().position(|&o| o == i);
     let on: Vec<bool> = order.iter().map(|&i| rows[i].enabled()).collect();
     let focused = rows.iter().position(egui::Response::has_focus);
-    let (to, pressed) = step(&on, place(default)?, focused.and_then(place), nav)?;
+    let Some(start) = place(default).or(focused.and_then(place)) else {
+        // No button highlighted at first (`default` beyond the rows: About): Tab goes to the
+        // first control, Shift+Tab to the last one.
+        let mut usable = (0..on.len()).filter(|&i| on[i]);
+        let to = match nav {
+            Some(Nav::Next) => usable.next(),
+            Some(Nav::Prev) => usable.next_back(),
+            _ => None,
+        };
+        if let Some(to) = to {
+            rows[order[to]].request_focus();
+        }
+        return clicked;
+    };
+    let (to, pressed) = step(&on, start, focused.and_then(place), nav)?;
     let (to, pressed) = (order[to], pressed.map(|p| order[p]));
     // Another widget of the window (a check box) may hold the focus: left to it, unless a key moved
     // or the window just opened (the button that opened a question inside a form had it, #311).
