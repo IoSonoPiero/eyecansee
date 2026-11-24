@@ -315,4 +315,15 @@ mod tests {
         });
         assert_eq!(names, ["a.glb", "a.png"], "{got:?}");
     }
+
+    /// #312: a new name already taken in the folder (the grid had not read it yet: the PLY
+    /// exported as PLY at once wrote over its original) is never written over: the next free
+    /// name, which the end says.
+    #[test]
+    fn a_name_taken_is_never_written_over() {
+        let files = vec![("a.stl".to_string(), stl(10)), ("a.obj".to_string(), b"mine".to_vec())];
+        let (got, names, _) = export_in("taken", files, vec![("a.stl".to_string(), "a.obj".to_string())], |_| {});
+        assert_eq!(names, ["a (2).obj", "a.obj", "a.stl"], "{got:?}");
+        assert!(matches!(&got[0], Ok((to, _, _)) if to == "a (2).obj"), "{got:?}");
+    }
 }
