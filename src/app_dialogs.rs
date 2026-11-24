@@ -519,6 +519,25 @@ mod tests {
         assert!(h.app.options, "Options closed");
     }
 
+    /// #311: Options over the viewer keep the keys of the viewer and the shortcuts, with the
+    /// keyboard nowhere or on a control: the picture, its zoom, its turn not saved and full screen
+    /// stay as they were.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn options_over_the_viewer_keep_their_keys() {
+        if own_folder("app_dialogs::tests::options_over_the_viewer_keep_their_keys") {
+            return;
+        }
+        let mut h = crate::audit_family_1::turned_middle("opt-viewer");
+        h.app.options = true;
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+        let first = h.ctx.viewport(|v| v.prev_pass.widgets.layers().filter(|(l, _)| l.order == eframe::egui::Order::Middle).find_map(|(_, w)| w.iter().find(|w| w.enabled && w.sense.is_focusable()).map(|w| w.id)));
+        for focus in [None, first] {
+            crate::audit_family_1::keys_stay_over_viewer(&mut h, |a| a.options, focus);
+        }
+    }
+
     /// #311: "Empty the thumbnail cache?" opens on Empty: Enter empties it. Esc cancels the
     /// question first, then closes Options.
     #[test]

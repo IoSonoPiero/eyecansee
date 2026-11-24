@@ -75,6 +75,8 @@ pub(crate) struct Harness {
     pub ctx: egui::Context,
     pub app: App,
     frame: eframe::Frame,
+    /// Full screen was asked of the window (F11), in some frame since the start.
+    pub full_asked: bool,
 }
 
 impl Harness {
@@ -88,7 +90,7 @@ impl Harness {
         let ctx = egui::Context::default();
         let settings = Settings { check_updates: false, tips: false, local_permanent: true, servers_plain_warned: true, ..Settings::default() };
         let app = App::new(&ctx, settings, Some(address.to_string()));
-        let mut h = Harness { ctx, app, frame: eframe::Frame::_new_kittest() };
+        let mut h = Harness { ctx, app, frame: eframe::Frame::_new_kittest(), full_asked: false };
         h.until(|app| !app.files().is_empty(), "the folder listed");
         h
     }
@@ -99,6 +101,8 @@ impl Harness {
         eframe::App::raw_input_hook(&mut self.app, &self.ctx, &mut raw);
         let (app, frame) = (&mut self.app, &mut self.frame);
         let mut out = self.ctx.run_ui(raw, |ui| eframe::App::ui(app, ui, frame));
+        let full = |c: &egui::ViewportCommand| matches!(c, egui::ViewportCommand::Fullscreen(_));
+        self.full_asked |= out.viewport_output.values().any(|v| v.commands.iter().any(full));
         // No painter: the textures are dropped as handled.
         out.textures_delta.clear();
     }
@@ -154,6 +158,47 @@ pub(crate) fn keys_stay_in_window(h: &mut Harness, open: impl Fn(&App) -> bool) 
         assert!(open(a) && forms == 1, "{key:?} {modifiers:?}: the window closed, or another came");
         assert!((a.cursor, a.selected) == (true, 0) && a.marked.is_empty(), "{key:?}: the grid moved under the window");
         assert!(a.delete_confirm.is_none() && a.editor.is_none() && a.batch.is_none() && a.duplicates.is_none() && a.viewing.is_none(), "{key:?} {modifiers:?}: reached the app under the window");
+    }
+}
+
+/// The viewer open on b.png, the middle one of three (the arrows, Home and End would move it),
+/// turned and not saved, for a window over it (#311).
+pub(crate) fn turned_middle(name: &str) -> Harness {
+    let mut h = Harness::new(&folder(name, &["a.png", "b.png", "c.png"]));
+    h.app.activate(1);
+    h.until(|app| app.zoom_of == Some(1), "b.png shown");
+    h.app.act = Some(crate::actions::Act::Transform(crate::transform::Op::Cw, None));
+    h.frame(Vec::new());
+    assert!(h.app.turn_unsaved(), "b.png turned, not saved");
+    h
+}
+
+/// #311: a window with fields open over the viewer (`open`), the keyboard on `focus` (`None`:
+/// nothing, as after a click on its body; a text field; a button): the keys of the viewer and the
+/// shortcuts reach nothing under it. The picture shown, its zoom, its turn not saved, full screen
+/// stay as they were; no other window comes. Space and Enter press a button, Esc closes: not here.
+pub(crate) fn keys_stay_over_viewer(h: &mut Harness, open: impl Fn(&App) -> bool, focus: Option<egui::Id>) {
+    use egui::{Key, Modifiers};
+    let (none, ctrl) = (Modifiers::NONE, Modifiers::COMMAND);
+    let viewer = |a: &App| format!("{:?}", (a.viewing, a.zoom, a.zoom_of, a.pan, a.turn, a.turn_unsaved(), a.show.is_some()));
+    let before = viewer(&h.app);
+    assert!(h.app.viewing.is_some(), "the viewer is not open");
+    let mut keys: Vec<(Key, Modifiers)> = [Key::ArrowRight, Key::ArrowLeft, Key::ArrowUp, Key::ArrowDown, Key::PageDown, Key::PageUp, Key::Home, Key::End, Key::Backspace, Key::Plus, Key::Minus, Key::Num0, Key::Num1, Key::Period, Key::Comma, Key::M, Key::S, Key::F11, Key::F5, Key::Delete, Key::F2].map(|k| (k, none)).to_vec();
+    keys.extend([Key::R, Key::Z, Key::Y, Key::E, Key::S, Key::B, Key::D].map(|k| (k, ctrl)));
+    keys.extend([(Key::R, ctrl | Modifiers::SHIFT), (Key::S, ctrl | Modifiers::SHIFT), (Key::Delete, Modifiers::SHIFT)]);
+    for (key, modifiers) in keys {
+        h.blur();
+        if let Some(id) = focus {
+            h.ctx.memory_mut(|m| m.request_focus(id));
+        }
+        h.key_with(key, modifiers);
+        h.frame(Vec::new());
+        let a = &h.app;
+        assert!(open(a), "{key:?} {modifiers:?}: the window closed");
+        assert_eq!(viewer(a), before, "{key:?} {modifiers:?}: the viewer under the window changed");
+        assert!(!h.full_asked, "{key:?} {modifiers:?}: full screen asked under the window");
+        assert!(a.delete_confirm.is_none() && a.editor.is_none() && a.batch.is_none() && a.duplicates.is_none() && a.save_ready.is_none() && a.convert.is_none(), "{key:?} {modifiers:?}: reached the app under the window");
+        assert!(a.after_turn.is_none() && a.notice.is_none(), "{key:?} {modifiers:?}: a question came over the window");
     }
 }
 
