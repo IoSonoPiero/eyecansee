@@ -451,3 +451,56 @@ fn the_box_of_a_copy_is_in_the_round_of_tab() {
     h.frame(Vec::new());
     assert!(p.cancel.load(std::sync::atomic::Ordering::Relaxed), "Enter on Cancel did not stop the copy");
 }
+
+/// #311: the questions with a row of buttons (`confirm::choose`): deleting, turning pictures of
+/// the grid, leaving a turn of the viewer or the changes of the editor not saved, KDE holding a
+/// phone. Tab with nothing focused goes through their buttons, the arrows too, Esc cancels.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn tab_goes_through_the_rows_of_buttons() {
+    if own_folder("window_keys::tab_goes_through_the_rows_of_buttons") {
+        return;
+    }
+    let mut h = on_grid("keys-delete");
+    h.key(Key::Delete);
+    assert!(h.app.delete_confirm.is_some(), "Del did not ask");
+    tab_goes_through(&mut h, modal("delete"), |a| a.delete_confirm.is_some(), 2, true);
+    h.blur();
+    h.key(Key::Escape);
+    assert!(h.app.delete_confirm.is_none(), "Esc did not cancel the deletion");
+
+    let mut h = on_grid("keys-batch-turn");
+    h.key_with(Key::R, Modifiers::COMMAND);
+    assert!(h.app.batch_turn.is_some(), "Ctrl+R on the grid did not ask");
+    tab_goes_through(&mut h, modal("batch-turn"), |a| a.batch_turn.is_some(), 2, true);
+    h.blur();
+    h.key(Key::Escape);
+    assert!(h.app.batch_turn.is_none(), "Esc did not cancel the turn");
+
+    let mut h = crate::audit_family_1::turned_middle("keys-turn-leave");
+    h.key(Key::Escape);
+    h.frame(Vec::new());
+    assert!(h.app.after_turn.is_some(), "Esc on a turn not saved did not ask");
+    tab_goes_through(&mut h, modal("turn-leave"), |a| a.after_turn.is_some(), 3, true);
+    h.blur();
+    h.key(Key::Escape);
+    assert!(h.app.after_turn.is_none() && h.app.viewing.is_some(), "Esc did not stay in the viewer");
+
+    let mut h = in_editor("keys-edit-leave");
+    h.key_with(Key::R, Modifiers::COMMAND);
+    h.key(Key::Escape);
+    h.frame(Vec::new());
+    let asked = |a: &App| a.editor.as_ref().is_some_and(crate::edit_page::Window::asking);
+    assert!(asked(&h.app), "Esc on changes not saved did not ask");
+    tab_goes_through(&mut h, modal("rotate-leave"), asked, 3, true);
+    h.blur();
+    h.key(Key::Escape);
+    assert!(!asked(&h.app) && h.app.editor.is_some(), "Esc did not go back to the editor");
+
+    let mut h = on_grid("keys-kiod");
+    h.app.kiod_ask = true;
+    tab_goes_through(&mut h, modal("kiod"), |a| a.kiod_ask, 2, true);
+    h.blur();
+    h.key(Key::Escape);
+    assert!(!h.app.kiod_ask, "Esc did not cancel");
+}
