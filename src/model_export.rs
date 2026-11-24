@@ -619,4 +619,31 @@ mod tests {
             assert!(green[1] > 150 && green[0] < 30 && red[0] > 150 && red[1] < 30, "{kind:?} {:?}", back.colors);
         }
     }
+
+    /// The quad of `a_picture_kept_or_turned_into_colours`: a picture, green on the left and red
+    /// on the right, a shiny surface and the normals.
+    fn pictured() -> Mesh {
+        let obj = b"v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nf 1 2 3\nf 1 3 4\n";
+        let mut m = crate::model::parse(obj, "q.obj").unwrap();
+        let pic = image::RgbaImage::from_fn(4, 4, |x, _| if x < 2 { image::Rgba([0, 200, 0, 255]) } else { image::Rgba([200, 0, 0, 255]) });
+        m.textures = vec![std::sync::Arc::new(pic)];
+        m.tex = vec![1, 1];
+        m.uv = vec![[[0.1, 0.1], [0.2, 0.1], [0.2, 0.9]], [[0.8, 0.1], [0.9, 0.1], [0.9, 0.9]]];
+        m.surfaces = vec![crate::model::Surface { metallic: 0.5, roughness: 0.25, ..Default::default() }];
+        m.surface = vec![1, 1];
+        m.normals = vec![[[0.0, 0.0, 1.0]; 3]; 2];
+        m
+    }
+
+    /// Audit 6.16: OBJ keeps the picture as other programs read it, with its coordinates (`vt`)
+    /// and a `.mtl` that names it; the points the triangles share are written once (each
+    /// triangle had its own: the surface came apart).
+    #[test]
+    fn audit_6_16_obj_keeps_the_picture() {
+        let text = String::from_utf8(export(&pictured(), Kind::Obj)).unwrap();
+        for line in ["\nmtllib ", "\nvt ", "\nusemtl "] {
+            assert!(text.contains(line), "no {line:?} in\n{text}");
+        }
+        assert_eq!(text.lines().filter(|l| l.starts_with("v ")).count(), 4, "a quad has 4 points:\n{text}");
+    }
 }
