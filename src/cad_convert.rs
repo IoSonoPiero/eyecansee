@@ -97,6 +97,23 @@ mod tests {
         assert_eq!(crate::cad::read(&dxf, "a.dxf").unwrap().items.len(), before.items.len());
     }
 
+    /// Audit 6.16: a new file that keeps as many elements and layouts in all, but loses what is
+    /// on a layout (moved into the model) or a layer, is refused.
+    #[test]
+    fn audit_6_16_layouts_and_layers_compared() {
+        use crate::cad::{Drawing, Item, Stroke};
+        let line = || Item::Line { pts: vec![[0.0, 0.0], [1.0, 1.0]], color: [255; 3], fill: None, stroke: Stroke::default() };
+        let layer = |name: &str| crate::cad_layers::Layer { name: name.into(), color: [255; 3], shown: true };
+        let sheet = |n: usize| ("Layout1".to_string(), std::sync::Arc::new(Drawing { items: (0..n).map(|_| line()).collect(), ..Default::default() }));
+        let drawing = |model: usize, on_sheet: usize, layers: &[&str]| Drawing { items: (0..model).map(|_| line()).collect(), sheets: vec![sheet(on_sheet)], layers: layers.iter().map(|l| layer(l)).collect(), ..Default::default() };
+        let before = drawing(2, 3, &["0", "walls"]);
+        assert_eq!(lost(&before, &drawing(2, 3, &["0", "walls"])), None);
+        assert!(lost(&before, &drawing(5, 0, &["0", "walls"])).is_some(), "the layout's elements moved into the model");
+        assert!(lost(&before, &drawing(2, 3, &["0"])).is_some(), "a layer lost");
+        // More is accepted, as before.
+        assert_eq!(lost(&before, &drawing(3, 4, &["0", "walls", "doors"])), None);
+    }
+
     /// Every DWG and DXF under `EYECANSEE_CAD` (subfolders too) saved as the other format and
     /// read back: what is drawn before and after, layouts, and the pictures in
     /// `EYECANSEE_CAD_OUT` to compare by eye.
