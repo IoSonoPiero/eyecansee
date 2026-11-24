@@ -687,6 +687,30 @@ mod tests {
         assert!(h.app.notice.is_none(), "Enter does not close the message");
     }
 
+    /// A message already open (here a stand-in for the end of a batch rotation or an export)
+    /// must not vanish when a copy ends with something to say: both are read (Fable, 24/11:
+    /// `notice` is one place only, the newer replaced the older).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn a_copy_ending_keeps_the_message_open() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("file_dialogs::tests::a_copy_ending_keeps_the_message_open") {
+            return;
+        }
+        let mut h = Harness::new(&folder("copy-over-message", &["a.jpg"]));
+        h.app.notice = Some(crate::save_dialogs::Notice::new("First message".into(), "Read me".into()));
+        h.frame(Vec::new());
+        let p = std::sync::Arc::new(crate::transfer::Progress::default());
+        p.links_skipped.lock().unwrap().push("collegamenti/self".to_string());
+        h.app.transfer = Some((p, false, h.app.base.clone(), h.app.dir.clone()));
+        h.frame(Vec::new());
+        h.app.tx.send(crate::loader::Msg::Pasted(Vec::new(), Ok(()))).unwrap();
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+        let shown = h.app.notice.as_ref().map(|n| n.title.clone());
+        assert_eq!(shown.as_deref(), Some("First message"), "the end of the copy replaced the message open before it was read");
+    }
+
     /// The names left out of a copy (#203, #205): counted in the heading, singular and plural,
     /// a sentence under it, the names as a list in their order, cut at ten with "and N more" as
     /// its last item; Copy with every name.
