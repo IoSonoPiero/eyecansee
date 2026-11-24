@@ -395,7 +395,7 @@ mod tests {
         let r = h.app.jobs_report.clone().expect("no jobs report");
         let titles: Vec<&str> = r.parts.iter().map(|p| p.title.as_str()).collect();
         assert_eq!(titles, ["Copia finita", "Copia annullata", "Converti"], "the quiet copies at the top");
-        assert!(r.parts[1].text.ends_with("2 file su 5 fatti prima di Annulla."), "{}", r.parts[1].text);
+        assert!(r.parts[1].text.ends_with("**2 file su 5** fatti prima di Annulla."), "{}", r.parts[1].text);
         h.key(egui::Key::Enter);
         h.frame(Vec::new());
         assert!(h.app.jobs_quiet.is_empty() && h.app.jobs_report.is_none());
