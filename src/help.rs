@@ -939,7 +939,7 @@ mod tests {
         h.key_with(egui::Key::A, egui::Modifiers::COMMAND);
         type_text(&mut h, "z");
         assert_eq!(h.app.help.query, "z", "Ctrl+A selects the text of the field");
-        for key in [egui::Key::ArrowRight, egui::Key::ArrowDown, egui::Key::End, egui::Key::Home, egui::Key::Delete, egui::Key::F5, egui::Key::Tab] {
+        for key in [egui::Key::ArrowRight, egui::Key::ArrowDown, egui::Key::End, egui::Key::Home, egui::Key::Delete, egui::Key::F5] {
             h.frame(vec![pressed(key, egui::Modifiers::NONE)]);
             assert!(!h.ctx.input(|i| i.events.iter().any(is_typed)), "{key:?} left in the input for what is under the guide");
             h.frame(Vec::new());
@@ -949,6 +949,14 @@ mod tests {
         h.key(egui::Key::Enter);
         settle(&mut h);
         assert!(h.app.notice.is_some() && h.app.help.open && h.app.help.typing, "Enter in the guide's field closed the message, or left the field");
+        // Tab goes round inside the guide (#311, W1.4): it leaves the field for the guide's next
+        // control, and reaches neither the message nor the grid.
+        h.frame(vec![pressed(egui::Key::Tab, egui::Modifiers::NONE)]);
+        h.frame(Vec::new());
+        assert_eq!((h.app.selected, h.app.marked.len(), h.app.dir.clone()), chosen, "Tab reached the grid");
+        assert!(h.app.notice.is_some() && h.app.delete_confirm.is_none(), "Tab reached the message");
+        let guide = egui::LayerId::new(egui::Order::Foreground, window_id());
+        assert!(h.ctx.memory(|m| m.focused()).and_then(|id| h.ctx.read_response(id)).is_some_and(|r| r.layer_id == guide), "Tab left the guide");
         esc_twice(&mut h);
         assert!(h.app.notice.is_some(), "two Esc close the guide and leave the message");
         h.key(egui::Key::Escape);

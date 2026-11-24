@@ -341,6 +341,9 @@ impl App {
         let chosen = chosen(ctx);
         raw_input.events.retain(|e| match e {
             e if crate::help::stays(typing, e) => true,
+            // The guide over the window has Tab: it goes round inside the guide (`help_window`),
+            // also from its search field; taken for the window's buttons it was lost (W1.4).
+            egui::Event::Key { key: egui::Key::Tab, .. } if self.help.open => true,
             // A check box, a list or a link of the window (`join`): pressed as with a click.
             egui::Event::Key { key: egui::Key::Enter | egui::Key::Space, .. } if chosen => true,
             egui::Event::Key { key: egui::Key::Tab, pressed: true, .. } if free_tab => true,
