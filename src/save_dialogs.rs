@@ -439,16 +439,18 @@ pub(crate) fn message_copying(ctx: &egui::Context, id: &str, head: Head, text: &
         notice_text(ui, text);
         ui.add_space(8.0);
         below(ui);
-        copy_button(ui, tip, || whole.map_or_else(|| plain(text), str::to_string));
+        copy_button(ui, id, tip, || whole.map_or_else(|| plain(text), str::to_string));
     });
 }
 
 /// The small Copy at the right of the last row of a message window's buttons: puts `text()` on
-/// the clipboard.
-pub(crate) fn copy_button(ui: &mut egui::Ui, tip: &str, text: impl FnOnce() -> String) {
+/// the clipboard. Tab reaches it after the buttons of the window `id` (#311, Piero 24/11).
+pub(crate) fn copy_button(ui: &mut egui::Ui, id: &str, tip: &str, text: impl FnOnce() -> String) {
     let r = ui.min_rect();
     let at = egui::Rect::from_min_max(egui::pos2(r.right() - 22.0, r.bottom() - 22.0), r.right_bottom());
-    if ui.put(at, crate::icons::small(ui, crate::icons::Line::Copy)).on_hover_text(tip).clicked() {
+    let copy = ui.put(at, crate::icons::small(ui, crate::icons::Line::Copy)).on_hover_text(tip);
+    crate::confirm::join(id, &copy);
+    if copy.clicked() {
         ui.ctx().copy_text(text());
     }
 }
