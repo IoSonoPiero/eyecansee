@@ -68,9 +68,9 @@ pub(crate) fn drawn(ctx: &egui::Context, name: &'static str, height: f32) {
 /// F6, from anywhere: the keyboard to Cancel of a job under way, the next one at every press
 /// (#324). With none, F6 does nothing. The key is taken out of the input.
 pub(crate) fn f6(ctx: &egui::Context, raw_input: &mut egui::RawInput) {
-    let n = raw_input.events.len();
+    // Only the press counts: the release moved it on again (Piero, 24/11).
+    let pressed = raw_input.events.iter().any(|e| matches!(e, egui::Event::Key { key: egui::Key::F6, pressed: true, .. }));
     raw_input.events.retain(|e| !matches!(e, egui::Event::Key { key: egui::Key::F6, .. }));
-    let pressed = n != raw_input.events.len();
     let boxes = controls(ctx);
     if !pressed || boxes.is_empty() {
         return;
