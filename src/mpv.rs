@@ -554,6 +554,13 @@ pub(crate) mod tests {
         v
     }
 
+    /// What mpv says of `player`, to tell why a wait went wrong.
+    fn mpv_state(player: &Player) -> String {
+        let said = |p: &str| player.mpv.string(p).unwrap_or_else(|| "-".into());
+        let names = ["time-pos", "duration", "eof-reached", "pause", "idle-active", "current-ao", "current-tracks/video/id", "current-tracks/audio/id", "vo-configured"];
+        names.map(|p| format!("{p} {}", said(p))).join(", ")
+    }
+
     /// What `Player::error` says within `secs`; `None` if nothing in that time.
     fn error_within(player: &Player, secs: u64) -> Option<Failure> {
         let t = Instant::now();
@@ -635,9 +642,9 @@ pub(crate) mod tests {
             std::thread::sleep(Duration::from_millis(20));
         }
         println!("{found:?}, read {read:?}, audio ended {} with {:?}", audio.ended(), audio.error());
-        assert_eq!(found.clone().map(|f| f.1), [Some(Failure::NotVideo), Some(Failure::NotVideo), Some(Failure::NoPicture)], "{found:?}");
+        assert_eq!(found.clone().map(|f| f.1), [Some(Failure::NotVideo), Some(Failure::NotVideo), Some(Failure::NoPicture)], "{found:?} in 10 s");
         assert_eq!(read, Some(Failure::Read("error-device-gone\u{1}USB 3-2".into())));
-        assert!(audio.ended() && audio.error().is_none(), "sound only: ended {}, {:?}", audio.ended(), audio.error());
+        assert!(audio.ended() && audio.error().is_none(), "sound only: ended {}, {:?}, dropped by mpv {}: {}", audio.ended(), audio.error(), audio.dropped(), mpv_state(&audio));
     }
 
     impl Reader for Slow {

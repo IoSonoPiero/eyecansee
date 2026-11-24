@@ -21,6 +21,8 @@ struct State {
     quit: bool,
     /// mpv ended the file before it was loaded: it cannot play it (#209).
     failed: bool,
+    /// mpv loaded the file (`wait_loaded`): from then on mpv idle means it dropped it.
+    loaded: bool,
     /// Who asked for the frame shown at the video's own size (`Player::grab`).
     grab: Option<Grab>,
     /// The frames drawn are kept with their time, for the frames back (`video_back`).
@@ -240,6 +242,13 @@ impl Player {
             Picture { video, cover: flag("current-tracks/video/image") == Some(true), shown: flag("vo-configured") == Some(true) }
         });
         judge(failed, read, picture)
+    }
+
+    /// mpv loaded the file and then let it go (idle): no error is said for it yet. With no sound
+    /// output a file with sound only goes so (mpv's `AO_INIT_FAILED`, 24/11/2026).
+    #[cfg(test)]
+    pub(crate) fn dropped(&self) -> bool {
+        self.shared.state.lock().unwrap().loaded && self.mpv.string("idle-active").as_deref() == Some("yes")
     }
 
     /// The phone or the server gives no data for a while (`mpv_stream::STALL`) while mpv waits
@@ -472,6 +481,7 @@ fn draw_loop(mpv: &Mpv, shared: &Shared, seek: Option<[String; 3]>, repaint: imp
     if !wait_loaded(mpv, shared, &repaint) {
         return;
     }
+    shared.change(|st| st.loaded = true);
     start_tracks(mpv, seek);
     loop {
         let (size, grab) = {
