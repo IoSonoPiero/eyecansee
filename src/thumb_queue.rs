@@ -365,7 +365,7 @@ fn not_tried(detail: impl std::fmt::Display) -> String {
 
 /// Compares the saved thumbnails with the current folders, read again with the same listing that
 /// created them (so size and date have the same format). File gone: thumbnail deleted. File
-/// changed: thumbnail redone. When in doubt nothing is deleted: a folder that no longer exists
+/// changed: thumbnail redone, on a phone deleted. When in doubt nothing is deleted: a folder that no longer exists
 /// could be an unmounted disk, a network error means the source is unreachable.
 /// Known limit: an empty mount point (disk unplugged) exists, so thumbnails saved directly
 /// inside it would be deleted; those in subfolders would not.
@@ -394,6 +394,10 @@ pub(crate) async fn maintain(op: &Store, base: &str) {
         for old in saved {
             match current.get(old.path.as_str()) {
                 None => thumbcache::delete(base, &old.path),
+                // A phone's file is read whole for its thumbnail: not here, for every file of a
+                // folder, but when it is shown. Its key changed once for all of them with audit
+                // 2.13 (its date no longer read in the computer's time zone).
+                Some(f) if (f.size != old.size || f.modified != old.modified) && matches!(op, Store::Mtp(_)) => thumbcache::delete(base, &old.path),
                 Some(f) if f.size != old.size || f.modified != old.modified => {
                     let _ = thumbnail(op, base, (*f).clone()).await;
                 }

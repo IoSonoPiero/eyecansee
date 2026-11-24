@@ -16,7 +16,7 @@ impl App {
 }
 
 /// Modification date in the computer's time zone, in the language's format. `modified` stays
-/// as it arrived (the thumbnail cache needs it): Unix seconds from phones, RFC 3339 from OpenDAL.
+/// as it arrived (the thumbnail cache needs it): see `parse_modified`.
 pub(crate) fn date(i18n: &I18n, modified: &str) -> Option<String> {
     let local = parse_modified(modified)?.to_zoned(jiff::tz::TimeZone::system());
     Some(local.strftime(&i18n.t("date-format")).to_string())
@@ -29,12 +29,20 @@ pub(crate) fn size(i18n: &I18n, bytes: u64) -> String {
     s.replace('.', &i18n.t("decimal-separator"))
 }
 
-/// `File::modified` as an instant: Unix seconds (phones) or RFC 3339 (OpenDAL); "" = no date.
+/// `File::modified` as an instant: Unix seconds (servers, a phone that writes its time zone),
+/// RFC 3339 (OpenDAL) or a date without a zone (a phone's clock, `mtp::phone_modified`), read
+/// in the computer's time zone; "" = no date.
 pub(crate) fn parse_modified(modified: &str) -> Option<jiff::Timestamp> {
-    match modified.parse::<i64>() {
-        Ok(secs) => jiff::Timestamp::from_second(secs).ok(),
-        Err(_) => modified.parse().ok(),
+    parse_modified_in(modified, &jiff::tz::TimeZone::system())
+}
+
+/// `parse_modified`, a date without a zone read in `tz`.
+pub(crate) fn parse_modified_in(modified: &str, tz: &jiff::tz::TimeZone) -> Option<jiff::Timestamp> {
+    if let Ok(secs) = modified.parse::<i64>() {
+        return jiff::Timestamp::from_second(secs).ok();
     }
+    let civil = || modified.parse::<jiff::civil::DateTime>().ok()?.to_zoned(tz.clone()).ok().map(|z| z.timestamp());
+    modified.parse().ok().or_else(civil)
 }
 
 /// "40 s", "1 min 15 s", "2 h 5 min": the time left of a copy.
@@ -61,6 +69,8 @@ mod tests {
         let rfc = super::parse_modified("2026-04-16T10:00:00Z").unwrap();
         assert_eq!(unix, rfc);
         assert!(super::parse_modified("2026-04-16T10:00:00.123456789Z").is_some());
+        // A phone's clock, without its zone (`mtp::phone_modified`).
+        assert!(super::parse_modified("2026-11-24T10:30:05").is_some());
         assert!(super::parse_modified("").is_none());
     }
 }
