@@ -752,6 +752,30 @@ fn the_viewer_keys_work_with_a_bar_button_focused() {
     h.until(|app| app.viewing.is_none(), "Esc with a button focused went back to the grid");
 }
 
+/// #311: Tab and Shift+Tab in the viewer skip the menus of the bar (they will come with Alt and
+/// F10, #322): the first Tab went to File, then through every menu (Piero's tests W5.1 and W6.1,
+/// 24/11).
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn tab_skips_the_menus() {
+    if own_folder("window_keys::tab_skips_the_menus") {
+        return;
+    }
+    let mut h = Harness::new(&folder("viewer-menus-tab", &["a.png", "b.png"]));
+    h.app.activate(0);
+    h.until(|app| app.zoom_of == Some(0), "a.png shown");
+    let menu = h.ctx.data(|d| d.get_temp::<Option<egui::Rect>>(egui::Id::unique("menu-bar-rect"))).flatten().expect("menu bar drawn");
+    for shift in [false, true] {
+        for n in 0..12 {
+            h.key_with(Key::Tab, if shift { egui::Modifiers::SHIFT } else { egui::Modifiers::NONE });
+            h.frame(Vec::new());
+            let at = h.ctx.memory(|m| m.focused()).and_then(|id| h.ctx.read_response(id)).map(|r| r.rect);
+            assert!(at.is_some(), "Tab {n} (shift {shift}) gave the keyboard to nothing");
+            assert!(!at.is_some_and(|r| menu.contains_rect(r)), "Tab {n} (shift {shift}) went to a menu");
+        }
+    }
+}
+
 /// #311: with the keyboard inside the guide (reached with Tab) and the pointer elsewhere, two Esc
 /// close it, as everywhere; they were lost (Piero's test L1.5, 24/11).
 #[test]
