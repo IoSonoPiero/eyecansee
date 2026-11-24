@@ -194,3 +194,128 @@ fn tab_goes_through_the_pages() {
     h.key(Key::Escape);
     assert!(h.app.duplicates.is_none(), "Esc did not close Find duplicates");
 }
+
+/// #311: the questions with a control besides their buttons: Tab and the arrows went round the
+/// buttons only, and the control could not be reached from the keyboard ("Also in subfolders" of
+/// Find duplicates, "Apply to all" of a name taken while pasting, the list of formats of Export
+/// as a 3D model, the link of a phone that stalled). Tab goes through it with the buttons, Space
+/// or Enter on it ticks the box, opens the list or the link, not the highlighted button. The
+/// search under way of Find duplicates: its Cancel is highlighted, Enter presses it.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn tab_reaches_the_choices_of_the_questions() {
+    if own_folder("window_keys::tab_reaches_the_choices_of_the_questions") {
+        return;
+    }
+    let mut h = on_grid("keys-dup-ask");
+    h.app.open_duplicates(None);
+    let asked = |a: &App| a.duplicates.as_ref().is_some_and(crate::dup_page::Window::asking);
+    tab_goes_through(&mut h, modal("dup-ask"), asked, 3, true);
+    // Search highlighted when it opens; the box is above it.
+    h.app.duplicates = None;
+    h.frame(Vec::new());
+    h.app.open_duplicates(None);
+    h.frame(Vec::new());
+    h.frame(Vec::new());
+    h.key_with(Key::Tab, Modifiers::SHIFT);
+    h.frame(Vec::new());
+    h.key(Key::Space);
+    h.frame(Vec::new());
+    let sub = |a: &App| a.duplicates.as_ref().is_some_and(crate::dup_page::Window::sub);
+    assert!(asked(&h.app) && !sub(&h.app), "Space on \"Also in subfolders\" did not untick it, or searched");
+    h.key(Key::Enter);
+    h.frame(Vec::new());
+    assert!(asked(&h.app) && sub(&h.app), "Enter on \"Also in subfolders\" did not tick it, or searched");
+
+    let mut h = on_grid("keys-dup-progress");
+    h.app.open_duplicates(None);
+    h.app.duplicates.as_mut().unwrap().search_forever();
+    tab_goes_through(&mut h, modal("dup-progress"), |a| a.duplicates.is_some(), 1, false);
+    h.blur();
+    h.frame(Vec::new());
+    h.key(Key::Tab);
+    h.key(Key::Enter);
+    assert!(h.app.duplicates.is_none(), "Enter on Cancel did not stop the search");
+
+    let mut h = on_grid("keys-paste");
+    let d = h.app.dir.clone();
+    let conflicts = Some(vec![format!("{d}a.png"), format!("{d}b.png")]);
+    h.app.paste_ask = Some(crate::PasteAsk { dir: d.clone(), conflicts: conflicts.clone(), choices: Default::default(), all: false });
+    tab_goes_through(&mut h, modal("paste"), |a| a.paste_ask.is_some(), 5, true);
+    // Keep both highlighted when it opens; "Apply to all" is above the buttons.
+    h.app.paste_ask = None;
+    h.frame(Vec::new());
+    h.app.paste_ask = Some(crate::PasteAsk { dir: d, conflicts, choices: Default::default(), all: false });
+    h.frame(Vec::new());
+    h.frame(Vec::new());
+    for _ in 0..3 {
+        h.key_with(Key::Tab, Modifiers::SHIFT);
+    }
+    h.key(Key::Space);
+    h.frame(Vec::new());
+    let ask = h.app.paste_ask.as_ref().expect("Space on \"Apply to all\" answered the question");
+    assert!(ask.all && ask.choices.is_empty(), "Space on \"Apply to all\" did not tick it");
+
+    let mut h = Harness::new(&folder("keys-model", &["a.png"]));
+    std::fs::write(crate::audit_family_1::guard().join("keys-model/m.obj"), "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n").unwrap();
+    h.app.refresh();
+    h.until(|a| a.files().len() == 2, "m.obj listed");
+    let m = h.app.files().iter().find(|f| f.path.ends_with("m.obj")).unwrap().path.clone();
+    h.app.open_model_export(Some(m));
+    assert!(h.app.model_export.is_some(), "Export as a 3D model did not open");
+    tab_goes_through(&mut h, |l| l.order == egui::Order::Middle, |a| a.model_export.is_some(), 3, true);
+    // Export highlighted when it opens; the list of formats is above it.
+    h.app.model_export = None;
+    h.frame(Vec::new());
+    let m = h.app.files().iter().find(|f| f.path.ends_with("m.obj")).unwrap().path.clone();
+    h.app.open_model_export(Some(m));
+    h.frame(Vec::new());
+    h.frame(Vec::new());
+    h.key_with(Key::Tab, Modifiers::SHIFT);
+    h.key(Key::Space);
+    h.frame(Vec::new());
+    assert!(h.app.model_export.is_some() && egui::Popup::is_any_open(&h.ctx), "Space on the list of formats did not open it, or exported");
+
+    let mut h = on_grid("keys-stalled");
+    let notice = crate::save_dialogs::Notice::new("t".into(), "x".into());
+    h.app.stall_notice = Some(notice.text.clone());
+    h.app.notice = Some(notice);
+    tab_goes_through(&mut h, modal("notice"), |a| a.notice.is_some(), 2, true);
+}
+
+/// #311: the editor's question before saving a copy of a photo with metadata has a list of what
+/// to keep: Tab went round Save and Cancel only. It reaches the list, Space opens it.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn tab_reaches_the_list_of_the_editor_save() {
+    if own_folder("window_keys::tab_reaches_the_list_of_the_editor_save") {
+        return;
+    }
+    let dir = folder("keys-edit-save", &["a.png"]);
+    let exif = crate::encode::tests::large_exif(10, 0);
+    let photo = crate::encode::Original::with_exif(image::DynamicImage::new_rgb8(8, 6), Some(exif));
+    std::fs::write(dir.join("p.jpg"), photo.encode(&crate::encode::Options::default()).unwrap()).unwrap();
+    let mut h = Harness::new(&dir);
+    h.until(|a| a.files().len() == 2, "p.jpg listed");
+    let p = h.app.files().iter().find(|f| f.path.ends_with("p.jpg")).unwrap().path.clone();
+    h.app.open_editor(Some(p), crate::edit_page::Tool::Select);
+    h.until(|a| a.editor.as_ref().is_some_and(crate::edit_page::Window::read), "the editor's picture read");
+    h.key_with(Key::R, Modifiers::COMMAND);
+    h.key_with(Key::S, Modifiers::COMMAND);
+    let asked = |a: &App| a.editor.as_ref().is_some_and(crate::edit_page::Window::asking);
+    h.until(asked, "the question before saving");
+    tab_goes_through(&mut h, modal("edit-save"), asked, 3, true);
+    // Save highlighted when it opens; the list is above it.
+    h.blur();
+    h.frame(Vec::new());
+    for _ in 0..3 {
+        h.key_with(Key::Tab, Modifiers::SHIFT);
+        if !egui::Popup::is_any_open(&h.ctx) {
+            h.key(Key::Space);
+        }
+        if egui::Popup::is_any_open(&h.ctx) {
+            break;
+        }
+    }
+    assert!(asked(&h.app) && egui::Popup::is_any_open(&h.ctx), "Space did not open the list of what to keep, or answered the question");
+}

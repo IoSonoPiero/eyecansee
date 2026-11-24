@@ -36,6 +36,18 @@ pub struct Window {
 }
 
 impl Window {
+    /// "Also in subfolders" is ticked (tests).
+    #[cfg(test)]
+    pub(crate) fn sub(&self) -> bool {
+        self.sub
+    }
+
+    /// The search under way, and it never ends (tests).
+    #[cfg(test)]
+    pub(crate) fn search_forever(&mut self) {
+        self.progress = Some(Arc::default());
+    }
+
     /// The results page is shown (the window covers the whole interface).
     pub fn page(&self) -> bool {
         self.groups.is_some()
