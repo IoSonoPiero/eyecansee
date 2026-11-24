@@ -13,7 +13,7 @@ A text left empty goes away when you are done with it. A click outside the image
 
 To change a text already written, double-click it (with Text or Select), or select it and change it in the field of the properties bar. Undo takes back the whole change at once.
 
-A text has no corner handles: its size is in the properties bar. It has the round handle above it to rotate it, as the other objects (see [Selecting and changing objects](editor.md)). To move it, use ![Select](icon://mouse-pointer-2) **Select** and drag it. With the Text tool, dragging moves the view instead.
+When selected, a text shows a frame round its letters, as wide as they are in its font; a click on any of its letters selects it. A text has no corner handles: its size is in the properties bar. It has the round handle above it to rotate it, as the other objects (see [Selecting and changing objects](editor.md)). To move it, use ![Select](icon://mouse-pointer-2) **Select** and drag it. With the Text tool, dragging moves the view instead.
 
 ## Options of a text
 

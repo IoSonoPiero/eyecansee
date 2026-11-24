@@ -59,7 +59,7 @@ pub fn turn_box(shape: &Shape) -> Option<Area> {
             let (dx, dy) = (b.x - a.x, b.y - a.y);
             Some(Area { centre: bend_handle(*a, *b, *c), w: dx.hypot(dy), h: 1.2 * size, rot: dy.atan2(dx).to_degrees() })
         }
-        Shape::Text { at, text, size, rot, .. } => Some(text_area(*at, text, *size, *rot)),
+        Shape::Text { at, text, size, rot, font, .. } => Some(text_area(*at, text, *size, *rot, font.as_deref())),
         shape => shape.area().copied(),
     }
 }

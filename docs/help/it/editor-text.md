@@ -13,7 +13,7 @@ Un testo lasciato vuoto sparisce quando hai finito. Un clic fuori dall'immagine 
 
 Per cambiare un testo già scritto fai doppio clic (con Testo o Seleziona), oppure selezionalo e cambialo nel campo della barra delle proprietà. Annulla toglie tutta la modifica in una volta.
 
-Un testo non ha maniglie agli angoli: la sua dimensione è nella barra delle proprietà. Ha la maniglia tonda sopra di sé per ruotarlo, come gli altri oggetti (vedi [Selezionare e cambiare gli oggetti](editor.md)). Per spostarlo usa ![Seleziona](icon://mouse-pointer-2) **Seleziona** e trascinalo. Con lo strumento Testo, trascinare sposta invece la vista.
+Selezionato, un testo mostra un riquadro attorno alle lettere, largo quanto sono nel suo font; un clic su una qualsiasi delle sue lettere lo seleziona. Un testo non ha maniglie agli angoli: la sua dimensione è nella barra delle proprietà. Ha la maniglia tonda sopra di sé per ruotarlo, come gli altri oggetti (vedi [Selezionare e cambiare gli oggetti](editor.md)). Per spostarlo usa ![Seleziona](icon://mouse-pointer-2) **Seleziona** e trascinalo. Con lo strumento Testo, trascinare sposta invece la vista.
 
 ## Opzioni di un testo
 

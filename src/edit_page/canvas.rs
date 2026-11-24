@@ -209,8 +209,8 @@ fn selection(painter: &egui::Painter, o: &Obj, view: &View, angle: f32) {
         Shape::Line(a, b, c) | Shape::Arrow(a, b, c) => geom::curve(*a, *b, *c).into_iter().map(|p| view.of(p, angle)).collect(),
         Shape::Text { path: Some((a, b, c)), .. } => geom::curve(*a, *b, *c).into_iter().map(|p| view.of(p, angle)).collect(),
         Shape::Bubble { area, .. } => geom::handles(&Obj { shape: Shape::Rect(*area), style: o.style }).into_iter().map(|p| view.of(p, angle)).collect(),
-        Shape::Text { at, text, size, rot, .. } => {
-            let area = geom::text_area(*at, text, *size, *rot);
+        Shape::Text { at, text, size, rot, font, .. } => {
+            let area = geom::text_area(*at, text, *size, *rot, font.as_deref());
             let box_ = crate::edit::doc::Obj { shape: Shape::Rect(area), style: o.style };
             geom::handles(&box_).into_iter().map(|p| view.of(p, angle)).collect()
         }
