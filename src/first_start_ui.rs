@@ -504,7 +504,8 @@ fn band(ui: &mut egui::Ui, row: impl FnOnce(&mut egui::Ui)) {
 
 /// The band at the bottom: the pages' dots and "1 of 2" on the left, the buttons on the right.
 /// Each page opens with its main button highlighted (#311): Enter and Space press the one
-/// highlighted, Tab and the arrows move as egui moves them, also to the choices of the page.
+/// highlighted, Tab and the arrows move as egui moves them, in the order they are drawn: the
+/// buttons from the left, as on screen, also to the choices of the page.
 fn footer(ui: &mut egui::Ui, open: &mut Open, i18n: &crate::i18n::I18n) -> Option<Press> {
     let (n, of) = (open.page + 1, open.plan.pages.len());
     let mut press = None;
@@ -513,28 +514,35 @@ fn footer(ui: &mut egui::Ui, open: &mut Open, i18n: &crate::i18n::I18n) -> Optio
             dots(ui, n, of);
             ui.weak(i18n.t_args("first-start-count", &[("n", &n.to_string()), ("of", &of.to_string())]));
         }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let waits = crate::first_start::waits(open.plan.pages[open.page], &open.desktop);
-            let drawn: Vec<Button> = buttons(n, of, open.rows.iter().any(|r| r.2), waits).into_iter().rev().collect();
-            let rows: Vec<egui::Response> = drawn
-                .iter()
-                .map(|b| {
-                    let text = i18n.t(b.text);
-                    let button = if b.main { crate::theme::main_button(ui, text) } else { egui::Button::new(text) };
-                    let response = ui.add_enabled(b.enabled, button.min_size(BUTTON));
-                    if let Some(hint) = b.hint { response.on_disabled_hover_text(i18n.t(hint)) } else { response }
-                })
-                .collect();
-            // A page shown anew: the button of the page before had the keyboard, its main one takes it.
-            if open.shown != Some(open.page) {
-                open.shown = Some(open.page);
-                if let Some(focused) = ui.memory(egui::Memory::focused) {
-                    ui.memory_mut(|m| m.surrender_focus(focused));
-                }
+        let waits = crate::first_start::waits(open.plan.pages[open.page], &open.desktop);
+        let drawn = buttons(n, of, open.rows.iter().any(|r| r.2), waits);
+        let make = |ui: &egui::Ui, b: &Button| {
+            let text = i18n.t(b.text);
+            let button = if b.main { crate::theme::main_button(ui, text) } else { egui::Button::new(text) };
+            button.min_size(BUTTON)
+        };
+        // Drawn from the left, at the right edge: first measured unseen (greyed, so they take no
+        // keyboard and no pointer), then the room they leave before them.
+        let mut probe = ui.new_child(egui::UiBuilder::new().layout(egui::Layout::left_to_right(egui::Align::Center)).invisible());
+        let seen: Vec<egui::Rect> = drawn.iter().map(|b| probe.add(make(&probe, b)).rect).collect();
+        let width = seen.last().zip(seen.first()).map_or(0.0, |(last, first)| last.right() - first.left());
+        ui.add_space((ui.available_width() - width).max(0.0));
+        let rows: Vec<egui::Response> = drawn
+            .iter()
+            .map(|b| {
+                let response = ui.add_enabled(b.enabled, make(ui, b));
+                if let Some(hint) = b.hint { response.on_disabled_hover_text(i18n.t(hint)) } else { response }
+            })
+            .collect();
+        // A page shown anew: the button of the page before had the keyboard, its main one takes it.
+        if open.shown != Some(open.page) {
+            open.shown = Some(open.page);
+            if let Some(focused) = ui.memory(egui::Memory::focused) {
+                ui.memory_mut(|m| m.surrender_focus(focused));
             }
-            let main = drawn.iter().position(|b| b.main).unwrap_or(0);
-            press = crate::confirm::keys(ui, PAGES_ID, &rows, main).map(|i| drawn[i].press);
-        });
+        }
+        let main = drawn.iter().position(|b| b.main).unwrap_or(0);
+        press = crate::confirm::keys(ui, PAGES_ID, &rows, main).map(|i| drawn[i].press);
     });
     press
 }
@@ -845,14 +853,20 @@ mod tests {
         assert_eq!(page(&h), Some(1), "a key of the grid turned the page");
         // The last page, nothing ticked: Done highlighted, Space presses it.
         h.frame(Vec::new());
+        // Tab from Done, the last, goes round to the first card (egui gives it at the next frame),
+        // Shift+Tab from there back to Done.
+        let focused = |h: &Harness| h.ctx.memory(egui::Memory::focused).and_then(|id| h.ctx.read_response(id)).map(|r| r.rect);
+        let done = focused(&h);
         h.key_with(egui::Key::Tab, egui::Modifiers::NONE);
+        h.frame(Vec::new());
+        assert!(focused(&h).zip(done).is_some_and(|(card, done)| card.bottom() < done.top()), "Tab from Done goes to the first card");
         h.key_with(egui::Key::Tab, egui::Modifiers::SHIFT);
         h.key(egui::Key::Space);
         h.frame(Vec::new());
         assert_eq!(page(&h), None, "Space on Done closes the window");
         assert_eq!(grid(&h.app), before, "Space reached the grid");
-        // The choices of the page stay where Tab reaches them: Shift+Tab from Next goes to the last
-        // colours, Space takes them.
+        // The choices of the page stay where Tab reaches them: Shift+Tab from Next goes to Skip,
+        // then to the last colours, Space takes them.
         h.app.tip = None;
         h.app.settings.theme = ThemeChoice::System;
         let rows: Vec<_> = crate::component::addons().into_iter().map(|a| (a, Have::Missing, false)).collect();
@@ -861,10 +875,11 @@ mod tests {
         h.frame(Vec::new());
         h.frame(Vec::new());
         h.key_with(egui::Key::Tab, egui::Modifiers::SHIFT);
+        h.key_with(egui::Key::Tab, egui::Modifiers::SHIFT);
         h.frame(Vec::new());
         h.key(egui::Key::Space);
         h.frame(Vec::new());
-        assert_eq!((h.app.settings.theme, page(&h)), (ThemeChoice::Dark, Some(0)), "Shift+Tab and Space from Next took the dark colours");
+        assert_eq!((h.app.settings.theme, page(&h)), (ThemeChoice::Dark, Some(0)), "Shift+Tab twice and Space from Next took the dark colours");
     }
 
     /// The window of three pages (Windows: the desktop icon in the middle, `buttons`).
@@ -891,9 +906,9 @@ mod tests {
         let mut h = Harness::new(&folder("first-start-three", &["a.png"]));
         let page = |h: &Harness| h.app.first_start.as_ref().map(|o| o.page);
         three_pages(&mut h, Desktop::No);
-        h.key(egui::Key::Tab);
+        h.key_with(egui::Key::Tab, egui::Modifiers::SHIFT);
         h.key(egui::Key::Enter);
-        assert_eq!(page(&h), Some(0), "Tab from Next goes to Back, Enter presses it");
+        assert_eq!(page(&h), Some(0), "Shift+Tab from Next goes to Back, Enter presses it");
         h.frame(Vec::new());
         h.key(egui::Key::Enter);
         assert_eq!(page(&h), Some(1), "Enter on the first page is Next, highlighted");
