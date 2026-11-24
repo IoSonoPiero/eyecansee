@@ -62,6 +62,9 @@ pub enum Failure {
     NoPicture,
     /// The phone or the server failed to give the bytes: their error (`id\u{1}detail`).
     Read(String),
+    /// mpv loaded the file, then dropped it: with no sound output that opens, a file with sound
+    /// only goes so (mpv's `AO_INIT_FAILED`, #327).
+    NoSound,
 }
 
 /// What a video that reached its end showed: a video track (`video`), that track a cover image

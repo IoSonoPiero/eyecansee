@@ -654,6 +654,34 @@ pub(crate) mod tests {
         assert!(sound.is_none() && played, "sound only: {sound:?}, {}", mpv_state(&audio));
     }
 
+    /// #327: a file with sound only, with no sound output that opens, says why instead of a
+    /// spinner forever (mpv loads it, then drops it with `AO_INIT_FAILED`). In a child process
+    /// whose sound server cannot be reached: the variables are the whole process's, and the
+    /// sound of this computer is not touched. Linux only; skipped without libmpv (the CI).
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn sound_without_an_output_says_why() {
+        const CHILD: &str = "EYECANSEE_TEST_NO_SOUND";
+        if !available() {
+            println!("skipped: no libmpv");
+            return;
+        }
+        if std::env::var_os(CHILD).is_none() {
+            let out = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", "mpv::tests::sound_without_an_output_says_why", "--test-threads", "1", "--nocapture"])
+                .env(CHILD, "1")
+                .env("PIPEWIRE_REMOTE", "nowhere")
+                .env("PULSE_SERVER", "unix:/nowhere")
+                .output()
+                .unwrap();
+            let said = String::from_utf8_lossy(&out.stdout).to_string() + &String::from_utf8_lossy(&out.stderr);
+            assert!(out.status.success() && said.contains("1 passed"), "{said}");
+            return;
+        }
+        let audio = Player::open(stream(silence()), 0, true, || {}).unwrap();
+        assert_eq!(settled(&audio), Some(Failure::NoSound), "{}", mpv_state(&audio));
+    }
+
     impl Reader for Slow {
         fn size(&self) -> u64 {
             self.0.size()

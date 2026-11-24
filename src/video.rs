@@ -557,6 +557,7 @@ fn said(failure: &mpv::Failure) -> String {
         mpv::Failure::NotVideo => "video-not-video\u{1}".into(),
         mpv::Failure::NoPicture => "video-no-frame\u{1}".into(),
         mpv::Failure::Read(e) => e.clone(),
+        mpv::Failure::NoSound => "video-no-sound\u{1}".into(),
     }
 }
 
