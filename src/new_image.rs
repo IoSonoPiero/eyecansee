@@ -309,6 +309,16 @@ mod tests {
         h.key(Key::Tab);
         h.key(Key::Enter);
         assert!(h.app.new_image.is_none() && h.app.editor.is_none(), "Enter on Cancel made an image, or left the window");
+        // Shift+Tab from Create to the colour, the button before it: Enter there makes no image.
+        open(&mut h);
+        h.blur();
+        h.frame(Vec::new());
+        h.key_with(Key::Tab, egui::Modifiers::SHIFT);
+        h.key(Key::Enter);
+        h.frame(Vec::new());
+        assert!(h.app.new_image.is_some() && h.app.editor.is_none(), "Enter on another button made the image");
+        h.app.new_image = None;
+        h.frame(Vec::new());
         open(&mut h);
         h.blur();
         h.key(Key::Escape);
