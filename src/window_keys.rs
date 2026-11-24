@@ -561,3 +561,135 @@ fn tab_round(h: &mut Harness) {
         }
     }
 }
+
+/// The app on a folder with a small 3D model, m.obj, and Export as a 3D model open on it.
+fn exporting(name: &str) -> Harness {
+    let mut h = Harness::new(&folder(name, &["a.png"]));
+    std::fs::write(crate::audit_family_1::guard().join(name).join("m.obj"), "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n").unwrap();
+    h.app.refresh();
+    h.until(|a| a.files().len() == 2, "m.obj listed");
+    let m = h.app.files().iter().find(|f| f.path.ends_with("m.obj")).unwrap().path.clone();
+    h.app.open_model_export(Some(m));
+    h.frame(Vec::new());
+    h.frame(Vec::new());
+    h
+}
+
+/// #311: a list of a question opened from the keyboard (the formats of Export as a 3D model): its
+/// keys are the list's. ↓ and Enter chose a button of the window and pressed it (Export), Esc
+/// cancelled the window instead of closing the list.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn a_list_of_a_question_takes_its_keys() {
+    if own_folder("window_keys::a_list_of_a_question_takes_its_keys") {
+        return;
+    }
+    let mut h = exporting("keys-model-list");
+    let kind = |h: &Harness| h.app.model_export.as_ref().map(|f| f.kind);
+    let before = kind(&h);
+    // Export highlighted when it opens; the list of formats is above it.
+    h.key_with(Key::Tab, Modifiers::SHIFT);
+    h.key(Key::Space);
+    h.frame(Vec::new());
+    assert!(egui::Popup::is_any_open(&h.ctx), "Space did not open the list");
+    h.key(Key::Escape);
+    h.frame(Vec::new());
+    assert!(!egui::Popup::is_any_open(&h.ctx) && kind(&h) == before, "Esc did not close the list only");
+    h.key(Key::Space);
+    h.frame(Vec::new());
+    h.key(Key::ArrowDown);
+    h.key(Key::Enter);
+    h.frame(Vec::new());
+    assert!(kind(&h).is_some() && kind(&h) != before, "↓ and Enter in the list did not choose another format, or exported");
+}
+
+/// #311: the box of a copy under way over a page (the viewer, the editor): Tab goes through its
+/// Cancel as egui gives it, and on from there; the round of the grid (`box_keys`) moved the grid
+/// and the folder hidden under the page.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn the_box_of_a_copy_over_a_page_leaves_the_grid() {
+    if own_folder("window_keys::the_box_of_a_copy_over_a_page_leaves_the_grid") {
+        return;
+    }
+    for editor in [false, true] {
+        let mut h = if editor { in_editor("keys-box-editor") } else { on_grid("keys-box-viewer") };
+        if !editor {
+            h.app.activate(1);
+            h.until(|a| a.zoom_of == Some(1), "b.png shown");
+        }
+        let p = std::sync::Arc::new(crate::transfer::Progress::default());
+        h.app.transfer = Some((p, false, h.app.base.clone(), h.app.dir.clone()));
+        h.frame(Vec::new());
+        let state = |a: &App| format!("{:?}", (a.viewing, a.selected, a.cursor, a.focus, &a.dir, a.editor.is_some()));
+        let before = state(&h.app);
+        let mut reached = false;
+        for modifiers in [Modifiers::NONE, Modifiers::SHIFT] {
+            h.blur();
+            for _ in 0..80 {
+                h.key_with(Key::Tab, modifiers);
+                h.frame(Vec::new());
+                reached |= focused(&h).is_some_and(|(_, l)| l.order == egui::Order::Middle);
+                assert_eq!(state(&h.app), before, "Tab {modifiers:?} moved what is under the page (editor {editor})");
+            }
+        }
+        assert!(reached, "Tab never reached the box of the copy (editor {editor})");
+    }
+}
+
+/// #311: a question asked while Convert works in its box (About, a deletion): the keys are the
+/// question's, as at any other time. The work under way counted as Convert's window open: Tab in
+/// About went to the menus under it, and with a button of the deletion focused Esc did nothing.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn questions_during_convert_keep_their_keys() {
+    if own_folder("window_keys::questions_during_convert_keep_their_keys") {
+        return;
+    }
+    let mut h = on_grid("keys-during-convert");
+    let a = h.app.files()[0].path.clone();
+    h.app.open_batch(Some(a));
+    h.frame(Vec::new());
+    h.app.batch.as_mut().unwrap().work_forever();
+    h.frame(Vec::new());
+    h.app.about = true;
+    let about = egui::LayerId::new(egui::Order::Middle, egui::Id::unique(h.app.i18n.t("menu-about")));
+    tab_goes_through(&mut h, |l| l == about, |a| a.about, 2, true);
+    h.key(Key::Escape);
+    assert!(!h.app.about, "Esc did not close About");
+    h.key(Key::Delete);
+    assert!(h.app.delete_confirm.is_some(), "Del did not ask");
+    h.key(Key::Tab);
+    h.key(Key::Escape);
+    assert!(h.app.delete_confirm.is_none(), "Esc with a button focused did not cancel the deletion");
+}
+
+/// #311: Esc with a control focused (reached with Tab) closes as with nothing focused: the results
+/// of Find duplicates and Convert kept it.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn esc_closes_with_a_control_focused() {
+    if own_folder("window_keys::esc_closes_with_a_control_focused") {
+        return;
+    }
+    let mut h = on_grid("keys-esc-duplicates");
+    h.app.open_duplicates(None);
+    h.frame(Vec::new());
+    h.key(Key::Enter);
+    h.until(App::dup_page_shown, "the results of Find duplicates");
+    h.key(Key::Tab);
+    assert!(focused(&h).is_some(), "Tab reached nothing");
+    h.key(Key::Escape);
+    h.frame(Vec::new());
+    assert!(h.app.duplicates.is_none(), "Esc with a control focused did not close Find duplicates");
+
+    let mut h = on_grid("keys-esc-convert");
+    let a = h.app.files()[0].path.clone();
+    h.app.open_batch(Some(a));
+    h.frame(Vec::new());
+    h.key(Key::Tab);
+    assert!(focused(&h).is_some(), "Tab reached nothing");
+    h.key(Key::Escape);
+    h.frame(Vec::new());
+    assert!(h.app.batch.is_none(), "Esc with a control focused did not close Convert");
+}

@@ -321,6 +321,12 @@ impl Form {
 }
 
 impl Window {
+    /// The work under way, and it never ends (tests).
+    #[cfg(test)]
+    pub(crate) fn work_forever(&mut self) {
+        self.progress = Some(Arc::default());
+    }
+
     /// The choices are open (keys answer them).
     pub fn asking(&self) -> bool {
         self.progress.is_none()
