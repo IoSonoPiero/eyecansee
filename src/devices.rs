@@ -32,8 +32,11 @@ pub struct Device {
 /// gvfs prefixes of phones and cameras; network shares and the like stay out.
 const PHONE_SCHEMES: &[&str] = &["mtp", "gphoto2", "afc"];
 
-/// "gphoto2:host=Xiaomi_POCO_X7_Pro_ABCD1234EFGH5678" → ("Xiaomi POCO X7 Pro", serial).
-fn gvfs_name(entry: &str) -> Option<(String, Option<String>)> {
+/// "gphoto2:host=Xiaomi_POCO_X7_Pro_ABCD1234EFGH5678" → ("Xiaomi POCO X7 Pro", serial). The
+/// serial is the last word if it is one of `known` (those the direct connection sees, in any
+/// case: many are lower case hexadecimal, audit 2.21), or otherwise if it looks like one: at
+/// least 8 upper case letters and digits.
+fn gvfs_name(entry: &str, known: &[&str]) -> Option<(String, Option<String>)> {
     let (scheme, rest) = entry.split_once(':')?;
     if !PHONE_SCHEMES.contains(&scheme) {
         return None;
@@ -41,7 +44,8 @@ fn gvfs_name(entry: &str) -> Option<(String, Option<String>)> {
     let host = rest.strip_prefix("host=").unwrap_or(rest);
     let host = percent_decode_str(host).decode_utf8_lossy();
     let mut words: Vec<&str> = host.split('_').filter(|w| !w.is_empty()).collect();
-    let serial = |w: &str| w.len() >= 8 && w.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit());
+    let looks = |w: &str| w.len() >= 8 && w.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit());
+    let serial = |w: &str| known.contains(&w) || looks(w);
     let serial = if words.len() > 1 && words.last().is_some_and(|w| serial(w)) {
         words.pop().map(str::to_string)
     } else {
@@ -399,7 +403,8 @@ pub fn direct_address(address: &str, devices: &[Device]) -> Option<String> {
     if !entry.starts_with("mtp:") {
         return None;
     }
-    let base = format!("mtp://{}/", gvfs_name(entry)?.1?);
+    let known: Vec<&str> = devices.iter().filter_map(|d| d.serial.as_deref()).collect();
+    let base = format!("mtp://{}/", gvfs_name(entry, &known)?.1?);
     devices.iter().any(|d| d.path == base).then(|| format!("{base}{}", percent_encoding::utf8_percent_encode(inner, CUT)))
 }
 
@@ -416,7 +421,7 @@ pub fn gvfs_mount(serial: &str) -> Option<String> {
     let run = std::env::var_os("XDG_RUNTIME_DIR")?;
     entries(&Path::new(&run).join("gvfs"))
         .into_iter()
-        .find(|(entry, _)| gvfs_name(entry).and_then(|(_, s)| s).as_deref() == Some(serial))
+        .find(|(entry, _)| gvfs_name(entry, &[serial]).and_then(|(_, s)| s).as_deref() == Some(serial))
         .map(|(_, path)| path)
 }
 
@@ -429,10 +434,11 @@ pub fn scan() -> Vec<Device> {
     devices.extend(drives());
     // Phones on USB: listing them reads only the descriptors, it does not open the device.
     let usb = mtp_rs::mtp::MtpDevice::list_devices().unwrap_or_default();
+    let known: Vec<&str> = usb.iter().filter_map(|d| d.serial_number.as_deref()).collect();
     let mut mounted = Vec::new();
     if let Some(run) = std::env::var_os("XDG_RUNTIME_DIR") {
         for (entry, path) in entries(&Path::new(&run).join("gvfs")) {
-            if let Some((name, serial)) = gvfs_name(&entry) {
+            if let Some((name, serial)) = gvfs_name(&entry, &known) {
                 // A phone the direct connection sees opens directly even if gvfs mounted it
                 // (`mtp::release_from_desktop`): the mount remains only for the others (iPhone).
                 let direct = serial.as_ref().is_some_and(|s| usb.iter().any(|d| d.serial_number.as_ref() == Some(s)));
@@ -507,6 +513,12 @@ mod tests {
         assert_eq!(direct_address(gvfs, &[phone("1a2b3c4d5e6f")]).as_deref(), Some("mtp://1a2b3c4d5e6f/Internal shared storage/DCIM/a.jpg"));
         let mixed = "/run/user/1000/gvfs/mtp:host=OnePlus_Nord_ab12CD34/DCIM/";
         assert_eq!(direct_address(mixed, &[phone("ab12CD34")]).as_deref(), Some("mtp://ab12CD34/DCIM/"));
+        // The list of devices and the gvfs mount of a phone by its serial (`scan`, `gvfs_mount`).
+        let entry = "mtp:host=Google_Pixel_7_1a2b3c4d5e6f";
+        assert_eq!(gvfs_name(entry, &["1a2b3c4d5e6f"]), Some(("Google Pixel 7".into(), Some("1a2b3c4d5e6f".into()))));
+        // A phone the direct connection does not see: its name as gvfs writes it, no serial.
+        assert_eq!(gvfs_name(entry, &[]), Some(("Google Pixel 7 1a2b3c4d5e6f".into(), None)));
+        assert_eq!(gvfs_name("mtp:host=Maker_tablet_notebook", &["other123"]), Some(("Maker tablet notebook".into(), None)));
     }
 
     #[test]
@@ -540,11 +552,11 @@ mod tests {
 
     #[test]
     fn names() {
-        let name = |e| gvfs_name(e).map(|(n, s)| (n, s.unwrap_or_default()));
+        let name = |e| gvfs_name(e, &[]).map(|(n, s)| (n, s.unwrap_or_default()));
         assert_eq!(name("gphoto2:host=Xiaomi_POCO_X7_Pro_ABCD1234EFGH5678"), Some(("Xiaomi POCO X7 Pro".into(), "ABCD1234EFGH5678".into())));
         assert_eq!(name("mtp:host=SAMSUNG_Galaxy_S24_R5CX12345AB"), Some(("SAMSUNG Galaxy S24".into(), "R5CX12345AB".into())));
         assert_eq!(name("mtp:host=Pixel"), Some(("Pixel".into(), String::new())));
-        assert_eq!(gvfs_name("smb-share:server=nas,share=photos"), None);
+        assert_eq!(gvfs_name("smb-share:server=nas,share=photos", &[]), None);
         assert_eq!(unescape_mount("/mnt/Sea\\040photos"), "/mnt/Sea photos");
         let mounts = "/dev/nvme0n1p3 / btrfs rw 0 0\n/dev/sda2 /run/media/u/My\\040Disk fuseblk rw 0 0\n/dev/sda1 /mnt/Linux ext4 rw 0 0\n";
         assert!(ntfs_in(mounts, "/run/media/u/My Disk/photos/a.jpg"));
