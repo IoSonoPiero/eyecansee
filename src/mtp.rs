@@ -412,22 +412,24 @@ impl Phone {
     pub async fn move_into(&self, path: &str, to_dir: &str, new_name: &str) -> Result<(), Error> {
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
-        let folder = match self.locate(to_dir).await {
-            Ok((_, Some(h))) => h,
+        // The destination's storage is given to the phone: without it, the storage the item
+        // comes from (a move to the memory card ended up on the internal storage, audit 2.7).
+        let (to, folder) = match self.locate(to_dir).await {
+            Ok((to, Some(h))) => (to.id(), h),
             // The top of a storage (restoring from its trash): it has no handle of its own.
-            Ok((_, None)) => ObjectHandle::ROOT,
+            Ok((to, None)) => (to.id(), ObjectHandle::ROOT),
             Err(_) => {
-                let (_, parent) = self.locate(&source::parent(to_dir)).await?;
-                let h = self.queued("create_folder", to_dir, self.marked(storage.create_folder(parent, source::name(to_dir)))).await.map_err(error)?;
+                let (to, parent) = self.locate(&source::parent(to_dir)).await?;
+                let h = self.queued("create_folder", to_dir, self.marked(to.create_folder(parent, source::name(to_dir)))).await.map_err(error)?;
                 self.handles.lock().unwrap().insert(to_dir.to_string(), h);
-                h
+                (to.id(), h)
             }
         };
         self.own.mark(handle);
         if new_name != source::name(path) {
             self.queued("rename", path, storage.rename(handle, new_name)).await.map_err(error)?;
         }
-        self.queued("move", path, storage.move_object(handle, folder, None)).await.map_err(error)?;
+        self.queued("move", path, storage.move_object(handle, folder, Some(to))).await.map_err(error)?;
         self.handles.lock().unwrap().retain(|p, _| !p.starts_with(path));
         let mut complete = self.complete.lock().unwrap();
         complete.remove(to_dir);
@@ -618,11 +620,12 @@ impl Phone {
     async fn copy_object(&self, path: &str, dir: &str) -> Result<ObjectHandle, Error> {
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
-        let folder = match self.locate(dir).await? {
-            (_, Some(h)) => h,
-            (_, None) => ObjectHandle::ROOT,
+        // Into the storage of `dir`, which may not be the one of `path` (audit 2.7).
+        let (to, folder) = match self.locate(dir).await? {
+            (to, Some(h)) => (to.id(), h),
+            (to, None) => (to.id(), ObjectHandle::ROOT),
         };
-        let h = self.queued("copy", path, self.marked(storage.copy_object(handle, folder, None))).await.map_err(error)?;
+        let h = self.queued("copy", path, self.marked(storage.copy_object(handle, folder, Some(to)))).await.map_err(error)?;
         log!("phone {}: copy {path} into {dir}: handle {} -> {}", self.serial, handle.0, h.0);
         if h == handle {
             return Err((NOT_MADE, path.to_string()));
