@@ -175,7 +175,9 @@ impl App {
                 ui.add(egui::Label::new(egui::RichText::new(current).strong()).truncate());
                 ui.add(egui::Label::new(to).truncate());
                 ui.label(counts);
-                ui.label(left);
+                if !left.is_empty() {
+                    ui.label(left);
+                }
                 // Accent fill on a grey track: the default (selection blue on white) hid the empty part.
                 ui.scope(|ui| {
                     ui.visuals_mut().extreme_bg_color = ui.visuals().widgets.inactive.bg_fill;

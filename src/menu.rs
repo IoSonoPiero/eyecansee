@@ -289,8 +289,14 @@ impl App {
     }
 
     /// The text of the phone's status line, if a call has been waiting for 3 s (`waiting_line`).
+    /// Not while the copy's window says the phone is copying or moving: the same line twice
+    /// (Piero, 25/11: "what is this blue bar?"; Fable's rule). With an upload it stays: the window
+    /// has only its percentage then.
     fn phone_line(&self) -> Option<egui::RichText> {
         let (name, secs, what) = crate::mtp::waiting(3)?;
+        if self.transfer.is_some() && (what == "copy" || what == "move") {
+            return None;
+        }
         let (id, warning) = waiting_line(&what, secs, !name.is_empty(), cfg!(windows));
         let text = self.i18n.t_args(id, &[("s", &secs.to_string()), ("name", &name), ("what", &what)]);
         Some(if warning { crate::theme::alert(text) } else { egui::RichText::new(text) })
