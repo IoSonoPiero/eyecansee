@@ -934,6 +934,69 @@ mod tests {
         });
     }
 
+    /// Audit 2.7, copy and move between the two storages of a real phone (one with a memory card):
+    /// a copy into a folder of the second storage and a move to the top of it end up there, with
+    /// their content, and nothing is left on the first storage. Works in new folders
+    /// `EyeCanSee-two/` of both storages, deleted at the end (with the moved file):
+    /// `EYECANSEE_MTP=<serial> cargo test --release mtp_two_storages_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn mtp_two_storages_live() {
+        let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let phone = Phone::new(&serial);
+            let root = phone.list("").await.unwrap();
+            assert!(root.dirs.len() >= 2, "the phone has one storage: {:?}", root.dirs);
+            let (first, second) = (root.dirs[0].clone(), root.dirs[1].clone());
+            let (a, b) = (format!("{first}EyeCanSee-two/"), format!("{second}EyeCanSee-two/"));
+            let moved = format!("{second}EyeCanSee-two-moved.jpg");
+            for d in [&a, &b, &moved, &format!("{first}EyeCanSee-two-moved.jpg")] {
+                assert!(!phone.taken(d).await.unwrap(), "{d} already exists");
+            }
+            phone.create_dir(&a).await.unwrap();
+            phone.create_dir(&b).await.unwrap();
+            let data: Vec<u8> = (0..100_000u32).map(|i| (i * 7 % 251) as u8).collect();
+            for name in ["copied.jpg", "moved.jpg"] {
+                let up = futures_util::stream::iter([Ok(Bytes::from(data.clone()))]);
+                phone.upload(&format!("{a}{name}"), data.len() as u64, up).await.unwrap();
+            }
+            let copy = phone.copy_inside(&format!("{a}copied.jpg"), &format!("{b}copied.jpg")).await;
+            let mv = phone.move_into(&format!("{a}moved.jpg"), &second, "EyeCanSee-two-moved.jpg").await;
+            println!("copy: {copy:?}, move: {mv:?}");
+            let in_a = objects(&phone, &a).await;
+            let in_b = objects(&phone, &b).await;
+            let top_first = objects(&phone, &first).await;
+            let top_second = objects(&phone, &second).await;
+            println!("first storage, folder: {in_a:?}\nsecond storage, folder: {in_b:?}");
+            let (storage_b, _) = phone.locate(&b).await.unwrap();
+            let check = async {
+                assert!(copy.is_ok() && mv.is_ok(), "copy {copy:?}, move {mv:?}");
+                let c = in_b.iter().find(|o| o.1 == "copied.jpg").expect("the copy in the folder of the second storage");
+                assert_eq!(storage_b.download_to_vec(c.0).await.unwrap(), data);
+                let m = top_second.iter().find(|o| o.1 == "EyeCanSee-two-moved.jpg").expect("the moved file at the top of the second storage");
+                assert_eq!(storage_b.download_to_vec(m.0).await.unwrap(), data);
+                assert!(!top_first.iter().any(|o| o.1.starts_with("EyeCanSee-two-moved")), "the moved file went to the first storage");
+                assert!(in_a.iter().any(|o| o.1 == "copied.jpg") && !in_a.iter().any(|o| o.1 == "moved.jpg"), "first storage, folder: {in_a:?}");
+            };
+            let r = futures_util::FutureExt::catch_unwind(std::panic::AssertUnwindSafe(check)).await;
+            // Wherever they ended up: the folders, and the moved file read from the storages
+            // themselves (the cache of paths may hold an old listing of their tops).
+            phone.delete(&a).await.unwrap();
+            phone.delete(&b).await.unwrap();
+            for top in [&first, &second] {
+                let (storage, _) = phone.locate(top).await.unwrap();
+                for (h, name, _) in objects(&phone, top).await {
+                    if name.starts_with("EyeCanSee-two-moved") {
+                        storage.delete(h).await.unwrap();
+                    }
+                }
+            }
+            if let Err(e) = r {
+                std::panic::resume_unwind(e);
+            }
+        });
+    }
+
     /// Issue #91, Ctrl+C and Ctrl+V with Replace on a real phone: over a file of its own folder,
     /// over one in a subfolder and over itself, the replaced file gets the copy's content and no
     /// hidden name or folder is left; a copy that fails (its source gone) leaves the file it would
