@@ -159,8 +159,9 @@ impl App {
         let (current, counts, mut left) = self.transfer_lines(p, &phase);
         // The phone moving or copying a file itself (between its storages, minutes for a big one):
         // it says nothing of how far it is, so no percentage but a bar that goes to and fro.
-        // The counts and the speed of the files done stay; the line of the time left says
-        // instead what the phone is doing.
+        // The counts, the bar and the speed of the files done stay as they are (a bar going to and
+        // fro while the phone worked, the usual one between its files: the window kept changing,
+        // Piero 25/11); the line of the time left says what the phone is doing, with a spinner.
         let working = crate::mtp::working();
         if let Some((what, name, s)) = &working {
             left = self.i18n.t_args("status-phone-working", &[("what", what), ("name", name), ("s", &s.to_string())]);
@@ -177,18 +178,20 @@ impl App {
                 ui.add(egui::Label::new(egui::RichText::new(current).family(egui::FontFamily::Name(crate::BOLD.into()))).truncate());
                 ui.add(egui::Label::new(to).truncate());
                 ui.label(counts);
-                if !left.is_empty() {
+                if working.is_some() {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.add(egui::Label::new(left).truncate());
+                    });
+                } else {
+                    // Even empty: the window keeps its height when the phone's line comes and goes.
                     ui.label(left);
                 }
                 // Accent fill on a grey track: the default (selection blue on white) hid the empty part.
                 ui.scope(|ui| {
                     ui.visuals_mut().extreme_bg_color = ui.visuals().widgets.inactive.bg_fill;
                     let fill = theme::accent(ui.visuals());
-                    if working.is_some() {
-                        busy_bar(ui, fill);
-                    } else {
-                        ui.add(egui::ProgressBar::new(phase.fraction()).fill(fill).desired_height(16.0).show_percentage());
-                    }
+                    ui.add(egui::ProgressBar::new(phase.fraction()).fill(fill).desired_height(16.0).show_percentage());
                 });
                 // Reached with Tab after the folders of the tree (`box_keys`, #311).
                 let cancel = ui.add_enabled(!cancelling, egui::Button::new(self.i18n.t("delete-no")));
@@ -584,22 +587,6 @@ pub(crate) fn transfer_notice(i18n: &crate::i18n::I18n, cut: bool, to: &str, r: 
 
 /// A copy or a move lasting at least this long says when it ends (`tell_transfer`).
 const LONG_JOB: std::time::Duration = std::time::Duration::from_secs(10);
-
-/// A bar without a percentage: a block going to and fro on the track, while the phone works and
-/// says nothing of how far it is (`transfer_window`).
-fn busy_bar(ui: &mut egui::Ui, fill: egui::Color32) {
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 16.0), egui::Sense::hover());
-    let painter = ui.painter();
-    // A darker track with its edge: the light one was hardly seen (Piero, 25/11).
-    painter.rect_filled(rect, 4.0, ui.visuals().widgets.inactive.bg_fill);
-    painter.rect_stroke(rect, 4.0, egui::Stroke::new(1.0, ui.visuals().weak_text_color()), egui::StrokeKind::Inside);
-    let t = ui.input(|i| i.time) as f32 / 1.5;
-    let at = 1.0 - ((t % 2.0) - 1.0).abs();
-    let width = rect.width() * 0.25;
-    let x = rect.left() + (rect.width() - width) * at;
-    painter.rect_filled(egui::Rect::from_min_size(egui::pos2(x, rect.top()), egui::vec2(width, rect.height())), 4.0, fill);
-    ui.ctx().request_repaint();
-}
 
 #[cfg(test)]
 mod tests {
