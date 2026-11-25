@@ -336,31 +336,29 @@ fn left_below(src: &str, p: &Progress) -> bool {
     src.ends_with('/') && p.refused.lock().unwrap().iter().any(|r| r.starts_with(src))
 }
 
-async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress, gone: &mut Vec<String>) -> Result<(), Error> {
-    let _ = p.begun.set(Instant::now());
-    let same = clip.base == to_base;
-    let present = Names::read(to, to_dir).await?;
-    let here = in_own_folder(clip, to_base, to_dir, dest_place(clip, to, to_base, to_dir).await.as_ref()).await;
-    let plan = planned(clip, to, to_dir, &here, choices, &present, &sidecars(clip).await);
-
-    // On the same device a move is a rename, unless a folder has to merge into an existing one;
-    // if the rename fails (another disk: different file system) the files are copied. On this
-    // computer the rename itself replaces a file: one that is there stays until then, and still
-    // there if the copy fails (#90). Phones, servers and gvfs rename only onto a free name.
+/// The items of a paste on the same device that a move makes as renames (`renamed_on_device`),
+/// counted in the window as files and bytes (their sizes asked only on a phone, where between its
+/// storages each one is done by the phone and can take minutes, `mtp::across`); the folder they go
+/// to is read again after each, so what arrived shows (Piero, 25/11: it showed only at the end).
+/// What is left to copy.
+async fn renames(clip: &Clip, (to, to_dir, same): (&Store, &str, bool), plan: Vec<Planned>, p: &Progress, gone: &mut Vec<String>) -> Result<Vec<Planned>, Error> {
     let mut copies = Vec::new();
     let renamed = |e: &Planned| clip.cut && same && !(e.2 && e.1.ends_with('/'));
-    // The renames counted in the window too: on a phone between its storages each one is done by
-    // the phone and can take minutes (`mtp::across`); the folder they go to is read again after
-    // each, so what arrived shows (Piero, 25/11: it showed only at the end).
     let phone = matches!(to, Store::Mtp(_));
-    if plan.iter().any(renamed) {
-        p.files_total.store(plan.iter().filter(|e| renamed(e)).count(), Ordering::Relaxed);
+    // All the sizes first, so the total is right from the start (it grew file by file).
+    let mut sizes = Vec::new();
+    for e in plan.iter().filter(|e| renamed(e)) {
+        sizes.push(if phone && !e.0.is_empty() && !e.0.ends_with('/') { clip.op.size(&e.0).await.unwrap_or(0) } else { 0 });
+    }
+    if !sizes.is_empty() {
+        p.files_total.store(sizes.len(), Ordering::Relaxed);
+        p.total.store(sizes.iter().sum(), Ordering::Relaxed);
         let _ = p.started.set(Instant::now());
     }
+    let mut sizes = sizes.into_iter();
     for (src, dest, exists, sides) in plan {
         if clip.cut && same && !(exists && dest.ends_with('/')) {
-            let size = if phone && !src.is_empty() && !src.ends_with('/') { clip.op.size(&src).await.unwrap_or(0) } else { 0 };
-            p.total.fetch_add(size, Ordering::Relaxed);
+            let size = sizes.next().unwrap_or(0);
             *p.current.lock().unwrap() = name(&src).to_string();
             let made = (!src.is_empty()).then(|| dest.clone());
             match renamed_on_device(clip, to, to_dir, (src, dest, exists, sides), gone).await? {
@@ -380,6 +378,21 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
         }
         copies.push((src, dest, exists, sides));
     }
+    Ok(copies)
+}
+
+async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress, gone: &mut Vec<String>) -> Result<(), Error> {
+    let _ = p.begun.set(Instant::now());
+    let same = clip.base == to_base;
+    let present = Names::read(to, to_dir).await?;
+    let here = in_own_folder(clip, to_base, to_dir, dest_place(clip, to, to_base, to_dir).await.as_ref()).await;
+    let plan = planned(clip, to, to_dir, &here, choices, &present, &sidecars(clip).await);
+
+    // On the same device a move is a rename, unless a folder has to merge into an existing one;
+    // if the rename fails (another disk: different file system) the files are copied. On this
+    // computer the rename itself replaces a file: one that is there stays until then, and still
+    // there if the copy fails (#90). Phones, servers and gvfs rename only onto a free name.
+    let copies = renames(clip, (to, to_dir, same), plan, p, gone).await?;
 
     // Everything to copy, with sizes for the progress bar; a photo's sidecars after it.
     let start = Instant::now();

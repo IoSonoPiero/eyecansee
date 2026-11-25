@@ -173,7 +173,8 @@ impl App {
             .anchor(egui::Align2::RIGHT_BOTTOM, crate::box_keys::offset(ctx, "copy"))
             .show(ctx, |ui| {
                 ui.set_width(360.0);
-                ui.add(egui::Label::new(egui::RichText::new(current).strong()).truncate());
+                // The app's bold font: `strong()` is only a darker colour (Piero, 25/11: "bold?").
+                ui.add(egui::Label::new(egui::RichText::new(current).family(egui::FontFamily::Name(crate::BOLD.into()))).truncate());
                 ui.add(egui::Label::new(to).truncate());
                 ui.label(counts);
                 if !left.is_empty() {
