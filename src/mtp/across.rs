@@ -1,6 +1,7 @@
-//! A copy or a move the phone makes from one of its storages to the other (the internal storage
-//! and the memory card): the phone copies the data inside that one call, about 2 minutes for 2 GB
-//! to an SD card (Redmi Note 9 Pro, 25/11/2026), past the 30 s mtp-rs waits for an answer.
+//! A copy the phone makes itself, also inside one storage, or a move from one of its storages to
+//! the other (the internal storage and the memory card): the phone copies the data inside that
+//! one call, about 2 minutes for 2 GB to an SD card or one for 6 GB inside the internal storage
+//! (Redmi Note 9 Pro, 25/11/2026), past the 30 s mtp-rs waits for an answer.
 
 use super::*;
 
@@ -49,7 +50,12 @@ impl Phone {
         if from.id() == to.id() {
             return Ok(None);
         }
-        Ok(Some(self.queued("info", path, from.get_object_info(handle)).await.map_err(error)?.size))
+        Ok(Some(self.size_of(path, (from, handle)).await?))
+    }
+
+    /// The size of `handle` (on `from`), asked to the phone.
+    pub(super) async fn size_of(&self, path: &str, (from, handle): (&Storage, ObjectHandle)) -> Result<u64, Error> {
+        Ok(self.queued("info", path, from.get_object_info(handle)).await.map_err(error)?.size)
     }
 
     /// After a copy or a move of `path` (begun at `began`) into `folder` of the storage `to`, given up by mtp-rs at

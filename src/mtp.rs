@@ -20,6 +20,9 @@ use crate::source::{self, Error, Listing, NOT_FOUND};
 const COPY_DIR: &str = ".EyeCanSee-copy";
 /// The phone answered a copy without making it.
 const NOT_MADE: &str = "error-copy-not-made";
+/// A file the phone may take longer to copy than mtp-rs waits (30 s): its events stop meanwhile
+/// (`across::Quiet`); smaller ones, done in a few seconds, keep them.
+const LONG_COPY: u64 = 32 << 20;
 
 mod across;
 mod events;
@@ -655,17 +658,19 @@ impl Phone {
             (to, Some(h)) => (to, h),
             (to, None) => (to, ObjectHandle::ROOT),
         };
-        let size = self.size_across(path, (&storage, handle), &to).await?;
-        let _quiet = size.map(|_| self.quiet());
+        // A copy is made by the phone also inside one storage: a big one takes longer than mtp-rs
+        // waits there too (6 GB, about a minute). The events stop for a file that may (`across`).
+        let size = self.size_of(path, (&storage, handle)).await?;
+        let _quiet = (size >= LONG_COPY).then(|| self.quiet());
         let began = std::time::Instant::now();
-        let h = match (self.queued("copy", path, self.marked(storage.copy_object(handle, folder, Some(to.id())))).await, size) {
-            // To the other storage, past the 30 s mtp-rs waits: the phone is still copying it.
-            (Err(mtp_rs::Error::Timeout), Some(size)) => {
+        let h = match self.queued("copy", path, self.marked(storage.copy_object(handle, folder, Some(to.id())))).await {
+            // Past the 30 s mtp-rs waits: the phone is still copying it.
+            Err(mtp_rs::Error::Timeout) => {
                 let h = self.finished_by_phone(("copy", began), path, (&to, folder), (source::name(path), size), None).await?;
                 self.own.mark(h);
                 h
             }
-            (r, _) => r.map_err(error)?,
+            r => r.map_err(error)?,
         };
         log!("phone {}: copy {path} into {dir}: handle {} -> {}", self.serial, handle.0, h.0);
         if h == handle {
