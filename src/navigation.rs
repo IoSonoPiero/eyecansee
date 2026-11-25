@@ -21,6 +21,19 @@ fn last_folder_in(last: &std::collections::HashMap<String, String>, from: &str, 
     (folder.starts_with(dir) && folder != dir).then(|| folder.to_string())
 }
 
+/// #314: the folder last visited inside the device or saved server of the panel's row `row` (its
+/// address), shown under its name: that folder's address and the part after `row`. A phone or a
+/// server is remembered under its row (`last`, as in `last_folder_in`); a device of this computer
+/// (a USB stick) under the computer's own entries (no "://"). `None` at its root or with nothing
+/// remembered there.
+pub(crate) fn folder_under(last: &std::collections::HashMap<String, String>, row: &str) -> Option<(String, String)> {
+    let remote = row.contains("://");
+    last.iter().filter(|(k, _)| if remote { *k == row } else { !k.contains("://") }).find_map(|(_, full)| {
+        let rest = full.strip_prefix(row)?.trim_end_matches('/');
+        (!rest.is_empty()).then(|| (full.clone(), rest.to_string()))
+    })
+}
+
 impl App {
     /// Opens an address (path or URL). If it fails, stays on the current source. The image in the
     /// viewer with turns not saved is asked about first (audit 1.5, #198: an address typed in the
@@ -492,6 +505,31 @@ mod tests {
         assert_eq!(last_folder_in(&last, "/", phone, phone, ""), None);
         // A disk of the computer: as before, whatever was open there.
         assert_eq!(last_folder_in(&last, server, "/", "/", "home/me/"), None);
+    }
+
+    /// #314: under a device or a saved server of the panel, the folder last visited inside it;
+    /// nothing at its root, with nothing remembered, or for another row of the same server.
+    #[test]
+    fn folder_under_a_row() {
+        let (phone, photos, stick) = ("mtp://SERIAL1234/", "sftp://me@nas/photos/", "/run/media/me/STICK/");
+        let at = |k: &str, v: &str| (k.to_string(), v.to_string());
+        let last = std::collections::HashMap::from([
+            at(phone, "mtp://SERIAL1234/Internal storage/DCIM/Camera/"),
+            at(photos, "sftp://me@nas/photos/2024/"),
+            at("/", "/run/media/me/STICK/DCIM/"),
+        ]);
+        let rest = |row: &str| folder_under(&last, row).map(|(_, r)| r);
+        assert_eq!(folder_under(&last, phone), Some(("mtp://SERIAL1234/Internal storage/DCIM/Camera/".into(), "Internal storage/DCIM/Camera".into())));
+        assert_eq!(rest(photos).as_deref(), Some("2024"));
+        assert_eq!(rest(stick).as_deref(), Some("DCIM"));
+        // Another row of the same server, another stick, a phone never opened: nothing.
+        assert_eq!(rest("sftp://me@nas/docs/"), None);
+        assert_eq!(rest("sftp://me@nas/"), None);
+        assert_eq!(rest("/run/media/me/OTHER/"), None);
+        assert_eq!(rest("mtp://OTHER5678/"), None);
+        // At its root: nothing under the name.
+        let root = std::collections::HashMap::from([at(phone, phone)]);
+        assert_eq!(folder_under(&root, phone), None);
     }
 
     /// An address from outside while the editor is open is kept (the last one) and opened once it

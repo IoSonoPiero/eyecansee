@@ -23,6 +23,18 @@ fn leaf(ui: &mut Ui, icon: Icon, text: impl Into<egui::WidgetText>) -> egui::Res
     .inner
 }
 
+/// The folder last visited on a device or a saved server, under its name (#314): one step in,
+/// as the folders under the home in "This computer". Returns whether it was clicked.
+fn folder_line(ui: &mut Ui, shown: &str, address: &str) -> bool {
+    ui.horizontal(|ui| {
+        ui.add_space(ui.spacing().icon_width + ui.spacing().indent);
+        ui.selectable_label(false, (icons::image(ui.ctx(), Icon::Folder, TREE_ICON), shown))
+    })
+    .inner
+    .on_hover_text(crate::address::without_password(address))
+    .clicked()
+}
+
 /// Title of a block of the left panel: small grey capitals, so it does not look like an item.
 fn block_title(ui: &mut Ui, text: &str) {
     ui.label(egui::RichText::new(text.to_uppercase()).size(11.0).strong().color(ui.visuals().weak_text_color()));
@@ -271,6 +283,14 @@ impl App {
                 log!("panel: server {}", s.name);
                 open = Some(address.clone());
             }
+            // Under it, the folder last visited there (#314); the open one is in the tree below.
+            let row = crate::address::without_password(&address);
+            if !here
+                && let Some((at, shown)) = crate::navigation::folder_under(&self.last_dirs, &row)
+                && folder_line(ui, &shown, &at)
+            {
+                open = Some(address.clone());
+            }
             r.context_menu(|ui| {
                 // Not during a copy: it could be using this connection.
                 if ui.add_enabled(live && self.transfer.is_none(), egui::Button::new(self.i18n.t("srv-disconnect"))).clicked() {
@@ -313,7 +333,9 @@ impl App {
         // The folders of this computer last open, to go back there.
         // With this system's separators ("C:\\Users/me/" was shown as stored), not the home again.
         let shown = |d: &str| d.replace('/', std::path::MAIN_SEPARATOR_STR).trim_end_matches(std::path::MAIN_SEPARATOR).to_string();
-        let mut last: Vec<&String> = self.last_dirs.iter().filter(|(base, _)| !base.contains("://")).map(|(_, d)| d).collect();
+        // A folder on a device of this computer (a USB stick) is shown under the device (#314).
+        let on_device = |d: &str| self.devices.iter().any(|e| !e.internal && e.path.starts_with('/') && d.starts_with(&e.path));
+        let mut last: Vec<&String> = self.last_dirs.iter().filter(|(base, d)| !base.contains("://") && !on_device(d)).map(|(_, d)| d).collect();
         last.sort_by(|a, b| source::natural(a, b));
         for d in last.into_iter().filter(|d| !shown(d).eq_ignore_ascii_case(&shown(&home))) {
             if leaf(ui, Icon::Folder, shown(d)).clicked() {
@@ -412,10 +434,21 @@ impl App {
             let r = leaf(ui, icon, label);
             (r.rect, r.clicked())
         };
+        // A tree node shows its open folder itself; a closed device the last one visited there:
+        // a click opens it (a phone or a server as a click on its name does, #206).
+        let tree = d.path == self.base || local && d.path.starts_with('/');
+        let under = (d.block.is_none() && !tree).then(|| crate::navigation::folder_under(&self.last_dirs, &d.path)).flatten();
+        if let Some((address, shown)) = under
+            && folder_line(ui, &shown, &address)
+        {
+            let ctx = ui.ctx().clone();
+            self.focus = Focus::Devices(i);
+            if d.path.contains("://") { self.open_device(&ctx, d) } else { self.open_source(&ctx, &address) }
+        }
         if clicked {
             self.focus = Focus::Devices(i);
             // The tree node has already opened its folder.
-            if d.block.is_some() || !(d.path == self.base || local && d.path.starts_with('/')) {
+            if d.block.is_some() || !tree {
                 let ctx = ui.ctx().clone();
                 self.open_device(&ctx, d);
             }
