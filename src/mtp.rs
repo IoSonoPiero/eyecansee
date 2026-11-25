@@ -21,6 +21,7 @@ const COPY_DIR: &str = ".EyeCanSee-copy";
 /// The phone answered a copy without making it.
 const NOT_MADE: &str = "error-copy-not-made";
 
+mod across;
 mod events;
 pub use events::{Change, on_change, take_changes};
 
@@ -122,13 +123,20 @@ pub const STALL_SECS: u64 = 15;
 static LAST: Mutex<Option<(String, String, std::time::Instant)>> = Mutex::new(None);
 
 /// The file of a call the phone has not answered for at least `secs` seconds (a write: no data
-/// taken for that long), the seconds, and whether it is a file being written to the phone
-/// (unplugged, it would stay there half written).
-pub fn waiting(secs: u64) -> Option<(String, u64, bool)> {
+/// taken for that long), the seconds, and what the call is ("upload": a file being written to the
+/// phone, which unplugged would stay there half written; "copy" and "move": done by the phone).
+pub fn waiting(secs: u64) -> Option<(String, u64, String)> {
     let w = WAITING.lock().unwrap();
     let (what, path, since) = w.as_ref()?;
     let s = since.elapsed().as_secs();
-    (s >= secs).then(|| (source::shown(path).to_string(), s, what == "upload"))
+    (s >= secs).then(|| (source::shown(path).to_string(), s, what.clone()))
+}
+
+/// The phone copying or moving a file itself (between its storages it can take minutes,
+/// `across`): "copy" or "move", the file, the seconds. Busy, not stalled.
+pub fn working() -> Option<(String, String, u64)> {
+    let (name, secs, what) = waiting(0)?;
+    (what == "copy" || what == "move").then_some((what, name, secs))
 }
 
 fn error(e: mtp_rs::Error) -> Error {
@@ -422,21 +430,29 @@ impl Phone {
         // The destination's storage is given to the phone: without it, the storage the item
         // comes from (a move to the memory card ended up on the internal storage, audit 2.7).
         let (to, folder) = match self.locate(to_dir).await {
-            Ok((to, Some(h))) => (to.id(), h),
+            Ok((to, Some(h))) => (to, h),
             // The top of a storage (restoring from its trash): it has no handle of its own.
-            Ok((to, None)) => (to.id(), ObjectHandle::ROOT),
+            Ok((to, None)) => (to, ObjectHandle::ROOT),
             Err(_) => {
                 let (to, parent) = self.locate(&source::parent(to_dir)).await?;
                 let h = self.queued("create_folder", to_dir, self.marked(to.create_folder(parent, source::name(to_dir)))).await.map_err(error)?;
                 self.handles.lock().unwrap().insert(to_dir.to_string(), h);
-                (to.id(), h)
+                (to, h)
             }
         };
+        let size = self.size_across(path, (&storage, handle), &to).await?;
+        let _quiet = size.map(|_| self.quiet());
         self.own.mark(handle);
         if new_name != source::name(path) {
             self.queued("rename", path, storage.rename(handle, new_name)).await.map_err(error)?;
         }
-        self.queued("move", path, storage.move_object(handle, folder, Some(to))).await.map_err(error)?;
+        match (self.queued("move", path, storage.move_object(handle, folder, Some(to.id()))).await, size) {
+            // To the other storage, past the 30 s mtp-rs waits: the phone is still moving it.
+            (Err(mtp_rs::Error::Timeout), Some(size)) => {
+                self.finished_by_phone("move", path, (&to, folder), (new_name, size), Some((&storage, handle))).await?;
+            }
+            (r, _) => r.map_err(error)?,
+        }
         self.handles.lock().unwrap().retain(|p, _| !p.starts_with(path));
         let mut complete = self.complete.lock().unwrap();
         complete.remove(to_dir);
@@ -629,10 +645,20 @@ impl Phone {
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
         // Into the storage of `dir`, which may not be the one of `path` (audit 2.7).
         let (to, folder) = match self.locate(dir).await? {
-            (to, Some(h)) => (to.id(), h),
-            (to, None) => (to.id(), ObjectHandle::ROOT),
+            (to, Some(h)) => (to, h),
+            (to, None) => (to, ObjectHandle::ROOT),
         };
-        let h = self.queued("copy", path, self.marked(storage.copy_object(handle, folder, Some(to)))).await.map_err(error)?;
+        let size = self.size_across(path, (&storage, handle), &to).await?;
+        let _quiet = size.map(|_| self.quiet());
+        let h = match (self.queued("copy", path, self.marked(storage.copy_object(handle, folder, Some(to.id())))).await, size) {
+            // To the other storage, past the 30 s mtp-rs waits: the phone is still copying it.
+            (Err(mtp_rs::Error::Timeout), Some(size)) => {
+                let h = self.finished_by_phone("copy", path, (&to, folder), (source::name(path), size), None).await?;
+                self.own.mark(h);
+                h
+            }
+            (r, _) => r.map_err(error)?,
+        };
         log!("phone {}: copy {path} into {dir}: handle {} -> {}", self.serial, handle.0, h.0);
         if h == handle {
             return Err((NOT_MADE, path.to_string()));
@@ -772,12 +798,15 @@ mod tests {
         assert_eq!(waiting(3), None);
         let since = std::time::Instant::now() - std::time::Duration::from_secs(5);
         *WAITING.lock().unwrap() = Some(("delete".to_string(), "DCIM/.trashed-1-a.jpg".to_string(), since));
-        assert_eq!(waiting(3).map(|(n, s, up)| (n, s >= 5, up)), Some(("a.jpg".to_string(), true, false)));
+        assert_eq!(waiting(3).map(|(n, s, what)| (n, s >= 5, what)), Some(("a.jpg".to_string(), true, "delete".to_string())));
+        assert_eq!(working(), None, "a delete is not a copy");
         assert_eq!(waiting(30), None);
         *WAITING.lock().unwrap() = Some(("upload".to_string(), "DCIM/b.jpg".to_string(), since));
-        assert_eq!(waiting(3).map(|(_, _, up)| up), Some(true));
+        assert_eq!(waiting(3).map(|(_, _, what)| what).as_deref(), Some("upload"));
         Waiting::moved();
         assert_eq!(waiting(3), None, "a write whose data moves is not stalled");
+        *WAITING.lock().unwrap() = Some(("move".to_string(), "SD/DCIM/v.mp4".to_string(), since));
+        assert_eq!(working().map(|(w, n, s)| (w, n, s >= 5)), Some(("move".to_string(), "v.mp4".to_string(), true)));
         *WAITING.lock().unwrap() = old;
     }
     use super::*;

@@ -267,18 +267,15 @@ impl App {
         }
     }
 
-    /// A call the phone has not answered for 3 s, in the status bars of the grid and the viewer.
-    /// On Windows after `mtp::STALL_SECS` it is taken for WPD's stall: a short line here, what
-    /// to do in the window of `phone_stall`.
+    /// A call the phone has not answered for 3 s, in the status bars of the grid and the viewer
+    /// (`waiting_line`). On Windows after `mtp::STALL_SECS` it is taken for WPD's stall: a short
+    /// line here, what to do in the window of `phone_stall`.
     pub(crate) fn phone_waiting(&self, ui: &mut egui::Ui) {
-        let Some((name, secs, _)) = crate::mtp::waiting(3) else { return };
-        let id = match () {
-            _ if cfg!(windows) && secs >= crate::mtp::STALL_SECS => "status-phone-stalled",
-            _ if name.is_empty() => "status-phone-waiting-open",
-            _ => "status-phone-waiting",
-        };
+        let Some((name, secs, what)) = crate::mtp::waiting(3) else { return };
+        let (id, warning) = waiting_line(&what, secs, !name.is_empty(), cfg!(windows));
+        let text = self.i18n.t_args(id, &[("s", &secs.to_string()), ("name", &name), ("what", &what)]);
         ui.add(egui::Spinner::new().color(Color32::WHITE));
-        ui.label(crate::theme::alert(self.i18n.t_args(id, &[("s", &secs.to_string()), ("name", &name)])));
+        ui.label(if warning { crate::theme::alert(text) } else { egui::RichText::new(text) });
         ui.separator();
         ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
     }
@@ -392,8 +389,37 @@ fn version_text(built: Option<&str>) -> String {
 }
 
 
+/// Seconds before a call that is not the phone copying is said "not answering" (yellow).
+const QUIET_SECS: u64 = 20;
+
+/// The status line of a phone call waiting for `secs` s (`what`; `named`: its file is known): its
+/// Fluent id and whether it is a warning. The phone copying or moving between its storages is
+/// busy, not stalled; another call is "not answering" only past `QUIET_SECS` (it appeared after
+/// 3 s for every call, Piero 25/11/2026); on Windows past `mtp::STALL_SECS` WPD's stall.
+fn waiting_line(what: &str, secs: u64, named: bool, windows: bool) -> (&'static str, bool) {
+    match () {
+        _ if what == "copy" || what == "move" => ("status-phone-working", false),
+        _ if windows && secs >= crate::mtp::STALL_SECS => ("status-phone-stalled", true),
+        _ if secs < QUIET_SECS && named => ("status-phone-busy", false),
+        _ if secs < QUIET_SECS => ("status-phone-busy-open", false),
+        _ if named => ("status-phone-waiting", true),
+        _ => ("status-phone-waiting-open", true),
+    }
+}
+
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn phone_lines() {
+        use super::waiting_line;
+        assert_eq!(waiting_line("move", 90, true, false), ("status-phone-working", false));
+        assert_eq!(waiting_line("copy", 40, true, true), ("status-phone-working", false), "no stall on Windows");
+        assert_eq!(waiting_line("list", 5, true, false), ("status-phone-busy", false));
+        assert_eq!(waiting_line("", 5, false, false), ("status-phone-busy-open", false));
+        assert_eq!(waiting_line("list", 25, true, false), ("status-phone-waiting", true));
+        assert_eq!(waiting_line("delete", 16, true, true), ("status-phone-stalled", true));
+    }
     /// #330: the status bar line of a phone Windows stopped answering also says what to do, in
     /// the window's words, and it fits the bar of a window 1280 px wide with the counts after it.
     #[test]

@@ -157,9 +157,10 @@ impl App {
         if !cfg!(windows) {
             return;
         }
-        match crate::mtp::waiting(crate::mtp::STALL_SECS) {
-            Some((name, _, upload)) if self.stall_notice.is_none() && self.notice.is_none() => {
-                let text = if upload {
+        // The phone copying or moving between its storages is busy, not stalled: no "unplug".
+        match crate::mtp::waiting(crate::mtp::STALL_SECS).filter(|(_, _, what)| what != "copy" && what != "move") {
+            Some((name, _, what)) if self.stall_notice.is_none() && self.notice.is_none() => {
+                let text = if what == "upload" {
                     self.i18n.t_args("phone-stalled-upload", &[("name", &crate::save_dialogs::md(&name))])
                 } else {
                     self.i18n.t("phone-stalled")

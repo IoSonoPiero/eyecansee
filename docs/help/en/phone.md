@@ -24,7 +24,8 @@ Photos taken, deleted or moved on the phone itself while its folder is open appe
 - **"The device was not found"**: the phone is reconnecting (it does so when you choose File transfer) or was unplugged. EyeCanSee tries again by itself every 2 seconds.
 - **"EyeCanSee cannot open the device"**: another program is using the phone. If the desktop had connected it, EyeCanSee switches to that connection by itself (slower). Otherwise close the file manager and the other programs using the phone and press **F5**, or unplug the phone, plug it back in, choose File transfer and open it in EyeCanSee first.
 - **"Opened through the file manager: slower"**: the direct connection failed and EyeCanSee uses the desktop's one. In folders with hundreds of files it makes about one thumbnail per second.
-- A phone that does not answer a request: the status bar says so, with the seconds and the file. EyeCanSee carries on by itself as soon as the phone answers.
+- While the phone works on a request, the status bar says so, with the file and the seconds; after 20 seconds without an answer it says so in yellow. EyeCanSee carries on by itself as soon as the phone answers.
+- A copy or a move between the internal storage and the memory card of the same phone is done by the phone itself: with a big file it can take a few minutes. Meanwhile the folders of that phone open when it is done, and the rest of EyeCanSee stays free.
 
 ## Linux: GNOME and KDE
 
