@@ -1119,6 +1119,38 @@ mod tests {
         });
     }
 
+    /// A big file copied by the phone inside its own storage, past the 30 s mtp-rs waits for an
+    /// answer (6 GB: about a minute on a Redmi Note 9 Pro): the copy ends up whole and the phone
+    /// answers after it. `EYECANSEE_MTP_BIG` is a big file, left as it is; the copy is deleted:
+    /// `EYECANSEE_MTP=<serial> EYECANSEE_MTP_BIG="<storage>/Download/big.mp4" cargo test --release mtp_big_file_inside_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn mtp_big_file_inside_live() {
+        let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+        let big = std::env::var("EYECANSEE_MTP_BIG").expect("EYECANSEE_MTP_BIG not set");
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let phone = Phone::new(&serial);
+            phone.list("").await.unwrap();
+            let dir = source::parent(&big);
+            let size = phone.list(&dir).await.unwrap().files.iter().find(|f| f.path == big).expect("EYECANSEE_MTP_BIG not found").size;
+            let copy = format!("{dir}EyeCanSee-big-inside.mp4");
+            let five = std::time::Duration::from_secs(300);
+            let t = std::time::Instant::now();
+            let made = tokio::time::timeout(five, phone.copy_inside(&big, &copy)).await;
+            println!("copy inside: {made:?} in {:?}", t.elapsed());
+            let after = match &made {
+                Ok(Ok(())) => tokio::time::timeout(five, phone.list(&dir)).await.map(|r| r.map(|l| l.files.iter().find(|f| f.path == copy).map(|f| f.size))),
+                _ => Ok(Ok(None)),
+            };
+            println!("the folder after the copy: {after:?}");
+            if let Ok(Ok(true)) = tokio::time::timeout(std::time::Duration::from_secs(60), phone.taken(&copy)).await {
+                let _ = tokio::time::timeout(std::time::Duration::from_secs(60), phone.delete(&copy)).await;
+            }
+            assert!(matches!(made, Ok(Ok(()))), "copy inside: {made:?}");
+            assert!(matches!(after, Ok(Ok(Some(s))) if s == size), "the copy: {after:?}");
+        });
+    }
+
     /// Issue #91, Ctrl+C and Ctrl+V with Replace on a real phone: over a file of its own folder,
     /// over one in a subfolder and over itself, the replaced file gets the copy's content and no
     /// hidden name or folder is left; a copy that fails (its source gone) leaves the file it would
