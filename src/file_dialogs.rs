@@ -156,13 +156,14 @@ impl App {
         let Some((p, cut, base, dest)) = &self.transfer else { return };
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
         let phase = p.phase();
-        let (current, mut counts, mut left) = self.transfer_lines(p, &phase);
+        let (current, counts, mut left) = self.transfer_lines(p, &phase);
         // The phone moving or copying a file itself (between its storages, minutes for a big one):
         // it says nothing of how far it is, so no percentage but a bar that goes to and fro.
+        // The counts and the speed of the files done stay; the line of the time left says
+        // instead what the phone is doing.
         let working = crate::mtp::working();
         if let Some((what, name, s)) = &working {
-            counts = self.i18n.t_args("status-phone-working", &[("what", what), ("name", name), ("s", &s.to_string())]);
-            left = String::new();
+            left = self.i18n.t_args("status-phone-working", &[("what", what), ("name", name), ("s", &s.to_string())]);
         }
         let to = self.i18n.t_args("transfer-to", &[("dir", &shown(base, dest))]);
         let cancelling = p.cancel.load(Ordering::Relaxed);

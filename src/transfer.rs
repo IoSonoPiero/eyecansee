@@ -348,12 +348,33 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
     // computer the rename itself replaces a file: one that is there stays until then, and still
     // there if the copy fails (#90). Phones, servers and gvfs rename only onto a free name.
     let mut copies = Vec::new();
+    let renamed = |e: &Planned| clip.cut && same && !(e.2 && e.1.ends_with('/'));
+    // The renames counted in the window too: on a phone between its storages each one is done by
+    // the phone and can take minutes (`mtp::across`); the folder they go to is read again after
+    // each, so what arrived shows (Piero, 25/11: it showed only at the end).
+    let phone = matches!(to, Store::Mtp(_));
+    if plan.iter().any(renamed) {
+        p.files_total.store(plan.iter().filter(|e| renamed(e)).count(), Ordering::Relaxed);
+        let _ = p.started.set(Instant::now());
+    }
     for (src, dest, exists, sides) in plan {
         if clip.cut && same && !(exists && dest.ends_with('/')) {
+            let size = if phone && !src.is_empty() && !src.ends_with('/') { clip.op.size(&src).await.unwrap_or(0) } else { 0 };
+            p.total.fetch_add(size, Ordering::Relaxed);
+            *p.current.lock().unwrap() = name(&src).to_string();
             let made = (!src.is_empty()).then(|| dest.clone());
             match renamed_on_device(clip, to, to_dir, (src, dest, exists, sides), gone).await? {
-                Some(entry) => copies.push(entry),
-                None => p.made.lock().unwrap().extend(made),
+                Some(entry) => {
+                    p.total.fetch_sub(size, Ordering::Relaxed);
+                    p.files_total.fetch_sub(1, Ordering::Relaxed);
+                    copies.push(entry);
+                }
+                None => {
+                    p.made.lock().unwrap().extend(made);
+                    p.files.fetch_add(1, Ordering::Relaxed);
+                    p.done.fetch_add(size, Ordering::Relaxed);
+                    p.touched.lock().unwrap().push(to_dir.to_string());
+                }
             }
             continue;
         }
@@ -389,8 +410,9 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
     }
     // Counted as the files chosen: a photo with its sidecars is one.
     let files = || lists.iter().zip(&copies).flat_map(|(l, c)| &l[..l.len() - c.3.len()]).filter(|(s, _, _)| !s.ends_with('/'));
-    p.files_total.store(files().count(), Ordering::Relaxed);
-    p.total.store(lists.iter().flatten().filter(|(s, _, _)| !s.ends_with('/')).map(|(_, _, size)| size).sum(), Ordering::Relaxed);
+    // Added to the renames counted above, if any.
+    p.files_total.fetch_add(files().count(), Ordering::Relaxed);
+    p.total.fetch_add(lists.iter().flatten().filter(|(s, _, _)| !s.ends_with('/')).map(|(_, _, size)| size).sum(), Ordering::Relaxed);
     *p.looked.lock().unwrap() = start.elapsed().as_secs_f64();
     let _ = p.started.set(Instant::now());
 
