@@ -97,6 +97,18 @@ pub(crate) fn quiet_copy(i18n: &crate::i18n::I18n, cut: bool, to: &str, r: &Resu
         }
         Ok(()) => {
             let text = if total > 0 { counted(if cut { "transfer-files-moved" } else { "transfer-files-copied" }, total) } else { to_line() };
+            // How much, in how long, how fast on average (Piero, 25/11).
+            let done = p.done.load(Ordering::Relaxed);
+            let secs = p.begun.get().map_or(0.0, |t| t.elapsed().as_secs_f64());
+            let text = match (done, secs) {
+                (0, _) => text,
+                (_, s) if s < 1.0 => text,
+                (d, s) => format!("{text}\n{}", i18n.t_args("transfer-summary", &[
+                    ("size", &crate::human::size(i18n, d)),
+                    ("time", &crate::human::human_time(s.round() as u64)),
+                    ("speed", &crate::human::size(i18n, (d as f64 / s) as u64)),
+                ])),
+            };
             (if cut { "transfer-moved" } else { "transfer-copied" }, text)
         }
         Err((id, detail)) => (if cut { "transfer-move-stopped" } else { "transfer-copy-stopped" }, format!("{}\n{}", to_line(), md(&i18n.error(id, detail)))),

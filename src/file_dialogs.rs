@@ -156,16 +156,12 @@ impl App {
         let Some((p, cut, base, dest)) = &self.transfer else { return };
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
         let phase = p.phase();
-        let (current, counts, mut left) = self.transfer_lines(p, &phase);
+        let (current, counts, left) = self.transfer_lines(p, &phase);
         // The phone moving or copying a file itself (between its storages, minutes for a big one):
         // it says nothing of how far it is, so no percentage but a bar that goes to and fro.
-        // The counts, the bar and the speed of the files done stay as they are (a bar going to and
-        // fro while the phone worked, the usual one between its files: the window kept changing,
-        // Piero 25/11); the line of the time left says what the phone is doing, with a spinner.
-        let working = crate::mtp::working();
-        if let Some((what, name, s)) = &working {
-            left = self.i18n.t_args("status-phone-working", &[("what", what), ("name", name), ("s", &s.to_string())]);
-        }
+        // Two lines that stay in their place (they took turns on one, "it changes all the time",
+        // Piero 25/11): the speed and the time left, then what the phone is doing itself.
+        let phone = crate::mtp::working().map(|(what, name, s)| self.i18n.t_args("status-phone-working", &[("what", &what), ("name", &name), ("s", &s.to_string())]));
         let to = self.i18n.t_args("transfer-to", &[("dir", &shown(base, dest))]);
         let cancelling = p.cancel.load(Ordering::Relaxed);
         let shown = egui::Window::new(self.i18n.t(if *cut { "transfer-moving" } else { "transfer-copying" }))
@@ -178,15 +174,17 @@ impl App {
                 ui.add(egui::Label::new(egui::RichText::new(current).family(egui::FontFamily::Name(crate::BOLD.into()))).truncate());
                 ui.add(egui::Label::new(to).truncate());
                 ui.label(counts);
-                if working.is_some() {
-                    ui.horizontal(|ui| {
+                // Even empty, so the window keeps its height.
+                ui.label(left);
+                ui.horizontal(|ui| match phone {
+                    Some(line) => {
                         ui.spinner();
-                        ui.add(egui::Label::new(left).truncate());
-                    });
-                } else {
-                    // Even empty: the window keeps its height when the phone's line comes and goes.
-                    ui.label(left);
-                }
+                        ui.add(egui::Label::new(line).truncate());
+                    }
+                    None => {
+                        ui.label("");
+                    }
+                });
                 // Accent fill on a grey track: the default (selection blue on white) hid the empty part.
                 ui.scope(|ui| {
                     ui.visuals_mut().extreme_bg_color = ui.visuals().widgets.inactive.bg_fill;

@@ -174,6 +174,7 @@ transfer-to = In { $dir }
 transfer-left = { $percent } %, { $speed }/s, circa { $time } alla fine
 transfer-removing = Tolgo gli originali
 transfer-removed = { $n } di { $total } file tolti da dove erano
+transfer-summary = { $size } in { $time }, in media { $speed }/s.
 transfer-copied = Copia finita
 transfer-moved = Spostamento finito
 jobs-report-title = Lavori finiti

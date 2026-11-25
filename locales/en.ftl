@@ -175,6 +175,7 @@ transfer-to = To { $dir }
 transfer-left = { $percent }%, { $speed }/s, about { $time } left
 transfer-removing = Removing the originals
 transfer-removed = { $n } of { $total } files removed from where they were
+transfer-summary = { $size } in { $time }, { $speed }/s on average.
 transfer-copied = Copy finished
 transfer-moved = Move finished
 jobs-report-title = Jobs finished
