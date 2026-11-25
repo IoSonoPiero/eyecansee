@@ -78,8 +78,10 @@ impl App {
             crate::devices::mount(block.clone(), self.tx.clone(), ctx.clone());
         } else if d.path == self.base {
             self.set_dir(String::new());
-        } else if self.base == "/" && d.path.starts_with('/') {
-            self.set_dir(d.path.trim_start_matches('/').to_string());
+        } else if d.path.starts_with('/') {
+            // A disk of this computer: back in the folder last visited on it (#314).
+            let at = crate::navigation::folder_under(&self.last_dirs, &d.path).map_or_else(|| d.path.clone(), |(full, _)| full);
+            if self.base == "/" { self.set_dir(at.trim_start_matches('/').to_string()) } else { self.open_source(ctx, &at) }
         } else {
             self.open_back(ctx, &d.path);
         }
@@ -339,7 +341,8 @@ impl App {
         crate::navigation::folder_under(&self.last_dirs, &row).is_some_and(|(at, shown)| folder_line(ui, &shown, &at))
     }
 
-    /// "This computer" with a phone or a server open: home and, with a server, the drives.
+    /// "This computer" closed, with a phone, a server or an external disk in use: home, the last
+    /// folder of the computer and, with a server, the drives.
     fn way_home(&mut self, ui: &mut Ui, internal: &[Device], remote: bool) {
         block_title(ui, &self.i18n.t("this-computer"));
         let home = std::env::home_dir().map_or("/".into(), |h| h.to_string_lossy().into_owned());
@@ -398,10 +401,12 @@ impl App {
         // With a phone or a server open, the computer stays one click away: home and the drives.
         let device_open = external.iter().any(|d| d.path == self.base);
         let remote = self.base.contains("://");
-        if device_open || remote {
+        // In a folder of an external disk, this computer is closed as for a phone (#314).
+        let in_disk = local && self.disk_of(&self.dir).is_some();
+        if device_open || remote || in_disk {
             self.way_home(ui, &internal, remote);
             // The open device or saved server already shows its folders under its name.
-            if device_open || server_tree {
+            if device_open || server_tree || in_disk {
                 return;
             }
             ui.separator();
@@ -443,23 +448,23 @@ impl App {
             (r.rect, r.clicked())
         } else if d.path == self.base {
             self.tree_node(ui, "device", String::new(), icon, &label, true)
-        } else if local && d.path.starts_with('/') {
+        } else if local && d.path.starts_with('/') && self.dir.starts_with(d.path.trim_start_matches('/')) {
             let dir = d.path.trim_start_matches('/').to_string();
             self.tree_node(ui, "device", dir, icon, &label, true)
         } else {
             let r = leaf(ui, icon, label);
             (r.rect, r.clicked())
         };
-        // A tree node shows its open folder itself; a closed device the last one visited there:
-        // a click opens it (a phone or a server as a click on its name does, #206).
-        let tree = d.path == self.base || local && d.path.starts_with('/');
+        // Only the place in use is a tree, open down to its folder; the others are closed, with
+        // the folder last visited there under their name: a click goes back there (#314).
+        let tree = d.path == self.base || local && d.path.starts_with('/') && self.dir.starts_with(d.path.trim_start_matches('/'));
         let under = (d.block.is_none() && !tree).then(|| crate::navigation::folder_under(&self.last_dirs, &d.path)).flatten();
         if let Some((address, shown)) = under
             && folder_line(ui, &shown, &address)
         {
             let ctx = ui.ctx().clone();
             self.focus = Focus::Devices(i);
-            if d.path.contains("://") { self.open_device(&ctx, d) } else { self.open_source(&ctx, &address) }
+            self.open_device(&ctx, d);
         }
         if clicked {
             self.focus = Focus::Devices(i);

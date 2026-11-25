@@ -39,6 +39,19 @@ pub(crate) fn rest_under(full: &str, row: &str) -> Option<String> {
 }
 
 impl App {
+    /// #314: on this computer, the external disk holding the folder `dir` (its path, as in the
+    /// Devices block), if any.
+    pub(crate) fn disk_of(&self, dir: &str) -> Option<String> {
+        let disks = self.devices.iter().filter(|d| !d.internal && d.block.is_none() && d.path.starts_with('/'));
+        disks.map(|d| d.path.trim_start_matches('/')).filter(|p| dir.starts_with(*p)).max_by_key(|p| p.len()).map(|p| format!("/{p}"))
+    }
+
+    /// #314: the key of `last_dirs` for the folder `dir` of this computer: its external disk, or
+    /// the computer itself ("/").
+    fn local_key(&self, dir: &str) -> String {
+        self.disk_of(dir).unwrap_or_else(|| "/".to_string())
+    }
+
     /// Opens an address (path or URL). If it fails, stays on the current source. The image in the
     /// viewer with turns not saved is asked about first (audit 1.5, #198: an address typed in the
     /// bar dropped them, and the image opened next in the same place showed them).
@@ -84,7 +97,7 @@ impl App {
                     self.leave_source();
                 }
                 if !self.base.is_empty() {
-                    let key = self.place_key.clone().unwrap_or_else(|| self.base.clone());
+                    let key = if self.base == "/" { self.local_key(&self.dir) } else { self.place_key.clone().unwrap_or_else(|| self.base.clone()) };
                     self.last_dirs.insert(key, format!("{}{}", self.base, self.dir));
                 }
                 if other || row.is_some() {
@@ -218,6 +231,11 @@ impl App {
     pub(crate) fn set_dir(&mut self, dir: String) {
         log!("folder {dir:?}");
         self.reveal = true;
+        // On this computer, the last folder of each part (the computer, each external disk) for
+        // the left panel, where the parts not in use show it under their name (#314).
+        if self.base == "/" {
+            self.last_dirs.insert(self.local_key(&dir), format!("/{dir}"));
+        }
         if let Some(loader) = &self.loader {
             self.generation = loader.next_generation();
         }
@@ -538,6 +556,30 @@ mod tests {
         assert_eq!(rest_under("sftp://me@nas/photos/2024/", "sftp://me@nas/").as_deref(), Some("photos/2024"));
         assert_eq!(rest_under("sftp://me@nas/docs/", "sftp://me@nas/photos/"), None);
         assert_eq!(rest_under("sftp://me@nas/photos/", "sftp://me@nas/photos/"), None);
+    }
+
+    /// #314: on this computer an external disk keeps its last folder apart from the computer's,
+    /// so the panel shows each under its own name.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn last_folder_of_each_disk() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("navigation::tests::last_folder_of_each_disk") {
+            return;
+        }
+        let dir = folder("disk-last", &["a.png"]);
+        std::fs::create_dir_all(dir.join("disk/DCIM")).unwrap();
+        std::fs::create_dir_all(dir.join("home/Pictures")).unwrap();
+        let mut h = Harness::new(&dir);
+        let root = h.app.dir.clone();
+        let disk = format!("/{root}disk/");
+        h.app.devices = vec![devices::Device { name: "Disk".into(), path: disk.clone(), phone: false, serial: None, block: None, internal: false }];
+        h.app.set_dir(format!("{root}home/Pictures/"));
+        h.app.set_dir(format!("{root}disk/DCIM/"));
+        assert_eq!(h.app.disk_of(&h.app.dir), Some(disk.clone()));
+        assert_eq!(h.app.last_dirs.get(&disk), Some(&format!("/{root}disk/DCIM/")));
+        assert_eq!(h.app.last_dirs.get("/"), Some(&format!("/{root}home/Pictures/")), "the computer keeps its own");
+        assert_eq!(folder_under(&h.app.last_dirs, &disk).map(|(_, r)| r).as_deref(), Some("DCIM"));
     }
 
     /// An address from outside while the editor is open is kept (the last one) and opened once it
