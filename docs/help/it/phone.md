@@ -24,7 +24,7 @@ Le foto scattate, eliminate o spostate sul telefono mentre la sua cartella è ap
 - **"Il dispositivo non è stato trovato"**: il telefono si sta ricollegando (lo fa quando scegli Trasferimento file) oppure è stato scollegato. EyeCanSee riprova da solo ogni 2 secondi.
 - **"EyeCanSee non riesce ad aprire il dispositivo"**: il telefono lo sta usando un altro programma. Se l'aveva collegato il desktop, EyeCanSee passa da solo a quel collegamento (più lento). Altrimenti chiudi il gestore dei file e gli altri programmi che usano il telefono e premi **F5**, oppure scollega il telefono, ricollegalo, scegli Trasferimento file e aprilo prima in EyeCanSee.
 - **"Aperto tramite il gestore dei file: più lento"**: il collegamento diretto non è riuscito ed EyeCanSee usa quello del desktop. Nelle cartelle con centinaia di file fa circa una miniatura al secondo.
-- Mentre il telefono lavora a una richiesta, la barra di stato lo dice, con il file e i secondi; dopo 20 secondi senza risposta lo dice in giallo. EyeCanSee riprende da solo appena il telefono risponde.
+- Un telefono che non risponde a una richiesta: la barra di stato lo dice, con i secondi e il file. EyeCanSee riprende da solo appena il telefono risponde.
 - Una copia o uno spostamento tra la memoria interna e la scheda di memoria dello stesso telefono lo fa il telefono stesso: con un file grande può durare qualche minuto. Intanto le cartelle di quel telefono si aprono alla fine, e il resto di EyeCanSee resta libero.
 
 ## Linux: GNOME e KDE

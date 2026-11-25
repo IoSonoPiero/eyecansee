@@ -155,7 +155,6 @@ impl App {
                     let status = egui::Panel::bottom("status").frame(bar).show(ui, |ui| {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             let button = self.keys_button(ui);
-                            self.phone_waiting_right(ui);
                             ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| self.status_bar(ui));
                             button
                         })
