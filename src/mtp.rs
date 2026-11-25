@@ -1029,6 +1029,59 @@ mod tests {
         });
     }
 
+    /// A big file copied and moved by the phone to its other storage, past the 30 s mtp-rs waits
+    /// for an answer: both end up whole on the memory card and the phone answers after each (a
+    /// Redmi Note 9 Pro with an SD card, 2 GB: ~2 min each, 25/11/2026). `EYECANSEE_MTP_BIG` is
+    /// a big file on the first storage, left as it is; what the test makes is deleted at the end.
+    /// It stops at the first step that fails or takes more than 5 minutes:
+    /// `EYECANSEE_MTP=<serial> EYECANSEE_MTP_BIG="<storage>/Download/big.mp4" cargo test --release mtp_big_file_across_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn mtp_big_file_across_live() {
+        let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+        let big = std::env::var("EYECANSEE_MTP_BIG").expect("EYECANSEE_MTP_BIG not set");
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let phone = Phone::new(&serial);
+            let root = phone.list("").await.unwrap();
+            let (first, second) = (root.dirs[0].clone(), root.dirs[1].clone());
+            let size = phone.list(&source::parent(&big)).await.unwrap().files.iter().find(|f| f.path == big).expect("EYECANSEE_MTP_BIG not found").size;
+            let (copied, here, moved) = (format!("{second}EyeCanSee-big-copy.mp4"), format!("{first}EyeCanSee-big-here.mp4"), format!("{second}EyeCanSee-big-moved.mp4"));
+            // One step: its result, or why it stopped (an error, or 5 minutes without an answer).
+            async fn step<T: std::fmt::Debug>(what: &str, call: impl std::future::Future<Output = Result<T, Error>>) -> Result<T, String> {
+                let t = std::time::Instant::now();
+                let r = tokio::time::timeout(std::time::Duration::from_secs(300), call).await;
+                println!("{what}: {r:?} in {:?}", t.elapsed());
+                r.map_err(|_| format!("{what}: no answer in 5 minutes"))?.map_err(|e| format!("{what}: {e:?}"))
+            }
+            let size_on = |dir: String, path: String| {
+                let phone = &phone;
+                async move { phone.list(&dir).await.map(|l| l.files.iter().find(|f| f.path == path).map(|f| f.size)) }
+            };
+            let run = async {
+                step("copy to the card", phone.copy_inside(&big, &copied)).await?;
+                let on_card = step("the card after the copy", size_on(second.clone(), copied.clone())).await?;
+                if on_card != Some(size) {
+                    return Err(format!("the copy on the card: {on_card:?}, not {size}"));
+                }
+                step("copy inside the first storage", phone.copy_inside(&big, &here)).await?;
+                step("move to the card", phone.move_into(&here, &second, "EyeCanSee-big-moved.mp4")).await?;
+                let on_card = step("the card after the move", size_on(second.clone(), moved.clone())).await?;
+                let left = step("the first storage after the move", size_on(first.clone(), here.clone())).await?;
+                if on_card != Some(size) || left.is_some() {
+                    return Err(format!("after the move: on the card {on_card:?}, left {left:?}"));
+                }
+                Ok(())
+            };
+            let r = run.await;
+            for p in [&copied, &here, &moved] {
+                if let Ok(Ok(true)) = tokio::time::timeout(std::time::Duration::from_secs(60), phone.taken(p)).await {
+                    let _ = tokio::time::timeout(std::time::Duration::from_secs(60), phone.delete(p)).await;
+                }
+            }
+            assert!(r.is_ok(), "{r:?}");
+        });
+    }
+
     /// Issue #91, Ctrl+C and Ctrl+V with Replace on a real phone: over a file of its own folder,
     /// over one in a subfolder and over itself, the replaced file gets the copy's content and no
     /// hidden name or folder is left; a copy that fails (its source gone) leaves the file it would
