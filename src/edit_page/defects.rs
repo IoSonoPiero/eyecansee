@@ -291,6 +291,7 @@ fn typed_letters_in_the_texts_font() {
 }
 
 /// The bar's widget of `typ` with `label`, in the last frame, if any (widget infos: debug only).
+#[cfg(debug_assertions)]
 fn widget(h: &Harness, typ: egui::Role, label: Option<&str>) -> Option<egui::Rect> {
     h.ctx.viewport(|v| {
         let w = &v.prev_pass.widgets;
@@ -303,7 +304,8 @@ fn widget(h: &Harness, typ: egui::Role, label: Option<&str>) -> Option<egui::Rec
 /// the field, the typing ended, and the text had to be clicked again.
 #[test]
 #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
-#[cfg_attr(not(debug_assertions), ignore = "the widgets are found by their infos, kept in debug builds")]
+// Only in debug builds: the widgets are found by their infos (`Style::debug`), not there in release.
+#[cfg(debug_assertions)]
 fn choosing_a_font_keeps_the_typing() {
     if own_folder("edit_page::defects::choosing_a_font_keeps_the_typing") {
         return;
