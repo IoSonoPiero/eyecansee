@@ -410,6 +410,13 @@ impl Phone {
     /// Moves into `to_dir` (created if missing) with the name `new_name`: renamed in place first,
     /// MTP moves keep the name. The name must be free in both folders (`Store::delete`, `restore`).
     pub async fn move_into(&self, path: &str, to_dir: &str, new_name: &str) -> Result<(), Error> {
+        // A folder to the other storage is refused at once: the phone would copy it whole inside
+        // one call, longer than the 30 s mtp-rs waits for its answer, and the late answer then
+        // leaves every next call waiting, Cancel too (Redmi Note 9 Pro, 152 photos, 690 MB, to its
+        // SD card, 25/11/2026). The caller copies it file by file and deletes it (`paste`).
+        if path.ends_with('/') && across(path, to_dir) {
+            return Err((NOT_MADE, path.to_string()));
+        }
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
         // The destination's storage is given to the phone: without it, the storage the item
@@ -712,6 +719,12 @@ impl Phone {
     }
 }
 
+/// Whether `path` and the folder `to_dir` of a phone are on two different storages: the first
+/// part of a phone's path is its storage.
+fn across(path: &str, to_dir: &str) -> bool {
+    path.split('/').next() != to_dir.split('/').next()
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -768,6 +781,15 @@ mod tests {
         *WAITING.lock().unwrap() = old;
     }
     use super::*;
+
+    /// A folder moved to the other storage is copied and deleted instead (see `move_into`).
+    #[test]
+    fn folders_across_storages() {
+        assert!(across("Internal storage/DCIM/Bing/", "SD card/DCIM/"));
+        assert!(across("Internal storage/DCIM/Bing/", "SD card/"));
+        assert!(!across("Internal storage/DCIM/Bing/", "Internal storage/Pictures/"));
+        assert!(!across("SD card/a/", "SD card/"));
+    }
 
     #[test]
     fn open_failure_ids() {
@@ -965,7 +987,12 @@ mod tests {
             }
             let copy = phone.copy_inside(&format!("{a}copied.jpg"), &format!("{b}copied.jpg")).await;
             let mv = phone.move_into(&format!("{a}moved.jpg"), &second, "EyeCanSee-two-moved.jpg").await;
-            println!("copy: {copy:?}, move: {mv:?}");
+            // A folder is refused at once, left where it is: the caller copies it file by file.
+            phone.create_dir(&format!("{a}folder/")).await.unwrap();
+            let t = std::time::Instant::now();
+            let folder = phone.move_into(&format!("{a}folder/"), &b, "folder").await;
+            let folder_time = t.elapsed();
+            println!("copy: {copy:?}, move: {mv:?}, folder: {folder:?} in {folder_time:?}");
             let in_a = objects(&phone, &a).await;
             let in_b = objects(&phone, &b).await;
             let top_first = objects(&phone, &first).await;
@@ -980,6 +1007,8 @@ mod tests {
                 assert_eq!(storage_b.download_to_vec(m.0).await.unwrap(), data);
                 assert!(!top_first.iter().any(|o| o.1.starts_with("EyeCanSee-two-moved")), "the moved file went to the first storage");
                 assert!(in_a.iter().any(|o| o.1 == "copied.jpg") && !in_a.iter().any(|o| o.1 == "moved.jpg"), "first storage, folder: {in_a:?}");
+                assert!(folder.is_err() && folder_time.as_secs() < 2, "a folder to the other storage: {folder:?} in {folder_time:?}");
+                assert!(in_a.iter().any(|o| o.1 == "folder") && !in_b.iter().any(|o| o.1 == "folder"), "the folder stays where it was");
             };
             let r = futures_util::FutureExt::catch_unwind(std::panic::AssertUnwindSafe(check)).await;
             // Wherever they ended up: the folders, and the moved file read from the storages
