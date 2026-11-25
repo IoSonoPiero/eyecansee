@@ -28,10 +28,14 @@ fn last_folder_in(last: &std::collections::HashMap<String, String>, from: &str, 
 /// remembered there.
 pub(crate) fn folder_under(last: &std::collections::HashMap<String, String>, row: &str) -> Option<(String, String)> {
     let remote = row.contains("://");
-    last.iter().filter(|(k, _)| if remote { *k == row } else { !k.contains("://") }).find_map(|(_, full)| {
-        let rest = full.strip_prefix(row)?.trim_end_matches('/');
-        (!rest.is_empty()).then(|| (full.clone(), rest.to_string()))
-    })
+    last.iter().filter(|(k, _)| if remote { *k == row } else { !k.contains("://") }).find_map(|(_, full)| Some((full.clone(), rest_under(full, row)?)))
+}
+
+/// #314: the part of the address `full` inside the row `row` ("photos/2024" for
+/// "sftp://me@nas/photos/2024/" under "sftp://me@nas/"), `None` outside it or at its root.
+pub(crate) fn rest_under(full: &str, row: &str) -> Option<String> {
+    let rest = full.strip_prefix(row)?.trim_end_matches('/');
+    (!rest.is_empty()).then(|| rest.to_string())
 }
 
 impl App {
@@ -530,6 +534,10 @@ mod tests {
         // At its root: nothing under the name.
         let root = std::collections::HashMap::from([at(phone, phone)]);
         assert_eq!(folder_under(&root, phone), None);
+        // The folder open on a server, under the row it is in (#314, Piero 25/11).
+        assert_eq!(rest_under("sftp://me@nas/photos/2024/", "sftp://me@nas/").as_deref(), Some("photos/2024"));
+        assert_eq!(rest_under("sftp://me@nas/docs/", "sftp://me@nas/photos/"), None);
+        assert_eq!(rest_under("sftp://me@nas/photos/", "sftp://me@nas/photos/"), None);
     }
 
     /// An address from outside while the editor is open is kept (the last one) and opened once it

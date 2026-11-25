@@ -252,7 +252,7 @@ impl App {
     /// folder the server starts in), or back there in the last folder visited inside it
     /// (`open_back`, #206), the open one is highlighted; right click: close its
     /// connection, edit it.
-    fn server_block(&mut self, ui: &mut Ui) {
+    fn server_block(&mut self, ui: &mut Ui) -> bool {
         // Encrypted and not unlocked yet: one row asking for the master password.
         if self.saved_servers.is_empty() && crate::servers::locked() {
             block_title(ui, &self.i18n.t("servers"));
@@ -260,14 +260,15 @@ impl App {
                 self.ask_master(crate::vault_page::Then::Panel);
             }
             ui.separator();
-            return;
+            return false;
         }
         if self.saved_servers.is_empty() {
-            return;
+            return false;
         }
         block_title(ui, &self.i18n.t("servers"));
-        let (mut open, mut close, mut edit) = (None, None, None);
-        for (i, s) in self.saved_servers.iter().enumerate() {
+        let (mut open, mut close, mut edit, mut tree) = (None, None, None, false);
+        let servers = self.saved_servers.clone();
+        for (i, s) in servers.iter().enumerate() {
             let Some(address) = s.address() else { continue };
             let here = self.base.contains("://") && address.starts_with(&self.base);
             let ftp_port = s.port.unwrap_or(21);
@@ -283,12 +284,7 @@ impl App {
                 log!("panel: server {}", s.name);
                 open = Some(address.clone());
             }
-            // Under it, the folder last visited there (#314); the open one is in the tree below.
-            let row = crate::address::without_password(&address);
-            if !here
-                && let Some((at, shown)) = crate::navigation::folder_under(&self.last_dirs, &row)
-                && folder_line(ui, &shown, &at)
-            {
+            if self.under_server(ui, i, &address, here, &mut tree) {
                 open = Some(address.clone());
             }
             r.context_menu(|ui| {
@@ -323,6 +319,24 @@ impl App {
             f.choose(Some(i));
             self.server_manager = Some(f);
         }
+        tree
+    }
+
+    /// Under a saved server (#314): the open one has its folders under its name, from its own
+    /// folder down to the one open (`tree`: the first row holding it, two rows can share a login);
+    /// another one the folder last visited there. Returns whether that folder was clicked.
+    fn under_server(&mut self, ui: &mut Ui, i: usize, address: &str, here: bool, tree: &mut bool) -> bool {
+        if here {
+            let dir = address.strip_prefix(self.base.as_str()).filter(|d| !*tree && self.dir.starts_with(*d)).map(str::to_string);
+            if let Some(dir) = dir {
+                *tree = true;
+                let label = if dir.is_empty() { "/".to_string() } else { dir.trim_end_matches('/').to_string() };
+                ui.indent(("server-tree", i), |ui| self.tree_node(ui, "server", dir, Icon::Folder, &label, true));
+            }
+            return false;
+        }
+        let row = crate::address::without_password(address);
+        crate::navigation::folder_under(&self.last_dirs, &row).is_some_and(|(at, shown)| folder_line(ui, &shown, &at))
     }
 
     /// "This computer" with a phone or a server open: home and, with a server, the drives.
@@ -376,8 +390,9 @@ impl App {
             ui.spacing_mut().scroll = floating;
             ui.separator();
         }
-        self.server_block(ui);
+        // Tab goes through the folders of the open server too (under its name).
         self.tree_split = self.tree_rows.len();
+        let server_tree = self.server_block(ui);
         // With a device open the tree would be a duplicate: in its place, the way back home.
         // The way back is also needed if the open phone was unplugged (its error stays below).
         // With a phone or a server open, the computer stays one click away: home and the drives.
@@ -385,7 +400,8 @@ impl App {
         let remote = self.base.contains("://");
         if device_open || remote {
             self.way_home(ui, &internal, remote);
-            if device_open {
+            // The open device or saved server already shows its folders under its name.
+            if device_open || server_tree {
                 return;
             }
             ui.separator();
