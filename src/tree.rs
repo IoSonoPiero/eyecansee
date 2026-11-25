@@ -348,39 +348,7 @@ impl App {
                 // the tree; otherwise a click opens the device as a source (also the directly
                 // connected ones, `mtp://`), and from there it is browsed here.
                 for (i, d) in external.iter().enumerate() {
-                    let icon = if d.phone { Icon::Phone } else { Icon::Disk };
-                    let label = d.name.clone();
-                    let (rect, clicked) = if let Some(block) = &d.block {
-                        // Not mounted: dimmed name, a click mounts it.
-                        let hint = self.i18n.t_args("device-mount-hint", &[("device", block)]);
-                        let r = leaf(ui, icon, egui::RichText::new(label).weak()).on_hover_text(hint);
-                        (r.rect, r.clicked())
-                    } else if d.path == self.base {
-                        self.tree_node(ui, "device", String::new(), icon, &label, true)
-                    } else if local && d.path.starts_with('/') {
-                        let dir = d.path.trim_start_matches('/').to_string();
-                        self.tree_node(ui, "device", dir, icon, &label, true)
-                    } else {
-                        let r = leaf(ui, icon, label);
-                        (r.rect, r.clicked())
-                    };
-                    if clicked {
-                        self.focus = Focus::Devices(i);
-                        // The tree node has already opened its folder.
-                        if d.block.is_some() || !(d.path == self.base || local && d.path.starts_with('/')) {
-                            let ctx = ui.ctx().clone();
-                            self.open_device(&ctx, d);
-                        }
-                    }
-                    if self.focus == Focus::Devices(i) {
-                        let stroke = ui.visuals().selection.stroke;
-                        ui.painter().rect_stroke(rect.expand(1.0), 2.0, stroke, egui::StrokeKind::Outside);
-                        // Only when arriving from the keyboard: on every frame the mouse wheel
-                        // could not scroll away from the device.
-                        if std::mem::take(&mut self.scroll_to_device) {
-                            ui.scroll_to_rect(rect, None);
-                        }
-                    }
+                    self.device_row(ui, i, d, local);
                 }
             });
             ui.spacing_mut().scroll = floating;
@@ -423,6 +391,44 @@ impl App {
                 }
             }
         });
+    }
+
+    /// One device of the Devices block: a tree node when it is open or, with this computer
+    /// open, a folder of it; otherwise a row that opens it (dimmed and mounting it if needed).
+    fn device_row(&mut self, ui: &mut Ui, i: usize, d: &Device, local: bool) {
+        let icon = if d.phone { Icon::Phone } else { Icon::Disk };
+        let label = d.name.clone();
+        let (rect, clicked) = if let Some(block) = &d.block {
+            // Not mounted: dimmed name, a click mounts it.
+            let hint = self.i18n.t_args("device-mount-hint", &[("device", block)]);
+            let r = leaf(ui, icon, egui::RichText::new(label).weak()).on_hover_text(hint);
+            (r.rect, r.clicked())
+        } else if d.path == self.base {
+            self.tree_node(ui, "device", String::new(), icon, &label, true)
+        } else if local && d.path.starts_with('/') {
+            let dir = d.path.trim_start_matches('/').to_string();
+            self.tree_node(ui, "device", dir, icon, &label, true)
+        } else {
+            let r = leaf(ui, icon, label);
+            (r.rect, r.clicked())
+        };
+        if clicked {
+            self.focus = Focus::Devices(i);
+            // The tree node has already opened its folder.
+            if d.block.is_some() || !(d.path == self.base || local && d.path.starts_with('/')) {
+                let ctx = ui.ctx().clone();
+                self.open_device(&ctx, d);
+            }
+        }
+        if self.focus == Focus::Devices(i) {
+            let stroke = ui.visuals().selection.stroke;
+            ui.painter().rect_stroke(rect.expand(1.0), 2.0, stroke, egui::StrokeKind::Outside);
+            // Only when arriving from the keyboard: on every frame the mouse wheel
+            // could not scroll away from the device.
+            if std::mem::take(&mut self.scroll_to_device) {
+                ui.scroll_to_rect(rect, None);
+            }
+        }
     }
 
     /// `salt` tells apart the same path shown in two blocks (devices and tree).
