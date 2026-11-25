@@ -278,6 +278,10 @@ status-videos = Video: { $n }
 status-audio = Audio: { $n }
 status-deleting = Eliminazione in corso: { $n }…
 status-file-removed = { $name } è stato rimosso dal dispositivo.
+delete-phone-busy = Il telefono sta { $what ->
+        [move] spostando
+       *[other] copiando
+    } { $name } ({ $s } s): **{ $button }** si attiva quando ha finito.
 status-phone-working = Il telefono sta { $what ->
         [move] spostando
        *[other] copiando

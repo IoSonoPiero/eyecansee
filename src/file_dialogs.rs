@@ -283,13 +283,18 @@ impl App {
     pub(crate) fn delete_window(&mut self, ctx: &egui::Context) {
         let Some((paths, size, how, ntfs)) = self.delete_confirm.clone() else { return };
         let folders = paths.iter().any(|p| p.ends_with('/')) && !source::is_trash(&paths[0]);
-        let text = self.delete_text(&paths, size, how, ntfs);
+        // The button says what happens: to the trash, or deleted for good.
+        let yes = self.i18n.t(if how == source::Deletion::Permanent { "delete-yes" } else { "delete-move-to-trash" });
+        let mut text = self.delete_text(&paths, size, how, ntfs);
         let reading = matches!(self.delete_check, Some(DeleteCheck::Checking(_)));
+        // A folder's check waits for a phone busy copying or moving a file itself: said, or the
+        // grey Delete looked broken (Piero, 25/11).
+        if reading && let Some((what, name, s)) = self.base.starts_with("mtp://").then(crate::mtp::working).flatten() {
+            text = format!("{text}\n\n{}", self.i18n.t_args("delete-phone-busy", &[("what", &what), ("name", &crate::save_dialogs::md(&name)), ("s", &s.to_string()), ("button", &yes)]));
+        }
         if reading {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
-        // The button says what happens: to the trash, or deleted for good.
-        let yes = self.i18n.t(if how == source::Deletion::Permanent { "delete-yes" } else { "delete-move-to-trash" });
         let no = self.i18n.t("delete-no");
         let keys = crate::confirm::answer(ctx, &mut self.key_answer, "delete").map(|enter| enter && !folders);
         // Cancel highlighted when the deletion cannot be undone, and for folders (#311).

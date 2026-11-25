@@ -280,6 +280,10 @@ status-videos = Videos: { $n }
 status-audio = Audio: { $n }
 status-deleting = Deleting { $n }…
 status-file-removed = { $name } was removed from the device.
+delete-phone-busy = The phone is { $what ->
+        [move] moving
+       *[other] copying
+    } { $name } ({ $s } s): **{ $button }** turns on when it is done.
 status-phone-working = The phone is { $what ->
         [move] moving
        *[other] copying
