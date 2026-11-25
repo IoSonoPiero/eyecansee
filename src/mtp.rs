@@ -95,7 +95,13 @@ struct Waiting;
 
 impl Waiting {
     fn start(what: &str, path: &str) -> Self {
-        *WAITING.lock().unwrap() = Some((what.to_string(), path.to_string(), std::time::Instant::now()));
+        Self::start_at(what, path, std::time::Instant::now())
+    }
+
+    /// A call that goes on from `since`: the phone still copying after mtp-rs gave the call up
+    /// (`across`), counted from its start, so the status line neither restarts nor disappears.
+    fn start_at(what: &str, path: &str, since: std::time::Instant) -> Self {
+        *WAITING.lock().unwrap() = Some((what.to_string(), path.to_string(), since));
         Waiting
     }
 
@@ -446,10 +452,11 @@ impl Phone {
         if new_name != source::name(path) {
             self.queued("rename", path, storage.rename(handle, new_name)).await.map_err(error)?;
         }
+        let began = std::time::Instant::now();
         match (self.queued("move", path, storage.move_object(handle, folder, Some(to.id()))).await, size) {
             // To the other storage, past the 30 s mtp-rs waits: the phone is still moving it.
             (Err(mtp_rs::Error::Timeout), Some(size)) => {
-                self.finished_by_phone("move", path, (&to, folder), (new_name, size), Some((&storage, handle))).await?;
+                self.finished_by_phone(("move", began), path, (&to, folder), (new_name, size), Some((&storage, handle))).await?;
             }
             (r, _) => r.map_err(error)?,
         }
@@ -650,10 +657,11 @@ impl Phone {
         };
         let size = self.size_across(path, (&storage, handle), &to).await?;
         let _quiet = size.map(|_| self.quiet());
+        let began = std::time::Instant::now();
         let h = match (self.queued("copy", path, self.marked(storage.copy_object(handle, folder, Some(to.id())))).await, size) {
             // To the other storage, past the 30 s mtp-rs waits: the phone is still copying it.
             (Err(mtp_rs::Error::Timeout), Some(size)) => {
-                let h = self.finished_by_phone("copy", path, (&to, folder), (source::name(path), size), None).await?;
+                let h = self.finished_by_phone(("copy", began), path, (&to, folder), (source::name(path), size), None).await?;
                 self.own.mark(h);
                 h
             }

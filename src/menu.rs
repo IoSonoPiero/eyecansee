@@ -271,26 +271,38 @@ impl App {
     /// (`waiting_line`). On Windows after `mtp::STALL_SECS` it is taken for WPD's stall: a short
     /// line here, what to do in the window of `phone_stall`.
     pub(crate) fn phone_waiting(&self, ui: &mut egui::Ui) {
-        let Some((name, secs, what)) = crate::mtp::waiting(3) else { return };
-        let (id, warning) = waiting_line(&what, secs, !name.is_empty(), cfg!(windows));
-        let text = self.i18n.t_args(id, &[("s", &secs.to_string()), ("name", &name), ("what", &what)]);
+        let Some(text) = self.phone_line() else { return };
         ui.add(egui::Spinner::new().color(Color32::WHITE));
-        ui.label(if warning { crate::theme::alert(text) } else { egui::RichText::new(text) });
+        ui.label(text);
         ui.separator();
         ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
+    }
+
+    /// `phone_waiting` at the right end of the grid's status bar, next to Keys, under the window
+    /// of a copy (Piero, 25/11: on the left it was not seen). Drawn right to left.
+    pub(crate) fn phone_waiting_right(&self, ui: &mut egui::Ui) {
+        let Some(text) = self.phone_line() else { return };
+        ui.label(text);
+        ui.add(egui::Spinner::new().color(Color32::WHITE));
+        ui.separator();
+        ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
+    }
+
+    /// The text of the phone's status line, if a call has been waiting for 3 s (`waiting_line`).
+    fn phone_line(&self) -> Option<egui::RichText> {
+        let (name, secs, what) = crate::mtp::waiting(3)?;
+        let (id, warning) = waiting_line(&what, secs, !name.is_empty(), cfg!(windows));
+        let text = self.i18n.t_args(id, &[("s", &secs.to_string()), ("name", &name), ("what", &what)]);
+        Some(if warning { crate::theme::alert(text) } else { egui::RichText::new(text) })
     }
 
     /// How many folders and images there are, and name and size of the selected item.
     /// On the solid accent colour (style "B"), all in white.
     pub(crate) fn status_bar(&self, ui: &mut egui::Ui) {
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
-        // A stalled phone never sends the listing: the warning is all the bar has then.
-        let Some(Ok(l)) = self.listings.get(&self.dir) else {
-            ui.horizontal(|ui| self.phone_waiting(ui));
-            return;
-        };
+        // The phone's line is at the right end (`phone_waiting_right`, in `frame`).
+        let Some(Ok(l)) = self.listings.get(&self.dir) else { return };
         ui.horizontal(|ui| {
-            self.phone_waiting(ui);
             if self.deleting > 0 {
                 ui.add(egui::Spinner::new().color(Color32::WHITE));
                 ui.label(crate::theme::alert(self.i18n.t_args("status-deleting", &[("n", &self.deleting.to_string())])));

@@ -80,6 +80,9 @@ pub struct Progress {
     pub looked: Mutex<f64>,
     /// When the copy itself started, after looking: the UI works out speed and time left from it.
     pub started: OnceLock<Instant>,
+    /// When the paste began, counting its looking inside folders and the phone working by itself
+    /// (`App::tell_transfer`: a long one says when it ends).
+    pub begun: OnceLock<Instant>,
     /// Name of the file being copied.
     pub current: Mutex<String>,
     pub cancel: AtomicBool,
@@ -334,6 +337,7 @@ fn left_below(src: &str, p: &Progress) -> bool {
 }
 
 async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress, gone: &mut Vec<String>) -> Result<(), Error> {
+    let _ = p.begun.set(Instant::now());
     let same = clip.base == to_base;
     let present = Names::read(to, to_dir).await?;
     let here = in_own_folder(clip, to_base, to_dir, dest_place(clip, to, to_base, to_dir).await.as_ref()).await;

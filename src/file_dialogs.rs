@@ -156,7 +156,14 @@ impl App {
         let Some((p, cut, base, dest)) = &self.transfer else { return };
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
         let phase = p.phase();
-        let (current, counts, left) = self.transfer_lines(p, &phase);
+        let (current, mut counts, mut left) = self.transfer_lines(p, &phase);
+        // The phone moving or copying a file itself (between its storages, minutes for a big one):
+        // it says nothing of how far it is, so no percentage but a bar that goes to and fro.
+        let working = crate::mtp::working();
+        if let Some((what, name, s)) = &working {
+            counts = self.i18n.t_args("status-phone-working", &[("what", what), ("name", name), ("s", &s.to_string())]);
+            left = String::new();
+        }
         let to = self.i18n.t_args("transfer-to", &[("dir", &shown(base, dest))]);
         let cancelling = p.cancel.load(Ordering::Relaxed);
         let shown = egui::Window::new(self.i18n.t(if *cut { "transfer-moving" } else { "transfer-copying" }))
@@ -173,7 +180,11 @@ impl App {
                 ui.scope(|ui| {
                     ui.visuals_mut().extreme_bg_color = ui.visuals().widgets.inactive.bg_fill;
                     let fill = theme::accent(ui.visuals());
-                    ui.add(egui::ProgressBar::new(phase.fraction()).fill(fill).desired_height(16.0).show_percentage());
+                    if working.is_some() {
+                        busy_bar(ui, fill);
+                    } else {
+                        ui.add(egui::ProgressBar::new(phase.fraction()).fill(fill).desired_height(16.0).show_percentage());
+                    }
                 });
                 // Reached with Tab after the folders of the tree (`box_keys`, #311).
                 let cancel = ui.add_enabled(!cancelling, egui::Button::new(self.i18n.t("delete-no")));
@@ -367,7 +378,17 @@ impl App {
                 let n = Notice { job: true, ..n };
                 self.job_ended(crate::jobs_report::Part::of_notice(&n), None, crate::jobs_report::Waiting::Notice(n));
             }
-            None => self.quiet_job(crate::jobs_report::quiet_copy(&self.i18n, cut, to, r, p)),
+            // A long one (a big file the phone moved, minutes) ends with a message, not in silence
+            // (Piero, 25/11); a short one quietly, as before.
+            None => {
+                let part = crate::jobs_report::quiet_copy(&self.i18n, cut, to, r, p);
+                if r.is_ok() && p.begun.get().is_some_and(|t| t.elapsed() >= LONG_JOB) {
+                    let n = Notice { job: true, ..Notice::new(part.title.clone(), part.text.clone()) };
+                    self.job_ended(part, None, crate::jobs_report::Waiting::Notice(n));
+                } else {
+                    self.quiet_job(part);
+                }
+            }
         }
     }
 
@@ -555,6 +576,25 @@ pub(crate) fn transfer_notice(i18n: &crate::i18n::I18n, cut: bool, to: &str, r: 
     let to = i18n.t_args("transfer-to", &[("dir", &crate::save_dialogs::md(&crate::address::without_password(to)))]);
     let told = told(i18n, i18n.t(title), &to, parts);
     Some(if links.is_empty() { told } else { with_guide(i18n, told, "help:copy-move") })
+}
+
+/// A copy or a move lasting at least this long says when it ends (`tell_transfer`).
+const LONG_JOB: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// A bar without a percentage: a block going to and fro on the track, while the phone works and
+/// says nothing of how far it is (`transfer_window`).
+fn busy_bar(ui: &mut egui::Ui, fill: egui::Color32) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 16.0), egui::Sense::hover());
+    let painter = ui.painter();
+    // A darker track with its edge: the light one was hardly seen (Piero, 25/11).
+    painter.rect_filled(rect, 4.0, ui.visuals().widgets.inactive.bg_fill);
+    painter.rect_stroke(rect, 4.0, egui::Stroke::new(1.0, ui.visuals().weak_text_color()), egui::StrokeKind::Inside);
+    let t = ui.input(|i| i.time) as f32 / 1.5;
+    let at = 1.0 - ((t % 2.0) - 1.0).abs();
+    let width = rect.width() * 0.25;
+    let x = rect.left() + (rect.width() - width) * at;
+    painter.rect_filled(egui::Rect::from_min_size(egui::pos2(x, rect.top()), egui::vec2(width, rect.height())), 4.0, fill);
+    ui.ctx().request_repaint();
 }
 
 #[cfg(test)]

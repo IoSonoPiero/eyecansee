@@ -52,15 +52,15 @@ impl Phone {
         Ok(Some(self.queued("info", path, from.get_object_info(handle)).await.map_err(error)?.size))
     }
 
-    /// After a copy or a move of `path` into `folder` of the storage `to`, given up by mtp-rs at
+    /// After a copy or a move of `path` (begun at `began`) into `folder` of the storage `to`, given up by mtp-rs at
     /// 30 s: the phone is still at it. Its turn is kept, so nothing else is asked meanwhile but the
     /// destination, read every few seconds (a reading while the phone works is given up at 30 s
     /// too, and mtp-rs goes on), until `name` is there with `size` bytes and, for a move, the item
     /// `moved` is no longer on its storage. The handle of what arrived.
-    pub(super) async fn finished_by_phone(&self, what: &str, path: &str, (to, folder): (&Storage, ObjectHandle), (name, size): (&str, u64), moved: Option<(&Storage, ObjectHandle)>) -> Result<ObjectHandle, Error> {
+    pub(super) async fn finished_by_phone(&self, (what, began): (&str, std::time::Instant), path: &str, (to, folder): (&Storage, ObjectHandle), (name, size): (&str, u64), moved: Option<(&Storage, ObjectHandle)>) -> Result<ObjectHandle, Error> {
         let start = std::time::Instant::now();
         let _turn = self.turn.lock().await;
-        let _waiting = Waiting::start(what, path);
+        let _waiting = Waiting::start_at(what, path, began);
         log!("phone {}: {what} {path}: the phone is still at it ({size} bytes), its result looked for", self.serial);
         let parent = (folder != ObjectHandle::ROOT).then_some(folder);
         while start.elapsed() < deadline(size) {
