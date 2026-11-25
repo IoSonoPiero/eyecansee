@@ -223,7 +223,9 @@ impl App {
                 // started; the first second gives no meaningful estimate.
                 let left = p.started.get().map(|t| t.elapsed().as_secs_f64()).filter(|&secs| secs >= 1.0 && done > 0).map(|secs| {
                     let average = done as f64 / secs;
-                    let speed = p.recent.lock().unwrap().speed(secs, done).unwrap_or(average);
+                    // No bytes in the last seconds while the phone copies a file itself (they come all
+                    // at once at its end): the average then, not "0 KB/s" (Piero, 25/11).
+                    let speed = p.recent.lock().unwrap().speed(secs, done).filter(|s| *s > 0.0).unwrap_or(average);
                     self.i18n.t_args("transfer-left", &[
                         ("percent", &(done * 100 / total.max(1)).to_string()),
                         ("speed", &self.human_size(speed as u64)),
