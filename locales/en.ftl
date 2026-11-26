@@ -183,7 +183,7 @@ phone-copy-title = The phone is copying
 phone-copy-file = { $name } ({ $size }), for { $s } s
 phone-copy-counts = File { $n } of { $total }, { $done } of { $size }
 phone-copy-one = The phone does not say how far it is: no bar until it is done.
-phone-copy-speed = Speed measured on the big files already copied: { $speed }/s. About { $time } to the end.
+phone-copy-speed = Speed measured on the big files already copied: { $speed }/s. About { $time } left.
 phone-copy-notice = The phone copies by itself, much faster than through the computer. While it works it answers nothing: that is why EyeCanSee waits. Do not unplug the phone.
 phone-copy-why = Why do I have to wait?
 # The title of the section of the guide's page phone.md that `phone-copy-why` opens: the same words.

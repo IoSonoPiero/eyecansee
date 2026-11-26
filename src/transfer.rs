@@ -284,7 +284,8 @@ async fn renames(clip: &Clip, (to, to_dir, same): (&Store, &str, bool), plan: Ve
 async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress, gone: &mut Vec<String>) -> Result<(), Error> {
     let _ = p.begun.set(Instant::now());
     let same = clip.base == to_base;
-    p.by_phone.decide(by_phone::by_phone(clip.cut, same && matches!(to, Store::Mtp(_)), &clip.paths, to_dir));
+    // The same session as `copy_file` tells it: a phone plugged in again between copy and paste is another.
+    p.by_phone.decide(by_phone::by_phone(clip.cut, matches!((&clip.op, to), (Store::Mtp(a), Store::Mtp(b)) if std::sync::Arc::ptr_eq(a, b)), &clip.paths, to_dir));
     let present = Names::read(to, to_dir).await?;
     let here = in_own_folder(clip, to_base, to_dir, dest_place(clip, to, to_base, to_dir).await.as_ref()).await;
     let plan = planned(clip, to, to_dir, &here, choices, &present, &sidecars(clip).await);

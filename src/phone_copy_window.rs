@@ -115,7 +115,8 @@ mod tests {
 
     /// The app on a folder of three pictures, the grid on the last one, and a paste the phone
     /// copies inside one storage set on it directly (no phone): its files counted, the second of
-    /// three under way, the phone among the devices.
+    /// three under way. The phone is not among the devices: a list from the devices' watcher,
+    /// arriving late, would take it away.
     fn copying(name: &str) -> (Harness, Arc<crate::transfer::Progress>) {
         let mut h = Harness::new(&folder(name, &["a.png", "b.png", "c.png"]));
         (h.app.cursor, h.app.selected, h.app.focus) = (true, 2, crate::Focus::Grid);
@@ -126,7 +127,6 @@ mod tests {
         p.total.store(3 << 30, Ordering::Relaxed);
         p.by_phone.begin("big.mp4", 1 << 30);
         let _ = p.started.set(std::time::Instant::now());
-        h.app.devices.push(crate::devices::Device { name: "Test phone".into(), path: PHONE.into(), phone: true, serial: Some("TESTPHONE".into()), block: None, internal: false });
         h.app.transfer = Some((p.clone(), false, PHONE.into(), "Internal storage/Download/".into()));
         for _ in 0..3 {
             h.frame(Vec::new());
@@ -204,6 +204,7 @@ mod tests {
         }
         let (mut h, _p) = copying("phone-copy-unplugged");
         assert!(open(&h.app));
+        h.app.devices.push(crate::devices::Device { name: "Test phone".into(), path: PHONE.into(), phone: true, serial: Some("TESTPHONE".into()), block: None, internal: false });
         let left: Vec<_> = h.app.devices.iter().filter(|d| d.serial.as_deref() != Some("TESTPHONE")).cloned().collect();
         h.app.tx.send(crate::loader::Msg::Devices(left)).unwrap();
         h.until(|a| !a.phone_copy_modal(), "the window no longer modal");
