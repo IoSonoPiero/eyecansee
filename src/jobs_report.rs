@@ -1,8 +1,6 @@
 //! One report when several jobs in the corner boxes end (#328), and messages that wait for the
 //! one open instead of taking its place (#329).
 
-use std::sync::atomic::Ordering;
-
 use eframe::egui;
 
 use crate::App;
@@ -80,40 +78,6 @@ impl Waiting {
         report.open = report.open.take().or(open);
         true
     }
-}
-
-/// The part of a copy that ended with nothing to say alone, for a report with more jobs:
-/// cancelled, finished, or stopped by an error the red bar says (`r`); `cut`: a move.
-pub(crate) fn quiet_copy(i18n: &crate::i18n::I18n, cut: bool, to: &str, r: &Result<(), crate::source::Error>, p: &crate::transfer::Progress) -> Part {
-    let (files, total) = (p.files.load(Ordering::Relaxed), p.files_total.load(Ordering::Relaxed));
-    let dir = md(&crate::address::without_password(to));
-    let to_line = || i18n.t_args("transfer-to", &[("dir", &dir)]);
-    // One line, as Convert's "3 files saved in …" (Piero, 24/11): the count and the folder.
-    let counted = |id: &str, n: usize| i18n.t_args(id, &[("n", &n.to_string()), ("total", &total.to_string()), ("dir", &dir)]);
-    let (title, text) = match r {
-        Err((id, _)) if *id == "error-cancelled" => {
-            let text = if total > 0 { counted(if cut { "transfer-moved-before-cancel" } else { "transfer-done-before-cancel" }, files) } else { to_line() };
-            (if cut { "transfer-move-cancelled" } else { "transfer-copy-cancelled" }, text)
-        }
-        Ok(()) => {
-            let text = if total > 0 { counted(if cut { "transfer-files-moved" } else { "transfer-files-copied" }, total) } else { to_line() };
-            // How much, in how long, how fast on average (Piero, 25/11).
-            let done = p.done.load(Ordering::Relaxed);
-            let secs = p.begun.get().map_or(0.0, |t| t.elapsed().as_secs_f64());
-            let text = match (done, secs) {
-                (0, _) => text,
-                (_, s) if s < 1.0 => text,
-                (d, s) => format!("{text}\n{}", i18n.t_args("transfer-summary", &[
-                    ("size", &crate::human::size(i18n, d)),
-                    ("time", &crate::human::human_time(s.round() as u64)),
-                    ("speed", &crate::human::size(i18n, (d as f64 / s) as u64)),
-                ])),
-            };
-            (if cut { "transfer-moved" } else { "transfer-copied" }, text)
-        }
-        Err((id, detail)) => (if cut { "transfer-move-stopped" } else { "transfer-copy-stopped" }, format!("{}\n{}", to_line(), md(&i18n.error(id, detail)))),
-    };
-    Part { title: i18n.t(title), copy: plain(&text), text, groups: Vec::new(), warning: false, help: None }
 }
 
 impl App {
@@ -489,28 +453,5 @@ mod tests {
         h.key(egui::Key::Enter);
         h.frame(Vec::new());
         assert!(h.app.notice.is_none() && h.app.waiting.is_empty());
-    }
-
-    /// The part of a quiet copy, in English and Italian: finished, moved, cancelled, stopped.
-    #[test]
-    fn quiet_copy_says_what_happened() {
-        use super::quiet_copy;
-        let p = crate::transfer::Progress::default();
-        p.files.store(1, Ordering::Relaxed);
-        p.files_total.store(3, Ordering::Relaxed);
-        for (lang, done, moved, cancelled) in [
-            ("en", "Copy finished|3 files copied to /to/.", "Move finished|3 files moved to /to/.", "Copy cancelled|1 of 3 files copied to /to/ before Cancel."),
-            ("it", "Copia finita|3 file copiati in /to/.", "Spostamento finito|3 file spostati in /to/.", "Copia annullata|1 file su 3 copiati in /to/ prima di Annulla."),
-        ] {
-            let i18n = crate::i18n::I18n::new(lang);
-            let said = |cut, r: Result<(), crate::source::Error>| {
-                let part = quiet_copy(&i18n, cut, "/to/", &r, &p);
-                format!("{}|{}", part.title, part.copy)
-            };
-            assert_eq!(said(false, Ok(())), done);
-            assert_eq!(said(true, Ok(())), moved);
-            assert_eq!(said(false, Err(("error-cancelled", String::new()))), cancelled);
-            assert!(said(false, Err(("error-no-host", "nas".into()))).starts_with(&i18n.t("transfer-copy-stopped")));
-        }
     }
 }
