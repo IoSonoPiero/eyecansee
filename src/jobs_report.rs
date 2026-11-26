@@ -17,16 +17,19 @@ pub(crate) struct Part {
     pub(crate) copy: String,
     pub(crate) warning: bool,
     pub(crate) help: Option<&'static str>,
+    /// The folder a copy went to, not the one open: Open the folder of a report when Convert gave
+    /// none (#356).
+    pub(crate) folder: Option<String>,
 }
 
 impl Part {
     pub(crate) fn of_notice(n: &Notice) -> Self {
         let copy = n.copy.clone().unwrap_or_else(|| plain(&n.text));
-        Part { title: n.title.clone(), text: n.text.clone(), groups: Vec::new(), copy, warning: n.warning, help: n.help }
+        Part { title: n.title.clone(), text: n.text.clone(), groups: Vec::new(), copy, warning: n.warning, help: n.help, folder: n.open.clone() }
     }
 
     pub(crate) fn of_summary(s: &Summary) -> Self {
-        Part { title: s.title.clone(), text: s.text.clone(), groups: s.groups.clone(), copy: s.copy.clone(), warning: false, help: Some("help:convert") }
+        Part { title: s.title.clone(), text: s.text.clone(), groups: s.groups.clone(), copy: s.copy.clone(), warning: false, help: Some("help:convert"), folder: None }
     }
 }
 
@@ -41,6 +44,12 @@ impl Report {
     /// What Copy takes: each part under its title, every name included.
     pub(crate) fn copied(&self) -> String {
         self.parts.iter().map(|p| format!("{}\n{}", p.title, p.copy)).collect::<Vec<_>>().join("\n\n")
+    }
+
+    /// Where Open the folder goes: Convert's folder, else the last copy's into a folder not open
+    /// (#356; Convert's was the only one before).
+    pub(crate) fn folder(&self) -> Option<String> {
+        self.open.clone().or_else(|| self.parts.iter().rev().find_map(|p| p.folder.clone()))
     }
 
     /// The guide's page for F1: the copy's when a part names it, else the first a part gives.
@@ -68,7 +77,7 @@ impl Waiting {
                 r
             }
             Waiting::Notice(n) if n.job => {
-                *self = Waiting::Report(Report { parts: vec![Part::of_notice(n)], open: n.open.clone() });
+                *self = Waiting::Report(Report { parts: vec![Part::of_notice(n)], open: None });
                 let Waiting::Report(r) = self else { unreachable!() };
                 r
             }
@@ -199,12 +208,12 @@ impl App {
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 let mut labels = vec![(close_label.clone(), true)];
-                if r.open.is_some() {
+                if r.folder().is_some() {
                     labels.push((open_label.clone(), !covered));
                 }
                 match crate::confirm::buttons_hint(ui, id, &labels, 0, &[None, Some(covered_hint.clone())]) {
                     Some(0) => close = true,
-                    Some(_) => go = r.open.clone(),
+                    Some(_) => go = r.folder(),
                     None => {}
                 }
             });
@@ -428,6 +437,29 @@ mod tests {
         h.frame(Vec::new());
         copy_ends(&mut h, false, Ok(()));
         assert!(h.app.notice.is_none() && h.app.jobs_quiet.is_empty(), "a quiet copy alone said something, or was kept");
+    }
+
+    /// #356: a report of a Convert and a copy into a folder not open opens Convert's folder, in
+    /// both orders, as before copies had one; the copy's when Convert has none, or with an export.
+    #[test]
+    fn convert_folder_before_the_copy_folder() {
+        use super::{Part, Waiting};
+        let copy = || Waiting::Notice(crate::save_dialogs::Notice { job: true, open: Some("/copied/".into()), ..message("Copy finished") });
+        let copy_part = || match copy() {
+            Waiting::Notice(n) => Part::of_notice(&n),
+            _ => unreachable!(),
+        };
+        let convert = |open: Option<&str>| crate::batch_summary::Summary { title: "Convert".into(), text: String::new(), groups: Vec::new(), open: open.map(String::from), copy: String::new() };
+        let joined = |mut w: Waiting, part: Part, open: Option<&str>| {
+            assert!(w.join(part, open.map(String::from)));
+            let Waiting::Report(r) = w else { panic!("not a report") };
+            r.folder()
+        };
+        let convert_part = |open| Part::of_summary(&convert(open));
+        assert_eq!(joined(copy(), convert_part(Some("/converted/")), Some("/converted/")).as_deref(), Some("/converted/"), "copy first");
+        assert_eq!(joined(Waiting::Summary(convert(Some("/converted/"))), copy_part(), None).as_deref(), Some("/converted/"), "Convert first");
+        assert_eq!(joined(Waiting::Summary(convert(None)), copy_part(), None).as_deref(), Some("/copied/"), "Convert saved in the folder open");
+        assert_eq!(joined(copy(), Part { folder: None, ..copy_part() }, None).as_deref(), Some("/copied/"), "a copy, then a job with no folder");
     }
 
     /// #329: a message that comes while another is open waits and shows when the first is

@@ -18,12 +18,13 @@ impl App {
         // Open the folder, when it is not the one open, where the last item pasted is selected
         // already (#323, #356).
         let open = (to != crate::navigation::shown(&self.base, &self.dir)).then(|| to.to_string());
-        // A part of the report of the jobs when another job's is up, or remembered for it (#328);
-        // alone it waits behind a message open (#329).
+        // A part of the report of the jobs when another job's is up, or remembered for it (#328),
+        // its folder there only when Convert gives none (`Report::folder`); alone it waits behind a
+        // message open (#329).
         match transfer_notice(&self.i18n, cut, to, r, p) {
             Some(n) => {
                 let n = Notice { job: true, open: open.clone(), ..n };
-                self.job_ended(Part::of_notice(&n), open, crate::jobs_report::Waiting::Notice(n));
+                self.job_ended(Part::of_notice(&n), None, crate::jobs_report::Waiting::Notice(n));
             }
             // A long one (a big file the phone moved, minutes) ends with a message, not in silence
             // (Piero, 25/11); a short one quietly, as before.
@@ -31,7 +32,7 @@ impl App {
                 let part = quiet_copy(&self.i18n, cut, to, r, p);
                 if r.is_ok() && p.begun.get().is_some_and(|t| t.elapsed() >= LONG_JOB) {
                     let n = Notice { job: true, open: open.clone(), ..Notice::new(part.title.clone(), part.text.clone()) };
-                    self.job_ended(part, open, crate::jobs_report::Waiting::Notice(n));
+                    self.job_ended(Part { folder: open, ..part }, None, crate::jobs_report::Waiting::Notice(n));
                 } else {
                     self.quiet_job(part);
                 }
@@ -57,7 +58,7 @@ pub(crate) fn quiet_copy(i18n: &crate::i18n::I18n, cut: bool, to: &str, r: &Resu
         Ok(()) => (if cut { "transfer-moved" } else { "transfer-copied" }, ended_lines(i18n, &Done::of(p, cut), &dir)),
         Err((id, detail)) => (if cut { "transfer-move-stopped" } else { "transfer-copy-stopped" }, format!("{}\n{}", to_line(), md(&i18n.error(id, detail)))),
     };
-    Part { title: i18n.t(title), copy: plain(&text), text, groups: Vec::new(), warning: false, help: None }
+    Part { title: i18n.t(title), copy: plain(&text), text, groups: Vec::new(), warning: false, help: None, folder: None }
 }
 
 /// What the end of a copy (`cut`: a move) into `to` has to say, all in one window
@@ -463,7 +464,7 @@ mod tests {
         let p = two_of_three();
         *p.failed.lock().unwrap() = vec![("a/c.jpg".to_string(), ("error-detail", "timeout".to_string()))];
         let n = super::transfer_notice(&crate::i18n::I18n::new("en"), false, "/in/", &Ok(()), &p).unwrap();
-        assert!(plain(&n.text).starts_with("2 files copied to /in/.\n2.0 MB in 12 s, "), "{}", n.text);
+        assert!(plain(&n.text).starts_with("2 files copied to /in/.\n2.0 MB in "), "{}", n.text);
         assert!(plain(&n.text).contains("/s on average.\n\n1 file not read:\n"), "{}", n.text);
         assert!(n.text.starts_with(&format!("**2 files** copied to {}", md("/in/"))), "{}", n.text);
         // Stopped at an error (the error bar says it): where it went, as before.

@@ -84,7 +84,7 @@ Alla fine un riepilogo, con il nome del comando come titolo, dice:
 
 **Apri la cartella** mostra le miniature della cartella in cui sono andati i file, su questo computer, su un telefono o su un server; c'è solo se qualcosa è stato salvato in un'altra cartella, non in quella che stai guardando, ed è grigio mentre una pagina (l'editor, Salva come, la presentazione o i duplicati) copre le miniature. **Chiudi**, **Invio** o **Esc** chiudono il riepilogo.
 
-Quando una copia o uno spostamento finisce mentre questo riepilogo è aperto, o finisce con qualcosa da dire mentre il lavoro va avanti, il resoconto è uno solo, **Lavori finiti**, con una parte per ogni lavoro, nell'ordine in cui sono finiti: **Invio** o **Esc** lo chiudono tutto. Un messaggio che arriva mentre un altro è aperto aspetta che si chiuda.
+Quando una copia o uno spostamento finisce mentre questo riepilogo è aperto, o finisce con qualcosa da dire mentre il lavoro va avanti, il resoconto è uno solo, **Lavori finiti**, con una parte per ogni lavoro, nell'ordine in cui sono finiti: **Invio** o **Esc** lo chiudono tutto. Il suo **Apri la cartella** mostra la cartella della conversione; se la conversione non ne ha, quella di una copia andata in una cartella che non è sullo schermo. Un messaggio che arriva mentre un altro è aperto aspetta che si chiuda.
 
 ## Da sapere
 
