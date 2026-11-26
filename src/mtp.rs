@@ -26,6 +26,7 @@ const LONG_COPY: u64 = 32 << 20;
 
 mod across;
 mod events;
+mod storages;
 pub use events::{Change, on_change, take_changes};
 
 /// Device storages with the name shown as a folder.
@@ -262,16 +263,10 @@ impl Phone {
                 let _waiting = Waiting::start("open", "");
                 let device = open(&self.serial).await.map_err(|e| self.open_failed(e))?;
                 log!("phone {} opened in {:.2} s", self.serial, t.elapsed().as_secs_f32());
-                let mut storages = Vec::new();
                 let found = device.storages().await.map_err(|e| not_ready(error(e)))?;
                 log!("phone {} storages in {:.2} s", self.serial, t.elapsed().as_secs_f32());
-                for s in found {
-                    let name = match s.info().description.trim() {
-                        "" => format!("{}", s.id().0),
-                        d => d.to_string(),
-                    };
-                    storages.push((name, Arc::new(s)));
-                }
+                let names = storages::storage_names(&found.iter().map(|s| (s.info().description.clone(), s.id().0)).collect::<Vec<_>>());
+                let storages: Vec<_> = names.into_iter().zip(found.into_iter().map(Arc::new)).collect();
                 // Phone locked or in "charging only": it opens but exposes no storage.
                 if storages.is_empty() {
                     return Err(("error-no-storage", self.serial.clone()));
@@ -287,14 +282,8 @@ impl Phone {
     /// Storage and handle of a folder or file; `None` = root of the storage.
     async fn locate(&self, path: &str) -> Result<(Arc<Storage>, Option<ObjectHandle>), Error> {
         let trimmed = path.trim_end_matches('/');
-        let (first, rest) = trimmed.split_once('/').unwrap_or((trimmed, ""));
-        let storage = self
-            .storages()
-            .await?
-            .iter()
-            .find(|(name, _)| name == first)
-            .map(|(_, s)| s.clone())
-            .ok_or((NOT_FOUND, path.to_string()))?;
+        let (storage, rest) = storages::find(self.storages().await?, path).ok_or((NOT_FOUND, path.to_string()))?;
+        let storage = storage.clone();
         if rest.is_empty() {
             return Ok((storage, None));
         }
