@@ -20,7 +20,8 @@ Fai doppio clic su un disegno, oppure selezionalo e premi **Invio**. Il disegno 
 | N, **Maiusc + N** | Modifica successiva, precedente, confrontando due disegni |
 | **Ctrl + Maiusc + S** | Salva come immagine |
 | F11 | Schermo intero |
-| Esc, doppio clic | Torna alla griglia |
+| Esc | Torna alla griglia |
+| Doppio clic | Torna alla griglia, oppure schermo intero e ritorno, come scelto nelle [Opzioni](options.md) |
 
 Quando la vista si ferma, la parte sullo schermo viene ridisegnata dal disegno, così linee sottili e testi piccoli restano nitidi a ogni ingrandimento. Il pulsante **Tasti** nella barra di stato elenca i tasti; con la Misura accesa, i tasti della Misura.
 

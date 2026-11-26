@@ -68,6 +68,31 @@ pub(crate) fn on_esc(step_back: bool, full: bool, repeat: bool) -> Esc {
     }
 }
 
+/// What a double click does in the viewer (#349).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Double {
+    /// Back to the grid (at full screen the window stays so, as up to 0.77.0).
+    Grid,
+    /// To full screen, as F11.
+    EnterFullScreen,
+    /// Out of full screen, the viewer stays.
+    LeaveFullScreen,
+    /// Nothing here: the double click is Measure's.
+    Nothing,
+}
+
+/// A double click in the viewer: `to_full`, "Goes to full screen" chosen in the Options;
+/// `full`: at full screen; `measuring`: Measure on, which keeps the double click (it closes an
+/// area on a drawing).
+pub(crate) fn on_double_click(to_full: bool, full: bool, measuring: bool) -> Double {
+    match (measuring, to_full, full) {
+        (true, ..) => Double::Nothing,
+        (false, false, _) => Double::Grid,
+        (false, true, false) => Double::EnterFullScreen,
+        (false, true, true) => Double::LeaveFullScreen,
+    }
+}
+
 impl App {
     /// The key shown beside "Back to the grid": Esc, unless Esc closes EyeCanSee from the viewer
     /// (the ✕ set to close it, #320); then Enter, which goes back in both cases.

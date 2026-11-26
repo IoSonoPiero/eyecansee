@@ -114,6 +114,17 @@ impl App {
         }
     }
 
+    /// A double click on the viewer (#349): back to the grid, or full screen in and out, as chosen
+    /// in the Options; while measuring, Measure's (`measuring`). The leaving and entering of F11.
+    pub(crate) fn viewer_double_click(&mut self, ctx: &egui::Context, measuring: bool) {
+        match crate::window_close::on_double_click(self.settings.double_click_full, full_screen(ctx), measuring) {
+            crate::window_close::Double::Grid => self.close_viewer(),
+            crate::window_close::Double::EnterFullScreen => enter_full(ctx),
+            crate::window_close::Double::LeaveFullScreen => ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false)),
+            crate::window_close::Double::Nothing => {}
+        }
+    }
+
     /// #311 (Piero, 24/11): in the viewer a button of the bars that has the keyboard (reached with
     /// Tab) keeps only Tab, Enter and Space, and on the zoom slider ← and →; any other key lets it
     /// go first, so the viewer reads the key as with nothing focused: Esc, the arrows, and the own
@@ -332,8 +343,8 @@ impl App {
         self.compare_left(current);
         let mut chosen = None;
         if let Some(response) = self.model_view(ui) {
-            if response.double_clicked() && !self.model.measure.on {
-                self.close_viewer();
+            if response.double_clicked() {
+                self.viewer_double_click(ui.ctx(), self.model.measure.on);
             }
             response.context_menu(|ui| {
                 chosen = browser::context_menu(ui, self.item_menu(None, None));
@@ -355,8 +366,8 @@ impl App {
             self.motion_bar(ui, rect);
             self.pano_bar(ui, rect);
             // While measuring a double click closes an area.
-            if response.double_clicked() && !self.model.measure.on {
-                self.close_viewer();
+            if response.double_clicked() {
+                self.viewer_double_click(ui.ctx(), self.model.measure.on);
             }
             response.context_menu(|ui| {
                 chosen = browser::context_menu(ui, self.item_menu(None, None));

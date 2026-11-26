@@ -432,7 +432,9 @@ impl App {
     /// Fluent ids of the lists, one after the other (a tool of the editor, then the keys of every
     /// tool). A list taller than the window scrolls (#331), so no key is cut.
     pub(crate) fn keys_window(&self, ctx: &egui::Context, ids: &[&str], bar: f32) {
-        let text = ids.iter().map(|id| self.i18n.t(id)).collect::<Vec<_>>().join(" | ");
+        // The viewer's double click as chosen in the Options (#349).
+        let double = self.i18n.t(double_keys(self.settings.double_click_full));
+        let text = ids.iter().map(|id| self.i18n.t_args(id, &[("double", &double)])).collect::<Vec<_>>().join(" | ");
         // The room above the status bar, less the title, the frame and a margin.
         let room = (ctx.content_rect().height() - bar - 90.0).max(120.0);
         egui::Area::new(egui::Id::unique("viewer-keys")).order(egui::Order::Foreground).anchor(Align2::RIGHT_BOTTOM, vec2(-8.0, -bar - 8.0)).show(ctx, |ui| {
@@ -533,6 +535,12 @@ fn file_keys(path: &str, sheets: bool, sphere: bool, motion: bool) -> &'static s
         _ if sphere => "hint-pano",
         _ => "hint-image",
     }
+}
+
+/// What the keys of the viewer say of the double click (`$double` in the `hint-*` texts, #349):
+/// `to_full`, "Goes to full screen" chosen in the Options.
+fn double_keys(to_full: bool) -> &'static str {
+    if to_full { "keys-double-full" } else { "keys-double-grid" }
 }
 
 /// "Wheel: zoom | Drag: move" → ("Wheel", "zoom"), ("Drag", "move"): the keys and what they do,

@@ -32,7 +32,8 @@ Fai doppio clic su un modello, oppure selezionalo e premi **Invio**.
 | Pag↓, Spazio | File successivo |
 | Pag↑, Backspace | File precedente |
 | Inizio, Fine | Primo, ultimo file |
-| Esc, doppio clic | Torna alla griglia |
+| Esc | Torna alla griglia |
+| Doppio clic | Torna alla griglia, oppure schermo intero e ritorno, come scelto nelle [Opzioni](options.md) |
 | F11 | Schermo intero: solo il modello |
 
 Qui le frecce girano il modello, quindi non cambiano file. Il pulsante **Tasti** nella barra di stato elenca questi tasti; con la Misura accesa, i tasti della Misura.

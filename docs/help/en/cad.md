@@ -20,7 +20,8 @@ Double-click a drawing, or select it and press **Enter**. The drawing is seen fr
 | N, **Shift + N** | Next, previous change, when comparing two drawings |
 | **Ctrl + Shift + S** | Save as a picture |
 | F11 | Full screen |
-| Esc, double click | Back to the grid |
+| Esc | Back to the grid |
+| Double click | Back to the grid, or full screen and back, as set in the [Options](options.md) |
 
 When the view stops moving, the part on the screen is drawn again from the drawing, so thin lines and small texts stay sharp at any zoom. The **Keys** button in the status bar lists the keys; while Measure is on, the keys of Measure.
 

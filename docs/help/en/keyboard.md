@@ -84,6 +84,7 @@ In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device e
 | Page Down, Page Up (on a TIFF with pages) | Next, previous page |
 | P (on a 360° panorama) | Flat picture, and back to the 360° view |
 | Esc | Back to the grid (in full screen it first leaves full screen); closes EyeCanSee when **The window's ✕ goes back to the grid** is off in the [Options](options.md) |
+| Double click | Back to the grid, or full screen and back, as set in the [Options](options.md) |
 | Enter | Back to the grid, also when Esc closes EyeCanSee |
 | + and − (or the mouse wheel) | Zoom in and out |
 | 0 | Fit the image to the window |

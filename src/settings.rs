@@ -28,6 +28,8 @@ pub struct Settings {
     pub thumb_details: crate::thumb_details::Details,
     /// The mouse wheel zooms the viewer; otherwise it changes image (Ctrl and the wheel always zoom).
     pub wheel_zoom: bool,
+    /// A double click in the viewer goes to full screen and back (#349); otherwise back to the grid.
+    pub double_click_full: bool,
     /// Largest zoom in the viewer, in percent of the image's pixels.
     pub max_zoom: u32,
     /// Pictures shown smaller than 100% are filtered (`mipmap`, `smooth_gpu`, #151); off: the
@@ -253,6 +255,7 @@ impl Default for Settings {
             close_to_grid: true,
             thumb_details: Default::default(),
             wheel_zoom: true,
+            double_click_full: false,
             // As GNOME's image viewer (Loupe).
             max_zoom: 2000,
             smooth: true,

@@ -7,7 +7,7 @@ Il visore mostra una foto alla volta, grande quanto la finestra permette. Da lì
 ## Aprire e chiudere il visore
 
 - Fai doppio clic su una foto nella griglia, oppure selezionala e premi **Invio** (anche **Visualizza > Apri**).
-- Per tornare alla griglia: **Esc**, un doppio clic sulla foto, ![Torna alla griglia](icon://layout-grid) **Torna alla griglia** nella barra strumenti, oppure **Visualizza > Torna alla griglia**. Nella griglia resta selezionata la foto che stavi guardando.
+- Per tornare alla griglia: **Esc**, un doppio clic sulla foto (se nelle [Opzioni](options.md) non è impostato per andare a schermo intero), ![Torna alla griglia](icon://layout-grid) **Torna alla griglia** nella barra strumenti, oppure **Visualizza > Torna alla griglia**. Nella griglia resta selezionata la foto che stavi guardando.
 - Anche la X della finestra torna alla griglia invece di chiudere EyeCanSee. Si può cambiare nelle [Opzioni](options.md).
 
 Con più file selezionati, Invio apre il primo, e il visore si muove solo tra quelli.
@@ -73,6 +73,8 @@ La barra strumenti tiene solo ciò che lavora sulla foto mostrata: ![Rinomina…
 ## Schermo intero
 
 **F11** mostra la foto da sola, senza menù né barre, su fondo nero. **Esc** prima esce dallo schermo intero, poi torna alla griglia.
+
+Con **Doppio clic nel visore** impostato su **Va a schermo intero** nelle [Opzioni](options.md), un doppio clic su una foto, un video, un modello o un disegno va a schermo intero, e un altro doppio clic torna alla finestra. Mentre misuri, il doppio clic resta della misura.
 
 Un video a schermo intero riempie lo schermo: la sua barra compare sopra il fondo dell'immagine quando si muove il mouse e sparisce col puntatore dopo 2 secondi di mouse fermo (resta finché il puntatore è sopra).
 

@@ -242,8 +242,9 @@ impl App {
             v.wheel -= steps;
             self.video_volume(steps as i32);
         }
+        // No Measure on a video or a sound: as before #349, the double click is always the viewer's.
         if response.double_clicked() {
-            self.close_viewer();
+            self.viewer_double_click(ui.ctx(), false);
         }
         let mut chosen = None;
         response.context_menu(|ui| chosen = browser::context_menu(ui, self.item_menu(None, None)));

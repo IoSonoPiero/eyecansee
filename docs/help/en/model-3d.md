@@ -32,7 +32,8 @@ Double-click a model, or select it and press **Enter**.
 | Page Down, Space | Next file |
 | Page Up, Backspace | Previous file |
 | Home, End | First, last file |
-| Esc, double click | Back to the grid |
+| Esc | Back to the grid |
+| Double click | Back to the grid, or full screen and back, as set in the [Options](options.md) |
 | F11 | Full screen: the model alone |
 
 The arrows turn the model, so they do not change file here. The **Keys** button in the status bar lists these keys; while Measure is on, the keys of Measure.

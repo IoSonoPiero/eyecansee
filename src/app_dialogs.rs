@@ -355,6 +355,11 @@ fn viewer_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
     ui.radio_value(&mut s.wheel_zoom, true, t("opt-wheel-zoom")).on_hover_text(&wheel_hint);
     ui.radio_value(&mut s.wheel_zoom, false, t("opt-wheel-next")).on_hover_text(&wheel_hint);
     ui.add_space(6.0);
+    let double_hint = t("opt-double-hint");
+    ui.label(t("opt-double")).on_hover_text(&double_hint);
+    ui.radio_value(&mut s.double_click_full, false, t("opt-double-grid")).on_hover_text(&double_hint);
+    ui.radio_value(&mut s.double_click_full, true, t("opt-double-full")).on_hover_text(&double_hint);
+    ui.add_space(6.0);
     let max_zoom_hint = t("opt-max-zoom-hint");
     ui.horizontal(|ui| {
         ui.label(t("opt-max-zoom")).on_hover_text(&max_zoom_hint);

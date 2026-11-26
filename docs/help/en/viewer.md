@@ -7,7 +7,7 @@ The viewer shows one picture at a time, as large as the window allows. From ther
 ## Opening and closing the viewer
 
 - Double-click a picture in the grid, or select it and press **Enter** (also **View > Open**).
-- To go back to the grid: **Esc**, a double click on the picture, ![Back to the grid](icon://layout-grid) **Back to the grid** in the toolbar, or **View > Back to the grid**. The picture you were looking at is then selected in the grid.
+- To go back to the grid: **Esc**, a double click on the picture (unless it is set to go to full screen in the [Options](options.md)), ![Back to the grid](icon://layout-grid) **Back to the grid** in the toolbar, or **View > Back to the grid**. The picture you were looking at is then selected in the grid.
 - The window's ✕ also goes back to the grid instead of closing EyeCanSee. You can change this in [Options](options.md).
 
 With several files selected, Enter opens the first of them, and the viewer moves only among them.
@@ -73,6 +73,8 @@ The toolbar keeps only what works on the picture shown: ![Rename…](icon://text
 ## Full screen
 
 **F11** shows the picture alone, without menus and bars, on black. **Esc** first leaves full screen, then goes back to the grid.
+
+With **Double click in the viewer** set to **Goes to full screen** in the [Options](options.md), a double click on a picture, a video, a model or a drawing goes to full screen, and another double click comes back to the window. While measuring, the double click stays Measure's.
 
 A video at full screen fills the screen: its bar appears over the bottom of the picture when the mouse moves, and hides with the pointer after 2 seconds with the mouse still (it stays while the pointer is on it).
 

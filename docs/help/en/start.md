@@ -25,7 +25,7 @@ Only one EyeCanSee runs at a time: if it is already open, a picture or folder op
 
 ## Looking at a picture
 
-Double-click a thumbnail, or select it and press **Enter**: the picture fills the window. Press **Esc**, double-click the picture or use ![Back to the grid](icon://layout-grid) **Back to the grid** to come back. See [Viewing images](viewer.md).
+Double-click a thumbnail, or select it and press **Enter**: the picture fills the window. Press **Esc**, double-click the picture (or, as set in the Options, go to full screen with it) or use ![Back to the grid](icon://layout-grid) **Back to the grid** to come back. See [Viewing images](viewer.md).
 
 ## Menus, buttons and keys
 

@@ -25,7 +25,7 @@ EyeCanSee resta aperto in una sola copia: se è già aperto, una foto o una cart
 
 ## Guardare una foto
 
-Fai doppio clic su una miniatura, oppure selezionala e premi **Invio**: la foto riempie la finestra. Per tornare indietro premi **Esc**, fai doppio clic sulla foto o usa ![Torna alla griglia](icon://layout-grid) **Torna alla griglia**. Vedi [Guardare le immagini](viewer.md).
+Fai doppio clic su una miniatura, oppure selezionala e premi **Invio**: la foto riempie la finestra. Per tornare indietro premi **Esc**, fai doppio clic sulla foto (oppure, come scelto nelle Opzioni, vai a schermo intero) o usa ![Torna alla griglia](icon://layout-grid) **Torna alla griglia**. Vedi [Guardare le immagini](viewer.md).
 
 ## Menù, pulsanti e tasti
 
