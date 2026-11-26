@@ -68,7 +68,7 @@ impl Waiting {
                 r
             }
             Waiting::Notice(n) if n.job => {
-                *self = Waiting::Report(Report { parts: vec![Part::of_notice(n)], open: None });
+                *self = Waiting::Report(Report { parts: vec![Part::of_notice(n)], open: n.open.clone() });
                 let Waiting::Report(r) = self else { unreachable!() };
                 r
             }
@@ -171,7 +171,7 @@ impl App {
         let id = "jobs-report";
         let mut close = crate::confirm::answer(ctx, &mut self.key_answer, id) == Some(false);
         let mut go = None;
-        let covered = self.show.is_some() || self.convert.is_some() || self.editor.is_some() || self.dup_page_shown();
+        let covered = self.folder_covered();
         let t = |id| self.i18n.t(id);
         let (title, open_label, covered_hint, close_label, tip) = (t("jobs-report-title"), t("summary-open-folder"), t("summary-open-covered"), t("notice-close"), t("notice-copy"));
         let warning = r.parts.iter().any(|p| p.warning);

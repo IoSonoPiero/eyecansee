@@ -15,20 +15,23 @@ impl App {
         if self.quit_after_transfer {
             return;
         }
+        // Open the folder, when it is not the one open, where the last item pasted is selected
+        // already (#323, #356).
+        let open = (to != crate::navigation::shown(&self.base, &self.dir)).then(|| to.to_string());
         // A part of the report of the jobs when another job's is up, or remembered for it (#328);
         // alone it waits behind a message open (#329).
         match transfer_notice(&self.i18n, cut, to, r, p) {
             Some(n) => {
-                let n = Notice { job: true, ..n };
-                self.job_ended(Part::of_notice(&n), None, crate::jobs_report::Waiting::Notice(n));
+                let n = Notice { job: true, open: open.clone(), ..n };
+                self.job_ended(Part::of_notice(&n), open, crate::jobs_report::Waiting::Notice(n));
             }
             // A long one (a big file the phone moved, minutes) ends with a message, not in silence
             // (Piero, 25/11); a short one quietly, as before.
             None => {
                 let part = quiet_copy(&self.i18n, cut, to, r, p);
                 if r.is_ok() && p.begun.get().is_some_and(|t| t.elapsed() >= LONG_JOB) {
-                    let n = Notice { job: true, ..Notice::new(part.title.clone(), part.text.clone()) };
-                    self.job_ended(part, None, crate::jobs_report::Waiting::Notice(n));
+                    let n = Notice { job: true, open: open.clone(), ..Notice::new(part.title.clone(), part.text.clone()) };
+                    self.job_ended(part, open, crate::jobs_report::Waiting::Notice(n));
                 } else {
                     self.quiet_job(part);
                 }
@@ -291,6 +294,45 @@ mod tests {
         assert_eq!(h.app.help_spot(&h.ctx), "help:copy-move");
         h.key(eframe::egui::Key::Enter);
         assert!(h.app.notice.is_none(), "Enter does not close the message");
+    }
+
+    /// #356: a long copy into a folder that is not the one open ends with Open the folder after
+    /// Close, and the arrow and Enter open it; into the folder open, no such button (the last item
+    /// pasted is selected there already).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn open_the_folder_after_a_long_copy() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("transfer_end::tests::open_the_folder_after_a_long_copy") {
+            return;
+        }
+        let dir = folder("copy-open", &["a.jpg"]);
+        folder("copy-open/in", &["b.jpg"]);
+        let mut h = Harness::new(&dir);
+        let long = |h: &mut Harness, into: String| {
+            let p = std::sync::Arc::new(crate::transfer::Progress::default());
+            p.files.store(1, Ordering::Relaxed);
+            let _ = p.begun.set(std::time::Instant::now().checked_sub(std::time::Duration::from_secs(11)).unwrap());
+            h.app.transfer = Some((p, false, h.app.base.clone(), into));
+            h.frame(Vec::new());
+            h.app.tx.send(crate::loader::Msg::Pasted(Vec::new(), Ok(()))).unwrap();
+            h.frame(Vec::new());
+            h.frame(Vec::new());
+            h.app.notice.clone().expect("no message at the end of a long copy")
+        };
+        let here = h.app.dir.clone();
+        assert_eq!(long(&mut h, here.clone()).open, None, "Open the folder for the folder open");
+        h.key(eframe::egui::Key::Enter);
+        h.frame(Vec::new());
+        assert!(h.app.notice.is_none());
+        let inside = format!("{here}in/");
+        let n = long(&mut h, inside.clone());
+        assert_eq!(n.open, Some(crate::navigation::shown(&h.app.base, &inside)));
+        h.key(eframe::egui::Key::ArrowRight);
+        h.frame(Vec::new());
+        h.key(eframe::egui::Key::Enter);
+        h.until(|a| a.dir == inside, "Open the folder opened it");
+        assert!(h.app.notice.is_none(), "the message stayed");
     }
 
     /// A message already open (here a stand-in for the end of a batch rotation or an export)
