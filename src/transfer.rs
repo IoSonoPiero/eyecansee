@@ -757,8 +757,13 @@ async fn copy_file(from: &Store, src: &str, (to, dest, existed): (&Store, &str, 
         p.files.fetch_add(1, Ordering::Relaxed);
         return Err(Fail::Stop(("error-cancelled", String::new())));
     }
+    outcome(read, write, &p.cancel)
+}
+
+/// What a copy of chunks came to, from its reading end and its writing end.
+fn outcome(read: Result<(), Error>, write: Result<(), Error>, cancel: &AtomicBool) -> Result<(), Fail> {
     match (read, write) {
-        (Err(e), _) if p.cancel.load(Ordering::Relaxed) => Err(Fail::Stop(e)),
+        (Err(e), _) if cancel.load(Ordering::Relaxed) => Err(Fail::Stop(e)),
         // When the writer stops, the reader sees a closed channel ("error-cancelled"): the
         // writer's error is the real one. Otherwise the reader stopped first, and the writer
         // only says so: the source could not be read.
