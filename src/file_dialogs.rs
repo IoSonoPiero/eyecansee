@@ -154,6 +154,11 @@ impl App {
         }
         let Some((p, cut, base, dest)) = &self.transfer else { return };
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
+        // The phone copying by itself inside one storage: a modal in the middle instead (#354).
+        if self.phone_copy_modal() {
+            self.phone_copy_window(ctx);
+            return;
+        }
         let phase = p.phase();
         let (current, counts, left) = self.transfer_lines(p, &phase);
         // Two lines that stay in their place (they took turns on one, "it changes all the time",

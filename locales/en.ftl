@@ -178,6 +178,18 @@ transfer-stop-at-end = Stopping after { $name }: the phone must receive it whole
 transfer-why-pc = Why through the computer?
 # The title of the section of the guide's page phone.md that `transfer-why-pc` opens: the same words.
 transfer-why-pc-section = Big files: through the computer
+# The copy window while the phone copies by itself inside one storage (#354).
+phone-copy-title = The phone is copying
+phone-copy-file = { $name } ({ $size }), for { $s } s
+phone-copy-counts = File { $n } of { $total }, { $done } of { $size }
+phone-copy-one = The phone does not say how far it is: no bar until it is done.
+phone-copy-speed = Speed measured on the big files already copied: { $speed }/s. About { $time } left.
+phone-copy-notice = The phone copies by itself, much faster than through the computer. While it works it answers nothing: that is why EyeCanSee waits. Do not unplug the phone.
+phone-copy-why = Why do I have to wait?
+# The title of the section of the guide's page phone.md that `phone-copy-why` opens: the same words.
+phone-copy-why-section = Copies inside one storage: the phone works alone
+phone-copy-stopping = Stopping after { $name }: the phone cannot be stopped halfway through a file.
+phone-copy-long = This file has taken more than 3 minutes. The phone goes on until it is done: all you can do is wait.
 transfer-left = { $percent }%, { $speed }/s, about { $time } left
 transfer-removing = Removing the originals
 transfer-removed = { $n } of { $total } files removed from where they were

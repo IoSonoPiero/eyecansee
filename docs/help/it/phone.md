@@ -31,11 +31,21 @@ Le foto scattate, eliminate o spostate sul telefono mentre la sua cartella è ap
 
 Un file di 32 MB o più copiato o spostato tra la memoria interna e la scheda di memoria dello stesso telefono passa da questo computer: EyeCanSee lo legge dal telefono, poi lo scrive dove va. Il riquadro della copia dice quale delle due cose sta facendo, con **Perché passa dal computer?** che apre questa sezione.
 
-- Mentre il telefono copia un file da solo, non risponde a niente finché non ha finito e non può dire a che punto è: niente barra vera, niente **Annulla**, e le sue cartelle aspettano.
+- Mentre il telefono copia un file da solo, non risponde a niente finché non ha finito e non può dire a che punto è: niente barra vera, **Annulla** aspetta la fine del file, e le sue cartelle aspettano.
 - Passando dal computer la barra, la velocità e il tempo che manca sono veri. **Annulla** ferma subito la lettura; la scrittura si ferma alla fine del file, perché un telefono che riceve mezzo file smette di rispondere.
 - Ci vuole di più: 2 GB verso la scheda di memoria in circa 3 minuti e mezzo invece di 2.
 - Serve spazio libero su questo computer, quanto il file e un po' di più: se non basta, la copia si ferma prima di cominciare e lo dice. Il file sta nella cartella della cache di EyeCanSee e viene tolto appena è stato scritto, anche dopo un errore o **Annulla**.
-- I file sotto i 32 MB e tutto ciò che resta dentro una memoria li fa il telefono: uno spostamento lì è solo un cambio di cartella, fatto subito, e una copia è veloce (2 GB in circa 20 secondi, sei volte meno che passando dal computer). Per quel poco le sue cartelle aspettano, con **Attendi** nella barra di stato.
+- I file sotto i 32 MB e tutto ciò che resta dentro una memoria li fa il telefono: uno spostamento lì è solo un cambio di cartella, fatto subito, e una copia è veloce (2 GB in circa 20 secondi, sei volte meno che passando dal computer). Per quel poco le sue cartelle aspettano, con **Attendi** nella barra di stato; una copia dentro una memoria invece ferma tutto EyeCanSee (vedi la sezione dopo).
+
+## Copie dentro una memoria: il telefono fa da solo
+
+Una copia dentro una memoria del telefono (da una cartella della memoria interna a un'altra, per esempio) la fa il telefono stesso, un file alla volta, molto più in fretta che passando dal computer. Mentre copia un file il telefono non risponde a niente, nemmeno a EyeCanSee, e non può dire a che punto è. Per questo, per tutta la copia, una finestra al centro, **Il telefono sta copiando**, fa aspettare il resto di EyeCanSee, anche le cartelle del computer. **Perché devo aspettare?** nella finestra apre questa sezione.
+
+- La finestra mostra solo ciò che si sa: il file in copia, la sua dimensione e i secondi da quando è cominciato; quanti file e quanti dati sono fatti, contati alla fine di ogni file; una barra che avanza un file alla volta. Con un file solo la barra non c'è.
+- La velocità e il tempo che manca vengono solo dai file grandi (da 32 MB) già copiati in questo Incolla: prima che finisca il primo, non ci sono.
+- **Annulla** si ferma dopo il file in copia: il telefono non si può interrompere a metà file. **Esc** non chiude la finestra.
+- Dopo 3 minuti sullo stesso file la finestra lo dice. Scollegare il telefono non ferma la sua copia: il telefono la finisce da solo, ed EyeCanSee smette solo di aspettare. Lascialo collegato finché la finestra non si chiude.
+- Uno spostamento dentro una memoria cambia solo la cartella, subito: nessuna finestra.
 
 ## Linux: GNOME e KDE
 

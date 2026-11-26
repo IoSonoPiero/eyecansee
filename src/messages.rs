@@ -635,6 +635,12 @@ impl App {
         // grid stayed on the files read before.
         let gone = self.loader.is_some() && devices::gone_under(&self.devices, &d, &self.display(&self.dir));
         let name = devices::unplugged_name(&self.devices, &d, &self.base, &self.display(&self.dir));
+        // The phone of a paste gone: its window, if modal, no longer holds the app (#354).
+        if let Some((p, _, base, _)) = &self.transfer
+            && base.strip_prefix("mtp://").map(|s| s.trim_end_matches('/')).is_some_and(|s| has(&self.devices, s) && !has(&d, s))
+        {
+            p.by_phone.unplugged();
+        }
         self.devices = d;
         if unplugged || gone {
             log!("device with the open folder unplugged");

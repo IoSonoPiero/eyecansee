@@ -4,16 +4,19 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use crate::source::{Deletion, Error, Store, TRASH_DIR, free_name, name, parent};
 use crate::thumbcache;
 
+mod by_phone;
 mod names;
 mod originals;
+mod progress;
 mod through_pc;
+pub use by_phone::{Line, Seen, lines};
+pub use progress::{Phase, Progress};
 pub use through_pc::Staging;
 pub(crate) use through_pc::remove_left;
 
@@ -62,124 +65,6 @@ pub enum Choice {
 /// and "Skip" stay; a move there keeps both too.
 pub fn can_replace(to: &Store, to_dir: &str) -> bool {
     !to.gvfs(to_dir)
-}
-
-/// Shared with the UI, which shows it while the copy runs.
-#[derive(Default)]
-pub struct Progress {
-    pub done: AtomicU64,
-    pub total: AtomicU64,
-    pub files: AtomicUsize,
-    pub files_total: AtomicUsize,
-    /// Items found while looking inside the folders, before the copy starts.
-    pub found: AtomicUsize,
-    /// Links to folders the walk of a server left out (`ftp::Server::walk`, `sftp::Server::walk`),
-    /// as walked: said at the end of the copy, and left where they were by a move (#183).
-    pub links_skipped: Mutex<Vec<String>>,
-    /// Destination folders that got something new since the UI last looked: it reads them again,
-    /// so a copy shows up while it runs.
-    pub touched: Mutex<Vec<String>>,
-    /// Seconds spent looking, for the log.
-    pub looked: Mutex<f64>,
-    /// When the copy itself started, after looking: the UI works out speed and time left from it.
-    pub started: OnceLock<Instant>,
-    /// When the paste began, counting its looking inside folders and the phone working by itself
-    /// (`App::tell_transfer`: a long one says when it ends).
-    pub begun: OnceLock<Instant>,
-    /// Name of the file being copied.
-    pub current: Mutex<String>,
-    pub cancel: AtomicBool,
-    /// The speed of the last seconds, as the UI shows it.
-    pub recent: Mutex<Recent>,
-    /// Items of a phone or a server left out because of their name (`allowed`), as found: a
-    /// message at the end of the copy, which is not an error (the rest was copied), and a move
-    /// keeps the folders that hold them.
-    pub refused: Mutex<Vec<String>>,
-    /// The items of the plan made in the folder of arrival, by their names there, in the order
-    /// made: the UI selects the last one (#323). Not what is copied below a folder.
-    pub made: Mutex<Vec<String>>,
-    /// What a move left in the folders it moved without copying it (`originals`): items that
-    /// arrived while it ran, or a folder holding what cannot be seen. They stay, with their
-    /// folders, and a message at the end of the copy names them (#194).
-    pub left: Mutex<Vec<String>>,
-    /// While a move removes the originals of a folder it copied (`originals::delete`): how many
-    /// files are to go, and how many went. 0 when not removing: the copy goes on, or it ended.
-    pub removing: AtomicUsize,
-    pub removed: AtomicUsize,
-    /// Files whose source could not be read, with why, as found: left out, the rest copied, a
-    /// message at the end names them, and a move keeps them where they were (L17 of 2026-11-21:
-    /// a link a server listed as a file stopped the copy, and the files after it were never
-    /// copied, with only the error to say so).
-    pub failed: Mutex<Vec<(String, Error)>>,
-    /// Items answered Skip, their name already there (`skips`): said at the end (#356).
-    pub skipped: AtomicUsize,
-    /// Folders a move took whole, as a change of place (`renames`): among the files in the copy
-    /// box, said as folders at the end (#356: "1 file moved" for a folder).
-    pub folders_moved: AtomicUsize,
-    /// A big file of a phone on its way to the same phone through this computer, which half
-    /// (`through_pc`): the copy box says it.
-    pub staging: Mutex<Option<Staging>>,
-}
-
-/// What the copy box shows (`Progress::phase`).
-#[derive(Debug, PartialEq)]
-pub enum Phase {
-    /// Looking inside the folders, before the copy: items found.
-    Looking(usize),
-    /// Copying: files and bytes, copied and in all.
-    Copying { files: usize, files_total: usize, done: u64, total: u64 },
-    /// Removing the originals of a folder moved: files gone and to go. No bytes move then, so
-    /// no speed and no time left (#194: a speed falling to nothing showed at 100%).
-    Removing { removed: usize, total: usize },
-}
-
-impl Phase {
-    /// The part of the bar filled: bytes copied, or originals removed.
-    pub fn fraction(&self) -> f32 {
-        let part = |n: u64, of: u64| if of > 0 { n as f32 / of as f32 } else { 0.0 };
-        match *self {
-            Phase::Looking(_) => 0.0,
-            Phase::Copying { done, total, .. } => part(done, total),
-            Phase::Removing { removed, total } => part(removed as u64, total as u64),
-        }
-    }
-}
-
-impl Progress {
-    pub fn phase(&self) -> Phase {
-        let removing = self.removing.load(Ordering::Relaxed);
-        if removing > 0 {
-            return Phase::Removing { removed: self.removed.load(Ordering::Relaxed).min(removing), total: removing };
-        }
-        if self.started.get().is_none() {
-            return Phase::Looking(self.found.load(Ordering::Relaxed));
-        }
-        Phase::Copying {
-            files: self.files.load(Ordering::Relaxed),
-            files_total: self.files_total.load(Ordering::Relaxed),
-            done: self.done.load(Ordering::Relaxed),
-            total: self.total.load(Ordering::Relaxed),
-        }
-    }
-}
-
-/// Bytes copied over the last `SPAN` seconds: the speed of the moment, as a system network meter
-/// shows it, which moves with the line; the average since the start gives the time left.
-#[derive(Default)]
-pub struct Recent(std::collections::VecDeque<(f64, u64)>);
-
-impl Recent {
-    const SPAN: f64 = 4.0;
-
-    /// `done` bytes at `now` seconds; bytes per second once a second has been seen.
-    pub fn speed(&mut self, now: f64, done: u64) -> Option<f64> {
-        self.0.push_back((now, done));
-        while self.0.front().is_some_and(|(t, _)| now - t > Self::SPAN) {
-            self.0.pop_front();
-        }
-        let (t0, d0) = *self.0.front()?;
-        (now - t0 >= 1.0).then(|| done.saturating_sub(d0) as f64 / (now - t0))
-    }
 }
 
 /// Items whose name is already in `to_dir`, to ask about. A folder pasted inside itself is an error.
@@ -399,6 +284,8 @@ async fn renames(clip: &Clip, (to, to_dir, same): (&Store, &str, bool), plan: Ve
 async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress, gone: &mut Vec<String>) -> Result<(), Error> {
     let _ = p.begun.set(Instant::now());
     let same = clip.base == to_base;
+    // The same session as `copy_file` tells it: a phone plugged in again between copy and paste is another.
+    p.by_phone.decide(by_phone::by_phone(clip.cut, matches!((&clip.op, to), (Store::Mtp(a), Store::Mtp(b)) if std::sync::Arc::ptr_eq(a, b)), &clip.paths, to_dir));
     let present = Names::read(to, to_dir).await?;
     let here = in_own_folder(clip, to_base, to_dir, dest_place(clip, to, to_base, to_dir).await.as_ref()).await;
     let plan = planned(clip, to, to_dir, &here, choices, &present, &sidecars(clip).await);
@@ -748,7 +635,9 @@ async fn copy_file(from: &Store, src: &str, (to, dest, existed): (&Store, &str, 
         if through_pc::by_computer(size, src, dest) {
             return through_pc::copy(from, src, (to, dest, existed), size, p).await;
         }
+        p.by_phone.begin(name(src), size);
         a.copy_inside(src, dest).await.map_err(Fail::Stop)?;
+        p.by_phone.end(size);
         p.done.fetch_add(size, Ordering::Relaxed);
         return Ok(());
     }
@@ -847,7 +736,7 @@ mod tests {
     /// The speed of the last 4 seconds, not of the whole copy.
     #[test]
     fn recent_speed() {
-        let mut r = Recent::default();
+        let mut r = progress::Recent::default();
         assert_eq!(r.speed(0.0, 0), None);
         assert_eq!(r.speed(0.5, 10), None);
         assert_eq!(r.speed(2.0, 40), Some(20.0));

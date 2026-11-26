@@ -40,8 +40,12 @@ pub enum Staging {
 /// 20 s on a Redmi Note 9 Pro, 6 times slower through the computer; Piero, 26/11: the short wait
 /// with the phone's folders closed is better). Paths start with their storage (`"SD card/DCIM/…"`).
 pub(super) fn by_computer(size: u64, src: &str, dest: &str) -> bool {
-    let storage = |p: &str| p.split('/').next().unwrap_or_default().to_string();
     size >= BIG && storage(src) != storage(dest)
+}
+
+/// The storage a path of a phone is on: its first name (`"SD card"` of `"SD card/DCIM/a.jpg"`).
+pub(super) fn storage(path: &str) -> &str {
+    path.split('/').next().unwrap_or_default()
 }
 
 /// Whether `free` bytes hold `size` more and still leave `margin`.

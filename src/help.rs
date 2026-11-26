@@ -743,17 +743,20 @@ mod tests {
         assert_eq!(g.back.len(), 2, "the same page is not added twice");
     }
 
-    /// "Why through the computer?" in the copy box (#354) opens the section of the phone's page
-    /// whose title is `transfer-why-pc-section`, in every language: the heading is found.
+    /// "Why through the computer?" in the copy box and "Why do I have to wait?" in the window of
+    /// the phone's own copy (#354) open the sections of the phone's page whose titles are
+    /// `transfer-why-pc-section` and `phone-copy-why-section`, in every language: the headings are found.
     #[test]
     fn why_through_the_computer_has_its_section() {
         for (lang, _, _) in PAGES.iter().filter(|p| p.1 == "index") {
-            let title = crate::i18n::I18n::new(lang).t("transfer-why-pc-section");
-            assert!(page_text(lang, "phone").lines().any(|l| l == format!("## {title}")), "{lang}: no section {title:?} in phone.md");
-            let mut g = Guide::default();
-            g.language(lang);
-            assert!(g.at("phone", &title), "{lang}: {title:?} not found");
-            assert_eq!(g.page, "phone");
+            for id in ["transfer-why-pc-section", "phone-copy-why-section"] {
+                let title = crate::i18n::I18n::new(lang).t(id);
+                assert!(page_text(lang, "phone").lines().any(|l| l == format!("## {title}")), "{lang}: no section {title:?} in phone.md");
+                let mut g = Guide::default();
+                g.language(lang);
+                assert!(g.at("phone", &title), "{lang}: {title:?} not found");
+                assert_eq!(g.page, "phone");
+            }
         }
     }
 
