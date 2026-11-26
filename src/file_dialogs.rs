@@ -156,13 +156,13 @@ impl App {
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
         let phase = p.phase();
         let (current, counts, left) = self.transfer_lines(p, &phase);
-        // The phone moving or copying a file itself (between its storages, minutes for a big one):
-        // it says nothing of how far it is, so no percentage but a bar that goes to and fro.
         // Two lines that stay in their place (they took turns on one, "it changes all the time",
-        // Piero 25/11): the speed and the time left, then what the phone is doing itself.
-        let phone = crate::mtp::working().map(|(what, name, s)| self.i18n.t_args("status-phone-working", &[("what", &what), ("name", &name), ("s", &s.to_string())]));
+        // Piero 25/11): the speed and the time left, then what the phone is doing (`phone_line`).
         let to = self.i18n.t_args("transfer-to", &[("dir", &shown(base, dest))]);
         let cancelling = p.cancel.load(Ordering::Relaxed);
+        let phone = self.phone_line(p, cancelling);
+        let staged = p.staging.lock().unwrap().is_some();
+        let mut why = false;
         let shown = egui::Window::new(self.i18n.t(if *cut { "transfer-moving" } else { "transfer-copying" }))
             .collapsible(false)
             .resizable(false)
@@ -191,14 +191,42 @@ impl App {
                     ui.add(egui::ProgressBar::new(phase.fraction()).fill(fill).desired_height(16.0).show_percentage());
                 });
                 // Reached with Tab after the folders of the tree (`box_keys`, #311).
-                let cancel = ui.add_enabled(!cancelling, egui::Button::new(self.i18n.t("delete-no")));
-                crate::box_keys::mark(&cancel);
-                if cancel.clicked() {
-                    p.cancel.store(true, Ordering::Relaxed);
-                }
+                ui.horizontal(|ui| {
+                    let cancel = ui.add_enabled(!cancelling, egui::Button::new(self.i18n.t("delete-no")));
+                    crate::box_keys::mark(&cancel);
+                    if cancel.clicked() {
+                        p.cancel.store(true, Ordering::Relaxed);
+                    }
+                    // A link on the row of Cancel, not a line more: the box keeps its height.
+                    if staged {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let link = ui.link(self.i18n.t("transfer-why-pc"));
+                            crate::box_keys::mark(&link);
+                            why = link.clicked();
+                        });
+                    }
+                });
             });
         if let Some(r) = shown {
             crate::box_keys::drawn(ctx, "copy", r.response.rect.height());
+        }
+        if why {
+            let title = self.i18n.t("transfer-why-pc-section");
+            self.open_help_at("phone", &title);
+        }
+    }
+
+    /// The line of the phone in the copy box: the half of a big file going through this computer
+    /// (`transfer::Staging`), or the phone copying or moving a file itself, which says nothing of
+    /// how far it is (a small file now: seconds).
+    fn phone_line(&self, p: &transfer::Progress, cancelling: bool) -> Option<String> {
+        let name = p.current.lock().unwrap().clone();
+        let staging = p.staging.lock().unwrap().clone();
+        match staging {
+            Some(transfer::Staging::Writing(_)) if cancelling => Some(self.i18n.t_args("transfer-stop-at-end", &[("name", &name)])),
+            Some(transfer::Staging::Writing(storage)) => Some(self.i18n.t_args("transfer-writing-phone", &[("name", &name), ("storage", &storage)])),
+            Some(transfer::Staging::Reading) => Some(self.i18n.t_args("transfer-reading-phone", &[("name", &name)])),
+            None => crate::mtp::working().map(|(what, name, s)| self.i18n.t_args("status-phone-working", &[("what", &what), ("name", &name), ("s", &s.to_string())])),
         }
     }
 
@@ -290,6 +318,9 @@ impl App {
         // grey Delete looked broken (Piero, 25/11).
         if reading && let Some((what, name, s)) = self.base.starts_with("mtp://").then(crate::mtp::working).flatten() {
             text = format!("{text}\n\n{}", self.i18n.t_args("delete-phone-busy", &[("what", &what), ("name", &crate::save_dialogs::md(&name)), ("s", &s.to_string()), ("button", &yes)]));
+        } else if reading && let Some((_, name)) = crate::mtp::turn::deaf().filter(|(serial, _)| self.base == format!("mtp://{serial}/")) {
+            // Writing a big file (`transfer::through_pc`): the same words as the status bar.
+            text = format!("{text}\n\n{}", self.i18n.t_args("status-phone-deaf", &[("name", &crate::save_dialogs::md(&name))]));
         }
         if reading {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));

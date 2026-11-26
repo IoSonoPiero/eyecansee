@@ -13,6 +13,9 @@ use crate::thumbcache;
 
 mod names;
 mod originals;
+mod through_pc;
+pub use through_pc::Staging;
+pub(crate) use through_pc::remove_left;
 
 use names::Names;
 
@@ -113,6 +116,9 @@ pub struct Progress {
     /// Folders a move took whole, as a change of place (`renames`): among the files in the copy
     /// box, said as folders at the end (#356: "1 file moved" for a folder).
     pub folders_moved: AtomicUsize,
+    /// A big file of a phone on its way to the same phone through this computer, which half
+    /// (`through_pc`): the copy box says it.
+    pub staging: Mutex<Option<Staging>>,
 }
 
 /// What the copy box shows (`Progress::phase`).
@@ -350,20 +356,22 @@ async fn renames(clip: &Clip, (to, to_dir, same): (&Store, &str, bool), plan: Ve
     let mut copies = Vec::new();
     let renamed = |e: &Planned| clip.cut && same && !(e.2 && e.1.ends_with('/'));
     let phone = matches!(to, Store::Mtp(_));
-    // All the sizes first, so the total is right from the start (it grew file by file).
+    // All the sizes first, so the total is right from the start (it grew file by file). A big
+    // file to the phone's other storage is copied through this computer and then deleted
+    // (`through_pc`), decided here: a rename refused later would come after the item it replaces
+    // was deleted.
     let mut sizes = Vec::new();
-    for e in plan.iter().filter(|e| renamed(e)) {
-        sizes.push(if phone && !e.0.is_empty() && !e.0.ends_with('/') { clip.op.size(&e.0).await.unwrap_or(0) } else { 0 });
+    for e in &plan {
+        let size = if phone && renamed(e) && !e.0.is_empty() && !e.0.ends_with('/') { clip.op.size(&e.0).await.unwrap_or(0) } else { 0 };
+        sizes.push((renamed(e) && !(phone && through_pc::by_computer(size, true, &e.0, &e.1))).then_some(size));
     }
-    if !sizes.is_empty() {
-        p.files_total.store(sizes.len(), Ordering::Relaxed);
-        p.total.store(sizes.iter().sum(), Ordering::Relaxed);
+    if sizes.iter().any(Option::is_some) {
+        p.files_total.store(sizes.iter().flatten().count(), Ordering::Relaxed);
+        p.total.store(sizes.iter().flatten().sum(), Ordering::Relaxed);
         let _ = p.started.set(Instant::now());
     }
-    let mut sizes = sizes.into_iter();
-    for (src, dest, exists, sides) in plan {
-        if clip.cut && same && !(exists && dest.ends_with('/')) {
-            let size = sizes.next().unwrap_or(0);
+    for ((src, dest, exists, sides), size) in plan.into_iter().zip(sizes) {
+        if let Some(size) = size {
             *p.current.lock().unwrap() = name(&src).to_string();
             let made = (!src.is_empty()).then(|| dest.clone());
             let folder = src.ends_with('/');
@@ -736,6 +744,10 @@ async fn copy_file(from: &Store, src: &str, (to, dest, existed): (&Store, &str, 
     if let (Store::Mtp(a), Store::Mtp(b)) = (from, to)
         && std::sync::Arc::ptr_eq(a, b)
     {
+        // A big one through the computer, with a bar and Cancel (`through_pc`).
+        if through_pc::by_computer(size, false, src, dest) {
+            return through_pc::copy(from, src, (to, dest, existed), size, p).await;
+        }
         a.copy_inside(src, dest).await.map_err(Fail::Stop)?;
         p.done.fetch_add(size, Ordering::Relaxed);
         return Ok(());
@@ -757,8 +769,13 @@ async fn copy_file(from: &Store, src: &str, (to, dest, existed): (&Store, &str, 
         p.files.fetch_add(1, Ordering::Relaxed);
         return Err(Fail::Stop(("error-cancelled", String::new())));
     }
+    outcome(read, write, &p.cancel)
+}
+
+/// What a copy of chunks came to, from its reading end and its writing end.
+fn outcome(read: Result<(), Error>, write: Result<(), Error>, cancel: &AtomicBool) -> Result<(), Fail> {
     match (read, write) {
-        (Err(e), _) if p.cancel.load(Ordering::Relaxed) => Err(Fail::Stop(e)),
+        (Err(e), _) if cancel.load(Ordering::Relaxed) => Err(Fail::Stop(e)),
         // When the writer stops, the reader sees a closed channel ("error-cancelled"): the
         // writer's error is the real one. Otherwise the reader stopped first, and the writer
         // only says so: the source could not be read.

@@ -25,7 +25,17 @@ Le foto scattate, eliminate o spostate sul telefono mentre la sua cartella è ap
 - **"EyeCanSee non riesce ad aprire il dispositivo"**: il telefono lo sta usando un altro programma. Se l'aveva collegato il desktop, EyeCanSee passa da solo a quel collegamento (più lento). Altrimenti chiudi il gestore dei file e gli altri programmi che usano il telefono e premi **F5**, oppure scollega il telefono, ricollegalo, scegli Trasferimento file e aprilo prima in EyeCanSee.
 - **"Aperto tramite il gestore dei file: più lento"**: il collegamento diretto non è riuscito ed EyeCanSee usa quello del desktop. Nelle cartelle con centinaia di file fa circa una miniatura al secondo.
 - Un telefono che non risponde a una richiesta: la barra di stato lo dice, con i secondi e il file. EyeCanSee riprende da solo appena il telefono risponde.
-- Una copia o uno spostamento tra la memoria interna e la scheda di memoria dello stesso telefono lo fa il telefono stesso: con un file grande può durare qualche minuto. Intanto le cartelle di quel telefono si aprono alla fine, e il resto di EyeCanSee resta libero.
+- **"Attendi: il telefono sta scrivendo …"**, nella barra di stato mentre quel telefono è aperto: il telefono sta scrivendo un file grande e non risponde a niente finché non ha finito, quindi le sue cartelle si aprono allora. Le cartelle del computer si aprono subito.
+
+## File grandi: passano dal computer
+
+Un file di 32 MB o più copiato o spostato dentro lo stesso telefono (tra la memoria interna e la scheda di memoria, o copiato dentro una memoria) passa da questo computer: EyeCanSee lo legge dal telefono, poi lo scrive dove va. Il riquadro della copia dice quale delle due cose sta facendo, con **Perché passa dal computer?** che apre questa sezione.
+
+- Mentre il telefono copia un file da solo, non risponde a niente finché non ha finito e non può dire a che punto è: niente barra vera, niente **Annulla**, e le sue cartelle aspettano.
+- Passando dal computer la barra, la velocità e il tempo che manca sono veri. **Annulla** ferma subito la lettura; la scrittura si ferma alla fine del file, perché un telefono che riceve mezzo file smette di rispondere.
+- Ci vuole di più: 2 GB verso la scheda di memoria in circa 3 minuti e mezzo invece di 2.
+- Serve spazio libero su questo computer, quanto il file e un po' di più: se non basta, la copia si ferma prima di cominciare e lo dice. Il file sta nella cartella della cache di EyeCanSee e viene tolto appena è stato scritto, anche dopo un errore o **Annulla**.
+- I file sotto i 32 MB, e gli spostamenti dentro una memoria (solo un cambio di cartella, fatto subito), restano al telefono.
 
 ## Linux: GNOME e KDE
 

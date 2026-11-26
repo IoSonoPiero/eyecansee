@@ -267,24 +267,15 @@ impl App {
         }
     }
 
-    /// A call the phone has not answered for 3 s, in the status bars of the grid and the viewer.
-    /// On Windows after `mtp::STALL_SECS` it is taken for WPD's stall: a short line here, what
-    /// to do in the window of `phone_stall`. Not while the copy's window says that the phone is
-    /// copying or moving a file itself: the same line twice (Piero, 25/11).
+    /// The line of a phone at work in the status bars of the grid and the viewer (`phone_line`).
     pub(crate) fn phone_waiting(&self, ui: &mut egui::Ui) {
-        let Some((name, secs, what)) = crate::mtp::waiting(3) else { return };
-        if self.transfer.is_some() && (what == "copy" || what == "move") {
-            return;
-        }
-        let id = match () {
-            _ if cfg!(windows) && secs >= crate::mtp::STALL_SECS => "status-phone-stalled",
-            _ if name.is_empty() => "status-phone-waiting-open",
-            _ => "status-phone-waiting",
-        };
+        let line = phone_line(&self.base, crate::mtp::turn::deaf(), crate::mtp::waiting(3), (cfg!(windows), self.transfer.is_some()));
+        let Some((id, name, secs)) = line else { return };
         ui.add(egui::Spinner::new().color(Color32::WHITE));
         ui.label(crate::theme::alert(self.i18n.t_args(id, &[("s", &secs.to_string()), ("name", &name)])));
         ui.separator();
-        ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
+        // Gone soon after the phone answers.
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
     }
 
     /// How many folders and images there are, and name and size of the selected item.
@@ -396,8 +387,56 @@ fn version_text(built: Option<&str>) -> String {
 }
 
 
+/// What the status bar says of a phone at work: the Fluent id, the file, the seconds.
+/// - A call the phone has not answered for 3 s (`waiting`): on Windows after `mtp::STALL_SECS`
+///   it is taken for WPD's stall, a short line here and what to do in the window of
+///   `phone_stall`. Not a copy or a move the phone makes itself while the copy's window says so:
+///   the same line twice (Piero, 25/11).
+/// - The phone answering nothing until it has written a big file (`deaf`), while that phone is
+///   open (`base`): said at once, as its folders wait (Piero, 26/11), in place of the line above
+///   for the same call; Windows's stall comes first.
+fn phone_line(base: &str, deaf: Option<(String, String)>, waiting: Option<(String, u64, String)>, (windows, transfer): (bool, bool)) -> Option<(&'static str, String, u64)> {
+    let waiting = waiting.filter(|(_, _, what)| !(transfer && (what == "copy" || what == "move")));
+    if let Some((name, secs, _)) = &waiting
+        && windows
+        && *secs >= crate::mtp::STALL_SECS
+    {
+        return Some(("status-phone-stalled", name.clone(), *secs));
+    }
+    if let Some((serial, name)) = deaf
+        && base == format!("mtp://{serial}/")
+    {
+        return Some(("status-phone-deaf", name, 0));
+    }
+    let (name, secs, _) = waiting?;
+    Some((if name.is_empty() { "status-phone-waiting-open" } else { "status-phone-waiting" }, name, secs))
+}
+
 #[cfg(test)]
 mod tests {
+    /// #354: "Please wait: the phone is writing NAME", from the start of the write, only while
+    /// that phone is open, in place of the line of the same call that has not answered; the
+    /// computer's folders say nothing. Windows's stall comes first.
+    #[test]
+    fn the_phone_writing_a_big_file_is_said_at_once() {
+        let deaf = || Some(("ABC".to_string(), "big.mp4".to_string()));
+        let waiting = |secs: u64, what: &str| Some(("big.mp4".to_string(), secs, what.to_string()));
+        let line = |base: &str, deaf, waiting, windows, transfer| super::phone_line(base, deaf, waiting, (windows, transfer)).map(|(id, _, s)| (id, s));
+        let on_phone = "mtp://ABC/";
+        assert_eq!(line(on_phone, deaf(), None, false, true), Some(("status-phone-deaf", 0)), "at once");
+        assert_eq!(line(on_phone, deaf(), waiting(5, "upload"), false, true), Some(("status-phone-deaf", 0)), "one line for the call");
+        assert_eq!(line("/home/me/Photos/", deaf(), None, false, true), None, "the computer's folders");
+        assert_eq!(line("mtp://OTHER/", deaf(), None, false, false), None, "another phone");
+        assert_eq!(line("mtp://ABCD/", deaf(), None, false, false), None, "another phone whose serial starts the same");
+        assert_eq!(line(on_phone, deaf(), waiting(20, "upload"), true, true), Some(("status-phone-stalled", 20)));
+        assert_eq!(line(on_phone, None, None, false, false), None, "the phone answered: gone");
+        // As before without a big file: the phone not answering, not repeated under the copy's window.
+        assert_eq!(line(on_phone, None, waiting(4, "names"), false, false), Some(("status-phone-waiting", 4)));
+        assert_eq!(line(on_phone, None, waiting(40, "copy"), false, true), None);
+        assert_eq!(line(on_phone, None, waiting(40, "copy"), false, false), Some(("status-phone-waiting", 40)));
+        assert_eq!(line(on_phone, None, Some((String::new(), 3, "open".into())), false, false), Some(("status-phone-waiting-open", 3)));
+    }
+
     /// #330: the status bar line of a phone Windows stopped answering also says what to do, in
     /// the window's words, and it fits the bar of a window 1280 px wide with the counts after it.
     #[test]

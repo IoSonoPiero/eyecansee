@@ -172,6 +172,12 @@ transfer-moving = Moving
 transfer-looking = Looking inside the folders: { $n } items found
 transfer-counts = { $n } of { $total } files, { $done } of { $size }
 transfer-to = To { $dir }
+transfer-reading-phone = Reading { $name } from the phone
+transfer-writing-phone = Writing { $name } to { $storage }
+transfer-stop-at-end = Stopping after { $name }: the phone must receive it whole
+transfer-why-pc = Why through the computer?
+# The title of the section of the guide's page phone.md that `transfer-why-pc` opens: the same words.
+transfer-why-pc-section = Big files: through the computer
 transfer-left = { $percent }%, { $speed }/s, about { $time } left
 transfer-removing = Removing the originals
 transfer-removed = { $n } of { $total } files removed from where they were
@@ -256,6 +262,9 @@ list-more-images = { $n ->
    *[other] and { $n } more
 }
 error-copy-not-made = The phone did not make the copy of { $detail }: the original was left as it was.
+error-copy-not-whole = The copy of { $detail } did not arrive whole: the original was left as it was.
+error-pc-space = Not enough free space on this computer for { $detail }: a big file inside the phone goes through it. Free some space and try again.
+error-phone-space = Not enough free space on the phone for { $detail }.
 error-cancelled = Cancelled.
 error-too-deep = Too many folders one inside another, so the copy stopped: { $detail }
 menu-about = About EyeCanSee
@@ -304,10 +313,7 @@ status-phone-working = The phone is { $what ->
         [move] moving
        *[other] copying
     } { $name } ({ $s } s)…
-grid-phone-working = The phone is { $what ->
-        [move] moving
-       *[other] copying
-    } { $name } ({ $s } s): its folders open when it is done.
+status-phone-deaf = Please wait: the phone is writing { $name }. Its folders open when it is done.
 status-phone-waiting = The phone has not answered for { $s } s ({ $name }): waiting…
 status-phone-waiting-open = The phone has not answered for { $s } s: waiting…
 status-phone-stalled = Windows has not talked to the phone for { $s } s: unplug the cable and plug it in again, or wait

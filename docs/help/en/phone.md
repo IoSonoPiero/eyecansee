@@ -25,7 +25,17 @@ Photos taken, deleted or moved on the phone itself while its folder is open appe
 - **"EyeCanSee cannot open the device"**: another program is using the phone. If the desktop had connected it, EyeCanSee switches to that connection by itself (slower). Otherwise close the file manager and the other programs using the phone and press **F5**, or unplug the phone, plug it back in, choose File transfer and open it in EyeCanSee first.
 - **"Opened through the file manager: slower"**: the direct connection failed and EyeCanSee uses the desktop's one. In folders with hundreds of files it makes about one thumbnail per second.
 - A phone that does not answer a request: the status bar says so, with the seconds and the file. EyeCanSee carries on by itself as soon as the phone answers.
-- A copy or a move between the internal storage and the memory card of the same phone is done by the phone itself: with a big file it can take a few minutes. Meanwhile the folders of that phone open when it is done, and the rest of EyeCanSee stays free.
+- **"Please wait: the phone is writing …"**, in the status bar while that phone is open: the phone is writing a big file and answers nothing until it is done, so its folders open then. The folders of the computer open at once.
+
+## Big files: through the computer
+
+A file of 32 MB or more copied or moved inside the same phone (between the internal storage and the memory card, or copied inside one storage) goes through this computer: EyeCanSee reads it from the phone, then writes it where it goes. The copy box says which of the two it is doing, with **Why through the computer?** to open this section.
+
+- While the phone copies a file by itself, it answers nothing until it is done and cannot say how far it is: no real bar, no **Cancel**, and its folders wait.
+- Through the computer the bar, the speed and the time left are real. **Cancel** stops the reading at once; the writing stops at the end of the file, because a phone that receives half a file stops answering.
+- It takes longer: 2 GB to the memory card in about 3 and a half minutes instead of 2.
+- It needs free space on this computer, as much as the file and a little more: if there is not enough, the copy stops before it starts and says so. The file is kept in EyeCanSee's cache folder and removed as soon as it has been written, also after an error or **Cancel**.
+- Files under 32 MB, and moves inside one storage (only a change of folder, done at once), stay with the phone.
 
 ## Linux: GNOME and KDE
 

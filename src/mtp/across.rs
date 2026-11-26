@@ -53,20 +53,28 @@ impl Phone {
         Ok(Some(self.size_of(path, (from, handle)).await?))
     }
 
+    /// The free bytes of the storage of `path`, asked to the phone now (the ones read when it was
+    /// opened are old): a big file through the computer checks there is room before it is read.
+    pub async fn free_space(&self, path: &str) -> Result<u64, Error> {
+        let (storage, _) = storages::find(self.storages().await?, path).ok_or((NOT_FOUND, path.to_string()))?;
+        let (device, _) = self.open.get().ok_or((NOT_FOUND, path.to_string()))?;
+        let fresh = self.queued("storage_info", path, device.storage(storage.id())).await.map_err(error)?;
+        Ok(fresh.info().free_space)
+    }
+
     /// The size of `handle` (on `from`), asked to the phone.
     pub(super) async fn size_of(&self, path: &str, (from, handle): (&Storage, ObjectHandle)) -> Result<u64, Error> {
         Ok(self.queued("info", path, from.get_object_info(handle)).await.map_err(error)?.size)
     }
 
     /// After a copy or a move of `path` (begun at `began`) into `folder` of the storage `to`, given up by mtp-rs at
-    /// 30 s: the phone is still at it. Its turn is kept, so nothing else is asked meanwhile but the
+    /// 30 s: the phone is still at it. Its turn, held since the call (`queued_kept`), is kept, so nothing else is asked meanwhile but the
     /// destination, read every few seconds (a reading while the phone works is given up at 30 s
     /// too, and mtp-rs goes on), until `name` is there with `size` bytes and, for a move, the item
     /// `moved` is no longer on its storage. The handle of what arrived.
-    pub(super) async fn finished_by_phone(&self, (what, began): (&str, std::time::Instant), path: &str, (to, folder): (&Storage, ObjectHandle), (name, size): (&str, u64), moved: Option<(&Storage, ObjectHandle)>) -> Result<ObjectHandle, Error> {
+    pub(super) async fn finished_by_phone(&self, (what, began, _turn): (&str, std::time::Instant, turn::Turn<'_>), path: &str, (to, folder): (&Storage, ObjectHandle), (name, size): (&str, u64), moved: Option<(&Storage, ObjectHandle)>) -> Result<ObjectHandle, Error> {
         let start = std::time::Instant::now();
-        let _turn = self.turn.lock().await;
-        let _waiting = Waiting::start_at(what, path, began);
+        let (_waiting, _deaf) = (Waiting::start_at(what, path, began), turn::Deaf::start(&self.serial, path));
         log!("phone {}: {what} {path}: the phone is still at it ({size} bytes), its result looked for", self.serial);
         let parent = (folder != ObjectHandle::ROOT).then_some(folder);
         while start.elapsed() < deadline(size) {
