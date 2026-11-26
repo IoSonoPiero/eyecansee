@@ -416,6 +416,17 @@ pub fn phone_missing(address: &str, devices: &[Device]) -> bool {
     serial.is_some_and(|s| !devices.iter().any(|d| d.serial.as_deref() == Some(s)))
 }
 
+/// An address as people read it, in a message: a phone's own part (`mtp://<serial>/`, or its gvfs
+/// mount) replaced by the phone's name, as the panel on the left shows it ("Redmi Note 9 Pro/
+/// Internal shared storage/Download/"); any other address as it is.
+pub fn named(address: &str, devices: &[Device]) -> String {
+    devices
+        .iter()
+        .filter(|d| d.phone && !d.path.is_empty())
+        .find_map(|d| address.strip_prefix(d.path.as_str()).map(|rest| format!("{}/{rest}", d.name)))
+        .unwrap_or_else(|| address.to_string())
+}
+
 /// gvfs mount of the phone with this serial (which `scan` does not show: it opens directly).
 pub fn gvfs_mount(serial: &str) -> Option<String> {
     let run = std::env::var_os("XDG_RUNTIME_DIR")?;
@@ -484,6 +495,18 @@ pub fn watch(tx: Sender<Msg>, ctx: Context) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A phone's address in a message: its name in place of `mtp://<serial>/`; another phone, a
+    /// disk or a server as they are.
+    #[test]
+    fn phone_address_by_name() {
+        let device = |name: &str, path: &str, phone| Device { name: name.into(), path: path.into(), phone, serial: None, block: None, internal: false };
+        let devices = [device("Phone One", "mtp://ABCD1234/", true), device("Stick", "/run/media/me/Stick/", false)];
+        assert_eq!(named("mtp://ABCD1234/Internal storage/Download/", &devices), "Phone One/Internal storage/Download/");
+        assert_eq!(named("mtp://OTHER99/Internal storage/", &devices), "mtp://OTHER99/Internal storage/");
+        assert_eq!(named("/run/media/me/Stick/photos/", &devices), "/run/media/me/Stick/photos/");
+        assert_eq!(named("sftp://me@example.org/photos/", &devices), "sftp://me@example.org/photos/");
+    }
 
     /// Issue #46: a phone file handed over by the file manager opens through the direct
     /// connection, only for a phone that connection sees and only for MTP mounts.

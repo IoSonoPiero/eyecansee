@@ -21,7 +21,10 @@ impl App {
         // A part of the report of the jobs when another job's is up, or remembered for it (#328),
         // its folder there only when Convert gives none (`Report::folder`); alone it waits behind a
         // message open (#329).
-        match transfer_notice(&self.i18n, cut, to, r, p) {
+        // The phone by its name, not its serial (Piero, 26/11): only in the words, Open the folder
+        // keeps the address.
+        let named = crate::devices::named(to, &self.devices);
+        match transfer_notice(&self.i18n, cut, &named, r, p) {
             Some(n) => {
                 let n = Notice { job: true, open: open.clone(), ..n };
                 self.job_ended(Part::of_notice(&n), None, crate::jobs_report::Waiting::Notice(n));
@@ -29,7 +32,7 @@ impl App {
             // A long one (a big file the phone moved, minutes) ends with a message, not in silence
             // (Piero, 25/11); a short one quietly, as before.
             None => {
-                let part = quiet_copy(&self.i18n, cut, to, r, p);
+                let part = quiet_copy(&self.i18n, cut, &named, r, p);
                 if r.is_ok() && p.begun.get().is_some_and(|t| t.elapsed() >= LONG_JOB) {
                     let n = Notice { job: true, open: open.clone(), ..Notice::new(part.title.clone(), part.text.clone()) };
                     self.job_ended(Part { folder: open, ..part }, None, crate::jobs_report::Waiting::Notice(n));
