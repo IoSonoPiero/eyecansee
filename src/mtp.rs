@@ -28,6 +28,7 @@ mod across;
 mod cache;
 mod events;
 mod storages;
+mod turn;
 pub use events::{Change, on_change, take_changes};
 
 /// Device storages with the name shown as a folder.
@@ -128,10 +129,6 @@ impl Drop for Waiting {
 /// Seconds after which a call still waiting on Windows is taken for WPD's stall: ~340 s
 /// unless the cable is unplugged. Calls that are only slow end well before.
 pub const STALL_SECS: u64 = 15;
-
-/// The last call answered (what, path, end): named in the log line of a slow call, to see what
-/// came before it without logging every call.
-static LAST: Mutex<Option<(String, String, std::time::Instant)>> = Mutex::new(None);
 
 /// The file of a call the phone has not answered for at least `secs` seconds (a write: no data
 /// taken for that long), the seconds, and what the call is ("upload": a file being written to the
@@ -670,31 +667,6 @@ impl Phone {
 
     async fn storage_of(&self, path: &str) -> Result<Arc<Storage>, Error> {
         Ok(self.locate(path).await?.0)
-    }
-
-    /// Runs one mtp-rs call in its turn (see `turn`). A call that waits or runs for more than
-    /// 2 s goes in the log with `what` and `path`: the phone takes one call at a time, and a
-    /// slow one holds every other one back.
-    async fn queued<T>(&self, what: &str, path: &str, call: impl std::future::Future<Output = T>) -> T {
-        let t = std::time::Instant::now();
-        let _turn = self.turn.lock().await;
-        let waited = t.elapsed();
-        let r = {
-            let _waiting = Waiting::start(what, path);
-            call.await
-        };
-        let took = t.elapsed() - waited;
-        let mut last = LAST.lock().unwrap();
-        if waited + took > std::time::Duration::from_secs(2) {
-            // The call before this one: a stall came after a delete every time so far (2026-10-28).
-            let before = match &*last {
-                Some((w, p, end)) => format!(", after {w} {p} ended {:.1} s before", (t + waited).saturating_duration_since(*end).as_secs_f32()),
-                None => String::new(),
-            };
-            log!("phone {}: {what} {path} waited {:.1} s, took {:.1} s{before}", self.serial, waited.as_secs_f32(), took.as_secs_f32());
-        }
-        *last = Some((what.to_string(), path.to_string(), std::time::Instant::now()));
-        r
     }
 
     /// `call`, which creates an object, with the object marked as ours as soon as it is there:
