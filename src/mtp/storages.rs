@@ -1,13 +1,24 @@
 //! The names of a phone's storages, the first part of every path on the phone
 //! (`"Internal shared storage/DCIM/…"`), and the storage a path is in.
 
-/// The name of each storage `found` on the phone, as (description, id), in the same order.
+/// The name of each storage `found` on the phone, as (description, id), in the same order: its
+/// description, trimmed, or its number when it has none. A "/" in it becomes "-" (it would cut
+/// its paths in two). Storages that would have the same name all get their number in hex after
+/// it, as gvfs names them (`create_storage_name` in `gvfsbackendmtp.c`), so a phone mounted by
+/// the desktop has the same paths (`devices::direct_address`, `App::use_mount`).
 pub(super) fn storage_names(found: &[(String, u64)]) -> Vec<String> {
-    found
+    let base: Vec<String> = found
         .iter()
         .map(|(description, id)| match description.trim() {
             "" => format!("{id}"),
-            d => d.to_string(),
+            d => d.replace('/', "-"),
+        })
+        .collect();
+    base.iter()
+        .zip(found)
+        .map(|(name, (_, id))| match base.iter().filter(|b| *b == name).count() {
+            1 => name.clone(),
+            _ => format!("{name} ({id:X})"),
         })
         .collect()
 }
