@@ -133,8 +133,8 @@ impl App {
             (None, Some(img)) => {
                 let [iw, ih] = img.size;
                 if !crate::edit::resize::fits(iw, ih) {
-                    let max = crate::edit::resize::MAX_SIDE.to_string();
-                    self.error = Some(self.i18n.t_args("edit-paste-too-big", &[("w", &iw.to_string()), ("h", &ih.to_string()), ("max", &max)]));
+                    let (max, mp) = (crate::edit::resize::MAX_SIDE.to_string(), (crate::new_image::MAX_PIXELS / 1_000_000).to_string());
+                    self.error = Some(self.i18n.t_args("edit-paste-too-big", &[("w", &iw.to_string()), ("h", &ih.to_string()), ("max", &max), ("mp", &mp)]));
                     return;
                 }
                 let Some(patch) = clipboard_patch(w, &img) else { return };

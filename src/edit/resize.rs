@@ -38,9 +38,9 @@ pub fn capped((w, h): (f32, f32), most: (f32, f32), keep: bool) -> (f32, f32, bo
 }
 
 /// An image of `w` × `h` pixels pasted from another program fits in the editor: no side longer
-/// than `MAX_SIDE`.
+/// than `MAX_SIDE`, and no more pixels than a new image may have (200 megapixels, #295).
 pub fn fits(w: usize, h: usize) -> bool {
-    w.max(h) <= MAX_SIDE as usize
+    w.max(h) <= MAX_SIDE as usize && (w as u64).saturating_mul(h as u64) <= crate::new_image::MAX_PIXELS
 }
 
 /// The photo of the document: the original's pixels (upright as read, before the flips and

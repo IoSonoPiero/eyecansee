@@ -60,7 +60,7 @@ pub(crate) const MAX_SIDE: u32 = 20_000;
 
 /// At most this many pixels (200 megapixels, 800 MB in memory, made at once): 20 000 × 20 000 was
 /// 1.6 GB, and a mistake with the units brings there (4.15 a).
-const MAX_PIXELS: u64 = 200_000_000;
+pub(crate) const MAX_PIXELS: u64 = 200_000_000;
 
 /// More pixels than a new image may have.
 fn too_many((w, h): (u32, u32)) -> bool {
