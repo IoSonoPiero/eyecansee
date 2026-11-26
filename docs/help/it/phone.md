@@ -29,13 +29,13 @@ Le foto scattate, eliminate o spostate sul telefono mentre la sua cartella è ap
 
 ## File grandi: passano dal computer
 
-Un file di 32 MB o più copiato o spostato dentro lo stesso telefono (tra la memoria interna e la scheda di memoria, o copiato dentro una memoria) passa da questo computer: EyeCanSee lo legge dal telefono, poi lo scrive dove va. Il riquadro della copia dice quale delle due cose sta facendo, con **Perché passa dal computer?** che apre questa sezione.
+Un file di 32 MB o più copiato o spostato tra la memoria interna e la scheda di memoria dello stesso telefono passa da questo computer: EyeCanSee lo legge dal telefono, poi lo scrive dove va. Il riquadro della copia dice quale delle due cose sta facendo, con **Perché passa dal computer?** che apre questa sezione.
 
 - Mentre il telefono copia un file da solo, non risponde a niente finché non ha finito e non può dire a che punto è: niente barra vera, niente **Annulla**, e le sue cartelle aspettano.
 - Passando dal computer la barra, la velocità e il tempo che manca sono veri. **Annulla** ferma subito la lettura; la scrittura si ferma alla fine del file, perché un telefono che riceve mezzo file smette di rispondere.
 - Ci vuole di più: 2 GB verso la scheda di memoria in circa 3 minuti e mezzo invece di 2.
 - Serve spazio libero su questo computer, quanto il file e un po' di più: se non basta, la copia si ferma prima di cominciare e lo dice. Il file sta nella cartella della cache di EyeCanSee e viene tolto appena è stato scritto, anche dopo un errore o **Annulla**.
-- I file sotto i 32 MB, e gli spostamenti dentro una memoria (solo un cambio di cartella, fatto subito), restano al telefono.
+- I file sotto i 32 MB e tutto ciò che resta dentro una memoria li fa il telefono: uno spostamento lì è solo un cambio di cartella, fatto subito, e una copia è veloce (2 GB in circa 20 secondi, sei volte meno che passando dal computer). Per quel poco le sue cartelle aspettano, con **Attendi** nella barra di stato.
 
 ## Linux: GNOME e KDE
 

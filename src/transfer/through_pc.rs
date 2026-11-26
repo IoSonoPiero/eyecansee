@@ -1,11 +1,11 @@
-//! A big file of a phone copied or moved to the same phone through this computer (#354): read
+//! A big file of a phone copied or moved to its other storage through this computer (#354): read
 //! into a file of the app's cache folder, then written to its place. Done by the phone itself
 //! (`Phone::copy_inside`, `move_into`), a big one took minutes in one call that tells nothing of
 //! how far it is, with no bar and no Cancel ("without progress bars it is a real mess", Piero,
 //! 26/11). This way every byte is counted, both ways, and Cancel stops the reading at once.
-//! Slower: 2 GB to the SD card of a Redmi Note 9 Pro about 200 s instead of 112, inside its
-//! internal storage about 140 s instead of 20 (Fable's study of 26/11, [Inference] from the
-//! halves measured on 25/11).
+//! Slower: 512 MB to the SD card of a Redmi Note 9 Pro 47 s instead of about 28. Inside one
+//! storage it was 6 times slower (32 s instead of about 5), so there the phone keeps it
+//! (`by_computer`; measured 26/11).
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -35,12 +35,13 @@ pub enum Staging {
 }
 
 /// Whether a file of `size` bytes goes from `src` to `dest` of the same phone through this
-/// computer; `moved` for a move. A move inside one storage stays the phone's at any size: a change
-/// of folder, done at once. Paths start with their storage (`"SD card/DCIM/…"`).
-pub(super) fn by_computer(size: u64, moved: bool, src: &str, dest: &str) -> bool {
+/// computer: a big one between its two storages. Inside one storage the phone keeps it at any
+/// size: a move is a change of folder, done at once, and a copy is fast there (2 GB in about
+/// 20 s on a Redmi Note 9 Pro, 6 times slower through the computer; Piero, 26/11: the short wait
+/// with the phone's folders closed is better). Paths start with their storage (`"SD card/DCIM/…"`).
+pub(super) fn by_computer(size: u64, src: &str, dest: &str) -> bool {
     let storage = |p: &str| p.split('/').next().unwrap_or_default().to_string();
-    let across = storage(src) != storage(dest);
-    size >= BIG && (across || !moved)
+    size >= BIG && storage(src) != storage(dest)
 }
 
 /// Whether `free` bytes hold `size` more and still leave `margin`.
@@ -239,14 +240,12 @@ mod tests {
     #[test]
     fn the_way_of_a_file() {
         let (card, inner) = ("SD card/DCIM/a.mp4", "Internal shared storage/Movies/a.mp4");
-        assert!(by_computer(BIG, false, inner, card), "big copy across");
-        assert!(by_computer(BIG, true, inner, card), "big move across");
-        assert!(by_computer(2 << 30, false, inner, "Internal shared storage/Download/a.mp4"), "big copy inside");
-        assert!(!by_computer(2 << 30, true, inner, "Internal shared storage/Download/a.mp4"), "big move inside: the phone's");
-        assert!(!by_computer(BIG - 1, false, inner, card), "small copy across");
-        assert!(!by_computer(BIG - 1, true, card, inner), "small move across");
+        assert!(by_computer(BIG, inner, card), "big copy or move across");
+        assert!(by_computer(BIG, card, inner), "big copy or move back");
+        assert!(!by_computer(2 << 30, inner, "Internal shared storage/Download/a.mp4"), "big copy or move inside: the phone's");
+        assert!(!by_computer(BIG - 1, inner, card), "small across");
         // A storage whose name another one starts with is another storage.
-        assert!(by_computer(BIG, true, "SD/a.mp4", "SD card/a.mp4"));
+        assert!(by_computer(BIG, "SD/a.mp4", "SD card/a.mp4"));
     }
 
     #[test]
@@ -379,7 +378,7 @@ mod tests {
             let run = async {
                 live_copy(&phone, "copy to the card", &big, &copied, size).await?;
                 live_copy(&phone, "copy inside the first storage", &big, &here, size).await?;
-                assert!(by_computer(size, true, &here, &moved), "a move across goes through the computer");
+                assert!(by_computer(size, &here, &moved), "a move across goes through the computer");
                 live_copy(&phone, "move to the card", &here, &moved, size).await?;
                 step("delete the original of the move", phone.delete(&here, crate::source::Deletion::Permanent)).await?;
                 let left = phone.exists(&here).await;
@@ -398,9 +397,9 @@ mod tests {
         });
     }
 
-    /// A big file copied inside its own storage, through the computer (6 GB took about a minute
-    /// done by the phone on a Redmi Note 9 Pro): the copy ends up whole and the phone answers
-    /// after it. `EYECANSEE_MTP_BIG` is a big file, left as it is; the copy is deleted:
+    /// A big file copied inside its own storage, by the phone itself as a paste does it (fast
+    /// there: 6 GB in about a minute on a Redmi Note 9 Pro, past the 30 s mtp-rs waits): the copy
+    /// ends up whole, counted once, and the phone answers after it. `EYECANSEE_MTP_BIG` is a big file, left as it is; the copy is deleted:
     /// `EYECANSEE_MTP=<serial> EYECANSEE_MTP_BIG="<storage>/Download/big.mp4" cargo test --release mtp_big_file_inside_live -- --ignored --nocapture`
     #[test]
     #[ignore]
@@ -412,7 +411,19 @@ mod tests {
             phone.list("").await.unwrap();
             let size = phone.size(&big).await.unwrap();
             let copy = format!("{}EyeCanSee-big-inside.mp4", crate::source::parent(&big));
-            let r = live_copy(&phone, "copy inside", &big, &copy, size).await;
+            assert!(!by_computer(size, &big, &copy), "inside one storage: the phone's");
+            let p = Progress::default();
+            let r = async {
+                step("copy inside, by the phone", async { super::super::copy_file(&phone, &big, (&phone, &copy, Some(false)), size, &p).await.map_err(|(Fail::Stop(e) | Fail::Source(e))| e) }).await?;
+                let there = step("copy inside: the size there", phone.size(&copy)).await?;
+                let counted = p.done.load(Ordering::Relaxed);
+                if there != size || counted != size {
+                    return Err(format!("copy inside: {there} bytes there of {size}, {counted} counted"));
+                }
+                let listed = async { phone.list(&crate::source::parent(&copy)).await.map(|l| l.files.len()) };
+                step("copy inside: the phone answers", listed).await.map(|_| ())
+            }
+            .await;
             if phone.exists(&copy).await {
                 let _ = phone.delete(&copy, crate::source::Deletion::Permanent).await;
             }
@@ -431,7 +442,6 @@ mod tests {
     /// `src` copied to `dest` on the same phone as a paste does it, checked: whole, counted once,
     /// nothing left on this computer, the phone answering.
     async fn live_copy(phone: &Store, what: &str, src: &str, dest: &str, size: u64) -> Result<(), String> {
-        assert!(by_computer(size, false, src, dest), "{what}: through the computer");
         let p = Progress::default();
         let copied = async { copy(phone, src, (phone, dest, Some(false)), size, &p).await.map_err(|(Fail::Stop(e) | Fail::Source(e))| e) };
         step(what, copied).await?;
