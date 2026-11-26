@@ -431,6 +431,33 @@ mod tests {
         });
     }
 
+    /// Cancel while a big file is read from the phone (P5 of 26/11: every listing after it stayed
+    /// waiting for ever): the copy stops, and the phone answers the next call. A phone with a
+    /// memory card; `EYECANSEE_MTP_BIG` a big file on its first storage, left as it is:
+    /// `EYECANSEE_MTP=<serial> EYECANSEE_MTP_BIG="<storage>/Download/big.mp4" cargo test --release mtp_cancel_while_reading_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn mtp_cancel_while_reading_live() {
+        let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+        let big = std::env::var("EYECANSEE_MTP_BIG").expect("EYECANSEE_MTP_BIG not set");
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let phone = Store::Mtp(crate::mtp::Phone::shared(&serial));
+            let root = phone.list("").await.unwrap();
+            let size = phone.size(&big).await.unwrap();
+            let dest = format!("{}EyeCanSee-big-cancelled.mp4", root.dirs[1]);
+            let p = Progress::default();
+            let cancel = async {
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                p.cancel.store(true, Ordering::Relaxed);
+            };
+            let (r, ()) = tokio::join!(copy(&phone, &big, (&phone, &dest, Some(false)), size, &p), cancel);
+            assert!(matches!(r, Err(Fail::Stop((id, _))) if id == "error-cancelled"), "{:?}", r.err().map(|(Fail::Stop(e) | Fail::Source(e))| e));
+            let listed = tokio::time::timeout(std::time::Duration::from_secs(20), phone.list(&crate::source::parent(&big))).await;
+            assert!(matches!(listed, Ok(Ok(_))), "the phone did not answer after Cancel: {:?}", listed.map(|l| l.map(|l| l.files.len())));
+            assert!(!phone.exists(&dest).await, "nothing left at the destination");
+        });
+    }
+
     /// One step of a live test: its result, or why it stopped (an error, or 10 minutes).
     async fn step<T: std::fmt::Debug>(what: &str, call: impl std::future::Future<Output = Result<T, Error>>) -> Result<T, String> {
         let t = std::time::Instant::now();
