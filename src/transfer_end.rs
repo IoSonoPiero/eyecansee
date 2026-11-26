@@ -319,6 +319,44 @@ mod tests {
         assert_eq!(en.copy.as_deref(), Some(plain(&en.text).as_str()));
     }
 
+    /// A copy that worked, with 2 of its 3 files copied (one could not be read), 2 MB, 12 s
+    /// from the start of the paste.
+    fn two_of_three() -> crate::transfer::Progress {
+        let p = crate::transfer::Progress::default();
+        p.files.store(2, Ordering::Relaxed);
+        p.files_total.store(3, Ordering::Relaxed);
+        p.done.store(2 << 20, Ordering::Relaxed);
+        let _ = p.begun.set(std::time::Instant::now().checked_sub(std::time::Duration::from_secs(12)).unwrap());
+        p
+    }
+
+    /// F2: the end of a copy counts the files copied, not those it was to copy: with a file not
+    /// read it said one more.
+    #[test]
+    fn the_files_copied_are_counted() {
+        let p = two_of_three();
+        for (lang, copied, moved) in [("en", "2 files copied to /to/.", "2 files moved to /to/."), ("it", "2 file copiati in /to/.", "2 file spostati in /to/.")] {
+            let i18n = crate::i18n::I18n::new(lang);
+            assert!(super::quiet_copy(&i18n, false, "/to/", &Ok(()), &p).copy.starts_with(&format!("{copied}\n")), "{lang}");
+            assert!(super::quiet_copy(&i18n, true, "/to/", &Ok(()), &p).copy.starts_with(&format!("{moved}\n")), "{lang}");
+        }
+    }
+
+    /// F2: the message that lists what a copy left out says on top what the others say: how many
+    /// files went where, how much in how long; it said only "To" and the folder.
+    #[test]
+    fn the_list_has_the_count_on_top() {
+        let p = two_of_three();
+        *p.failed.lock().unwrap() = vec![("a/c.jpg".to_string(), ("error-detail", "timeout".to_string()))];
+        let n = super::transfer_notice(&crate::i18n::I18n::new("en"), false, "/in/", &Ok(()), &p).unwrap();
+        assert!(plain(&n.text).starts_with("2 files copied to /in/.\n2.0 MB in 12 s, "), "{}", n.text);
+        assert!(plain(&n.text).contains("/s on average.\n\n1 file not read:\n"), "{}", n.text);
+        assert!(n.text.starts_with(&format!("**2 files** copied to {}", md("/in/"))), "{}", n.text);
+        // Stopped at an error (the error bar says it): where it went, as before.
+        let stopped = super::transfer_notice(&crate::i18n::I18n::new("en"), false, "/in/", &Err(("error-detail", "x".into())), &p).unwrap();
+        assert!(plain(&stopped.text).starts_with("To /in/\n\n1 file not read:"), "{}", stopped.text);
+    }
+
     /// The part of a quiet copy, in English and Italian: finished, moved, cancelled, stopped.
     #[test]
     fn quiet_copy_says_what_happened() {
