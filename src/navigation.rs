@@ -509,6 +509,27 @@ fn release(editing: bool, held: &mut Option<String>) -> Option<String> {
 mod tests {
     use super::*;
 
+    /// F5 reads again only the folder open (Piero, 26/11): it emptied every listing read, and the
+    /// left panel read again each folder it shows open; on a phone busy with a big file all their
+    /// rows spun.
+    #[test]
+    fn f5_reads_again_only_the_folder_open() {
+        if crate::audit_family_1::own_folder("navigation::tests::f5_reads_again_only_the_folder_open") {
+            return;
+        }
+        let dir = crate::audit_family_1::folder("f5-only", &["a.png"]);
+        crate::audit_family_1::folder("f5-only/sub", &["b.png"]);
+        let mut h = crate::audit_family_1::Harness::new(&dir);
+        h.until(|a| a.listings.contains_key(&a.dir), "the folder listed");
+        let sub = format!("{}sub/", h.app.dir);
+        h.app.request_listing(&sub);
+        h.until(|a| a.listings.contains_key(&sub), "the other folder listed");
+        h.app.refresh();
+        assert!(h.app.listings.contains_key(&sub), "F5 forgot a folder that is not the one open");
+        assert!(!h.app.listings.contains_key(&h.app.dir), "F5 kept the folder open as it was");
+        h.until(|a| a.listings.contains_key(&a.dir), "the folder listed again");
+    }
+
     /// #206: the folder reopened back on a place: the last one visited from the row clicked,
     /// inside its folder. Two saved servers with the same login are one place: one saved on
     /// `docs/` (or on the root) does not reopen a folder visited from the other.
