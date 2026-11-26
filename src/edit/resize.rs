@@ -231,6 +231,18 @@ mod tests {
     use crate::edit::history::History;
     use crate::transform::Op;
 
+    /// A pasted image fits up to `MAX_SIDE` a side and 200 megapixels in all, as New image: at
+    /// 20 000 × 20 000 (1.6 GB) it took seconds and gigabytes to prepare (#295).
+    #[test]
+    fn pasted_image_limits() {
+        assert!(fits(20_000, 10_000));
+        assert!(fits(1, 20_000));
+        assert!(!fits(20_001, 1));
+        assert!(!fits(20_000, 20_000));
+        assert!(!fits(14_143, 14_143));
+        assert!(fits(14_142, 14_142));
+    }
+
     fn rect(x: f32, y: f32, w: f32, h: f32) -> Obj {
         Obj { shape: Shape::Rect(Area { centre: Pt::new(x, y), w, h, rot: 0.0 }), style: Style { width: 4.0, ..Style::default() } }
     }
