@@ -442,12 +442,12 @@ impl Phone {
             self.queued("rename", path, storage.rename(handle, new_name)).await.map_err(error)?;
         }
         let began = std::time::Instant::now();
-        match (self.queued("move", path, storage.move_object(handle, folder, Some(to.id()))).await, size) {
+        match (self.queued_kept("move", path, storage.move_object(handle, folder, Some(to.id()))).await, size) {
             // To the other storage, past the 30 s mtp-rs waits: the phone is still moving it.
-            (Err(mtp_rs::Error::Timeout), Some(size)) => {
-                self.finished_by_phone(("move", began), path, (&to, folder), (new_name, size), Some((&storage, handle))).await?;
+            ((Err(mtp_rs::Error::Timeout), turn), Some(size)) => {
+                self.finished_by_phone(("move", began, turn), path, (&to, folder), (new_name, size), Some((&storage, handle))).await?;
             }
-            (r, _) => r.map_err(error)?,
+            ((r, _), _) => r.map_err(error)?,
         }
         cache::forget(&mut self.handles.lock().unwrap(), path);
         let mut complete = self.complete.lock().unwrap();
@@ -649,14 +649,14 @@ impl Phone {
         let size = self.size_of(path, (&storage, handle)).await?;
         let _quiet = (size >= LONG_COPY).then(|| self.quiet());
         let began = std::time::Instant::now();
-        let h = match self.queued("copy", path, self.marked(storage.copy_object(handle, folder, Some(to.id())))).await {
+        let h = match self.queued_kept("copy", path, self.marked(storage.copy_object(handle, folder, Some(to.id())))).await {
             // Past the 30 s mtp-rs waits: the phone is still copying it.
-            Err(mtp_rs::Error::Timeout) => {
-                let h = self.finished_by_phone(("copy", began), path, (&to, folder), (source::name(path), size), None).await?;
+            (Err(mtp_rs::Error::Timeout), turn) => {
+                let h = self.finished_by_phone(("copy", began, turn), path, (&to, folder), (source::name(path), size), None).await?;
                 self.own.mark(h);
                 h
             }
-            r => r.map_err(error)?,
+            (r, _) => r.map_err(error)?,
         };
         log!("phone {}: copy {path} into {dir}: handle {} -> {}", self.serial, handle.0, h.0);
         if h == handle {
