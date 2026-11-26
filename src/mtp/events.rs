@@ -11,7 +11,7 @@
 //! (2026-10-29). Windows stalls that way by itself too: a photo taken on a POCO X7 Pro while the
 //! phone is open, with no call at all from the app (issue #52); only unplugging frees it.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -77,6 +77,8 @@ pub(super) struct Watch {
     pub serial: String,
     pub device: MtpDevice,
     pub handles: Arc<Mutex<HashMap<String, ObjectHandle>>>,
+    /// The folders read whole (`Phone::complete`): one may have a new child now.
+    pub complete: Arc<Mutex<HashSet<String>>>,
     pub own: Arc<Own>,
 }
 
@@ -119,7 +121,10 @@ async fn run(w: Watch, mut stop: tokio::sync::oneshot::Receiver<()>) {
 impl Watch {
     fn event(&self, event: DeviceEvent) {
         match event {
-            DeviceEvent::ObjectAdded { handle } if !self.own.is_own(handle) => push(&self.serial, Change::Added),
+            DeviceEvent::ObjectAdded { handle } if !self.own.is_own(handle) => {
+                super::cache::added(&mut self.complete.lock().unwrap());
+                push(&self.serial, Change::Added);
+            }
             DeviceEvent::ObjectRemoved { handle } if !self.own.is_own(handle) => {
                 // Gone from the phone: its path is known only if a listing saw it.
                 let mut handles = self.handles.lock().unwrap();

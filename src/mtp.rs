@@ -25,6 +25,7 @@ const NOT_MADE: &str = "error-copy-not-made";
 const LONG_COPY: u64 = 32 << 20;
 
 mod across;
+mod cache;
 mod events;
 pub use events::{Change, on_change, take_changes};
 
@@ -44,7 +45,7 @@ pub struct Phone {
     /// Folders whose every child is in `handles` (read with `names` or `walk`, or created here):
     /// a copy checks there whether a name is taken, without listing the folder again for each file
     /// (70 files were 70 ever longer listings).
-    complete: Mutex<HashSet<String>>,
+    complete: Arc<Mutex<HashSet<String>>>,
     /// One request at a time, in order of arrival. mtp-rs serialises too, but its lock lets the
     /// task that just released it take it again: during a copy the listing of the destination
     /// waited until the copy ended (4 s for 77 files). Taken around single mtp-rs calls only,
@@ -213,7 +214,7 @@ impl Phone {
             handles: Arc::default(),
             own: Arc::default(),
             _events: Mutex::new(None),
-            complete: Mutex::default(),
+            complete: Arc::default(),
             turn: tokio::sync::Mutex::const_new(()),
             downloads: tokio::sync::Mutex::const_new(()),
             ranges_slow: Default::default(),
@@ -276,7 +277,7 @@ impl Phone {
                 if storages.is_empty() {
                     return Err(("error-no-storage", self.serial.clone()));
                 }
-                let watch = events::Watch { serial: self.serial.clone(), device: device.clone(), handles: self.handles.clone(), own: self.own.clone() };
+                let watch = events::Watch { serial: self.serial.clone(), device: device.clone(), handles: self.handles.clone(), complete: self.complete.clone(), own: self.own.clone() };
                 *self._events.lock().unwrap() = Some(events::start(watch));
                 Ok::<_, Error>((device, storages))
             })
@@ -318,14 +319,15 @@ impl Phone {
         }
         let (storage, handle) = self.locate(dir).await?;
         let objects = self.queued("list", dir, storage.list_objects(handle)).await.map_err(error)?;
-        let mut handles = self.handles.lock().unwrap();
+        let mut found = Vec::new();
         for o in objects {
-            let path = format!("{dir}{}{}", o.filename, if o.is_folder() { "/" } else { "" });
+            let path = cache::child(dir, &o.filename, o.is_folder());
             // Hidden items too: `locate` finds them here (the files of an interrupted "Save").
-            handles.insert(path.clone(), o.handle);
+            found.push((path.clone(), o.handle));
             let modified = o.modified.map(phone_modified).unwrap_or_default();
             listing.add(path, &o.filename, o.is_folder(), o.size, modified, true);
         }
+        cache::listed(&mut self.handles.lock().unwrap(), dir, found);
         listing.sort();
         Ok(listing)
     }
@@ -384,8 +386,7 @@ impl Phone {
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
         self.own.mark(handle);
         self.queued("delete", path, storage.delete(handle)).await.map_err(error)?;
-        // A folder takes the paths below it too.
-        self.handles.lock().unwrap().retain(|p, _| !p.starts_with(path));
+        cache::forget(&mut self.handles.lock().unwrap(), path);
         Ok(())
     }
 
@@ -412,13 +413,12 @@ impl Phone {
         let (storage, handle) = self.locate(dir).await?;
         let objects = self.queued("names", dir, storage.list_objects(handle)).await.map_err(error)?;
         let mut handles = self.handles.lock().unwrap();
-        handles.retain(|p, _| !(p.starts_with(dir) && source::parent(p) == dir));
+        cache::forget_children(&mut handles, dir);
         self.complete.lock().unwrap().insert(dir.to_string());
         Ok(objects
             .into_iter()
             .map(|o| {
-                let slash = if o.is_folder() { "/" } else { "" };
-                handles.insert(format!("{dir}{}{slash}", o.filename), o.handle);
+                handles.insert(cache::child(dir, &o.filename, o.is_folder()), o.handle);
                 o.filename
             })
             .collect())
@@ -463,7 +463,7 @@ impl Phone {
             }
             (r, _) => r.map_err(error)?,
         }
-        self.handles.lock().unwrap().retain(|p, _| !p.starts_with(path));
+        cache::forget(&mut self.handles.lock().unwrap(), path);
         let mut complete = self.complete.lock().unwrap();
         complete.remove(to_dir);
         complete.remove(&source::parent(path));
@@ -485,7 +485,7 @@ impl Phone {
         // A file leaves its folder's cache complete, nothing else changed there: a paste over
         // many files renames each one (#90).
         let mut handles = self.handles.lock().unwrap();
-        handles.retain(|p, _| !p.starts_with(path));
+        cache::forget(&mut handles, path);
         if path.ends_with('/') {
             drop(handles);
             self.complete.lock().unwrap().remove(&source::parent(path));
@@ -515,7 +515,7 @@ impl Phone {
         self.complete.lock().unwrap().insert(dir.to_string());
         let mut found = Vec::new();
         for o in objects {
-            let path = format!("{dir}{}{}", o.filename, if o.is_folder() { "/" } else { "" });
+            let path = cache::child(dir, &o.filename, o.is_folder());
             self.handles.lock().unwrap().insert(path.clone(), o.handle);
             if o.is_folder() {
                 found.push((path.clone(), 0));

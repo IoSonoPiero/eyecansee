@@ -29,7 +29,7 @@ impl Drop for Quiet<'_> {
     fn drop(&mut self) {
         let phone = self.0;
         if let Some((device, _)) = phone.open.get() {
-            let watch = events::Watch { serial: phone.serial.clone(), device: device.clone(), handles: phone.handles.clone(), own: phone.own.clone() };
+            let watch = events::Watch { serial: phone.serial.clone(), device: device.clone(), handles: phone.handles.clone(), complete: phone.complete.clone(), own: phone.own.clone() };
             *phone._events.lock().unwrap() = Some(events::start(watch));
         }
     }
