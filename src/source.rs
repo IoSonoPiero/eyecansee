@@ -550,7 +550,10 @@ impl Store {
             Store::Mtp(phone) => {
                 let mut download = phone.download(path).await?;
                 while let Some(chunk) = phone.next_chunk(&mut download).await {
-                    push(chunk?).await?;
+                    if let Err(e) = push(chunk?).await {
+                        phone.stop_download(&mut download).await;
+                        return Err(e);
+                    }
                 }
             }
         }

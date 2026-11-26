@@ -551,6 +551,23 @@ impl Phone {
         Ok(Download { file, path: path.to_string(), window: None, _turn })
     }
 
+    /// A `download` given up before its end (Cancel, or the chunks no longer wanted): mtp-rs reads
+    /// the rest of the window in flight (at most about 0.5 s) and gives the phone back clean.
+    /// Dropped without it mid-window, the phone answered nothing after it, every listing waiting
+    /// for ever (Redmi Note 9 Pro, Cancel while a big file was read, 26/11).
+    pub async fn stop_download<'a>(&'a self, download: &mut Download<'a>) {
+        // The phone's events stopped meanwhile, as for a call mtp-rs gives up (`Quiet`): waited
+        // for, they kept mtp-rs from getting the session back.
+        let _quiet = self.quiet();
+        if download.file.holds_session() && download.window.is_none() {
+            download.window = Some(self.turn.lock().await);
+        }
+        if let Err(e) = download.file.cancel(mtp_rs::mtp::DEFAULT_CANCEL_TIMEOUT).await {
+            log!("phone {}: download {:?} stopped: ERROR {e}", self.serial, download.path);
+        }
+        download.window = None;
+    }
+
     /// The next chunk (up to 64 KB) of a `download`.
     pub async fn next_chunk<'a>(&'a self, download: &mut Download<'a>) -> Option<Result<Bytes, Error>> {
         if download.window.is_none() {
