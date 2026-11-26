@@ -467,7 +467,7 @@ mod tests {
         // Every key 0.76.0 wrote, none of those added after it.
         let mut old = serde_json::to_value(Settings::default()).unwrap();
         let keys = old.as_object_mut().unwrap();
-        keys.retain(|k, _| !["edit_after_save", "edit_main_overwrite", "resize_presets", "thumb_details", "tips", "tip_next", "tips_day", "smooth", "smooth_filter", "meta_size", "graphics", "welcome_seen", "addons_offered", "diagnostic_log"].contains(&k.as_str()));
+        keys.retain(|k, _| !["edit_after_save", "edit_main_overwrite", "resize_presets", "thumb_details", "tips", "tip_next", "tips_day", "smooth", "smooth_filter", "meta_size", "graphics", "welcome_seen", "addons_offered", "diagnostic_log", "double_click_full"].contains(&k.as_str()));
         assert_eq!(keys.len(), 32, "the keys of 0.76.0's settings.json");
         let s: Settings = serde_json::from_value(old).unwrap();
         assert_eq!(s.edit_after_save, AfterSave::Stay, "the page stays open unless chosen");
