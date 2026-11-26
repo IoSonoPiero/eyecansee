@@ -600,4 +600,19 @@ mod tests {
         let off: Settings = serde_json::from_str(r#"{"smooth": false}"#).unwrap();
         assert!(!off.smooth);
     }
+
+    /// A settings file from before #349 has no `double_click_full`: a double click goes back to
+    /// the grid; "Goes to full screen" chosen is read and written back as it is.
+    #[test]
+    fn double_click_goes_back_to_the_grid_in_an_old_file() {
+        let s: Settings = serde_json::from_str(r#"{"thumb_cache_mb": 50, "wheel_zoom": false}"#).unwrap();
+        assert!(!s.double_click_full);
+        assert!(!Settings::default().double_click_full);
+        let full: Settings = serde_json::from_str(r#"{"double_click_full": true}"#).unwrap();
+        assert!(full.double_click_full);
+        let written = serde_json::to_value(&full).unwrap();
+        assert_eq!(written["double_click_full"], serde_json::Value::Bool(true));
+        let again: Settings = serde_json::from_value(written).unwrap();
+        assert!(again.double_click_full);
+    }
 }

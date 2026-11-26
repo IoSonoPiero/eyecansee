@@ -692,6 +692,28 @@ mod tests {
         assert_eq!(super::boxes(false, true, |_| true), [Group::File, Group::Drawing]);
     }
 
+    /// The double click in the key lists follows the Options (#349): every list of a viewer says
+    /// what it does, in both languages, with no placeholder left.
+    #[test]
+    fn double_click_in_the_key_lists() {
+        use crate::i18n::I18n;
+        assert_eq!((super::double_keys(false), super::double_keys(true)), ("keys-double-grid", "keys-double-full"));
+        let said = [
+            ("en", "Double click: back to the grid", "Double click: full screen, and back to the window"),
+            ("it", "Doppio clic: torna alla griglia", "Doppio clic: schermo intero, e di nuovo la finestra"),
+        ];
+        for (lang, grid, full) in said {
+            let i18n = I18n::new(lang);
+            for id in ["hint-image", "hint-pano", "hint-video", "hint-audio", "hint-model", "hint-cad", "hint-cad-layouts"] {
+                for (to_full, want) in [(false, grid), (true, full)] {
+                    let text = i18n.t_args(id, &[("double", &i18n.t(super::double_keys(to_full)))]);
+                    assert!(text.contains(want), "{lang} {id} {to_full}: {text}");
+                    assert!(!text.contains("$double") && !text.contains('{'), "{lang} {id} {to_full}: {text}");
+                }
+            }
+        }
+    }
+
     #[test]
     fn digits_in_groups() {
         assert_eq!(super::grouped(245464190, "."), "245.464.190");
