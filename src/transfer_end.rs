@@ -33,7 +33,7 @@ impl App {
             // (Piero, 25/11); a short one quietly, as before.
             None => {
                 let part = quiet_copy(&self.i18n, cut, &named, r, p);
-                if r.is_ok() && p.begun.get().is_some_and(|t| t.elapsed() >= LONG_JOB) {
+                if said_alone(r, p.begun.get().is_some_and(|t| t.elapsed() >= LONG_JOB)) {
                     let n = Notice { job: true, open: open.clone(), ..Notice::new(part.title.clone(), part.text.clone()) };
                     self.job_ended(Part { folder: open, ..part }, None, crate::jobs_report::Waiting::Notice(n));
                 } else {
@@ -41,6 +41,17 @@ impl App {
                 }
             }
         }
+    }
+}
+
+/// Whether a copy with no list to give still ends with its own message: a long one that worked
+/// (Piero, 25/11), and one stopped by an error. The error bar said that one, but what cleared it
+/// (an unplugged phone takes the window to the home folder, P7 of 26/11) left the copy stopped
+/// without a word. Cancelled or short: the copy box just goes.
+fn said_alone(r: &Result<(), source::Error>, long: bool) -> bool {
+    match r {
+        Ok(()) => long,
+        Err((id, _)) => *id != "error-cancelled",
     }
 }
 
@@ -59,7 +70,11 @@ pub(crate) fn quiet_copy(i18n: &crate::i18n::I18n, cut: bool, to: &str, r: &Resu
         }
         // How many files and folders, where; how much, in how long; the items skipped (#356).
         Ok(()) => (if cut { "transfer-moved" } else { "transfer-copied" }, ended_lines(i18n, &Done::of(p, cut), &dir)),
-        Err((id, detail)) => (if cut { "transfer-move-stopped" } else { "transfer-copy-stopped" }, format!("{}\n{}", to_line(), md(&i18n.error(id, detail)))),
+        // What was done before the error, then the error (P7 of 26/11: a phone unplugged).
+        Err((id, detail)) => {
+            let done = if total > 0 { counted(if cut { "transfer-moved-before-error" } else { "transfer-done-before-error" }, files) } else { to_line() };
+            (if cut { "transfer-move-stopped" } else { "transfer-copy-stopped" }, format!("{done}\n{}", md(&i18n.error(id, detail))))
+        }
     };
     Part { title: i18n.t(title), copy: plain(&text), text, groups: Vec::new(), warning: false, help: None, folder: None }
 }
@@ -497,5 +512,23 @@ mod tests {
             assert_eq!(said(false, Err(("error-cancelled", String::new()))), cancelled);
             assert!(said(false, Err(("error-no-host", "nas".into()))).starts_with(&i18n.t("transfer-copy-stopped")));
         }
+    }
+
+    /// P7 of 26/11: a copy stopped by an unplugged phone says so, with the files done before; the
+    /// error bar that said it was cleared when the window went to the home folder.
+    #[test]
+    fn a_copy_stopped_by_an_error_says_it_alone() {
+        use super::{quiet_copy, said_alone};
+        let gone: Result<(), crate::source::Error> = Err(("error-phone-disconnected", "device disconnected".into()));
+        assert!(said_alone(&gone, false), "stopped: a message even when short");
+        assert!(!said_alone(&Err(("error-cancelled", String::new())), true), "cancelled: none");
+        assert!(said_alone(&Ok(()), true) && !said_alone(&Ok(()), false));
+        let p = crate::transfer::Progress::default();
+        p.files.store(2, Ordering::Relaxed);
+        p.files_total.store(5, Ordering::Relaxed);
+        let i18n = crate::i18n::I18n::new("it");
+        let part = quiet_copy(&i18n, false, "/to/", &gone, &p);
+        assert_eq!(part.title, "Copia interrotta");
+        assert!(part.copy.starts_with("2 file su 5 copiati in /to/ prima dell'interruzione.\n"), "{:?}", part.copy);
     }
 }

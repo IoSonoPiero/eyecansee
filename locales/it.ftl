@@ -211,6 +211,8 @@ transfer-skipped = { $n ->
 }
 transfer-done-before-cancel = **{ $n } file su { $total }** copiati in { $dir } prima di Annulla.
 transfer-moved-before-cancel = **{ $n } file su { $total }** spostati in { $dir } prima di Annulla.
+transfer-done-before-error = **{ $n } file su { $total }** copiati in { $dir } prima dell'interruzione.
+transfer-moved-before-error = **{ $n } file su { $total }** spostati in { $dir } prima dell'interruzione.
 transfer-copy-stopped = Copia interrotta
 transfer-move-stopped = Spostamento interrotto
 transfer-links-heading = { $n ->

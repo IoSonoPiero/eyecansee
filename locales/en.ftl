@@ -212,6 +212,8 @@ transfer-skipped = { $n ->
 }
 transfer-done-before-cancel = **{ $n } of { $total } files** copied to { $dir } before Cancel.
 transfer-moved-before-cancel = **{ $n } of { $total } files** moved to { $dir } before Cancel.
+transfer-done-before-error = **{ $n } of { $total } files** copied to { $dir } before it stopped.
+transfer-moved-before-error = **{ $n } of { $total } files** moved to { $dir } before it stopped.
 transfer-copy-stopped = Copy stopped
 transfer-move-stopped = Move stopped
 transfer-links-heading = { $n ->
