@@ -39,6 +39,8 @@ impl App {
             self.restore_conflict.is_some().then_some("help:delete"),
             self.new_image.is_some().then_some("help:new-image"),
             (self.new_folder.is_some() || self.rename.is_some()).then_some("help:rename"),
+            // The phone copying by itself (#354): the page that says why it waits.
+            self.phone_copy_modal().then_some("help:phone"),
             (self.transfer.is_some() || pasting).then_some("help:copy-move"),
             self.unlock.is_some().then_some("help:passwords"),
             self.bookmarks.configuring.then_some("help:bookmarks"),

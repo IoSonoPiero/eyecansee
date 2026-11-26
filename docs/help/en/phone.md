@@ -31,11 +31,21 @@ Photos taken, deleted or moved on the phone itself while its folder is open appe
 
 A file of 32 MB or more copied or moved between the internal storage and the memory card of the same phone goes through this computer: EyeCanSee reads it from the phone, then writes it where it goes. The copy box says which of the two it is doing, with **Why through the computer?** to open this section.
 
-- While the phone copies a file by itself, it answers nothing until it is done and cannot say how far it is: no real bar, no **Cancel**, and its folders wait.
+- While the phone copies a file by itself, it answers nothing until it is done and cannot say how far it is: no real bar, **Cancel** waits for the end of the file, and its folders wait.
 - Through the computer the bar, the speed and the time left are real. **Cancel** stops the reading at once; the writing stops at the end of the file, because a phone that receives half a file stops answering.
 - It takes longer: 2 GB to the memory card in about 3 and a half minutes instead of 2.
 - It needs free space on this computer, as much as the file and a little more: if there is not enough, the copy stops before it starts and says so. The file is kept in EyeCanSee's cache folder and removed as soon as it has been written, also after an error or **Cancel**.
-- Files under 32 MB and everything that stays inside one storage are done by the phone: a move there only changes the folder, at once, and a copy is fast (2 GB in about 20 seconds, six times less than through the computer). For that short time its folders wait, with **Please wait** in the status bar.
+- Files under 32 MB and everything that stays inside one storage are done by the phone: a move there only changes the folder, at once, and a copy is fast (2 GB in about 20 seconds, six times less than through the computer). For that short time its folders wait, with **Please wait** in the status bar; a copy inside one storage holds the whole of EyeCanSee instead (see the next section).
+
+## Copies inside one storage: the phone works alone
+
+A copy inside one storage of the phone (from a folder of the internal storage to another one, for example) is made by the phone itself, file by file, much faster than through the computer. While it copies a file the phone answers nothing, not even EyeCanSee, and cannot say how far it is. So for the whole copy a window in the middle, **The phone is copying**, keeps the rest of EyeCanSee waiting, the folders of the computer too. **Why do I have to wait?** in it opens this section.
+
+- The window shows only what is known: the file being copied, its size and the seconds since it started; how many files and how much data are done, counted as each file ends; a bar that moves file by file. With one file there is no bar.
+- The speed and the time left come only from the big files (32 MB or more) already copied in this paste: before the first one ends, there are none.
+- **Cancel** stops after the file being copied: the phone cannot be interrupted halfway through a file. **Esc** does not close the window.
+- After 3 minutes on the same file the window says so. Unplugging the phone does not stop its copy: the phone finishes it by itself, and EyeCanSee only stops waiting. Leave it plugged in until the window closes.
+- A move inside one storage only changes the folder, at once: no window.
 
 ## Linux: GNOME and KDE
 

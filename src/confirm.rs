@@ -340,7 +340,8 @@ impl App {
         }
         // The tip's first frame: egui keeps what is under a modal from the mouse only from the frame
         // after it is drawn, so a click now would reach the grid, the tree or the toolbar behind it.
-        if self.tip.is_some() && ctx.memory(|m| m.top_modal_layer()).is_none() {
+        // The phone's copy window too, which comes by itself while the user may be clicking (#354).
+        if (self.tip.is_some() || self.phone_copy_modal()) && ctx.memory(|m| m.top_modal_layer()).is_none() {
             raw_input.events.retain(|e| !matches!(e, egui::Event::PointerButton { .. }));
         }
         // Options read no `Nav` (no row of buttons): Tab goes to egui, which gives the keyboard to the
@@ -404,7 +405,7 @@ impl App {
     /// day… Its keys are its own (`raw_input_hook`).
     pub(crate) fn asking(&self) -> bool {
         let pasting = self.paste_ask.as_ref().is_some_and(|a| a.conflicts.as_ref().is_some_and(|c| !c.is_empty()));
-        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.ffmpeg_ask.is_some() || self.batch_turn.is_some() || self.notice.is_some() || !self.kept.is_empty() || self.batch_summary.is_some() || self.jobs_report.is_some() || self.update_note.is_some() || self.about || self.kiod_ask || self.host_ask || self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.duplicates.as_ref().is_some_and(crate::dup_page::Window::asking) || self.editor.as_ref().is_some_and(crate::edit_page::Window::asking) || self.after_turn.is_some() || self.batch.as_ref().is_some_and(crate::batch_page::Window::asking) || self.convert.as_ref().is_some_and(crate::convert::Window::asking) || self.first_start.as_ref().is_some_and(crate::first_start_ui::Open::asking) || self.tip.is_some() || self.model_export.is_some() || self.forms()
+        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.ffmpeg_ask.is_some() || self.batch_turn.is_some() || self.notice.is_some() || !self.kept.is_empty() || self.batch_summary.is_some() || self.jobs_report.is_some() || self.update_note.is_some() || self.about || self.kiod_ask || self.host_ask || self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.duplicates.as_ref().is_some_and(crate::dup_page::Window::asking) || self.editor.as_ref().is_some_and(crate::edit_page::Window::asking) || self.after_turn.is_some() || self.batch.as_ref().is_some_and(crate::batch_page::Window::asking) || self.convert.as_ref().is_some_and(crate::convert::Window::asking) || self.first_start.as_ref().is_some_and(crate::first_start_ui::Open::asking) || self.tip.is_some() || self.model_export.is_some() || self.phone_copy_modal() || self.forms()
     }
 
     /// Rename, New folder, Options and New image: windows with fields, whose keys reach nothing

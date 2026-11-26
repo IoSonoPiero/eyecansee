@@ -6,6 +6,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
 use super::Staging;
+use super::by_phone::ByPhone;
 use crate::source::Error;
 
 /// Shared with the UI, which shows it while the copy runs.
@@ -63,6 +64,8 @@ pub struct Progress {
     /// A big file of a phone on its way to the same phone through this computer, which half
     /// (`through_pc`): the copy box says it.
     pub staging: Mutex<Option<Staging>>,
+    /// A copy the phone makes by itself inside one storage: its window is a modal (`by_phone`).
+    pub by_phone: ByPhone,
 }
 
 /// What the copy box shows (`Progress::phase`).

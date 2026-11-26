@@ -10,10 +10,12 @@ use std::time::Instant;
 use crate::source::{Deletion, Error, Store, TRASH_DIR, free_name, name, parent};
 use crate::thumbcache;
 
+mod by_phone;
 mod names;
 mod originals;
 mod progress;
 mod through_pc;
+pub use by_phone::{Line, Seen, lines};
 pub use progress::{Phase, Progress};
 pub use through_pc::Staging;
 pub(crate) use through_pc::remove_left;
@@ -282,6 +284,7 @@ async fn renames(clip: &Clip, (to, to_dir, same): (&Store, &str, bool), plan: Ve
 async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress, gone: &mut Vec<String>) -> Result<(), Error> {
     let _ = p.begun.set(Instant::now());
     let same = clip.base == to_base;
+    p.by_phone.decide(by_phone::by_phone(clip.cut, same && matches!(to, Store::Mtp(_)), &clip.paths, to_dir));
     let present = Names::read(to, to_dir).await?;
     let here = in_own_folder(clip, to_base, to_dir, dest_place(clip, to, to_base, to_dir).await.as_ref()).await;
     let plan = planned(clip, to, to_dir, &here, choices, &present, &sidecars(clip).await);
@@ -631,7 +634,9 @@ async fn copy_file(from: &Store, src: &str, (to, dest, existed): (&Store, &str, 
         if through_pc::by_computer(size, src, dest) {
             return through_pc::copy(from, src, (to, dest, existed), size, p).await;
         }
+        p.by_phone.begin(name(src), size);
         a.copy_inside(src, dest).await.map_err(Fail::Stop)?;
+        p.by_phone.end(size);
         p.done.fetch_add(size, Ordering::Relaxed);
         return Ok(());
     }

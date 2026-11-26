@@ -161,6 +161,7 @@ mod new_folder;
 mod new_image;
 mod off;
 mod paint;
+mod phone_copy_window;
 mod pano;
 mod pano_view;
 mod presets;
