@@ -266,6 +266,11 @@ EyeCanSee collects no data. It connects only to GitHub (optional components and,
 <a href="https://alternativeto.net/software/eyecansee/about/?utm_source=badge&amp;utm_medium=referral"><img src="site/img/alternativeto-badge.svg" width="244" height="83" alt="EyeCanSee | AlternativeTo"></a>&nbsp;&nbsp;&nbsp;
 <a href="https://appimage.github.io/EyeCanSee/"><img src="site/img/appimage-badge.svg" width="244" height="83" alt="EyeCanSee | AppImage catalog"></a>
 
+## Articles and reviews
+
+- [EyeCanSee il visualizzatore multimediale open source per Linux](https://www.linuxeasy.org/eyecansee-il-visualizzatore-multimediale-open-source-per-linux/), Linux Easy, by Roberto Ferramosca, in Italian, 26 November 2026.
+- Review by embrace909 in the image viewer comparison thread on forum.ru-board.com, in Russian, 14 November 2026 ([post](https://forum.ru-board.com/topic.cgi?forum=5&topic=14959&start=1900#11)).
+
 ## License
 
 EyeCanSee is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE: see [LICENSE](LICENSE). Keep a backup of the files you care about.
