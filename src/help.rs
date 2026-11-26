@@ -309,6 +309,19 @@ impl Guide {
         double
     }
 
+    /// The page `id` at its section `title`, as a search for the title: the guide has no anchors,
+    /// and the heading found is highlighted and in view. Whether the section is there.
+    fn at(&mut self, id: &'static str, title: &str) -> bool {
+        self.query = title.to_string();
+        self.search();
+        let Some(i) = self.hits.iter().position(|h| h.id == id && h.kind == help_search::Kind::Heading) else {
+            self.go(id);
+            return false;
+        };
+        self.open_hit(i);
+        true
+    }
+
     /// Opens the page of a result with every match of the search highlighted, the one of the
     /// result active and in view.
     fn open_hit(&mut self, i: usize) {
@@ -393,6 +406,14 @@ impl App {
             self.help.open = false;
         } else {
             self.open_help(id);
+        }
+    }
+
+    /// Opens the guide on the page `id` at its section `title` (`Guide::at`).
+    pub(crate) fn open_help_at(&mut self, id: &'static str, title: &str) {
+        self.open_help(id);
+        if !self.help.at(id, title) {
+            log!("help: no section {title:?} in {id}");
         }
     }
 
@@ -720,6 +741,20 @@ mod tests {
         assert_eq!((g.page, g.back.clone(), g.forward.is_empty()), ("editor", vec!["index", "grid"], true));
         g.go("editor");
         assert_eq!(g.back.len(), 2, "the same page is not added twice");
+    }
+
+    /// "Why through the computer?" in the copy box (#354) opens the section of the phone's page
+    /// whose title is `transfer-why-pc-section`, in every language: the heading is found.
+    #[test]
+    fn why_through_the_computer_has_its_section() {
+        for (lang, _, _) in PAGES.iter().filter(|p| p.1 == "index") {
+            let title = crate::i18n::I18n::new(lang).t("transfer-why-pc-section");
+            assert!(page_text(lang, "phone").lines().any(|l| l == format!("## {title}")), "{lang}: no section {title:?} in phone.md");
+            let mut g = Guide::default();
+            g.language(lang);
+            assert!(g.at("phone", &title), "{lang}: {title:?} not found");
+            assert_eq!(g.page, "phone");
+        }
     }
 
     /// A result opens its page with the matches of the search highlighted.

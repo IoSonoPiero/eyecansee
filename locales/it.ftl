@@ -171,6 +171,12 @@ transfer-moving = Spostamento in corso
 transfer-looking = Esamino le cartelle: { $n } elementi trovati
 transfer-counts = { $n } di { $total } file, { $done } di { $size }
 transfer-to = In { $dir }
+transfer-reading-phone = Leggo { $name } dal telefono
+transfer-writing-phone = Scrivo { $name } su { $storage }
+transfer-stop-at-end = Mi fermo dopo { $name }: il telefono deve riceverlo intero
+transfer-why-pc = Perché passa dal computer?
+# Il titolo della sezione della pagina phone.md della guida che apre `transfer-why-pc`: le stesse parole.
+transfer-why-pc-section = File grandi: passano dal computer
 transfer-left = { $percent } %, { $speed }/s, circa { $time } alla fine
 transfer-removing = Tolgo gli originali
 transfer-removed = { $n } di { $total } file tolti da dove erano
@@ -249,6 +255,9 @@ list-more-images = { $n ->
    *[other] e altre { $n }
 }
 error-copy-not-made = Il telefono non ha fatto la copia di { $detail }: l'originale non è stato toccato.
+error-copy-not-whole = La copia di { $detail } non è arrivata intera: l'originale non è stato toccato.
+error-pc-space = Non c'è abbastanza spazio libero su questo computer per { $detail }: un file grande dentro il telefono passa da qui. Libera un po' di spazio e riprova.
+error-phone-space = Non c'è abbastanza spazio libero sul telefono per { $detail }.
 error-move-same-item = Quello che sostituirebbe è questo stesso elemento, raggiunto da un'altra strada: { $detail }
     Lo spostamento si è fermato, e l'elemento è rimasto com'era.
 error-move-not-told = Non si può sapere se quello che sostituirebbe è questo stesso elemento: { $detail }
@@ -302,10 +311,7 @@ status-phone-working = Il telefono sta { $what ->
         [move] spostando
        *[other] copiando
     } { $name } ({ $s } s)…
-grid-phone-working = Il telefono sta { $what ->
-        [move] spostando
-       *[other] copiando
-    } { $name } ({ $s } s): le sue cartelle si aprono alla fine.
+status-phone-deaf = Attendi: il telefono sta scrivendo { $name }. Le sue cartelle si aprono quando ha finito.
 status-phone-waiting = Il telefono non risponde da { $s } s ({ $name }): aspetto…
 status-phone-waiting-open = Il telefono non risponde da { $s } s: aspetto…
 status-phone-stalled = Windows non comunica col telefono da { $s } s: stacca e ricollega il cavo, oppure aspetta

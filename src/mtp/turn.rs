@@ -7,6 +7,34 @@ use super::*;
 /// came before it without logging every call.
 static LAST: Mutex<Option<(String, String, std::time::Instant)>> = Mutex::new(None);
 
+/// A phone answering nothing until a long call of it ends, from its start: a big file written to
+/// it (the second half of a copy through this computer, `transfer::through_pc`, or from the
+/// computer), or copied by the phone itself. Its serial and the file: the status bar says so
+/// while that phone is open (`menu::phone_line`), and its folders wait.
+static DEAF: Mutex<Option<(String, String)>> = Mutex::new(None);
+
+/// The call in `DEAF` while it lasts.
+pub(super) struct Deaf;
+
+impl Deaf {
+    pub(super) fn start(serial: &str, path: &str) -> Self {
+        *DEAF.lock().unwrap() = Some((serial.to_string(), path.to_string()));
+        Deaf
+    }
+}
+
+impl Drop for Deaf {
+    fn drop(&mut self) {
+        *DEAF.lock().unwrap() = None;
+    }
+}
+
+/// The phone answering nothing until it is done with a big file (`DEAF`): its serial, the file's
+/// name (the file's own while it is written under its hidden name to replace it).
+pub fn deaf() -> Option<(String, String)> {
+    DEAF.lock().unwrap().as_ref().map(|(serial, path)| (serial.clone(), source::saved_image(source::shown(path)).to_string()))
+}
+
 /// The phone's turn, held (`queued_kept`).
 pub(super) type Turn<'a> = tokio::sync::MutexGuard<'a, ()>;
 

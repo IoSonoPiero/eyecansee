@@ -1,0 +1,372 @@
+//! A big file of a phone copied or moved to the same phone through this computer (#354): read
+//! into a file of the app's cache folder, then written to its place. Done by the phone itself
+//! (`Phone::copy_inside`, `move_into`), a big one took minutes in one call that tells nothing of
+//! how far it is, with no bar and no Cancel ("without progress bars it is a real mess", Piero,
+//! 26/11). This way every byte is counted, both ways, and Cancel stops the reading at once.
+//! Slower: 2 GB to the SD card of a Redmi Note 9 Pro about 200 s instead of 112, inside its
+//! internal storage about 140 s instead of 20 (Fable's study of 26/11, [Inference] from the
+//! halves measured on 25/11).
+
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+use bytes::Bytes;
+use tokio::sync::mpsc::{Receiver, Sender};
+
+use super::{Fail, Progress};
+use crate::source::{Error, Store, name};
+
+/// From this size a file goes through the computer: smaller ones the phone copies in a few seconds,
+/// well within the 30 s mtp-rs waits for its answer.
+pub(super) const BIG: u64 = crate::mtp::LONG_COPY;
+
+/// Left free on this computer beyond the file: the system and the thumbnails keep working.
+const PC_MARGIN: u64 = 512 << 20;
+/// Left free on the phone beyond the file.
+const PHONE_MARGIN: u64 = 32 << 20;
+
+/// The half of the copy under way, for the copy box.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Staging {
+    /// From the phone into the computer.
+    Reading,
+    /// From the computer to the phone's storage named here.
+    Writing(String),
+}
+
+/// Whether a file of `size` bytes goes from `src` to `dest` of the same phone through this
+/// computer; `moved` for a move. A move inside one storage stays the phone's at any size: a change
+/// of folder, done at once. Paths start with their storage (`"SD card/DCIM/…"`).
+pub(super) fn by_computer(size: u64, moved: bool, src: &str, dest: &str) -> bool {
+    let storage = |p: &str| p.split('/').next().unwrap_or_default().to_string();
+    let across = storage(src) != storage(dest);
+    size >= BIG && (across || !moved)
+}
+
+/// Whether `free` bytes hold `size` more and still leave `margin`.
+fn enough(free: u64, size: u64, margin: u64) -> bool {
+    free >= size.saturating_add(margin)
+}
+
+/// The free bytes of the disk holding `dir`, for this user; `None` when not known.
+fn free_space(dir: &Path) -> Option<u64> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        let c = std::ffi::CString::new(dir.as_os_str().as_bytes()).ok()?;
+        let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
+        // SAFETY: `c` is a valid C string, `st` a writable statvfs.
+        (unsafe { libc::statvfs(c.as_ptr(), &mut st) } == 0).then(|| st.f_bavail as u64 * st.f_frsize as u64)
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        let wide: Vec<u16> = dir.as_os_str().encode_wide().chain([0]).collect();
+        let mut free = 0u64;
+        // SAFETY: `wide` ends with 0, the other two may be null.
+        let ok = unsafe { windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW(wide.as_ptr(), &mut free, std::ptr::null_mut(), std::ptr::null_mut()) };
+        (ok != 0).then_some(free)
+    }
+}
+
+/// The folder of the files read from a phone, in the app's cache folder (not the temporary one:
+/// on many systems it is in memory); only the user can open it.
+fn folder() -> Option<PathBuf> {
+    let dir = crate::thumbcache::cache_dir()?.join("phone-copy");
+    std::fs::create_dir_all(&dir).ok()?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
+    }
+    Some(dir)
+}
+
+/// At start, from `temp_file::remove_old_copies`: the files a copy of the app closed during such a
+/// copy left (closed by force, the guard below never ran).
+pub(crate) fn remove_left() {
+    let Some(dir) = crate::thumbcache::cache_dir().map(|d| d.join("phone-copy")) else { return };
+    for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+        log!("phone copy left by a copy of the app closed: {:?} removed", entry.file_name());
+        let _ = std::fs::remove_file(entry.path());
+    }
+}
+
+/// The file on this computer, removed when dropped: after the copy, at an error, at Cancel.
+struct Staged {
+    store: Store,
+    name: String,
+    file: PathBuf,
+}
+
+impl Staged {
+    /// A new empty file for `size` bytes, if the disk holds them (`error-pc-space`).
+    fn new(size: u64, shown: &str) -> Result<Self, Error> {
+        let dir = folder().ok_or(("error-pc-space", shown.to_string()))?;
+        if free_space(&dir).is_some_and(|free| !enough(free, size, PC_MARGIN)) {
+            return Err(("error-pc-space", shown.to_string()));
+        }
+        let (file, _) = new_file(&dir).map_err(|e| ("error-detail", e.to_string()))?;
+        let store = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).map_err(|e| ("error-detail", e.to_string()))?);
+        let name = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        Ok(Staged { store, name, file })
+    }
+}
+
+/// `{process}-{random}` in `dir`, a name nobody can work out beforehand, made empty and private.
+fn new_file(dir: &Path) -> std::io::Result<(PathBuf, std::fs::File)> {
+    use std::hash::{BuildHasher, Hasher};
+    let n = std::hash::RandomState::new().build_hasher().finish();
+    let file = dir.join(format!("{}-{n:016x}", std::process::id()));
+    crate::temp_file::new_private(&file).map(|f| (file, f))
+}
+
+impl Drop for Staged {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.file);
+    }
+}
+
+/// The half of a copy shown in the box (`Progress::staging`), cleared however the copy ends.
+struct Shown<'a>(&'a Progress);
+
+impl Shown<'_> {
+    fn set(&self, s: Staging) {
+        *self.0.staging.lock().unwrap() = Some(s);
+    }
+}
+
+impl Drop for Shown<'_> {
+    fn drop(&mut self) {
+        *self.0.staging.lock().unwrap() = None;
+    }
+}
+
+/// The bytes counted for the `n` first of a half: each half counts for half the file, so the
+/// bar, the speed and the time left move all the way and the file counts once ("2 GB of 2 GB").
+fn half(n: u64, second: bool) -> u64 {
+    if second { n.div_ceil(2) } else { n / 2 }
+}
+
+/// Passes the chunks on, adding their `half` to `done`; what it added.
+async fn counted(mut from: Receiver<std::io::Result<Bytes>>, to: Sender<std::io::Result<Bytes>>, done: &AtomicU64, second: bool) -> u64 {
+    let mut seen = 0;
+    while let Some(chunk) = from.recv().await {
+        if let Ok(b) = &chunk {
+            let before = half(seen, second);
+            seen += b.len() as u64;
+            done.fetch_add(half(seen, second) - before, Ordering::Relaxed);
+        }
+        if to.send(chunk).await.is_err() {
+            break;
+        }
+    }
+    half(seen, second)
+}
+
+/// `src` of the phone `from` to `dest` of the same phone `to` (`existed`: whether something is
+/// there, `replace::write_file`), `size` bytes, through this computer. Cancel stops the reading at
+/// once; the writing, at the end of the file (a phone must receive a file whole, `copy_file`).
+/// The copy must be there with all its bytes, or it is an error, and a move keeps its original.
+pub(super) async fn copy(from: &Store, src: &str, (to, dest, existed): (&Store, &str, Option<bool>), size: u64, p: &Progress) -> Result<(), Fail> {
+    let shown = name(src);
+    let staged = Staged::new(size, shown).map_err(Fail::Stop)?;
+    if let Store::Mtp(phone) = to
+        && phone.free_space(dest).await.is_ok_and(|free| !enough(free, size, PHONE_MARGIN))
+    {
+        return Err(Fail::Stop(("error-phone-space", shown.to_string())));
+    }
+    log!("paste: {src:?} to {dest:?} through this computer ({size} bytes)");
+    let box_line = Shown(p);
+    box_line.set(Staging::Reading);
+    let t = std::time::Instant::now();
+    let unused = AtomicU64::new(0);
+    let (tx, rx) = tokio::sync::mpsc::channel(4);
+    let (relay, chunks) = tokio::sync::mpsc::channel(4);
+    let (read, first, write) = tokio::join!(from.send_chunks(src, size, tx, &unused, &p.cancel), counted(rx, relay, &p.done, false), staged.store.write_chunks(&staged.name, size, chunks));
+    let undo = |n: u64| p.done.fetch_sub(n, Ordering::Relaxed);
+    if let Err(e) = super::outcome(read, write, &p.cancel) {
+        undo(first);
+        return Err(e);
+    }
+    log!("paste: {src:?} read in {:.1} s", t.elapsed().as_secs_f32());
+    box_line.set(Staging::Writing(dest.split('/').next().unwrap_or_default().to_string()));
+    let never = AtomicBool::new(false);
+    let (tx, rx) = tokio::sync::mpsc::channel(4);
+    let (relay, chunks) = tokio::sync::mpsc::channel(4);
+    let (read, second, write) = tokio::join!(staged.store.send_chunks(&staged.name, size, tx, &unused, &never), counted(rx, relay, &p.done, true), crate::replace::write_file(to, dest, size, chunks, existed));
+    drop(staged);
+    let whole = match super::outcome(read, write, &never) {
+        Ok(()) => to.size(dest).await.map_err(Fail::Stop).and_then(|s| if s == size { Ok(()) } else { Err(Fail::Stop(("error-copy-not-whole", shown.to_string()))) }),
+        Err(e) => Err(e),
+    };
+    if let Err(e) = whole {
+        log!("paste: {src:?} not written whole: {:?}", match &e { Fail::Stop(e) | Fail::Source(e) => e });
+        undo(first + second);
+        return Err(e);
+    }
+    log!("paste: {src:?} through this computer in {:.1} s", t.elapsed().as_secs_f32());
+    // Cancel pressed while it was written: the file is whole, and the copy stops after it.
+    if p.cancel.load(Ordering::Relaxed) {
+        p.files.fetch_add(1, Ordering::Relaxed);
+        return Err(Fail::Stop(("error-cancelled", String::new())));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A big file goes through the computer between the two storages and in a copy inside one;
+    /// a move inside one storage stays a change of folder on the phone; small files stay the phone's.
+    #[test]
+    fn the_way_of_a_file() {
+        let (card, inner) = ("SD card/DCIM/a.mp4", "Internal shared storage/Movies/a.mp4");
+        assert!(by_computer(BIG, false, inner, card), "big copy across");
+        assert!(by_computer(BIG, true, inner, card), "big move across");
+        assert!(by_computer(2 << 30, false, inner, "Internal shared storage/Download/a.mp4"), "big copy inside");
+        assert!(!by_computer(2 << 30, true, inner, "Internal shared storage/Download/a.mp4"), "big move inside: the phone's");
+        assert!(!by_computer(BIG - 1, false, inner, card), "small copy across");
+        assert!(!by_computer(BIG - 1, true, card, inner), "small move across");
+        // A storage whose name another one starts with is another storage.
+        assert!(by_computer(BIG, true, "SD/a.mp4", "SD card/a.mp4"));
+    }
+
+    #[test]
+    fn free_space_needed() {
+        assert!(enough(3 << 30, 2 << 30, PC_MARGIN));
+        assert!(!enough((2 << 30) + 100, 2 << 30, PC_MARGIN), "the file, but not the margin");
+        assert!(free_space(&std::env::temp_dir()).is_some_and(|f| f > 0), "this computer's disk is read");
+    }
+
+    /// Both halves together count the file once, whatever the chunks.
+    #[test]
+    fn halves_count_the_file_once() {
+        for size in [0u64, 1, 2, 7, 1001] {
+            assert_eq!(half(size, false) + half(size, true), size);
+        }
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let done = AtomicU64::new(0);
+        let added = rt.block_on(async {
+            let mut added = 0;
+            for second in [false, true] {
+                let (tx, rx) = tokio::sync::mpsc::channel(4);
+                let (relay, mut out) = tokio::sync::mpsc::channel(4);
+                let send = async move {
+                    for n in [3usize, 4, 1, 5] {
+                        tx.send(Ok(Bytes::from(vec![0; n]))).await.unwrap();
+                    }
+                };
+                let take = async move { while out.recv().await.is_some() {} };
+                added += tokio::join!(send, counted(rx, relay, &done, second), take).1;
+            }
+            added
+        });
+        assert_eq!((added, done.load(Ordering::Relaxed)), (13, 13));
+    }
+
+    /// The file on this computer goes when the copy ends, however it ends; one left by a copy of
+    /// the app closed goes at the next start.
+    #[test]
+    fn the_file_on_this_computer_is_removed() {
+        let staged = Staged::new(1, "a.mp4").unwrap();
+        let file = staged.file.clone();
+        assert!(file.exists() && file.starts_with(folder().unwrap()));
+        drop(staged);
+        assert!(!file.exists(), "removed with its guard");
+        let (left, _) = new_file(&folder().unwrap()).unwrap();
+        remove_left();
+        assert!(!left.exists(), "removed at start");
+        // Too big for any disk: said before anything is read.
+        assert_eq!(Staged::new(u64::MAX - PC_MARGIN, "a.mp4").err(), Some(("error-pc-space", "a.mp4".to_string())));
+    }
+
+    /// A big file to the memory card, copied and moved, and copied inside the first storage, the
+    /// way a paste does it (`copy_file`, then the original deleted for a move): each time the
+    /// copy is whole, the bytes counted are the file's, the box's line is gone, nothing is left on
+    /// this computer and the phone answers after it. A phone with a memory card;
+    /// `EYECANSEE_MTP_BIG` a big file on its first storage, left as it is; what the test makes is
+    /// deleted at the end. It stops at the first step that fails or takes more than 10 minutes:
+    /// `EYECANSEE_MTP=<serial> EYECANSEE_MTP_BIG="<storage>/Download/big.mp4" cargo test --release mtp_big_file_across_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn mtp_big_file_across_live() {
+        let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+        let big = std::env::var("EYECANSEE_MTP_BIG").expect("EYECANSEE_MTP_BIG not set");
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let phone = Store::Mtp(crate::mtp::Phone::shared(&serial));
+            let root = phone.list("").await.unwrap();
+            let (first, second) = (root.dirs[0].clone(), root.dirs[1].clone());
+            let size = phone.size(&big).await.unwrap();
+            assert!(size >= BIG, "EYECANSEE_MTP_BIG: {size} bytes, not a big file");
+            let (copied, here, moved) = (format!("{second}EyeCanSee-big-copy.mp4"), format!("{first}EyeCanSee-big-here.mp4"), format!("{second}EyeCanSee-big-moved.mp4"));
+            let run = async {
+                live_copy(&phone, "copy to the card", &big, &copied, size).await?;
+                live_copy(&phone, "copy inside the first storage", &big, &here, size).await?;
+                assert!(by_computer(size, true, &here, &moved), "a move across goes through the computer");
+                live_copy(&phone, "move to the card", &here, &moved, size).await?;
+                step("delete the original of the move", phone.delete(&here, crate::source::Deletion::Permanent)).await?;
+                let left = phone.exists(&here).await;
+                if left {
+                    return Err(format!("after the move: {here} left"));
+                }
+                Ok(())
+            };
+            let r = run.await;
+            for p in [&copied, &here, &moved] {
+                if phone.exists(p).await {
+                    let _ = phone.delete(p, crate::source::Deletion::Permanent).await;
+                }
+            }
+            assert!(r.is_ok(), "{r:?}");
+        });
+    }
+
+    /// A big file copied inside its own storage, through the computer (6 GB took about a minute
+    /// done by the phone on a Redmi Note 9 Pro): the copy ends up whole and the phone answers
+    /// after it. `EYECANSEE_MTP_BIG` is a big file, left as it is; the copy is deleted:
+    /// `EYECANSEE_MTP=<serial> EYECANSEE_MTP_BIG="<storage>/Download/big.mp4" cargo test --release mtp_big_file_inside_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn mtp_big_file_inside_live() {
+        let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+        let big = std::env::var("EYECANSEE_MTP_BIG").expect("EYECANSEE_MTP_BIG not set");
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let phone = Store::Mtp(crate::mtp::Phone::shared(&serial));
+            phone.list("").await.unwrap();
+            let size = phone.size(&big).await.unwrap();
+            let copy = format!("{}EyeCanSee-big-inside.mp4", crate::source::parent(&big));
+            let r = live_copy(&phone, "copy inside", &big, &copy, size).await;
+            if phone.exists(&copy).await {
+                let _ = phone.delete(&copy, crate::source::Deletion::Permanent).await;
+            }
+            assert!(r.is_ok(), "{r:?}");
+        });
+    }
+
+    /// One step of a live test: its result, or why it stopped (an error, or 10 minutes).
+    async fn step<T: std::fmt::Debug>(what: &str, call: impl std::future::Future<Output = Result<T, Error>>) -> Result<T, String> {
+        let t = std::time::Instant::now();
+        let r = tokio::time::timeout(std::time::Duration::from_secs(600), call).await;
+        println!("{what}: {r:?} in {:?}", t.elapsed());
+        r.map_err(|_| format!("{what}: no answer in 10 minutes"))?.map_err(|e| format!("{what}: {e:?}"))
+    }
+
+    /// `src` copied to `dest` on the same phone as a paste does it, checked: whole, counted once,
+    /// nothing left on this computer, the phone answering.
+    async fn live_copy(phone: &Store, what: &str, src: &str, dest: &str, size: u64) -> Result<(), String> {
+        assert!(by_computer(size, false, src, dest), "{what}: through the computer");
+        let p = Progress::default();
+        let copied = async { copy(phone, src, (phone, dest, Some(false)), size, &p).await.map_err(|(Fail::Stop(e) | Fail::Source(e))| e) };
+        step(what, copied).await?;
+        let there = step(&format!("{what}: the size there"), phone.size(dest)).await?;
+        let left = std::fs::read_dir(folder().unwrap()).unwrap().count();
+        let counted = p.done.load(Ordering::Relaxed);
+        if there != size || counted != size || left != 0 || p.staging.lock().unwrap().is_some() {
+            return Err(format!("{what}: {there} bytes there of {size}, {counted} counted, {left} files left on this computer"));
+        }
+        let listed = async { phone.list(&crate::source::parent(dest)).await.map(|l| l.files.len()) };
+        step(&format!("{what}: the phone answers"), listed).await.map(|_| ())
+    }
+}

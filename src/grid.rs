@@ -192,16 +192,10 @@ impl App {
     pub(crate) fn grid_counts(&self, ui: &mut Ui) -> Option<(usize, usize)> {
         let Some(Ok(listing)) = self.listings.get(&self.dir) else {
             // The message is in the bar (`folder_error`): here only its start, faint, on one line.
-            // On a phone busy copying or moving a file itself, its folders wait for the end: said.
-            let working = self.base.starts_with("mtp://").then(crate::mtp::working).flatten();
-            ui.centered_and_justified(|ui| match (self.folder_error(), working) {
-                (Some(e), _) => ui.add(egui::Label::new(error_bar::short_text(ui, &e).size(16.0)).truncate().selectable(false)),
-                (None, Some((what, name, s))) => {
-                    let text = self.i18n.t_args("grid-phone-working", &[("what", &what), ("name", &name), ("s", &s.to_string())]);
-                    ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
-                    ui.add(egui::Label::new(text).wrap().selectable(false))
-                }
-                (None, None) => ui.spinner(),
+            // A phone writing a big file: its folders wait, and the status bar says so (`menu::phone_line`).
+            ui.centered_and_justified(|ui| match self.folder_error() {
+                Some(e) => ui.add(egui::Label::new(error_bar::short_text(ui, &e).size(16.0)).truncate().selectable(false)),
+                None => ui.spinner(),
             });
             return None;
         };
