@@ -45,6 +45,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Viewer: show HDR photos in HDR on screens that support it ([#124](https://github.com/IoSonoPiero/eyecansee/issues/124)).
 - Viewer: play animated AVIF ([#131](https://github.com/IoSonoPiero/eyecansee/issues/131)).
 - Viewer: 360° panoramas shown as a sphere to look around in ([#188](https://github.com/IoSonoPiero/eyecansee/issues/188)).
+- Blender .blend files in the grid and the viewer, with the preview saved in the file ([#352](https://github.com/IoSonoPiero/eyecansee/issues/352)).
 
 ### CAD drawings and 3D models
 
@@ -56,6 +57,8 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 - Viewer: Esc closes EyeCanSee when the window's ✕ is set to close it ([#320](https://github.com/IoSonoPiero/eyecansee/issues/320)).
 - Viewer: a double click can go to full screen instead of back to the grid, chosen in the Options ([#349](https://github.com/IoSonoPiero/eyecansee/issues/349)).
+- Grid: type the first letters of a name to jump to that file or folder ([#350](https://github.com/IoSonoPiero/eyecansee/issues/350)).
+- Bookmarks in the left panel, as well as in the menu and the toolbar ([#351](https://github.com/IoSonoPiero/eyecansee/issues/351)).
 - Menus: the menu bar opened from the keyboard (Alt, F10, Alt + letter), as in other desktop apps ([#322](https://github.com/IoSonoPiero/eyecansee/issues/322)).
 - Paste: what was pasted is selected in the folder, the last item when there are several ([#323](https://github.com/IoSonoPiero/eyecansee/issues/323)).
 - F6 takes the keyboard to Cancel of a copy or a conversion under way ([#324](https://github.com/IoSonoPiero/eyecansee/issues/324)).
