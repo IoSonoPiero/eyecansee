@@ -284,15 +284,21 @@ pub fn rekey(source: &str, path: &str, from: &str, to: &str) {
 }
 
 /// `query` for `file`; for a phone's date missing, under the key it had before #335 (then moved
-/// to the new one).
+/// to the new one). Not under the old key either: a move of these rows asked by another reading
+/// (the thumbnail's, the details') may have been committed in between, so the new key once more;
+/// without it the details were read again from the phone now and then.
 fn found<T>(source: &str, file: &File, query: impl Fn(&File) -> Option<T>) -> Option<T> {
     if let Some(r) = query(file) {
         return Some(r);
     }
     let old = old_phone_key(&file.modified)?;
-    let r = query(&File { modified: old.clone(), ..file.clone() })?;
-    rekey(source, &file.path, &old, &file.modified);
-    Some(r)
+    match query(&File { modified: old.clone(), ..file.clone() }) {
+        Some(r) => {
+            rekey(source, &file.path, &old, &file.modified);
+            Some(r)
+        }
+        None => query(file),
+    }
 }
 
 /// The metadata saved for this version of the file (`meta::Meta::to_json`).
