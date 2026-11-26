@@ -180,6 +180,8 @@ pub(crate) struct Guide {
     /// After a result is opened, the match is brought into view again until then (time of
     /// egui): the pictures above it are decoded in the background and push it down.
     settle: Option<f64>,
+    /// How far down the page shown is scrolled, in points, in the last frame.
+    pub(crate) scrolled: f32,
     /// When the last Esc for the guide was pressed (time of egui), for the double Esc.
     last_esc: Option<f64>,
     /// The search field had the keyboard in the frame before: an Esc there is the guide's.
@@ -206,6 +208,7 @@ impl Default for Guide {
             query: String::new(),
             hits: vec![],
             settle: None,
+            scrolled: 0.0,
             last_esc: None,
             typing: false,
             inside: false,
@@ -412,6 +415,13 @@ impl App {
     /// Opens the guide on the page `id` at its section `title` (`Guide::at`).
     pub(crate) fn open_help_at(&mut self, id: &'static str, title: &str) {
         self.open_help(id);
+        // The pages in the language of the interface before the title is looked for. The guide takes
+        // it when its window is first drawn (`help_window`): opened here for the first time in a
+        // language other than English, the title was looked for in the English pages and not found,
+        // and the page stayed at its top (Piero, 26/11: "I have to scroll to find it").
+        if self.help.lang != pages_lang(self.i18n.code) {
+            self.help.language(self.i18n.code);
+        }
         if !self.help.at(id, title) {
             log!("help: no section {title:?} in {id}");
         }
@@ -575,9 +585,12 @@ fn draw(ui: &mut egui::Ui, g: &mut Guide, v: &View) -> Option<Do> {
     egui::Panel::top("help-bar").show(ui, |ui| bar(ui, v, &mut todo));
     egui::Panel::left("help-side").resizable(true).default_size(260.0).size_range(160.0..=480.0).show(ui, |ui| side(ui, g, v, &mut todo));
     egui::CentralPanel::default().show(ui, |ui| {
-        egui::ScrollArea::vertical().id_salt(("help-page", g.page)).auto_shrink(false).show_follow(ui, |ui| {
+        let page = egui::ScrollArea::vertical().id_salt(("help-page", g.page)).auto_shrink(false).show_follow(ui, |ui| {
+            let top = ui.cursor().top();
             CommonMarkViewer::new().default_implicit_uri_scheme(pages_uri(g.lang)).show_with_id(viewer_id(), ui, &mut g.cache, v.text);
+            top
         });
+        g.scrolled = page.inner_rect.top() - page.inner;
     });
     if let Some(id) = g.clicked_link() {
         todo = Some(Do::Go(id));
@@ -1195,6 +1208,40 @@ mod tests {
         h.key(egui::Key::Escape);
         h.frame(Vec::new());
         assert!(h.app.server_manager.is_none(), "the next Esc closes the server manager");
+    }
+
+    /// #354, "Why do I have to wait?" and "Why through the computer?" as the first thing that opens
+    /// the guide, the interface in Italian or in English: the section is found and the page goes
+    /// down to it, as far as when the guide is open on that page already. It stayed at the top in
+    /// Italian: the title was looked for in the English pages.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn a_section_opened_first_is_in_view() {
+        if own_folder("help::tests::a_section_opened_first_is_in_view") {
+            return;
+        }
+        for lang in ["it", "en"] {
+            for id in ["phone-copy-why-section", "transfer-why-pc-section"] {
+                let down = |first: bool| {
+                    let mut h = Harness::new(&folder(&format!("guide-section-{lang}-{id}-{first}"), &["a.png"]));
+                    h.app.i18n = crate::i18n::I18n::new(lang);
+                    let title = h.app.i18n.t(id);
+                    if !first {
+                        h.app.open_help("phone");
+                        settle(&mut h);
+                    }
+                    h.app.open_help_at("phone", &title);
+                    for _ in 0..4 {
+                        settle(&mut h);
+                    }
+                    assert_eq!((h.app.help.page, h.app.help.cache.active_match(&viewer_id())), ("phone", Some(0)), "{lang} {id}: the heading is not the match shown");
+                    h.app.help.scrolled
+                };
+                let (first, again) = (down(true), down(false));
+                assert!(again > 200.0, "{lang} {id}: the page did not go down to the section ({again})");
+                assert!((first - again).abs() < 2.0, "{lang} {id}: opened first the page is at {first}, not at {again}");
+            }
+        }
     }
 
     /// Some frames for what a key started (a deletion in the background).
