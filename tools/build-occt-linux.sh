@@ -7,10 +7,10 @@
 # inside, so that it runs on older distributions too.
 # Output: target/occt-linux/occt-linux-x64-<version>-<build>.tar.gz (libecs_occt.so, licences, source).
 set -euo pipefail
-OCCT=8.0.1 TAG=V8.0.1 BUILD=2
+OCCT=8.0.2 TAG=V8_0_2 BUILD=1
 # SHA-256 of the tag's archive (tools/fetch.sh), the same as in build-occt-windows.ps1. OCCT publishes
 # no hash of its sources; the commit inside the archive is the tag's. To update: the new one here.
-OCCT_SHA256=6297cc55a1720523a437c54d07dc16b9da8c5f5ab5800da3c6ebded568d53c18
+OCCT_SHA256=4b3ecaa559cd4f772a8a763668ca692bf79a36b05c41e8871139eb8d4625de9c
 
 if [[ ! -f /.dockerenv && ! -f /run/.containerenv ]]; then
     mkdir -p target/occt-linux

@@ -6,10 +6,10 @@
 #   powershell -ExecutionPolicy Bypass -File tools\build-occt-windows.ps1
 # Output: target\occt-windows\occt-windows-x64-<version>-<build>.tar.gz
 $ErrorActionPreference = "Stop"
-$Occt = "8.0.1"; $Tag = "V8.0.1"; $Build = 1
+$Occt = "8.0.2"; $Tag = "V8_0_2"; $Build = 1
 # SHA-256 of the tag's archive, the same as in build-occt-linux.sh. OCCT publishes no hash of its
 # sources; the commit inside the archive is the tag's. To update: the new one here.
-$OcctSha256 = "6297cc55a1720523a437c54d07dc16b9da8c5f5ab5800da3c6ebded568d53c18"
+$OcctSha256 = "4b3ecaa559cd4f772a8a763668ca692bf79a36b05c41e8871139eb8d4625de9c"
 $Root = (Get-Location).Path
 $B = Join-Path $env:TEMP "eyecansee-occt-$Occt"
 $P = Join-Path $B "prefix"
