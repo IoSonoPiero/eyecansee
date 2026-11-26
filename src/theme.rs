@@ -178,9 +178,15 @@ pub struct BarColours {
 /// coloured fill with a border around was hard to read (Piero, 20/11: "brutto da leggere").
 /// Not `weak_text_color` for the detail: 4.65:1 in the dark theme.
 pub fn error_bar(v: &Visuals) -> BarColours {
-    let (lead, detail, band) =
-        if v.dark_mode { (rgb(255, 255, 255), rgb(170, 176, 184), rgb(245, 180, 50)) } else { (rgb(17, 20, 24), rgb(75, 83, 93), rgb(204, 122, 0)) };
-    BarColours { fill: v.window_fill, lead, text: v.text_color(), detail, band, line: tile(v).1 }
+    let (lead, band) = if v.dark_mode { (rgb(255, 255, 255), rgb(245, 180, 50)) } else { (rgb(17, 20, 24), rgb(204, 122, 0)) };
+    BarColours { fill: v.window_fill, lead, text: v.text_color(), detail: faint(v), band, line: tile(v).1 }
+}
+
+/// Text that comes second on a window's background: the detail of an error, an explanation under
+/// what matters. Fainter than the text and still easy to read (well above 4.5:1 in both themes);
+/// `weak_text_color` is 4.65:1 in the dark theme.
+pub fn faint(v: &Visuals) -> Color32 {
+    if v.dark_mode { rgb(170, 176, 184) } else { rgb(75, 83, 93) }
 }
 
 /// The warning triangle: yellow with a dark edge and "!", the same in both themes, as road signs.

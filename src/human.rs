@@ -29,6 +29,12 @@ pub(crate) fn size(i18n: &I18n, bytes: u64) -> String {
     s.replace('.', &i18n.t("decimal-separator"))
 }
 
+/// `size`, in GB from 1 GB on (6.0 GB, not 6144.0 MB): where big files are the matter, as the
+/// window of the phone's own copies (#354). From where `size` would write "1024.0 MB".
+pub(crate) fn size_gb(i18n: &I18n, bytes: u64) -> String {
+    if bytes as f64 / f64::from(1u32 << 20) >= 1023.95 { crate::view_memory::gigabytes(i18n, bytes) } else { size(i18n, bytes) }
+}
+
 /// `File::modified` as an instant: Unix seconds (servers, a phone that writes its time zone),
 /// RFC 3339 (OpenDAL) or a date without a zone (a phone's clock, `mtp::phone_modified`), read
 /// in the computer's time zone; "" = no date.
@@ -61,6 +67,19 @@ mod tests {
         assert_eq!(super::human_time(40), "40 s");
         assert_eq!(super::human_time(75), "1 min 15 s");
         assert_eq!(super::human_time(7500), "2 h 5 min");
+    }
+
+    /// KB and MB as everywhere, GB from 1 GB on, and never "1024.0 MB" just under it.
+    #[test]
+    fn sizes_with_gigabytes() {
+        let (en, it) = (crate::i18n::I18n::new("en"), crate::i18n::I18n::new("it"));
+        const GB: u64 = 1 << 30;
+        assert_eq!(super::size_gb(&it, 6 * GB), "6,0 GB");
+        assert_eq!(super::size_gb(&en, GB + GB / 2), "1.5 GB");
+        assert_eq!(super::size_gb(&en, 850 << 10), "850 KB");
+        assert_eq!(super::size_gb(&it, 500 << 20), "500,0 MB");
+        assert_eq!(super::size_gb(&en, GB - 1), "1.0 GB");
+        assert_eq!(super::size_gb(&en, 1023 << 20), "1023.0 MB");
     }
 
     #[test]

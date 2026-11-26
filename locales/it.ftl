@@ -179,16 +179,24 @@ transfer-why-pc = Perché passa dal computer?
 transfer-why-pc-section = File grandi: passano dal computer
 # La finestra della copia mentre il telefono copia da solo dentro una memoria (#354).
 phone-copy-title = Il telefono sta copiando
-phone-copy-file = { $name } ({ $size }), da { $s } s
-phone-copy-counts = File { $n } di { $total }, { $done } di { $size }
-phone-copy-one = Il telefono non dice a che punto è: niente barra finché non ha finito.
-phone-copy-speed = Velocità misurata sui file grandi già copiati: { $speed }/s. Circa { $time } alla fine.
-phone-copy-notice = Il telefono copia da solo, molto più in fretta che passando dal computer. Finché lavora non risponde a niente: per questo EyeCanSee aspetta. Non scollegare il telefono.
+phone-copy-nth = File { $n } di { $total }
+phone-copy-for = { $size }, in copia da { $time }
+phone-copy-total = { $size } in tutto
+phone-copy-done = Già copiati { $done } di { $size }
+phone-copy-speed = { $speed }/s sui file grandi già copiati, circa { $time } alla fine
+phone-copy-notice = Il telefono copia da solo e intanto non risponde: per questo EyeCanSee aspetta.
+phone-copy-keep = Non scollegare il telefono.
+phone-copy-long = Questo file dura da più di 3 minuti. Il telefono continua finché non ha finito: puoi solo aspettare.
+phone-copy-cancel-tip = Il telefono finisce il file in corso, poi EyeCanSee toglie quella copia. I file già copiati restano.
+phone-copy-cancelled = Annullata, aspetto il telefono
+phone-copy-cancelled-note = Il telefono finisce questo file, poi EyeCanSee toglie la copia appena fatta.
+phone-copy-others = { $n ->
+    [one] L'altro file non viene copiato.
+   *[other] Gli altri { $n } file non vengono copiati.
+}
 phone-copy-why = Perché devo aspettare?
 # Il titolo della sezione della pagina phone.md della guida che apre `phone-copy-why`: le stesse parole.
 phone-copy-why-section = Copie dentro una memoria: il telefono fa da solo
-phone-copy-stopping = Mi fermo dopo { $name }: il telefono non si può interrompere a metà file.
-phone-copy-long = Questo file dura da più di 3 minuti. Il telefono continua finché non ha finito: puoi solo aspettare.
 transfer-left = { $percent } %, { $speed }/s, circa { $time } alla fine
 transfer-removing = Tolgo gli originali
 transfer-removed = { $n } di { $total } file tolti da dove erano

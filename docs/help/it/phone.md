@@ -41,9 +41,10 @@ Un file di 32 MB o più copiato o spostato tra la memoria interna e la scheda di
 
 Una copia dentro una memoria del telefono (da una cartella della memoria interna a un'altra, per esempio) la fa il telefono stesso, un file alla volta, molto più in fretta che passando dal computer. Mentre copia un file il telefono non risponde a niente, nemmeno a EyeCanSee, e non può dire a che punto è. Per questo, per tutta la copia, una finestra al centro, **Il telefono sta copiando**, fa aspettare il resto di EyeCanSee, anche le cartelle del computer. **Perché devo aspettare?** nella finestra apre questa sezione.
 
-- La finestra mostra solo ciò che si sa: il file in copia, la sua dimensione e i secondi da quando è cominciato; quanti file e quanti dati sono fatti, contati alla fine di ogni file; una barra che avanza un file alla volta. Con un file solo la barra non c'è.
+- La finestra mostra solo ciò che si sa: il nome del file in copia, la sua dimensione e da quanto tempo è cominciato. Con più file anche quale file è (**File 2 di 5**), quanti dati sono già copiati, contati alla fine di ogni file, e una barra che avanza un file alla volta.
+- Mentre il telefono lavora su un file, nella barra scorre una striscia: non misura niente, dice solo che il telefono sta lavorando. Con un file solo c'è soltanto la striscia.
 - La velocità e il tempo che manca vengono solo dai file grandi (da 32 MB) già copiati in questo Incolla: prima che finisca il primo, non ci sono.
-- **Annulla** si ferma dopo il file in copia: il telefono non si può interrompere a metà file. **Esc** non chiude la finestra.
+- **Annulla**: il telefono non si può interrompere a metà file. Finisce il file in copia, poi EyeCanSee toglie quella copia e si ferma. I file copiati prima restano, gli altri non vengono copiati; l'originale non viene toccato. Finché il telefono non ha finito, la finestra resta aperta e dice **Annullata, aspetto il telefono**. **Esc** non chiude la finestra.
 - Dopo 3 minuti sullo stesso file la finestra lo dice. Scollegare il telefono non ferma la sua copia: il telefono la finisce da solo, ed EyeCanSee smette solo di aspettare. Lascialo collegato finché la finestra non si chiude.
 - Uno spostamento dentro una memoria cambia solo la cartella, subito: nessuna finestra.
 

@@ -1,8 +1,9 @@
 //! A paste the phone copies by itself inside one of its storages (#354): while it copies a file
 //! it answers nothing and says nothing of how far it is, so the copy window becomes a modal in
-//! the middle of the app for the whole paste (Piero, 26/11 night). It shows only what is known:
-//! the file under way with its seconds, the files and bytes done (counted at the end of each
-//! file), and a speed only once a big file of this paste has been copied.
+//! the middle of the app for the whole paste (Piero, 26/11 night). It shows only what is known
+//! (`view`): the file under way with its seconds, with several files the files and bytes done
+//! (counted at the end of each file), and a speed only once a big file of this paste has been
+//! copied. Cancel during a file: the phone ends it, then the copy it made goes (`ByPhone::undone`).
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -29,8 +30,8 @@ pub struct ByPhone {
     /// The phone went from the devices during the paste: the window goes back to the corner, so
     /// the app is never held by a phone that is not there (Windows does not say it went at once).
     unplugged: AtomicBool,
-    /// The file the phone was last given: name, size, since when. Kept after its end: the window
-    /// names it after Cancel.
+    /// The file the phone was last given: name, size, since when. Kept after its end, until the
+    /// next one: the window does not blink between two files.
     file: Mutex<Option<(String, u64, Instant)>>,
     /// Big files (`mtp::LONG_COPY` and more) the phone finished in this paste: bytes and seconds.
     big: Mutex<(u64, f64)>,
@@ -51,9 +52,29 @@ impl ByPhone {
         self.unplugged.store(true, Ordering::Relaxed);
     }
 
+    /// Whether Cancel during the copy of `src` to `dest` removes the copy the phone made: a paste
+    /// of this kind, and a copy that stays inside one storage (Piero, 26/11 night: Cancel means
+    /// "not the file under way"; the files done before stay).
+    pub(super) fn undone(&self, src: &str, dest: &str) -> bool {
+        self.on.load(Ordering::Relaxed) && storage(src) == storage(dest)
+    }
+
     /// The phone is given the file `name` of `size` bytes to copy.
     pub(crate) fn begin(&self, name: &str, size: u64) {
         *self.file.lock().unwrap() = Some((name.to_string(), size, Instant::now()));
+    }
+
+    /// `begin`, `secs` seconds ago: for the tests of the window.
+    #[cfg(test)]
+    pub(crate) fn begin_ago(&self, name: &str, size: u64, secs: u64) {
+        let at = Instant::now().checked_sub(std::time::Duration::from_secs(secs)).expect("a clock that old");
+        *self.file.lock().unwrap() = Some((name.to_string(), size, at));
+    }
+
+    /// `big` as given: for the tests of the window.
+    #[cfg(test)]
+    pub(crate) fn set_big(&self, bytes: u64, secs: f64) {
+        *self.big.lock().unwrap() = (bytes, secs);
     }
 
     /// The phone finished the file of `size` bytes it was given last.
@@ -76,11 +97,16 @@ impl ByPhone {
     }
 }
 
-/// What the window knows at a moment, as plain numbers (`lines`).
+/// From this many seconds on one file the window says them: under it they only blink by.
+pub const SAY_SECS: u64 = 2;
+
+/// What the window knows at a moment, as plain numbers (`view`).
 #[derive(Clone, Debug, Default)]
 pub struct Seen {
-    /// The file under way: name, size, seconds.
+    /// The file the phone was given last: name, size, seconds.
     pub file: Option<(String, u64, u64)>,
+    /// The name of the file of the paste under way (`Progress::current`).
+    pub current: String,
     /// Files finished, and in all.
     pub files: usize,
     pub files_total: usize,
@@ -91,49 +117,95 @@ pub struct Seen {
     pub big: Option<(u64, f64)>,
     /// Cancel was pressed.
     pub cancelling: bool,
+    /// A big file of the other storage is on its way through this computer now (a paste of items
+    /// of both storages): its bytes are counted as they go, and the phone is not copying alone.
+    pub through_pc: bool,
 }
 
-/// A line of the window, in the order shown; the UI gives it its words.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Line {
-    /// The file under way, its size and its seconds.
-    File { name: String, size: u64, secs: u64 },
-    /// "File n of total": `n` is the file under way (the last one once all are done).
-    Counts { n: usize, total: usize, done: u64, size: u64 },
-    /// The part done, by bytes of whole files (by files when they hold no bytes).
-    Bar(f32),
-    /// One file only: the phone does not say how far it is.
-    NoBar,
-    /// Bytes per second of the big files done, and seconds left at that speed.
-    Speed { speed: u64, left: u64 },
+/// The bar of the window.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Bar {
+    /// One file: nothing is known of how far it is; a strip that moves says the phone works.
+    Busy,
+    /// Several files: the part done, by bytes of whole files (by files when they hold no bytes);
+    /// `busy`: the phone is on a file now.
+    Part { part: f32, busy: bool },
+}
+
+/// The bytes line of several files.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Data {
+    /// No file finished yet: only how much there is in all ("0 KB of 6 GB" told nothing true).
+    Total(u64),
+    /// Bytes of the files finished, and in all.
+    Done { done: u64, total: u64 },
+}
+
+/// What the explanation at the bottom says, one at a time.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Note {
+    /// Why the app waits.
+    Waiting,
     /// More than `LONG_SECS` on the file under way.
     Long,
-    /// Cancel pressed: stopping after the file named.
-    Stopping(String),
+    /// Cancel pressed: the phone ends the file, then its copy goes; `others` files never start.
+    Cancelled { others: usize },
 }
 
-/// The lines of the window for `s`: only what is known, nothing guessed.
-pub fn lines(s: &Seen) -> Vec<Line> {
-    let mut out = Vec::new();
-    if let Some((name, size, secs)) = &s.file {
-        out.push(Line::File { name: name.clone(), size: *size, secs: *secs });
+/// What the window shows for a `Seen`; the UI gives it its words and its place. With one file
+/// `nth`, `data` and `speed` have no row; with several their rows are there even when empty.
+#[derive(Clone, Debug, PartialEq)]
+pub struct View {
+    /// The file under way.
+    pub name: String,
+    /// With several files: the file under way among them, from 1, and how many.
+    pub nth: Option<(usize, usize)>,
+    /// The size of the file the phone is copying, and its seconds from `SAY_SECS` on.
+    pub file: Option<(u64, Option<u64>)>,
+    pub bar: Bar,
+    /// With several files that hold bytes.
+    pub data: Option<Data>,
+    /// Bytes per second of the big files done, and seconds left at that speed.
+    pub speed: Option<(u64, u64)>,
+    pub note: Note,
+    /// Cancel is still to press (`false` once pressed: its button gives way to what happens).
+    pub cancel: bool,
+}
+
+impl View {
+    /// Several files: the window has the rows of the counts.
+    pub fn several(&self) -> bool {
+        self.nth.is_some()
     }
+}
+
+/// The window for `s`: only what is known, nothing guessed.
+pub fn view(s: &Seen) -> View {
+    let several = s.files_total > 1;
+    // The file under way among all: the last one once all are done (a sidecar after its photo).
     let n = (s.files + 1).min(s.files_total.max(1));
-    out.push(Line::Counts { n, total: s.files_total, done: s.done, size: s.total });
-    out.push(if s.files_total > 1 { Line::Bar(part(s)) } else { Line::NoBar });
-    if let Some((bytes, secs)) = s.big {
+    let phone = s.file.as_ref().filter(|_| !s.through_pc);
+    let speed = s.big.filter(|_| several).map(|(bytes, secs)| {
         let speed = bytes as f64 / secs;
-        out.push(Line::Speed { speed: speed as u64, left: (s.total.saturating_sub(s.done) as f64 / speed).round() as u64 });
+        (speed as u64, (s.total.saturating_sub(s.done) as f64 / speed).round() as u64)
+    });
+    let note = if s.cancelling {
+        Note::Cancelled { others: s.files_total.saturating_sub(n) }
+    } else if phone.is_some_and(|(_, _, secs)| *secs >= LONG_SECS) {
+        Note::Long
+    } else {
+        Note::Waiting
+    };
+    View {
+        name: phone.map_or_else(|| s.current.clone(), |(name, _, _)| name.clone()),
+        nth: several.then_some((n, s.files_total)),
+        file: phone.map(|(_, size, secs)| (*size, Some(*secs).filter(|secs| *secs >= SAY_SECS))),
+        bar: if several || s.through_pc { Bar::Part { part: part(s), busy: phone.is_some() } } else { Bar::Busy },
+        data: (several && s.total > 0).then_some(if s.done > 0 { Data::Done { done: s.done, total: s.total } } else { Data::Total(s.total) }),
+        speed,
+        note,
+        cancel: !s.cancelling,
     }
-    if s.file.as_ref().is_some_and(|(_, _, secs)| *secs >= LONG_SECS) {
-        out.push(Line::Long);
-    }
-    if s.cancelling
-        && let Some((name, _, _)) = &s.file
-    {
-        out.push(Line::Stopping(name.clone()));
-    }
-    out
 }
 
 /// The part of the bar filled: bytes of whole files, or files when none holds a byte.
@@ -150,6 +222,7 @@ mod tests {
     use super::*;
 
     const MB: u64 = 1 << 20;
+    const GB: u64 = 1 << 30;
 
     fn paths(p: &[&str]) -> Vec<String> {
         p.iter().map(|s| s.to_string()).collect()
@@ -170,30 +243,45 @@ mod tests {
     }
 
     fn seen(files: usize, files_total: usize, done: u64, total: u64) -> Seen {
-        Seen { file: Some(("big.mp4".into(), 2048 * MB, 12)), files, files_total, done, total, ..Seen::default() }
+        Seen { file: Some(("big.mp4".into(), 2 * GB, 12)), current: "big.mp4".into(), files, files_total, done, total, ..Seen::default() }
     }
 
-    /// Several files: the file under way with its seconds, "File 2 of 5" while the second is
-    /// copied, the bar by whole files; no speed before a big file is done.
+    /// One file (Piero, 26/11: "why do I see 0 KB?" at "File 1 of 1, 0 KB of 6144,0 MB"): its
+    /// name, its size and its seconds, the strip that moves; no count of files, no bytes done, no
+    /// speed, whatever the numbers say. Cancel is there: it removes the copy at its end.
+    #[test]
+    fn one_file_shows_no_counts() {
+        let v = view(&Seen { big: Some((GB, 10.0)), ..seen(0, 1, 0, 6 * GB) });
+        assert_eq!(v, View { name: "big.mp4".into(), nth: None, file: Some((2 * GB, Some(12))), bar: Bar::Busy, data: None, speed: None, note: Note::Waiting, cancel: true });
+        assert!(!v.several());
+    }
+
+    /// Several files: "File 2 of 5" while the second is copied, the bar by whole files with the
+    /// phone busy; the bytes done only once a file is done (before: how much in all); no speed
+    /// before a big file is done.
     #[test]
     fn several_files() {
-        let l = lines(&seen(1, 5, 100 * MB, 400 * MB));
-        assert_eq!(l[0], Line::File { name: "big.mp4".into(), size: 2048 * MB, secs: 12 });
-        assert_eq!(l[1], Line::Counts { n: 2, total: 5, done: 100 * MB, size: 400 * MB });
-        assert_eq!(l[2], Line::Bar(0.25));
-        assert_eq!(l.len(), 3, "nothing guessed: {l:?}");
+        let v = view(&seen(1, 5, 100 * MB, 400 * MB));
+        assert_eq!((v.nth, v.bar), (Some((2, 5)), Bar::Part { part: 0.25, busy: true }));
+        assert_eq!((v.data, v.speed), (Some(Data::Done { done: 100 * MB, total: 400 * MB }), None));
+        assert!(v.several() && v.cancel);
+        let first = view(&seen(0, 5, 0, 400 * MB));
+        assert_eq!((first.nth, first.data), (Some((1, 5)), Some(Data::Total(400 * MB))), "nothing done yet: no \"0 KB of\"");
         // All done, waiting for the end: the last file, not "6 of 5".
-        assert!(lines(&seen(5, 5, 400 * MB, 400 * MB)).contains(&Line::Counts { n: 5, total: 5, done: 400 * MB, size: 400 * MB }));
-        // Empty files only: the bar goes by files.
-        assert!(lines(&seen(2, 4, 0, 0)).contains(&Line::Bar(0.5)));
+        assert_eq!(view(&seen(5, 5, 400 * MB, 400 * MB)).nth, Some((5, 5)));
+        // Empty files only: the bar goes by files, and there are no bytes to say.
+        let empty = view(&seen(2, 4, 0, 0));
+        assert_eq!((empty.bar, empty.data), (Bar::Part { part: 0.5, busy: true }, None));
     }
 
-    /// One file: no bar, the line that says why.
+    /// The seconds of a file only from `SAY_SECS` on: small files go by in less.
     #[test]
-    fn one_file_has_no_bar() {
-        let l = lines(&seen(0, 1, 0, 2048 * MB));
-        assert!(l.contains(&Line::NoBar) && !l.iter().any(|x| matches!(x, Line::Bar(_))), "{l:?}");
-        assert!(l.contains(&Line::Counts { n: 1, total: 1, done: 0, size: 2048 * MB }));
+    fn seconds_only_once_worth_saying() {
+        let mut s = seen(0, 3, 0, 3 * GB);
+        s.file = Some(("a.jpg".into(), 4 * MB, SAY_SECS - 1));
+        assert_eq!(view(&s).file, Some((4 * MB, None)));
+        s.file = Some(("a.jpg".into(), 4 * MB, SAY_SECS));
+        assert_eq!(view(&s).file, Some((4 * MB, Some(SAY_SECS))));
     }
 
     /// The speed only from the big files done in this paste: small ones never count (the average
@@ -211,19 +299,59 @@ mod tests {
         assert_eq!(bytes, 64 * MB);
         assert!(secs >= 0.0);
         let s = Seen { big: Some((200 * MB, 2.0)), ..seen(1, 3, 200 * MB, 600 * MB) };
-        assert!(lines(&s).contains(&Line::Speed { speed: 100 * MB, left: 4 }));
+        assert_eq!(view(&s).speed, Some((100 * MB, 4)));
     }
 
-    /// After 3 minutes on one file, and after Cancel, their lines; not before.
+    /// After 3 minutes on one file the explanation says so; not before.
     #[test]
-    fn long_file_and_cancel() {
-        let mut s = seen(0, 2, 0, 4096 * MB);
-        assert!(!lines(&s).contains(&Line::Long));
-        s.file = Some(("big.mp4".into(), 2048 * MB, LONG_SECS));
-        assert!(lines(&s).contains(&Line::Long));
-        assert!(!lines(&s).iter().any(|l| matches!(l, Line::Stopping(_))));
-        s.cancelling = true;
-        assert_eq!(lines(&s).last(), Some(&Line::Stopping("big.mp4".into())));
+    fn long_file() {
+        let mut s = seen(0, 1, 0, 2 * GB);
+        assert_eq!(view(&s).note, Note::Waiting);
+        s.file = Some(("big.mp4".into(), 2 * GB, LONG_SECS));
+        assert_eq!(view(&s).note, Note::Long);
+    }
+
+    /// After Cancel: no button any more, and what happens, with the files that never start (the
+    /// file under way is not one of them: the phone ends it and its copy goes). One file, or the
+    /// last one: none. It comes before the 3 minutes.
+    #[test]
+    fn after_cancel() {
+        let cancelled = |files, total| view(&Seen { cancelling: true, ..seen(files, total, 0, 6 * GB) });
+        let v = cancelled(1, 5);
+        assert_eq!((v.note, v.cancel), (Note::Cancelled { others: 3 }, false));
+        assert_eq!(cancelled(3, 5).note, Note::Cancelled { others: 1 });
+        assert_eq!(cancelled(4, 5).note, Note::Cancelled { others: 0 }, "the last file");
+        assert_eq!(cancelled(5, 5).note, Note::Cancelled { others: 0 }, "all done");
+        assert_eq!(cancelled(0, 1).note, Note::Cancelled { others: 0 }, "one file");
+        let long = Seen { cancelling: true, file: Some(("big.mp4".into(), 2 * GB, LONG_SECS)), ..seen(0, 2, 0, 4 * GB) };
+        assert_eq!(view(&long).note, Note::Cancelled { others: 1 });
+    }
+
+    /// A big file of the other storage going through this computer in the same paste: its name,
+    /// no seconds of the phone's last file, the bar by the bytes that move, no strip.
+    #[test]
+    fn a_file_through_the_computer() {
+        let s = Seen { through_pc: true, current: "other.mkv".into(), file: Some(("big.mp4".into(), 2 * GB, LONG_SECS + 5)), ..seen(1, 2, GB, 4 * GB) };
+        let v = view(&s);
+        assert_eq!((v.name.as_str(), v.file, v.bar, v.note), ("other.mkv", None, Bar::Part { part: 0.25, busy: false }, Note::Waiting));
+    }
+
+    /// Before the phone is given its first file (folders made first): the name of the paste's file.
+    #[test]
+    fn before_the_first_file() {
+        let v = view(&Seen { file: None, current: "a.jpg".into(), files_total: 1, ..Seen::default() });
+        assert_eq!((v.name.as_str(), v.file, v.bar), ("a.jpg", None, Bar::Busy));
+    }
+
+    /// Cancel removes the copy under way only in a paste of this kind, for a copy that stays
+    /// inside one storage: a small file the phone copies to its other storage is as before.
+    #[test]
+    fn cancel_removes_only_copies_inside_one_storage() {
+        let b = ByPhone::default();
+        assert!(!b.undone("Internal storage/DCIM/a.mp4", "Internal storage/Download/a.mp4"), "not a paste of this kind");
+        b.decide(true);
+        assert!(b.undone("Internal storage/DCIM/a.mp4", "Internal storage/Download/a.mp4"));
+        assert!(!b.undone("SD card/DCIM/a.jpg", "Internal storage/Download/a.jpg"));
     }
 
     /// The phone gone from the devices: the window is no longer modal.

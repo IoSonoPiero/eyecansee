@@ -41,9 +41,10 @@ A file of 32 MB or more copied or moved between the internal storage and the mem
 
 A copy inside one storage of the phone (from a folder of the internal storage to another one, for example) is made by the phone itself, file by file, much faster than through the computer. While it copies a file the phone answers nothing, not even EyeCanSee, and cannot say how far it is. So for the whole copy a window in the middle, **The phone is copying**, keeps the rest of EyeCanSee waiting, the folders of the computer too. **Why do I have to wait?** in it opens this section.
 
-- The window shows only what is known: the file being copied, its size and the seconds since it started; how many files and how much data are done, counted as each file ends; a bar that moves file by file. With one file there is no bar.
+- The window shows only what is known: the name of the file being copied, its size and how long ago it started. With several files also which file it is (**File 2 of 5**), how much data is already copied, counted as each file ends, and a bar that moves file by file.
+- While the phone works on a file a strip moves along the bar: it measures nothing, it only says the phone is working. With one file there is only the strip.
 - The speed and the time left come only from the big files (32 MB or more) already copied in this paste: before the first one ends, there are none.
-- **Cancel** stops after the file being copied: the phone cannot be interrupted halfway through a file. **Esc** does not close the window.
+- **Cancel**: the phone cannot be interrupted halfway through a file. It finishes the file being copied, then EyeCanSee removes that copy and stops. The files copied before stay, the others are not copied; the original is not touched. Until the phone is done the window stays open and says **Cancelled, waiting for the phone**. **Esc** does not close the window.
 - After 3 minutes on the same file the window says so. Unplugging the phone does not stop its copy: the phone finishes it by itself, and EyeCanSee only stops waiting. Leave it plugged in until the window closes.
 - A move inside one storage only changes the folder, at once: no window.
 

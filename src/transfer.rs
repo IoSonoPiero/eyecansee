@@ -15,7 +15,9 @@ mod names;
 mod originals;
 mod progress;
 mod through_pc;
-pub use by_phone::{Line, Seen, lines};
+#[cfg(test)]
+pub use by_phone::LONG_SECS;
+pub use by_phone::{Bar, Data, Note, Seen, view};
 pub use progress::{Phase, Progress};
 pub use through_pc::Staging;
 pub(crate) use through_pc::remove_left;
@@ -636,7 +638,11 @@ async fn copy_file(from: &Store, src: &str, (to, dest, existed): (&Store, &str, 
             return through_pc::copy(from, src, (to, dest, existed), size, p).await;
         }
         p.by_phone.begin(name(src), size);
-        a.copy_inside(src, dest).await.map_err(Fail::Stop)?;
+        // Cancel while the phone copies inside one storage: the phone ends the file, then the copy
+        // it made goes and the paste stops there (`by_phone::undone`, #354).
+        let never = AtomicBool::new(false);
+        let cancel = if p.by_phone.undone(src, dest) { &p.cancel } else { &never };
+        a.copy_inside(src, dest, cancel).await.map_err(Fail::Stop)?;
         p.by_phone.end(size);
         p.done.fetch_add(size, Ordering::Relaxed);
         return Ok(());

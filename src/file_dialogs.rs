@@ -224,7 +224,7 @@ impl App {
     /// The line of the phone in the copy box: the half of a big file going through this computer
     /// (`transfer::Staging`), or the phone copying or moving a file itself, which says nothing of
     /// how far it is (a small file now: seconds).
-    fn phone_line(&self, p: &transfer::Progress, cancelling: bool) -> Option<String> {
+    pub(crate) fn phone_line(&self, p: &transfer::Progress, cancelling: bool) -> Option<String> {
         let name = p.current.lock().unwrap().clone();
         let staging = p.staging.lock().unwrap().clone();
         match staging {

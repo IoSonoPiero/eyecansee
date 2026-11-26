@@ -180,16 +180,24 @@ transfer-why-pc = Why through the computer?
 transfer-why-pc-section = Big files: through the computer
 # The copy window while the phone copies by itself inside one storage (#354).
 phone-copy-title = The phone is copying
-phone-copy-file = { $name } ({ $size }), for { $s } s
-phone-copy-counts = File { $n } of { $total }, { $done } of { $size }
-phone-copy-one = The phone does not say how far it is: no bar until it is done.
-phone-copy-speed = Speed measured on the big files already copied: { $speed }/s. About { $time } left.
-phone-copy-notice = The phone copies by itself, much faster than through the computer. While it works it answers nothing: that is why EyeCanSee waits. Do not unplug the phone.
+phone-copy-nth = File { $n } of { $total }
+phone-copy-for = { $size }, copying for { $time }
+phone-copy-total = { $size } in all
+phone-copy-done = { $done } of { $size } copied so far
+phone-copy-speed = { $speed }/s on the big files copied so far, about { $time } left
+phone-copy-notice = The phone copies by itself and answers nothing meanwhile: that is why EyeCanSee waits.
+phone-copy-keep = Do not unplug the phone.
+phone-copy-long = This file has taken more than 3 minutes. The phone goes on until it is done: all you can do is wait.
+phone-copy-cancel-tip = The phone finishes the file it is copying, then EyeCanSee removes that copy. The files already copied stay.
+phone-copy-cancelled = Cancelled, waiting for the phone
+phone-copy-cancelled-note = The phone finishes this file, then EyeCanSee removes the copy just made.
+phone-copy-others = { $n ->
+    [one] The other file is not copied.
+   *[other] The other { $n } files are not copied.
+}
 phone-copy-why = Why do I have to wait?
 # The title of the section of the guide's page phone.md that `phone-copy-why` opens: the same words.
 phone-copy-why-section = Copies inside one storage: the phone works alone
-phone-copy-stopping = Stopping after { $name }: the phone cannot be stopped halfway through a file.
-phone-copy-long = This file has taken more than 3 minutes. The phone goes on until it is done: all you can do is wait.
 transfer-left = { $percent }%, { $speed }/s, about { $time } left
 transfer-removing = Removing the originals
 transfer-removed = { $n } of { $total } files removed from where they were

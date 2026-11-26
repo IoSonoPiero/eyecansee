@@ -30,6 +30,7 @@ mod cache;
 mod events;
 mod storages;
 pub(crate) mod turn;
+mod undo;
 pub use events::{Change, on_change, take_changes};
 
 /// Device storages with the name shown as a folder.
@@ -601,11 +602,13 @@ impl Phone {
     /// Replacing an item: the copy is made under the hidden name of a "Save" (`save_names`) and
     /// takes the item's place only once whole (`put_in_place`): until then the item stays, and a
     /// copy that fails leaves it as it was (issue #91; it was deleted first up to 0.76.1).
-    pub async fn copy_inside(&self, path: &str, dest: &str) -> Result<(), Error> {
+    /// `cancel` set while the phone copied: it ends the file all the same, then the copy made is
+    /// deleted where it is and the error is "cancelled" (`undo`, #354).
+    pub async fn copy_inside(&self, path: &str, dest: &str, cancel: &AtomicBool) -> Result<(), Error> {
         if self.taken(dest).await? {
             // `Store::recover`, at a listing meanwhile, would delete the new file next to its item.
             source::SAVING.lock().unwrap().insert(dest.to_string());
-            let r = self.copy_over(path, dest).await;
+            let r = self.copy_over(path, dest, cancel).await;
             source::SAVING.lock().unwrap().remove(dest);
             return r;
         }
@@ -614,28 +617,32 @@ impl Phone {
         let clash = dir == source::parent(path) || self.names(&dir).await?.iter().any(|n| n.to_lowercase() == name);
         if !clash {
             let h = self.copy_object(path, &dir).await?;
-            if source::name(dest) != source::name(path) {
-                self.queued("rename", dest, self.storage_of(path).await?.rename(h, source::name(dest))).await.map_err(error)?;
-            }
-            self.handles.lock().unwrap().insert(dest.to_string(), h);
-            return Ok(());
+            let place = async {
+                if source::name(dest) != source::name(path) {
+                    self.queued("rename", dest, self.storage_of(path).await?.rename(h, source::name(dest))).await.map_err(error)?;
+                }
+                self.handles.lock().unwrap().insert(dest.to_string(), h);
+                Ok(())
+            };
+            return undo::finish(cancel.load(Ordering::Relaxed), self.remove_copy(&dir, source::name(path), h), place).await;
         }
-        self.copy_aside(path, dest).await
+        self.copy_aside(path, dest, cancel).await
     }
 
     /// `path` copied over the item `dest`: whole under its hidden name first, then in its place.
-    async fn copy_over(&self, path: &str, dest: &str) -> Result<(), Error> {
+    async fn copy_over(&self, path: &str, dest: &str, cancel: &AtomicBool) -> Result<(), Error> {
         let new = source::save_names(dest).0;
         // Left by a copy or a save cut short, next to its item: never the whole one.
         if self.taken(&new).await? {
             self.delete(&new).await?;
         }
-        self.copy_aside(path, &new).await?;
+        // Cancelled: the copy went with the hidden folder, and the item stays.
+        self.copy_aside(path, &new, cancel).await?;
         self.put_in_place(&new, dest).await
     }
 
     /// `path` copied in the hidden folder next to `dest` and moved in as `dest`, a free name.
-    async fn copy_aside(&self, path: &str, dest: &str) -> Result<(), Error> {
+    async fn copy_aside(&self, path: &str, dest: &str, cancel: &AtomicBool) -> Result<(), Error> {
         let dir = source::parent(dest);
         // Left over from a copy broken off: what is in it is ours, and a copy is found there by name.
         let tmp = format!("{dir}{COPY_DIR}/");
@@ -651,7 +658,8 @@ impl Phone {
             if !self.names(&tmp).await?.contains(name) || self.handles.lock().unwrap().get(&format!("{tmp}{name}")) != Some(&h) {
                 return Err((NOT_MADE, path.to_string()));
             }
-            self.move_into(&format!("{tmp}{name}"), &dir, source::name(dest)).await
+            let made = format!("{tmp}{name}");
+            undo::finish(cancel.load(Ordering::Relaxed), self.remove_copy(&tmp, name, h), self.move_into(&made, &dir, source::name(dest))).await
         }
         .await;
         let gone = self.delete(&tmp).await;
@@ -917,6 +925,9 @@ mod tests {
     }
 
     /// The objects of a folder on the phone, with handle, name and size.
+    /// No Cancel during the copies of these tests.
+    static NEVER: AtomicBool = AtomicBool::new(false);
+
     async fn objects(phone: &Phone, dir: &str) -> Vec<(ObjectHandle, String, u64)> {
         let (storage, h) = phone.locate(dir).await.unwrap();
         storage.list_objects(h).await.unwrap().into_iter().map(|o| (o.handle, o.filename, o.size)).collect()
@@ -945,15 +956,15 @@ mod tests {
             let before = objects(&phone, &dir).await;
             println!("before: {before:?}");
             let t = std::time::Instant::now();
-            let same = phone.copy_inside(&src, &format!("{dir}a (2).jpg")).await;
+            let same = phone.copy_inside(&src, &format!("{dir}a (2).jpg"), &NEVER).await;
             println!("same folder: {same:?} in {:?}", t.elapsed());
-            let other = phone.copy_inside(&src, &format!("{dir}sub/a.jpg")).await;
+            let other = phone.copy_inside(&src, &format!("{dir}sub/a.jpg"), &NEVER).await;
             println!("subfolder: {other:?}");
             // "Keep both" into a folder that has another, longer a.jpg: it must stay as it was.
             phone.create_dir(&format!("{dir}keep/")).await.unwrap();
             let longer: Vec<u8> = (0..300_000u32).map(|i| (i * 13 % 241) as u8).collect();
             phone.upload(&format!("{dir}keep/a.jpg"), longer.len() as u64, futures_util::stream::iter([Ok(Bytes::from(longer.clone()))])).await.unwrap();
-            let both = phone.copy_inside(&src, &format!("{dir}keep/a (2).jpg")).await;
+            let both = phone.copy_inside(&src, &format!("{dir}keep/a (2).jpg"), &NEVER).await;
             println!("keep both: {both:?}");
             let kept = objects(&phone, &format!("{dir}keep/")).await;
             println!("keep: {kept:?}");
@@ -978,6 +989,59 @@ mod tests {
                 let copy = kept.iter().find(|o| o.1 == "a (2).jpg").expect("the copy next to it");
                 assert_eq!(content(copy.0).await.unwrap(), data);
                 assert!(!kept.iter().any(|o| o.1 == COPY_DIR), "hidden folder left behind");
+            };
+            let r = futures_util::FutureExt::catch_unwind(std::panic::AssertUnwindSafe(check)).await;
+            phone.delete(&dir).await.unwrap();
+            if let Err(e) = r {
+                std::panic::resume_unwind(e);
+            }
+        });
+    }
+
+    /// #354, Cancel while a real phone copies by itself: the phone ends the file, then the copy is
+    /// gone, wherever it was made. Three copies with Cancel already asked: into another folder (a
+    /// free name), into the file's own folder (the hidden folder), over a longer file with the same
+    /// name (which must stay as it was). Each ends as cancelled; the original keeps name, handle and
+    /// content, and no hidden folder is left. Works in a new folder `EyeCanSee-annulla/` of the
+    /// first storage, deleted at the end:
+    /// `EYECANSEE_MTP=<serial> cargo test --release mtp_copy_cancel_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn mtp_copy_cancel_live() {
+        let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let phone = Phone::new(&serial);
+            let root = phone.list("").await.unwrap();
+            let dir = format!("{}EyeCanSee-annulla/", root.dirs[0]);
+            assert!(!phone.taken(&dir).await.unwrap(), "{dir} already exists");
+            phone.create_dir(&dir).await.unwrap();
+            phone.create_dir(&format!("{dir}sub/")).await.unwrap();
+            phone.create_dir(&format!("{dir}keep/")).await.unwrap();
+            let src = format!("{dir}a.jpg");
+            let data: Vec<u8> = (0..100_000u32).map(|i| (i * 7 % 251) as u8).collect();
+            phone.upload(&src, data.len() as u64, futures_util::stream::iter([Ok(Bytes::from(data.clone()))])).await.unwrap();
+            let longer: Vec<u8> = (0..300_000u32).map(|i| (i * 13 % 241) as u8).collect();
+            phone.upload(&format!("{dir}keep/a.jpg"), longer.len() as u64, futures_util::stream::iter([Ok(Bytes::from(longer.clone()))])).await.unwrap();
+            let before = (objects(&phone, &dir).await, objects(&phone, &format!("{dir}keep/")).await);
+            let asked = AtomicBool::new(true);
+            let other = phone.copy_inside(&src, &format!("{dir}sub/a.jpg"), &asked).await;
+            let same = phone.copy_inside(&src, &format!("{dir}a (2).jpg"), &asked).await;
+            let over = phone.copy_inside(&src, &format!("{dir}keep/a.jpg"), &asked).await;
+            println!("other folder: {other:?}\nsame folder: {same:?}\nover a file: {over:?}");
+            let after = (objects(&phone, &dir).await, objects(&phone, &format!("{dir}keep/")).await);
+            let below = objects(&phone, &format!("{dir}sub/")).await;
+            println!("before: {before:?}\nafter: {after:?}\nsub: {below:?}");
+            let (storage, _) = phone.locate(&dir).await.unwrap();
+            let check = async {
+                for r in [&other, &same, &over] {
+                    assert_eq!(r.as_ref().unwrap_err().0, "error-cancelled");
+                }
+                assert_eq!(after, before, "the original and the file that was to be replaced as they were, nothing more");
+                assert!(below.is_empty(), "a copy left in the other folder: {below:?}");
+                let original = after.0.iter().find(|o| o.1 == "a.jpg").unwrap();
+                assert_eq!(storage.download_to_vec(original.0).await.unwrap(), data);
+                let there = after.1.iter().find(|o| o.1 == "a.jpg").unwrap();
+                assert_eq!(storage.download_to_vec(there.0).await.unwrap(), longer);
             };
             let r = futures_util::FutureExt::catch_unwind(std::panic::AssertUnwindSafe(check)).await;
             phone.delete(&dir).await.unwrap();
@@ -1013,7 +1077,7 @@ mod tests {
                 let up = futures_util::stream::iter([Ok(Bytes::from(data.clone()))]);
                 phone.upload(&format!("{a}{name}"), data.len() as u64, up).await.unwrap();
             }
-            let copy = phone.copy_inside(&format!("{a}copied.jpg"), &format!("{b}copied.jpg")).await;
+            let copy = phone.copy_inside(&format!("{a}copied.jpg"), &format!("{b}copied.jpg"), &NEVER).await;
             let mv = phone.move_into(&format!("{a}moved.jpg"), &second, "EyeCanSee-two-moved.jpg").await;
             // A folder is refused at once, left where it is: the caller copies it file by file.
             phone.create_dir(&format!("{a}folder/")).await.unwrap();
@@ -1081,15 +1145,15 @@ mod tests {
             }
             let src = format!("{dir}a.jpg");
             // Not a replace: "Keep both" in its own folder, through the hidden folder.
-            let both = phone.copy_inside(&src, &format!("{dir}a (2).jpg")).await;
+            let both = phone.copy_inside(&src, &format!("{dir}a (2).jpg"), &NEVER).await;
             println!("keep both: {both:?}");
-            let same = phone.copy_inside(&src, &format!("{dir}b.jpg")).await;
+            let same = phone.copy_inside(&src, &format!("{dir}b.jpg"), &NEVER).await;
             println!("over b.jpg: {same:?}");
-            let below = phone.copy_inside(&src, &format!("{dir}sub/a.jpg")).await;
+            let below = phone.copy_inside(&src, &format!("{dir}sub/a.jpg"), &NEVER).await;
             println!("over sub/a.jpg: {below:?}");
-            let itself = phone.copy_inside(&src, &src).await;
+            let itself = phone.copy_inside(&src, &src, &NEVER).await;
             println!("over itself: {itself:?}");
-            let failed = phone.copy_inside(&format!("{dir}missing.jpg"), &format!("{dir}b.jpg")).await;
+            let failed = phone.copy_inside(&format!("{dir}missing.jpg"), &format!("{dir}b.jpg"), &NEVER).await;
             println!("from a missing file: {failed:?}");
             let after = objects(&phone, &dir).await;
             let sub = objects(&phone, &format!("{dir}sub/")).await;
