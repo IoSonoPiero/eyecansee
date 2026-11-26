@@ -129,8 +129,7 @@ impl Watch {
                 // Gone from the phone: its path is known only if a listing saw it.
                 let mut handles = self.handles.lock().unwrap();
                 let Some(path) = path_of(&handles, handle) else { return };
-                // A folder takes the paths below it too.
-                handles.retain(|p, _| if path.ends_with('/') { !p.starts_with(&path) } else { *p != path });
+                super::cache::forget(&mut handles, &path);
                 drop(handles);
                 push(&self.serial, Change::Removed(path));
             }

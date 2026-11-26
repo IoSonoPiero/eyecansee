@@ -15,9 +15,10 @@ pub(super) fn child(dir: &str, name: &str, folder: bool) -> String {
     format!("{dir}{name}{}", if folder { "/" } else { "" })
 }
 
-/// `path` deleted, moved or renamed: forgotten with the paths that start with it.
+/// `path` deleted, moved or renamed: forgotten, a folder with the paths below it. A file only
+/// by its exact path: "a.jpg.xmp" starts with "a.jpg" and is still there (audit 2.12).
 pub(super) fn forget(handles: &mut Handles, path: &str) {
-    handles.retain(|p, _| !p.starts_with(path));
+    handles.retain(|p, _| if path.ends_with('/') { !p.starts_with(path) } else { p != path });
 }
 
 /// The children of `dir` remembered before they are read again whole (`Phone::names`).
@@ -25,13 +26,19 @@ pub(super) fn forget_children(handles: &mut Handles, dir: &str) {
     handles.retain(|p, _| !(p.starts_with(dir) && source::parent(p) == dir));
 }
 
-/// The children of `dir` a listing found (`Phone::list`): their paths and handles.
-pub(super) fn listed(handles: &mut Handles, _dir: &str, entries: Vec<(String, ObjectHandle)>) {
+/// The children of `dir` a listing found (`Phone::list`): they take the place of those
+/// remembered, which may be gone meanwhile.
+pub(super) fn listed(handles: &mut Handles, dir: &str, entries: Vec<(String, ObjectHandle)>) {
+    forget_children(handles, dir);
     handles.extend(entries);
 }
 
-/// An object someone else added on the phone (an event: its folder is not known).
-pub(super) fn added(_complete: &mut HashSet<String>) {}
+/// An object someone else added on the phone: its folder may have a new name. The event has
+/// only the handle, which no listing has seen yet, so no folder stays read whole; the next
+/// `Phone::taken` lists its folder once.
+pub(super) fn added(complete: &mut HashSet<String>) {
+    complete.clear();
+}
 
 #[cfg(test)]
 mod tests {
