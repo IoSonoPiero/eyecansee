@@ -190,8 +190,7 @@ impl App {
         let id = "batch-summary";
         let mut close = crate::confirm::answer(ctx, &mut self.key_answer, id) == Some(false);
         let mut go = None;
-        // A page covers the thumbnails (editor, Save as, slideshow, duplicates): it would hide them.
-        let covered = self.show.is_some() || self.convert.is_some() || self.editor.is_some() || self.dup_page_shown();
+        let covered = self.folder_covered();
         let (open_label, covered_hint, close_label) = (t("summary-open-folder"), t("summary-open-covered"), t("notice-close"));
         let tip = t("notice-copy");
         egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
@@ -231,6 +230,12 @@ impl App {
         } else {
             self.batch_summary = Some(s);
         }
+    }
+
+    /// A page covers the thumbnails (editor, Save as, slideshow, duplicates): Open the folder
+    /// would open it under them, so it is greyed out (`summary-open-covered`).
+    pub(crate) fn folder_covered(&self) -> bool {
+        self.show.is_some() || self.convert.is_some() || self.editor.is_some() || self.dup_page_shown()
     }
 
     /// The thumbnails of the destination, after asking about turns not saved in the viewer.

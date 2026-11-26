@@ -304,8 +304,10 @@ impl App {
     /// A message that needs reading (Markdown: names in bold, lists), with "Save as…" for the
     /// open image when it helps.
     pub(crate) fn notice_window(&mut self, ctx: &egui::Context) {
-        let Some(Notice { title, mut text, save_as, warning, copy: mut whole, .. }) = self.notice.clone() else { return };
+        let Some(Notice { title, mut text, save_as, warning, copy: mut whole, open, .. }) = self.notice.clone() else { return };
         let (copy, close_label) = (self.i18n.t("menu-save-copy"), self.i18n.t("notice-close"));
+        let (open_label, covered_hint, covered) = (self.i18n.t("summary-open-folder"), self.i18n.t("summary-open-covered"), self.folder_covered());
+        let mut go = None;
         if save_as.is_some() {
             let hint = self.i18n.t("save-as-hint");
             text = format!("{text}\n\n{hint}");
@@ -326,24 +328,37 @@ impl App {
                 crate::confirm::join(id, &ui.hyperlink_to(why, url));
             }
             ui.horizontal(|ui| {
-                // Close highlighted; Save as… before it when it helps (#311).
+                // Close highlighted; Save as… before it when it helps (#311); Open the folder
+                // after it, as at the end of Convert (#356).
                 let mut labels = Vec::new();
                 if save_as.is_some() {
                     labels.push((copy, true));
                 }
                 labels.push((close_label, true));
-                let last = labels.len() - 1;
-                if let Some(i) = crate::confirm::buttons(ui, id, &labels, last) {
-                    if i < last
+                let at = labels.len() - 1;
+                if open.is_some() {
+                    labels.push((open_label, !covered));
+                }
+                let mut hints = vec![None; at + 1];
+                hints.push(Some(covered_hint));
+                if let Some(i) = crate::confirm::buttons_hint(ui, id, &labels, at, &hints) {
+                    if i < at
                         && let Some(a) = &save_as
                     {
                         self.act = Some(a.clone());
+                    }
+                    if i > at {
+                        go = open.clone();
                     }
                     log!("notice: closed by its buttons");
                     close = true;
                 }
             });
         });
+        if let Some(address) = go {
+            log!("notice: Open the folder {:?}", crate::address::without_password(&address));
+            self.open_folder_after_batch(ctx, address);
+        }
         if close {
             self.notice = None;
             self.next_waiting();
@@ -390,11 +405,14 @@ pub(crate) struct Notice {
     pub(crate) help: Option<&'static str>,
     /// The end of a job in a corner box (a copy): another job's part joins it (#328).
     pub(crate) job: bool,
+    /// A folder Open the folder opens, after Close (#356: the end of a copy into a folder that is
+    /// not the one open).
+    pub(crate) open: Option<String>,
 }
 
 impl Notice {
     pub(crate) fn new(title: String, text: String) -> Self {
-        Notice { title, text, save_as: None, warning: false, copy: None, help: None, job: false }
+        Notice { title, text, save_as: None, warning: false, copy: None, help: None, job: false, open: None }
     }
 }
 

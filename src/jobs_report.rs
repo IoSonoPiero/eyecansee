@@ -1,8 +1,6 @@
 //! One report when several jobs in the corner boxes end (#328), and messages that wait for the
 //! one open instead of taking its place (#329).
 
-use std::sync::atomic::Ordering;
-
 use eframe::egui;
 
 use crate::App;
@@ -19,16 +17,19 @@ pub(crate) struct Part {
     pub(crate) copy: String,
     pub(crate) warning: bool,
     pub(crate) help: Option<&'static str>,
+    /// The folder a copy went to, not the one open: Open the folder of a report when Convert gave
+    /// none (#356).
+    pub(crate) folder: Option<String>,
 }
 
 impl Part {
     pub(crate) fn of_notice(n: &Notice) -> Self {
         let copy = n.copy.clone().unwrap_or_else(|| plain(&n.text));
-        Part { title: n.title.clone(), text: n.text.clone(), groups: Vec::new(), copy, warning: n.warning, help: n.help }
+        Part { title: n.title.clone(), text: n.text.clone(), groups: Vec::new(), copy, warning: n.warning, help: n.help, folder: n.open.clone() }
     }
 
     pub(crate) fn of_summary(s: &Summary) -> Self {
-        Part { title: s.title.clone(), text: s.text.clone(), groups: s.groups.clone(), copy: s.copy.clone(), warning: false, help: Some("help:convert") }
+        Part { title: s.title.clone(), text: s.text.clone(), groups: s.groups.clone(), copy: s.copy.clone(), warning: false, help: Some("help:convert"), folder: None }
     }
 }
 
@@ -43,6 +44,12 @@ impl Report {
     /// What Copy takes: each part under its title, every name included.
     pub(crate) fn copied(&self) -> String {
         self.parts.iter().map(|p| format!("{}\n{}", p.title, p.copy)).collect::<Vec<_>>().join("\n\n")
+    }
+
+    /// Where Open the folder goes: Convert's folder, else the last copy's into a folder not open
+    /// (#356; Convert's was the only one before).
+    pub(crate) fn folder(&self) -> Option<String> {
+        self.open.clone().or_else(|| self.parts.iter().rev().find_map(|p| p.folder.clone()))
     }
 
     /// The guide's page for F1: the copy's when a part names it, else the first a part gives.
@@ -80,40 +87,6 @@ impl Waiting {
         report.open = report.open.take().or(open);
         true
     }
-}
-
-/// The part of a copy that ended with nothing to say alone, for a report with more jobs:
-/// cancelled, finished, or stopped by an error the red bar says (`r`); `cut`: a move.
-pub(crate) fn quiet_copy(i18n: &crate::i18n::I18n, cut: bool, to: &str, r: &Result<(), crate::source::Error>, p: &crate::transfer::Progress) -> Part {
-    let (files, total) = (p.files.load(Ordering::Relaxed), p.files_total.load(Ordering::Relaxed));
-    let dir = md(&crate::address::without_password(to));
-    let to_line = || i18n.t_args("transfer-to", &[("dir", &dir)]);
-    // One line, as Convert's "3 files saved in …" (Piero, 24/11): the count and the folder.
-    let counted = |id: &str, n: usize| i18n.t_args(id, &[("n", &n.to_string()), ("total", &total.to_string()), ("dir", &dir)]);
-    let (title, text) = match r {
-        Err((id, _)) if *id == "error-cancelled" => {
-            let text = if total > 0 { counted(if cut { "transfer-moved-before-cancel" } else { "transfer-done-before-cancel" }, files) } else { to_line() };
-            (if cut { "transfer-move-cancelled" } else { "transfer-copy-cancelled" }, text)
-        }
-        Ok(()) => {
-            let text = if total > 0 { counted(if cut { "transfer-files-moved" } else { "transfer-files-copied" }, total) } else { to_line() };
-            // How much, in how long, how fast on average (Piero, 25/11).
-            let done = p.done.load(Ordering::Relaxed);
-            let secs = p.begun.get().map_or(0.0, |t| t.elapsed().as_secs_f64());
-            let text = match (done, secs) {
-                (0, _) => text,
-                (_, s) if s < 1.0 => text,
-                (d, s) => format!("{text}\n{}", i18n.t_args("transfer-summary", &[
-                    ("size", &crate::human::size(i18n, d)),
-                    ("time", &crate::human::human_time(s.round() as u64)),
-                    ("speed", &crate::human::size(i18n, (d as f64 / s) as u64)),
-                ])),
-            };
-            (if cut { "transfer-moved" } else { "transfer-copied" }, text)
-        }
-        Err((id, detail)) => (if cut { "transfer-move-stopped" } else { "transfer-copy-stopped" }, format!("{}\n{}", to_line(), md(&i18n.error(id, detail)))),
-    };
-    Part { title: i18n.t(title), copy: plain(&text), text, groups: Vec::new(), warning: false, help: None }
 }
 
 impl App {
@@ -207,7 +180,7 @@ impl App {
         let id = "jobs-report";
         let mut close = crate::confirm::answer(ctx, &mut self.key_answer, id) == Some(false);
         let mut go = None;
-        let covered = self.show.is_some() || self.convert.is_some() || self.editor.is_some() || self.dup_page_shown();
+        let covered = self.folder_covered();
         let t = |id| self.i18n.t(id);
         let (title, open_label, covered_hint, close_label, tip) = (t("jobs-report-title"), t("summary-open-folder"), t("summary-open-covered"), t("notice-close"), t("notice-copy"));
         let warning = r.parts.iter().any(|p| p.warning);
@@ -235,12 +208,12 @@ impl App {
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 let mut labels = vec![(close_label.clone(), true)];
-                if r.open.is_some() {
+                if r.folder().is_some() {
                     labels.push((open_label.clone(), !covered));
                 }
                 match crate::confirm::buttons_hint(ui, id, &labels, 0, &[None, Some(covered_hint.clone())]) {
                     Some(0) => close = true,
-                    Some(_) => go = r.open.clone(),
+                    Some(_) => go = r.folder(),
                     None => {}
                 }
             });
@@ -466,6 +439,29 @@ mod tests {
         assert!(h.app.notice.is_none() && h.app.jobs_quiet.is_empty(), "a quiet copy alone said something, or was kept");
     }
 
+    /// #356: a report of a Convert and a copy into a folder not open opens Convert's folder, in
+    /// both orders, as before copies had one; the copy's when Convert has none, or with an export.
+    #[test]
+    fn convert_folder_before_the_copy_folder() {
+        use super::{Part, Waiting};
+        let copy = || Waiting::Notice(crate::save_dialogs::Notice { job: true, open: Some("/copied/".into()), ..message("Copy finished") });
+        let copy_part = || match copy() {
+            Waiting::Notice(n) => Part::of_notice(&n),
+            _ => unreachable!(),
+        };
+        let convert = |open: Option<&str>| crate::batch_summary::Summary { title: "Convert".into(), text: String::new(), groups: Vec::new(), open: open.map(String::from), copy: String::new() };
+        let joined = |mut w: Waiting, part: Part, open: Option<&str>| {
+            assert!(w.join(part, open.map(String::from)));
+            let Waiting::Report(r) = w else { panic!("not a report") };
+            r.folder()
+        };
+        let convert_part = |open| Part::of_summary(&convert(open));
+        assert_eq!(joined(copy(), convert_part(Some("/converted/")), Some("/converted/")).as_deref(), Some("/converted/"), "copy first");
+        assert_eq!(joined(Waiting::Summary(convert(Some("/converted/"))), copy_part(), None).as_deref(), Some("/converted/"), "Convert first");
+        assert_eq!(joined(Waiting::Summary(convert(None)), copy_part(), None).as_deref(), Some("/copied/"), "Convert saved in the folder open");
+        assert_eq!(joined(copy(), Part { folder: None, ..copy_part() }, None).as_deref(), Some("/copied/"), "a copy, then a job with no folder");
+    }
+
     /// #329: a message that comes while another is open waits and shows when the first is
     /// closed; Enter closes one at a time.
     #[test]
@@ -489,28 +485,5 @@ mod tests {
         h.key(egui::Key::Enter);
         h.frame(Vec::new());
         assert!(h.app.notice.is_none() && h.app.waiting.is_empty());
-    }
-
-    /// The part of a quiet copy, in English and Italian: finished, moved, cancelled, stopped.
-    #[test]
-    fn quiet_copy_says_what_happened() {
-        use super::quiet_copy;
-        let p = crate::transfer::Progress::default();
-        p.files.store(1, Ordering::Relaxed);
-        p.files_total.store(3, Ordering::Relaxed);
-        for (lang, done, moved, cancelled) in [
-            ("en", "Copy finished|3 files copied to /to/.", "Move finished|3 files moved to /to/.", "Copy cancelled|1 of 3 files copied to /to/ before Cancel."),
-            ("it", "Copia finita|3 file copiati in /to/.", "Spostamento finito|3 file spostati in /to/.", "Copia annullata|1 file su 3 copiati in /to/ prima di Annulla."),
-        ] {
-            let i18n = crate::i18n::I18n::new(lang);
-            let said = |cut, r: Result<(), crate::source::Error>| {
-                let part = quiet_copy(&i18n, cut, "/to/", &r, &p);
-                format!("{}|{}", part.title, part.copy)
-            };
-            assert_eq!(said(false, Ok(())), done);
-            assert_eq!(said(true, Ok(())), moved);
-            assert_eq!(said(false, Err(("error-cancelled", String::new()))), cancelled);
-            assert!(said(false, Err(("error-no-host", "nas".into()))).starts_with(&i18n.t("transfer-copy-stopped")));
-        }
     }
 }

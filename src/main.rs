@@ -204,6 +204,7 @@ mod tips;
 mod toolbar;
 mod toolbar_end;
 mod transfer;
+mod transfer_end;
 mod transform;
 mod trash;
 mod tree;

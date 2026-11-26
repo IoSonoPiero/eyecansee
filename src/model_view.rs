@@ -342,7 +342,7 @@ fn quiet_export(i18n: &crate::i18n::I18n, exported: usize, stopped: Option<Strin
         Some(line) => (i18n.t("model-export-cancelled"), line),
         None => (i18n.t("model-export-done-title"), i18n.t_args("model-export-files", &[("n", &exported.to_string())])),
     };
-    crate::jobs_report::Part { title, copy: crate::save_dialogs::plain(&text), text, groups: Vec::new(), warning: false, help: Some("help:model-export") }
+    crate::jobs_report::Part { title, copy: crate::save_dialogs::plain(&text), text, groups: Vec::new(), warning: false, help: Some("help:model-export"), folder: None }
 }
 
 /// The models of an export still to come, and what there is to say of those done (`Said`): said
