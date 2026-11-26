@@ -169,4 +169,39 @@ mod tests {
         assert_eq!(on_esc(false, false, false), Esc::Quit);
         assert_eq!(on_esc(false, false, true), Esc::Nothing);
     }
+
+    /// A double click in the viewer, all 8 cases: each choice, at full screen and not, measuring
+    /// and not.
+    #[test]
+    fn double_click_in_the_viewer_for_each_choice() {
+        use Double::*;
+        // (to_full, full, measuring) → what it does.
+        let cases = [
+            ((false, false, false), Grid),
+            ((false, true, false), Grid),
+            ((true, false, false), EnterFullScreen),
+            ((true, true, false), LeaveFullScreen),
+            ((false, false, true), Nothing),
+            ((false, true, true), Nothing),
+            ((true, false, true), Nothing),
+            ((true, true, true), Nothing),
+        ];
+        for ((to_full, full, measuring), want) in cases {
+            assert_eq!(
+                on_double_click(to_full, full, measuring),
+                want,
+                "to_full {to_full}, full {full}, measuring {measuring}"
+            );
+        }
+    }
+
+    /// Piero's two decisions: "Goes back to the grid" ignores full screen; "Goes to full screen"
+    /// goes in and out with the same gesture.
+    #[test]
+    fn double_click_grid_or_in_and_out() {
+        let grid = |full| on_double_click(false, full, false);
+        assert_eq!((grid(false), grid(true)), (Double::Grid, Double::Grid));
+        let full = |full| on_double_click(true, full, false);
+        assert_eq!((full(false), full(true)), (Double::EnterFullScreen, Double::LeaveFullScreen));
+    }
 }
