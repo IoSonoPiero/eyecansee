@@ -55,6 +55,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 ### Browsing and editing
 
 - Viewer: Esc closes EyeCanSee when the window's ✕ is set to close it ([#320](https://github.com/IoSonoPiero/eyecansee/issues/320)).
+- Viewer: a double click can go to full screen instead of back to the grid, chosen in the Options ([#349](https://github.com/IoSonoPiero/eyecansee/issues/349)).
 - Menus: the menu bar opened from the keyboard (Alt, F10, Alt + letter), as in other desktop apps ([#322](https://github.com/IoSonoPiero/eyecansee/issues/322)).
 - Paste: what was pasted is selected in the folder, the last item when there are several ([#323](https://github.com/IoSonoPiero/eyecansee/issues/323)).
 - F6 takes the keyboard to Cancel of a copy or a conversion under way ([#324](https://github.com/IoSonoPiero/eyecansee/issues/324)).
