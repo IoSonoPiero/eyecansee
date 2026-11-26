@@ -180,6 +180,7 @@ transfer-why-pc = Why through the computer?
 transfer-why-pc-section = Big files: through the computer
 # The copy window while the phone copies by itself inside one storage (#354).
 phone-copy-title = The phone is copying
+phone-copy-counting = Counting the files…
 phone-copy-nth = File { $n } of { $total }
 phone-copy-for = { $size }, copying for { $time }
 phone-copy-total = { $size } in all

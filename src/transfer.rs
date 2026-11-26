@@ -283,11 +283,20 @@ async fn renames(clip: &Clip, (to, to_dir, same): (&Store, &str, bool), plan: Ve
     Ok(copies)
 }
 
+/// Whether the paste of `clip` into `to_dir` of `to` is one the phone copies by itself inside
+/// one storage (`by_phone`), told to `p` as soon as the paste is asked, before `run` starts: its
+/// window is the one in the middle from its first frame (the copy box in the corner showed for a
+/// second while the files were counted; Piero, 26/11). Nothing is asked of the phone for it.
+/// The same session as `copy_file` tells it: a phone plugged in again between copy and paste is another.
+pub fn announce(clip: &Clip, to: &Store, to_dir: &str, p: &Progress) {
+    let same_phone = matches!((&clip.op, to), (Store::Mtp(a), Store::Mtp(b)) if std::sync::Arc::ptr_eq(a, b));
+    p.by_phone.decide(by_phone::by_phone(clip.cut, same_phone, &clip.paths, to_dir), by_phone::many(&clip.paths));
+}
+
 async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress, gone: &mut Vec<String>) -> Result<(), Error> {
     let _ = p.begun.set(Instant::now());
     let same = clip.base == to_base;
-    // The same session as `copy_file` tells it: a phone plugged in again between copy and paste is another.
-    p.by_phone.decide(by_phone::by_phone(clip.cut, matches!((&clip.op, to), (Store::Mtp(a), Store::Mtp(b)) if std::sync::Arc::ptr_eq(a, b)), &clip.paths, to_dir));
+    announce(clip, to, to_dir, p);
     let present = Names::read(to, to_dir).await?;
     let here = in_own_folder(clip, to_base, to_dir, dest_place(clip, to, to_base, to_dir).await.as_ref()).await;
     let plan = planned(clip, to, to_dir, &here, choices, &present, &sidecars(clip).await);

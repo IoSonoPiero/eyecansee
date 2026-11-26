@@ -270,6 +270,8 @@ impl Loader {
 
     pub fn paste(&self, clip: transfer::Clip, dir: String, choices: HashMap<String, transfer::Choice>, progress: Arc<transfer::Progress>) {
         let (op, base, tx, ctx) = (self.op.clone(), self.base.clone(), self.tx.clone(), self.ctx.clone());
+        // Now, not when the task starts: the window of the paste is right from its first frame.
+        transfer::announce(&clip, &op, &dir, &progress);
         self.rt.spawn(async move {
             let (gone, r) = transfer::run(&clip, &op, &base, &dir, &choices, &progress).await;
             for path in &gone {

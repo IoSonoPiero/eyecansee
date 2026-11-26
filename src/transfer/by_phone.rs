@@ -22,11 +22,20 @@ pub(super) fn by_phone(cut: bool, same_phone: bool, paths: &[String], to_dir: &s
     !cut && same_phone && paths.iter().any(|p| storage(p) == storage(to_dir))
 }
 
+/// Whether the items pasted may be several files: more than one, or a folder. Known before
+/// anything is counted, so the window has the rows of the counts from its first frame, and one
+/// size until it closes.
+pub(super) fn many(paths: &[String]) -> bool {
+    paths.len() > 1 || paths.iter().any(|p| p.ends_with('/'))
+}
+
 /// What the window of such a paste reads while it runs, shared with the copy (`Progress::by_phone`).
 #[derive(Default)]
 pub struct ByPhone {
     /// The paste is one (`by_phone`).
     on: AtomicBool,
+    /// Its items may be several files (`many`).
+    many: AtomicBool,
     /// The phone went from the devices during the paste: the window goes back to the corner, so
     /// the app is never held by a phone that is not there (Windows does not say it went at once).
     unplugged: AtomicBool,
@@ -38,8 +47,14 @@ pub struct ByPhone {
 }
 
 impl ByPhone {
-    pub(crate) fn decide(&self, on: bool) {
+    pub(crate) fn decide(&self, on: bool, many: bool) {
         self.on.store(on, Ordering::Relaxed);
+        self.many.store(many, Ordering::Relaxed);
+    }
+
+    /// The items pasted may be several files (`many`).
+    pub fn many(&self) -> bool {
+        self.many.load(Ordering::Relaxed)
     }
 
     /// The window of this paste is the modal one.
@@ -120,6 +135,10 @@ pub struct Seen {
     /// A big file of the other storage is on its way through this computer now (a paste of items
     /// of both storages): its bytes are counted as they go, and the phone is not copying alone.
     pub through_pc: bool,
+    /// The items pasted may be several files (`ByPhone::many`).
+    pub many: bool,
+    /// The files are still being counted, before the copy: items found so far.
+    pub counting: Option<usize>,
 }
 
 /// The bar of the window.
@@ -153,9 +172,14 @@ pub enum Note {
 }
 
 /// What the window shows for a `Seen`; the UI gives it its words and its place. With one file
-/// `nth`, `data` and `speed` have no row; with several their rows are there even when empty.
+/// `data` and `speed` have no row; with several (`rows`) their rows are there even when empty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct View {
+    /// The files are still being counted (the window is there from the start of the paste: the
+    /// copy box in the corner showed first, for a second; Piero, 26/11): items found so far.
+    pub counting: Option<usize>,
+    /// The rows of the bytes and of the speed are there: the items may be several files.
+    pub rows: bool,
     /// The file under way.
     pub name: String,
     /// With several files: the file under way among them, from 1, and how many.
@@ -172,15 +196,14 @@ pub struct View {
     pub cancel: bool,
 }
 
-impl View {
-    /// Several files: the window has the rows of the counts.
-    pub fn several(&self) -> bool {
-        self.nth.is_some()
-    }
-}
-
 /// The window for `s`: only what is known, nothing guessed.
 pub fn view(s: &Seen) -> View {
+    let rows = s.many || s.files_total > 1;
+    if s.counting.is_some() {
+        // Nothing of the copy is known yet, and Cancel stops before the first file.
+        let (file, bar, note) = (None, Bar::Busy, Note::Waiting);
+        return View { counting: s.counting, rows, name: String::new(), nth: None, file, bar, data: None, speed: None, note, cancel: !s.cancelling };
+    }
     let several = s.files_total > 1;
     // The file under way among all: the last one once all are done (a sidecar after its photo).
     let n = (s.files + 1).min(s.files_total.max(1));
@@ -197,10 +220,12 @@ pub fn view(s: &Seen) -> View {
         Note::Waiting
     };
     View {
+        counting: None,
+        rows,
         name: phone.map_or_else(|| s.current.clone(), |(name, _, _)| name.clone()),
         nth: several.then_some((n, s.files_total)),
         file: phone.map(|(_, size, secs)| (*size, Some(*secs).filter(|secs| *secs >= SAY_SECS))),
-        bar: if several || s.through_pc { Bar::Part { part: part(s), busy: phone.is_some() } } else { Bar::Busy },
+        bar: if rows || s.through_pc { Bar::Part { part: part(s), busy: phone.is_some() } } else { Bar::Busy },
         data: (several && s.total > 0).then_some(if s.done > 0 { Data::Done { done: s.done, total: s.total } } else { Data::Total(s.total) }),
         speed,
         note,
@@ -252,8 +277,7 @@ mod tests {
     #[test]
     fn one_file_shows_no_counts() {
         let v = view(&Seen { big: Some((GB, 10.0)), ..seen(0, 1, 0, 6 * GB) });
-        assert_eq!(v, View { name: "big.mp4".into(), nth: None, file: Some((2 * GB, Some(12))), bar: Bar::Busy, data: None, speed: None, note: Note::Waiting, cancel: true });
-        assert!(!v.several());
+        assert_eq!(v, View { counting: None, rows: false, name: "big.mp4".into(), nth: None, file: Some((2 * GB, Some(12))), bar: Bar::Busy, data: None, speed: None, note: Note::Waiting, cancel: true });
     }
 
     /// Several files: "File 2 of 5" while the second is copied, the bar by whole files with the
@@ -264,7 +288,7 @@ mod tests {
         let v = view(&seen(1, 5, 100 * MB, 400 * MB));
         assert_eq!((v.nth, v.bar), (Some((2, 5)), Bar::Part { part: 0.25, busy: true }));
         assert_eq!((v.data, v.speed), (Some(Data::Done { done: 100 * MB, total: 400 * MB }), None));
-        assert!(v.several() && v.cancel);
+        assert!(v.rows && v.cancel);
         let first = view(&seen(0, 5, 0, 400 * MB));
         assert_eq!((first.nth, first.data), (Some((1, 5)), Some(Data::Total(400 * MB))), "nothing done yet: no \"0 KB of\"");
         // All done, waiting for the end: the last file, not "6 of 5".
@@ -343,13 +367,34 @@ mod tests {
         assert_eq!((v.name.as_str(), v.file, v.bar), ("a.jpg", None, Bar::Busy));
     }
 
+    /// While the files are counted (the window is there from the start of the paste): nothing of
+    /// the copy, the strip that moves, the items found; the rows of the counts already there when
+    /// the items may be several files (more than one, or a folder), so the window keeps its size
+    /// when the count ends, also for a folder that holds one file. Cancel there promises nothing
+    /// about a file.
+    #[test]
+    fn counting_the_files() {
+        assert!(!many(&paths(&["Internal storage/DCIM/a.mp4"])));
+        assert!(many(&paths(&["Internal storage/DCIM/a.mp4", "Internal storage/DCIM/b.mp4"])));
+        assert!(many(&paths(&["Internal storage/DCIM/Camera/"])));
+        let counting = |many, cancelling| view(&Seen { counting: Some(7), many, cancelling, current: "Camera".into(), ..Seen::default() });
+        let one = counting(false, false);
+        assert_eq!(one, View { counting: Some(7), rows: false, name: String::new(), nth: None, file: None, bar: Bar::Busy, data: None, speed: None, note: Note::Waiting, cancel: true });
+        assert!(counting(true, false).rows);
+        let cancelled = counting(true, true);
+        assert_eq!((cancelled.note, cancelled.cancel), (Note::Waiting, false));
+        // Counted: a folder that held one file keeps the rows, with nothing in them.
+        let v = view(&Seen { many: true, ..seen(0, 1, 0, 2 * GB) });
+        assert_eq!((v.rows, v.nth, v.data, v.bar), (true, None, None, Bar::Part { part: 0.0, busy: true }));
+    }
+
     /// Cancel removes the copy under way only in a paste of this kind, for a copy that stays
     /// inside one storage: a small file the phone copies to its other storage is as before.
     #[test]
     fn cancel_removes_only_copies_inside_one_storage() {
         let b = ByPhone::default();
         assert!(!b.undone("Internal storage/DCIM/a.mp4", "Internal storage/Download/a.mp4"), "not a paste of this kind");
-        b.decide(true);
+        b.decide(true, false);
         assert!(b.undone("Internal storage/DCIM/a.mp4", "Internal storage/Download/a.mp4"));
         assert!(!b.undone("SD card/DCIM/a.jpg", "Internal storage/Download/a.jpg"));
     }
@@ -359,8 +404,8 @@ mod tests {
     fn unplugged_is_not_modal() {
         let b = ByPhone::default();
         assert!(!b.modal());
-        b.decide(true);
-        assert!(b.modal());
+        b.decide(true, true);
+        assert!(b.modal() && b.many());
         b.unplugged();
         assert!(!b.modal());
     }

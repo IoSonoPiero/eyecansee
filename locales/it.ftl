@@ -179,6 +179,7 @@ transfer-why-pc = Perché passa dal computer?
 transfer-why-pc-section = File grandi: passano dal computer
 # La finestra della copia mentre il telefono copia da solo dentro una memoria (#354).
 phone-copy-title = Il telefono sta copiando
+phone-copy-counting = Conto i file…
 phone-copy-nth = File { $n } di { $total }
 phone-copy-for = { $size }, in copia da { $time }
 phone-copy-total = { $size } in tutto

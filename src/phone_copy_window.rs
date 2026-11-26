@@ -46,10 +46,11 @@ struct Shown {
 }
 
 impl App {
-    /// The paste under way is one the phone copies by itself inside one storage, its files
-    /// counted, and its phone still among the devices: the copy window is this modal.
+    /// The paste under way is one the phone copies by itself inside one storage, and its phone
+    /// is still among the devices: the copy window is this modal, from the start of the paste
+    /// (while its files are counted too: the copy box in the corner showed first, for a second).
     pub(crate) fn phone_copy_modal(&self) -> bool {
-        self.transfer.as_ref().is_some_and(|(p, ..)| p.by_phone.modal() && matches!(p.phase(), transfer::Phase::Copying { .. }))
+        self.transfer.as_ref().is_some_and(|(p, ..)| p.by_phone.modal())
     }
 
     /// What the window knows now.
@@ -64,6 +65,11 @@ impl App {
             big: p.by_phone.big(),
             cancelling: p.cancel.load(Ordering::Relaxed),
             through_pc: p.staging.lock().unwrap().is_some(),
+            many: p.by_phone.many(),
+            counting: match p.phase() {
+                transfer::Phase::Looking(found) => Some(found),
+                _ => None,
+            },
         }
     }
 
@@ -73,6 +79,8 @@ impl App {
         let v = transfer::view(&seen);
         let (t, size) = (|id: &str| self.i18n.t(id), |b: u64| size_gb(&self.i18n, b));
         let detail = match v.file {
+            // The items found in the folders, once there are some.
+            None if v.counting.is_some_and(|found| found > 0) => self.i18n.t_args("transfer-looking", &[("n", &v.counting.unwrap_or(0).to_string())]),
             Some((s, Some(secs))) => self.i18n.t_args("phone-copy-for", &[("size", &size(s)), ("time", &human_time(secs))]),
             Some((s, None)) => size(s),
             // A big file of the other storage, through this computer: the line of the copy box.
@@ -95,11 +103,11 @@ impl App {
             nth: v.nth.map(|(n, total)| self.i18n.t_args("phone-copy-nth", &[("n", &n.to_string()), ("total", &total.to_string())])),
             detail,
             bar: v.bar,
-            counts: v.several().then_some([data, speed]),
+            counts: v.rows.then_some([data, speed]),
             note: (format!("{now} {}", t("phone-copy-keep")), v.note != Note::Waiting),
             cancel: if v.cancel { Ok((t("delete-no"), t("phone-copy-cancel-tip"))) } else { Err(t("phone-copy-cancelled")) },
             why: t("phone-copy-why"),
-            name: v.name,
+            name: if v.counting.is_some() { t("phone-copy-counting") } else { v.name },
         }
     }
 
@@ -245,20 +253,33 @@ mod tests {
     const GB: u64 = 1 << 30;
 
     /// The app on a folder of three pictures, the grid on the last one, and a paste the phone
-    /// copies inside one storage set on it directly (no phone): `files` files of 1 GB counted, the
-    /// second one under way (the only one, with one). The phone is not among the devices: a list
-    /// from the devices' watcher, arriving late, would take it away.
-    fn copying(name: &str, files: usize) -> (Harness, Arc<crate::transfer::Progress>) {
+    /// copies inside one storage set on it directly (no phone), as it is when just asked: of one
+    /// file, or of several (`files`), nothing counted yet. The phone is not among the devices: a
+    /// list from the devices' watcher, arriving late, would take it away.
+    fn asked(name: &str, files: usize) -> (Harness, Arc<crate::transfer::Progress>) {
         let mut h = Harness::new(&folder(name, &["a.png", "b.png", "c.png"]));
         (h.app.cursor, h.app.selected, h.app.focus) = (true, 2, crate::Focus::Grid);
         let p = Arc::new(crate::transfer::Progress::default());
-        p.by_phone.decide(true);
+        p.by_phone.decide(true, files > 1);
+        h.app.transfer = Some((p.clone(), false, PHONE.into(), "Internal storage/Download/".into()));
+        frames(&mut h);
+        (h, p)
+    }
+
+    /// The files of the paste counted, `files` of 1 GB, and the copy started: the second one
+    /// under way (the only one, with one).
+    fn start(p: &crate::transfer::Progress, files: usize) {
         p.files.store(files.min(2) - 1, Ordering::Relaxed);
         p.files_total.store(files, Ordering::Relaxed);
         p.total.store(files as u64 * GB, Ordering::Relaxed);
         p.by_phone.begin("big.mp4", GB);
         let _ = p.started.set(std::time::Instant::now());
-        h.app.transfer = Some((p.clone(), false, PHONE.into(), "Internal storage/Download/".into()));
+    }
+
+    /// `asked`, then `start`.
+    fn copying(name: &str, files: usize) -> (Harness, Arc<crate::transfer::Progress>) {
+        let (mut h, p) = asked(name, files);
+        start(&p, files);
         frames(&mut h);
         (h, p)
     }
@@ -377,9 +398,38 @@ mod tests {
         (size * 100.0).round() / 100.0
     }
 
+    /// Piero, 26/11: "as soon as the copy starts the window goes down for a second, then appears
+    /// in the centre": while the files were counted the copy box in the corner showed. The window
+    /// in the middle is there from the first frame of the paste, modal, before anything is
+    /// counted: no copy box in the corner, the keys cancel nothing and reach nothing under it,
+    /// Cancel works. (Unplugged, the copy box is the one in the corner: the check of the check.)
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn the_window_is_there_from_the_start() {
+        if own_folder("phone_copy_window::tests::the_window_is_there_from_the_start") {
+            return;
+        }
+        for files in [1, 3] {
+            let (mut h, p) = asked(&format!("phone-copy-start-{files}"), files);
+            let layer = egui::LayerId::new(egui::Order::Foreground, egui::Id::unique(super::ID));
+            // The controls of the boxes in the corner drawn in the last frame: Cancel of the copy box.
+            let corner = |h: &Harness| crate::box_keys::controls(&h.ctx).len();
+            assert!(open(&h.app) && h.ctx.memory(|m| m.top_modal_layer()) == Some(layer), "{files}: no window in the middle while the files are counted");
+            assert_eq!(corner(&h), 0, "{files}: the copy box in the corner showed first");
+            keys_do_nothing(&mut h, &p);
+            cancel_with_the_keys(&mut h, &p);
+            // Another paste, its phone unplugged: there the copy box is the one in the corner.
+            let (mut h, p) = asked(&format!("phone-copy-start-unplugged-{files}"), files);
+            p.by_phone.unplugged();
+            frames(&mut h);
+            assert!(corner(&h) > 0 && h.ctx.memory(|m| m.top_modal_layer()).is_none(), "{files}: unplugged, the copy box in the corner");
+        }
+    }
+
     /// Piero, 26/11: "while it runs, the window for a second gets bigger and then goes back": a
-    /// long name wrapped. The window has one size from when it opens to when it closes, whatever
-    /// it says, in both languages: a name longer than the window, the bytes done and the speed
+    /// long name wrapped. The window has one size from when it opens (its files not counted yet)
+    /// to when it closes, whatever it says, in both languages: the items found, the copy started,
+    /// a name longer than the window, the bytes done and the speed
     /// once known, 3 minutes on a file, after Cancel (with files left out, and on the last file),
     /// a file through the computer. With one file and with several (which has the rows of the
     /// counts: taller, and as wide).
@@ -393,10 +443,14 @@ mod tests {
         for lang in ["en", "it"] {
             let mut sizes = Vec::new();
             for files in [1, 5] {
-                let (mut h, p) = copying(&format!("phone-copy-size-{lang}-{files}"), files);
+                let (mut h, p) = asked(&format!("phone-copy-size-{lang}-{files}"), files);
                 h.app.i18n = crate::i18n::I18n::new(lang);
-                let first = size(&mut h, "as it opens");
+                let first = size(&mut h, "as it opens, the files not counted yet");
                 let same = |h: &mut Harness, what: &str| assert_eq!(size(h, what), first, "{lang}, {files} files: the window changed size: {what}");
+                p.found.store(1234, Ordering::Relaxed);
+                same(&mut h, "items found in the folders");
+                start(&p, files);
+                same(&mut h, "the copy started");
                 p.by_phone.begin(&long, 6 * GB);
                 *p.current.lock().unwrap() = long.clone();
                 same(&mut h, "a long name");
