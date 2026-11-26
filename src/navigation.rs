@@ -304,8 +304,9 @@ impl App {
         let viewing = self.viewing;
         let path = viewing.and_then(|i| self.files().get(i)).map(|f| f.path.clone());
         let view = (self.zoom_of, self.turn, self.zoom);
+        // Only the folder open (Piero, 26/11): every listing was emptied, and the left panel read
+        // again each folder it shows open, on a phone one call after the other.
         let old = self.listings.remove(&self.dir);
-        self.listings.clear();
         let dir = self.dir.clone();
         self.set_dir(dir);
         if let (Some(i), Some(path), Some(old)) = (viewing, path, old) {

@@ -14,7 +14,7 @@ Tutti i tasti di EyeCanSee, divisi per posto. I menù mostrano il tasto accanto 
 
 | Tasto | Azione |
 |---|---|
-| F5 | Rilegge le cartelle (nel visore resta sull'immagine aperta) |
+| F5 | Rilegge la cartella aperta, solo quella (nel visore resta sull'immagine aperta) |
 | F6 | Porta la tastiera su **Annulla** di una copia, di una conversione o di un'esportazione di modelli 3D in corso (con più di uno, F6 di nuovo passa al successivo); **Invio** o **Spazio** la fermano |
 | F11 | Schermo intero e ritorno; nel visore si vede solo l'immagine, senza menù né barre |
 | **Ctrl + R**, **Ctrl + Maiusc + R** | Ruota la foto di 90° in senso orario, antiorario: nel visore la vedi prima di salvarla, nella griglia le foto selezionate vengono salvate dopo la conferma (vedi [Ruotare e riflettere](rotate.md)) |
