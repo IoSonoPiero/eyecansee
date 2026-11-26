@@ -25,6 +25,7 @@ const NOT_MADE: &str = "error-copy-not-made";
 pub(crate) const LONG_COPY: u64 = 32 << 20;
 
 mod across;
+mod aside;
 mod cache;
 mod events;
 mod storages;
@@ -313,7 +314,12 @@ impl Phone {
             let modified = o.modified.map(phone_modified).unwrap_or_default();
             listing.add(path, &o.filename, o.is_folder(), o.size, modified, true);
         }
+        let stale = aside::left_behind(dir, found.iter().map(|(p, _)| source::name(p.trim_end_matches('/'))));
         cache::listed(&mut self.handles.lock().unwrap(), dir, found);
+        if let Some(tmp) = stale {
+            let r = self.delete(&tmp).await;
+            log!("phone {}: {tmp:?} left by a copy broken off, deleted: {r:?}", self.serial);
+        }
         listing.sort();
         Ok(listing)
     }
@@ -633,6 +639,7 @@ impl Phone {
         let dir = source::parent(dest);
         // Left over from a copy broken off: what is in it is ours, and a copy is found there by name.
         let tmp = format!("{dir}{COPY_DIR}/");
+        let _in_use = aside::InUse::start(&dir);
         if self.taken(&tmp).await? {
             self.delete(&tmp).await?;
         }
