@@ -50,22 +50,8 @@ pub(crate) fn quiet_copy(i18n: &crate::i18n::I18n, cut: bool, to: &str, r: &Resu
             let text = if total > 0 { counted(if cut { "transfer-moved-before-cancel" } else { "transfer-done-before-cancel" }, files) } else { to_line() };
             (if cut { "transfer-move-cancelled" } else { "transfer-copy-cancelled" }, text)
         }
-        Ok(()) => {
-            let text = if total > 0 { counted(if cut { "transfer-files-moved" } else { "transfer-files-copied" }, total) } else { to_line() };
-            // How much, in how long, how fast on average (Piero, 25/11).
-            let done = p.done.load(Ordering::Relaxed);
-            let secs = p.begun.get().map_or(0.0, |t| t.elapsed().as_secs_f64());
-            let text = match (done, secs) {
-                (0, _) => text,
-                (_, s) if s < 1.0 => text,
-                (d, s) => format!("{text}\n{}", i18n.t_args("transfer-summary", &[
-                    ("size", &crate::human::size(i18n, d)),
-                    ("time", &crate::human::human_time(s.round() as u64)),
-                    ("speed", &crate::human::size(i18n, (d as f64 / s) as u64)),
-                ])),
-            };
-            (if cut { "transfer-moved" } else { "transfer-copied" }, text)
-        }
+        // How many files and folders, where; how much, in how long; the items skipped (#356).
+        Ok(()) => (if cut { "transfer-moved" } else { "transfer-copied" }, ended_lines(i18n, &Done::of(p, cut), &dir)),
         Err((id, detail)) => (if cut { "transfer-move-stopped" } else { "transfer-copy-stopped" }, format!("{}\n{}", to_line(), md(&i18n.error(id, detail)))),
     };
     Part { title: i18n.t(title), copy: plain(&text), text, groups: Vec::new(), warning: false, help: None }
@@ -105,13 +91,69 @@ pub(crate) fn transfer_notice(i18n: &crate::i18n::I18n, cut: bool, to: &str, r: 
         (false, false) => "transfer-copy-stopped",
         (false, true) => "transfer-move-stopped",
     };
-    let to = i18n.t_args("transfer-to", &[("dir", &crate::save_dialogs::md(&crate::address::without_password(to)))]);
+    // On top what a copy that worked says without a list (#356); where it went, after an error.
+    let dir = md(&crate::address::without_password(to));
+    let to = if r.is_ok() { ended_lines(i18n, &Done::of(p, cut), &dir) } else { i18n.t_args("transfer-to", &[("dir", &dir)]) };
     let told = told(i18n, i18n.t(title), &to, parts);
     Some(if links.is_empty() { told } else { with_guide(i18n, told, "help:copy-move") })
 }
 
 /// A copy or a move lasting at least this long says when it ends (`tell_transfer`).
 const LONG_JOB: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// What a copy that worked did, for its end message (`ended_lines`).
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Done {
+    pub(crate) cut: bool,
+    /// Files copied or moved; not the folders moved whole.
+    pub(crate) files: usize,
+    /// Folders a move took whole, as a change of place (`transfer::renames`).
+    pub(crate) folders: usize,
+    /// Items answered Skip, their name already there.
+    pub(crate) skipped: usize,
+    pub(crate) bytes: u64,
+    /// From the start of the paste, looking inside the folders included.
+    pub(crate) secs: f64,
+}
+
+impl Done {
+    pub(crate) fn of(p: &transfer::Progress, cut: bool) -> Self {
+        let n = |a: &std::sync::atomic::AtomicUsize| a.load(Ordering::Relaxed);
+        let folders = n(&p.folders_moved);
+        Done {
+            cut,
+            files: n(&p.files).saturating_sub(folders),
+            folders,
+            skipped: n(&p.skipped),
+            bytes: p.done.load(Ordering::Relaxed),
+            secs: p.begun.get().map_or(0.0, |t| t.elapsed().as_secs_f64()),
+        }
+    }
+}
+
+/// The end of a copy that worked into `dir` (Markdown already), a line each: how many files and
+/// folders went there ("To" and the folder when none was counted); how much in how long, how fast
+/// on average (Piero, 25/11), from a second and a byte on; the items skipped, when some were.
+pub(crate) fn ended_lines(i18n: &crate::i18n::I18n, d: &Done, dir: &str) -> String {
+    let n = |v: usize| v.to_string();
+    let mut lines = vec![match (d.files, d.folders) {
+        (0, 0) => i18n.t_args("transfer-to", &[("dir", dir)]),
+        (f, 0) => i18n.t_args(if d.cut { "transfer-files-moved" } else { "transfer-files-copied" }, &[("n", &n(f)), ("dir", dir)]),
+        (0, g) => i18n.t_args("transfer-folders-moved", &[("n", &n(g)), ("dir", dir)]),
+        (f, g) => i18n.t_args("transfer-files-folders-moved", &[("files", &n(f)), ("folders", &n(g)), ("dir", dir)]),
+    }];
+    if d.bytes > 0 && d.secs >= 1.0 {
+        lines.push(i18n.t_args("transfer-summary", &[
+            ("size", &crate::human::size(i18n, d.bytes)),
+            ("time", &crate::human::human_time(d.secs.round() as u64)),
+            ("speed", &crate::human::size(i18n, (d.bytes as f64 / d.secs) as u64)),
+        ]));
+    }
+    if d.skipped > 0 {
+        lines.push(i18n.t_args("transfer-skipped", &[("n", &n(d.skipped))]));
+    }
+    lines.join("\n")
+}
 
 #[cfg(test)]
 mod tests {
@@ -319,6 +361,36 @@ mod tests {
         assert_eq!(en.copy.as_deref(), Some(plain(&en.text).as_str()));
     }
 
+    /// #356: the lines at the end of a copy that worked, from the numbers: a copy and a move, one
+    /// file and many, folders moved whole alone and with files, items skipped, under a second
+    /// and with nothing copied; in English and Italian, the counts in bold.
+    #[test]
+    fn ended_lines_say_what_was_done() {
+        use super::{Done, ended_lines};
+        let said = |lang: &str, d: Done| plain(&ended_lines(&crate::i18n::I18n::new(lang), &d, "/to/"));
+        let copy = Done { files: 3, bytes: 3 << 20, secs: 30.0, ..Done::default() };
+        assert_eq!(said("en", copy), "3 files copied to /to/.\n3.0 MB in 30 s, 102 KB/s on average.");
+        assert_eq!(said("it", copy), "3 file copiati in /to/.\n3,0 MB in 30 s, in media 102 KB/s.");
+        let one = Done { cut: true, files: 1, bytes: 1 << 30, secs: 75.4, ..Done::default() };
+        assert_eq!(said("en", one), "1 file moved to /to/.\n1024.0 MB in 1 min 15 s, 13.6 MB/s on average.");
+        assert_eq!(said("it", one), "1 file spostato in /to/.\n1024,0 MB in 1 min 15 s, in media 13,6 MB/s.");
+        let folders = Done { cut: true, folders: 2, ..Done::default() };
+        assert_eq!(said("en", folders), "2 folders moved to /to/.");
+        assert_eq!(said("it", folders), "2 cartelle spostate in /to/.");
+        assert_eq!(said("it", Done { folders: 1, ..folders }), "1 cartella spostata in /to/.");
+        let both = Done { cut: true, files: 1, folders: 1, skipped: 1, ..Done::default() };
+        assert_eq!(said("en", both), "1 file and 1 folder moved to /to/.\n1 item skipped: its name was already there.");
+        assert_eq!(said("it", both), "1 file e 1 cartella spostati in /to/.\n1 elemento saltato: il nome c'era già.");
+        let many = Done { files: 4, folders: 3, skipped: 5, cut: true, ..Done::default() };
+        assert_eq!(said("en", many), "4 files and 3 folders moved to /to/.\n5 items skipped: their names were already there.");
+        assert_eq!(said("it", many), "4 file e 3 cartelle spostati in /to/.\n5 elementi saltati: i nomi c'erano già.");
+        // Under a second, or nothing copied: no size line; nothing counted: where, as before.
+        assert_eq!(said("en", Done { secs: 0.9, ..copy }), "3 files copied to /to/.");
+        assert_eq!(said("en", Done { skipped: 2, secs: 40.0, ..Done::default() }), "To /to/\n2 items skipped: their names were already there.");
+        let bold = ended_lines(&crate::i18n::I18n::new("en"), &both, "/to/");
+        assert!(bold.starts_with("**1 file** and **1 folder** moved") && bold.contains("\n**1 item** skipped"), "{bold}");
+    }
+
     /// A copy that worked, with 2 of its 3 files copied (one could not be read), 2 MB, 12 s
     /// from the start of the paste.
     fn two_of_three() -> crate::transfer::Progress {
@@ -365,8 +437,9 @@ mod tests {
         p.files.store(1, Ordering::Relaxed);
         p.files_total.store(3, Ordering::Relaxed);
         for (lang, done, moved, cancelled) in [
-            ("en", "Copy finished|3 files copied to /to/.", "Move finished|3 files moved to /to/.", "Copy cancelled|1 of 3 files copied to /to/ before Cancel."),
-            ("it", "Copia finita|3 file copiati in /to/.", "Spostamento finito|3 file spostati in /to/.", "Copia annullata|1 file su 3 copiati in /to/ prima di Annulla."),
+            // The files copied, not those to copy (#356).
+            ("en", "Copy finished|1 file copied to /to/.", "Move finished|1 file moved to /to/.", "Copy cancelled|1 of 3 files copied to /to/ before Cancel."),
+            ("it", "Copia finita|1 file copiato in /to/.", "Spostamento finito|1 file spostato in /to/.", "Copia annullata|1 file su 3 copiati in /to/ prima di Annulla."),
         ] {
             let i18n = crate::i18n::I18n::new(lang);
             let said = |cut, r: Result<(), crate::source::Error>| {

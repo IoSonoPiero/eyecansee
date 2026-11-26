@@ -189,6 +189,21 @@ transfer-files-moved = { $n ->
     [one] **1 file** moved to { $dir }.
    *[other] **{ $n } files** moved to { $dir }.
 }
+transfer-folders-moved = { $n ->
+    [one] **1 folder** moved to { $dir }.
+   *[other] **{ $n } folders** moved to { $dir }.
+}
+transfer-files-folders-moved = { $files ->
+    [one] **1 file**
+   *[other] **{ $files } files**
+} and { $folders ->
+    [one] **1 folder**
+   *[other] **{ $folders } folders**
+} moved to { $dir }.
+transfer-skipped = { $n ->
+    [one] **1 item** skipped: its name was already there.
+   *[other] **{ $n } items** skipped: their names were already there.
+}
 transfer-done-before-cancel = **{ $n } of { $total } files** copied to { $dir } before Cancel.
 transfer-moved-before-cancel = **{ $n } of { $total } files** moved to { $dir } before Cancel.
 transfer-copy-stopped = Copy stopped

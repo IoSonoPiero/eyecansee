@@ -108,6 +108,11 @@ pub struct Progress {
     /// a link a server listed as a file stopped the copy, and the files after it were never
     /// copied, with only the error to say so).
     pub failed: Mutex<Vec<(String, Error)>>,
+    /// Items answered Skip, their name already there (`skips`): said at the end (#356).
+    pub skipped: AtomicUsize,
+    /// Folders a move took whole, as a change of place (`renames`): among the files in the copy
+    /// box, said as folders at the end (#356: "1 file moved" for a folder).
+    pub folders_moved: AtomicUsize,
 }
 
 /// What the copy box shows (`Progress::phase`).
@@ -361,6 +366,7 @@ async fn renames(clip: &Clip, (to, to_dir, same): (&Store, &str, bool), plan: Ve
             let size = sizes.next().unwrap_or(0);
             *p.current.lock().unwrap() = name(&src).to_string();
             let made = (!src.is_empty()).then(|| dest.clone());
+            let folder = src.ends_with('/');
             match renamed_on_device(clip, to, to_dir, (src, dest, exists, sides), gone).await? {
                 Some(entry) => {
                     p.total.fetch_sub(size, Ordering::Relaxed);
@@ -370,6 +376,7 @@ async fn renames(clip: &Clip, (to, to_dir, same): (&Store, &str, bool), plan: Ve
                 None => {
                     p.made.lock().unwrap().extend(made);
                     p.files.fetch_add(1, Ordering::Relaxed);
+                    p.folders_moved.fetch_add(usize::from(folder), Ordering::Relaxed);
                     p.done.fetch_add(size, Ordering::Relaxed);
                     p.touched.lock().unwrap().push(to_dir.to_string());
                 }
@@ -387,6 +394,7 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
     let present = Names::read(to, to_dir).await?;
     let here = in_own_folder(clip, to_base, to_dir, dest_place(clip, to, to_base, to_dir).await.as_ref()).await;
     let plan = planned(clip, to, to_dir, &here, choices, &present, &sidecars(clip).await);
+    p.skipped.store(skips(clip, &here, choices), Ordering::Relaxed);
 
     // On the same device a move is a rename, unless a folder has to merge into an existing one;
     // if the rename fails (another disk: different file system) the files are copied. On this
@@ -541,6 +549,11 @@ fn planned(clip: &Clip, to: &Store, to_dir: &str, here: &HashSet<String>, choice
         plan.push((src.clone(), format!("{to_dir}{dest_name}{}", if src.ends_with('/') { "/" } else { "" }), present.contains(&dest_name), side_plan));
     }
     plan
+}
+
+/// The items left out by the answer Skip (`planned`); not those pasted into their own folder.
+fn skips(clip: &Clip, here: &HashSet<String>, choices: &HashMap<String, Choice>) -> usize {
+    clip.paths.iter().filter(|s| !here.contains(*s) && choices.get(*s) == Some(&Choice::Skip)).count()
 }
 
 /// A move on the same device, as a rename, the photo's sidecars after it (`paste`). What a rename
@@ -824,6 +837,36 @@ mod tests {
         // Fast at first, then slow: only the slow part counts after 4 seconds.
         assert_eq!(r.speed(10.0, 50), None);
         assert_eq!(r.speed(12.0, 70), Some(10.0));
+    }
+
+    /// #356: what the end message counts. A move on the same disk takes a folder whole: a
+    /// folder, not a file; the item answered Skip is counted; a copy into its own folder (kept
+    /// both, never asked) is not a skip.
+    #[test]
+    fn skips_and_folders_moved_counted() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let dir = std::env::temp_dir().join(format!("eyecansee-transfer-end-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("a/f")).unwrap();
+        std::fs::create_dir_all(dir.join("b")).unwrap();
+        for f in ["a/x.jpg", "a/f/y.jpg", "a/f/z.jpg", "b/x.jpg"] {
+            std::fs::write(dir.join(f), b"data").unwrap();
+        }
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let base = format!("test-transfer-end-{}://", std::process::id());
+        let clip = |paths: &[&str], cut| Clip { op: op.clone(), base: base.clone(), paths: paths.iter().map(|s| s.to_string()).collect(), cut, text: String::new() };
+        rt.block_on(async {
+            let choices = HashMap::from([("a/x.jpg".to_string(), Choice::Skip)]);
+            let p = Progress::default();
+            run(&clip(&["a/x.jpg", "a/f/"], true), &op, &base, "b/", &choices, &p).await.1.unwrap();
+            assert!(dir.join("b/f/y.jpg").exists() && dir.join("a/x.jpg").exists());
+            let counted = |p: &Progress| [&p.files, &p.folders_moved, &p.skipped].map(|n| n.load(Ordering::Relaxed));
+            assert_eq!(counted(&p), [1, 1, 1], "files (the folder among them), folders moved whole, skipped");
+            let p = Progress::default();
+            run(&clip(&["b/x.jpg"], false), &op, &base, "b/", &HashMap::new(), &p).await.1.unwrap();
+            assert_eq!(counted(&p), [1, 0, 0], "a copy in its own folder");
+        });
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Copy, copy in place, move with a conflict, cancel, between two local folders.
