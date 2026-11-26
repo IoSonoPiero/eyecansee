@@ -318,6 +318,9 @@ impl App {
         // grey Delete looked broken (Piero, 25/11).
         if reading && let Some((what, name, s)) = self.base.starts_with("mtp://").then(crate::mtp::working).flatten() {
             text = format!("{text}\n\n{}", self.i18n.t_args("delete-phone-busy", &[("what", &what), ("name", &crate::save_dialogs::md(&name)), ("s", &s.to_string()), ("button", &yes)]));
+        } else if reading && let Some((_, name)) = crate::mtp::turn::deaf().filter(|(serial, _)| self.base == format!("mtp://{serial}/")) {
+            // Writing a big file (`transfer::through_pc`): the same words as the status bar.
+            text = format!("{text}\n\n{}", self.i18n.t_args("status-phone-deaf", &[("name", &crate::save_dialogs::md(&name))]));
         }
         if reading {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));

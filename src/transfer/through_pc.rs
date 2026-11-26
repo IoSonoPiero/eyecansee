@@ -83,12 +83,22 @@ fn folder() -> Option<PathBuf> {
 }
 
 /// At start, from `temp_file::remove_old_copies`: the files a copy of the app closed during such a
-/// copy left (closed by force, the guard below never ran).
-pub(crate) fn remove_left() {
-    let Some(dir) = crate::thumbcache::cache_dir().map(|d| d.join("phone-copy")) else { return };
-    for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
-        log!("phone copy left by a copy of the app closed: {:?} removed", entry.file_name());
-        let _ = std::fs::remove_file(entry.path());
+/// copy left (closed by force, the guard below never ran). At exit (`own`): this copy's, as the
+/// copy under way may never get to drop its guard (on Windows a file still open stays, for the
+/// next start).
+pub(crate) fn remove_left(own: bool) {
+    if let Some(dir) = crate::thumbcache::cache_dir() {
+        remove_left_in(&dir.join("phone-copy"), own.then(std::process::id));
+    }
+}
+
+fn remove_left_in(dir: &Path, only: Option<u32>) {
+    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if only.is_none_or(|pid| name.starts_with(&format!("{pid}-"))) {
+            log!("phone copy left on this computer: {name} removed");
+            let _ = std::fs::remove_file(entry.path());
+        }
     }
 }
 
@@ -100,13 +110,13 @@ struct Staged {
 }
 
 impl Staged {
-    /// A new empty file for `size` bytes, if the disk holds them (`error-pc-space`).
-    fn new(size: u64, shown: &str) -> Result<Self, Error> {
-        let dir = folder().ok_or(("error-pc-space", shown.to_string()))?;
-        if free_space(&dir).is_some_and(|free| !enough(free, size, PC_MARGIN)) {
+    /// A new empty file in `dir` for `size` bytes, if `free` (of its disk, when known) holds them
+    /// (`error-pc-space`).
+    fn new(dir: &Path, (size, free): (u64, Option<u64>), shown: &str) -> Result<Self, Error> {
+        if free.is_some_and(|free| !enough(free, size, PC_MARGIN)) {
             return Err(("error-pc-space", shown.to_string()));
         }
-        let (file, _) = new_file(&dir).map_err(|e| ("error-detail", e.to_string()))?;
+        let (file, _) = new_file(dir).map_err(|e| ("error-detail", e.to_string()))?;
         let store = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).map_err(|e| ("error-detail", e.to_string()))?);
         let name = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         Ok(Staged { store, name, file })
@@ -168,9 +178,15 @@ async fn counted(mut from: Receiver<std::io::Result<Bytes>>, to: Sender<std::io:
 /// there, `replace::write_file`), `size` bytes, through this computer. Cancel stops the reading at
 /// once; the writing, at the end of the file (a phone must receive a file whole, `copy_file`).
 /// The copy must be there with all its bytes, or it is an error, and a move keeps its original.
-pub(super) async fn copy(from: &Store, src: &str, (to, dest, existed): (&Store, &str, Option<bool>), size: u64, p: &Progress) -> Result<(), Fail> {
+pub(super) async fn copy(from: &Store, src: &str, to: (&Store, &str, Option<bool>), size: u64, p: &Progress) -> Result<(), Fail> {
+    let dir = folder().ok_or(Fail::Stop(("error-pc-space", name(src).to_string())))?;
+    copy_via(&dir, from, src, to, size, p).await
+}
+
+/// `copy`, through a file of `dir`.
+async fn copy_via(dir: &Path, from: &Store, src: &str, (to, dest, existed): (&Store, &str, Option<bool>), size: u64, p: &Progress) -> Result<(), Fail> {
     let shown = name(src);
-    let staged = Staged::new(size, shown).map_err(Fail::Stop)?;
+    let staged = Staged::new(dir, (size, free_space(dir)), shown).map_err(Fail::Stop)?;
     if let Store::Mtp(phone) = to
         && phone.free_space(dest).await.is_ok_and(|free| !enough(free, size, PHONE_MARGIN))
     {
@@ -266,20 +282,79 @@ mod tests {
         assert_eq!((added, done.load(Ordering::Relaxed)), (13, 13));
     }
 
+    /// A folder of its own for each test (the cache folder of the tests is shared).
+    fn own_dir(what: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("eyecansee-through-pc-{what}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn files_in(dir: &Path) -> usize {
+        std::fs::read_dir(dir).unwrap().count()
+    }
+
     /// The file on this computer goes when the copy ends, however it ends; one left by a copy of
-    /// the app closed goes at the next start.
+    /// the app closed goes at the next start, and this copy's own at exit.
     #[test]
     fn the_file_on_this_computer_is_removed() {
-        let staged = Staged::new(1, "a.mp4").unwrap();
+        let dir = own_dir("guard");
+        let staged = Staged::new(&dir, (1, None), "a.mp4").unwrap();
         let file = staged.file.clone();
-        assert!(file.exists() && file.starts_with(folder().unwrap()));
+        assert!(file.exists() && file.starts_with(&dir));
         drop(staged);
         assert!(!file.exists(), "removed with its guard");
-        let (left, _) = new_file(&folder().unwrap()).unwrap();
-        remove_left();
-        assert!(!left.exists(), "removed at start");
-        // Too big for any disk: said before anything is read.
-        assert_eq!(Staged::new(u64::MAX - PC_MARGIN, "a.mp4").err(), Some(("error-pc-space", "a.mp4".to_string())));
+        let (mine, _) = new_file(&dir).unwrap();
+        let other = dir.join("1-0123456789abcdef");
+        std::fs::write(&other, b"").unwrap();
+        remove_left_in(&dir, Some(std::process::id()));
+        assert!(!mine.exists() && other.exists(), "at exit only this copy's");
+        remove_left_in(&dir, None);
+        assert!(!other.exists(), "at start all of them");
+        // Not enough room: said before anything is read or made.
+        assert_eq!(Staged::new(&dir, (2 << 30, Some((2 << 30) + 100)), "a.mp4").err(), Some(("error-pc-space", "a.mp4".to_string())));
+        assert_eq!(files_in(&dir), 0);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// The two halves on two folders of this computer (no phone: the same way, `Store::Dal`):
+    /// the copy whole and counted once; Cancel, a source missing and a destination that cannot be
+    /// written each leave nothing on this computer and nothing counted.
+    #[test]
+    fn a_copy_through_this_computer_and_how_it_can_end() {
+        let dir = own_dir("copy");
+        let (from_dir, to_dir, stage) = (dir.join("from"), dir.join("to"), dir.join("stage"));
+        for d in [&from_dir, &to_dir, &stage] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        let data: Vec<u8> = (0..300_001u32).map(|i| (i % 251) as u8).collect();
+        std::fs::write(from_dir.join("a.mp4"), &data).unwrap();
+        std::fs::create_dir_all(to_dir.join("folder.mp4")).unwrap();
+        let store = |d: &Path| Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&d.to_string_lossy())).unwrap());
+        let (from, to) = (store(&from_dir), store(&to_dir));
+        let size = data.len() as u64;
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let run = |src: &str, dest: &str, cancel: bool| {
+            let p = Progress::default();
+            p.cancel.store(cancel, Ordering::Relaxed);
+            let r = rt.block_on(copy_via(&stage, &from, src, (&to, dest, Some(false)), size, &p));
+            let what = match r {
+                Ok(()) => "copied",
+                Err(Fail::Source(_)) => "source",
+                Err(Fail::Stop(e)) if e.0 == "error-cancelled" => "cancelled",
+                Err(Fail::Stop(_)) => "stopped",
+            };
+            assert!(p.staging.lock().unwrap().is_none(), "{what}: the box's line is cleared");
+            assert_eq!(files_in(&stage), 0, "{what}: nothing left on this computer");
+            (what, p.done.load(Ordering::Relaxed))
+        };
+        assert_eq!(run("a.mp4", "b.mp4", false), ("copied", size));
+        assert_eq!(std::fs::read(to_dir.join("b.mp4")).unwrap(), data);
+        assert_eq!(run("a.mp4", "c.mp4", true), ("cancelled", 0));
+        assert!(!to_dir.join("c.mp4").exists());
+        assert_eq!(run("missing.mp4", "d.mp4", false), ("source", 0));
+        assert_eq!(run("a.mp4", "folder.mp4", false), ("stopped", 0));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     /// A big file to the memory card, copied and moved, and copied inside the first storage, the

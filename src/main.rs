@@ -696,6 +696,7 @@ impl eframe::App for App {
         mpv::wait_closed(std::time::Duration::from_secs(2));
         video_read::forget_copies();
         open_copy::forget_all();
+        transfer::remove_left(true);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
