@@ -14,7 +14,7 @@ Opzioni:
 - **Ingrandimento:** 2×, 3× o 4×.
 - Colore e **Spessore** del bordo. Spessore 0: nessun bordo.
 - **Opacità**.
-- **Con gli oggetti**: la lente mostra ingranditi anche gli oggetti disegnati prima di lei. Quelli disegnati dopo le restano sopra, alla loro grandezza.
+- **Con gli oggetti**: la lente mostra ingranditi anche gli oggetti disegnati prima della lente. Quelli disegnati dopo le restano sopra, alla loro grandezza.
 
 La lente mostra sempre i filtri e le coperture, in qualunque punto dell'ordine siano. Così non mostra mai ciò che una [Copertura](editor-cover.md) nasconde.
 
@@ -29,7 +29,7 @@ Opzioni:
 - ![Rotonda](icon://circle) **Rotonda** o ![Quadrata](icon://square) **Quadrata**.
 - **Intensità**: quanto si scurisce il resto.
 
-Con più riflettori restano chiare tutte le loro zone, e il resto è scuro quanto il più scuro di loro. Il riflettore lavora sulla foto: gli oggetti che disegni restano chiari sopra di lui. Non ha colore.
+Con più riflettori restano chiare tutte le loro zone, e il resto è scuro quanto il più scuro di loro. Il riflettore lavora sulla foto: gli oggetti che disegni restano chiari sopra di esso. Non ha colore.
 
 ## Ridimensionare
 
