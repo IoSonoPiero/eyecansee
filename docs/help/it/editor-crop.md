@@ -1,6 +1,6 @@
 # Ritagliare e ruotare
 
-![Ritaglia e ruota](icon://crop) **Ritaglia e ruota** (C) raddrizza l'immagine, la ruota di qualsiasi angolo e la taglia sulla parte che vuoi. **Immagine > Ruota e ritaglia…** apre l'editor con questo strumento già scelto.
+![Ritaglia e ruota](icon://crop) **Ritaglia e ruota** (C) raddrizza l'immagine, la ruota di qualsiasi angolo e la ritaglia sulla parte che vuoi. **Immagine > Ruota e ritaglia…** apre l'editor con questo strumento già scelto.
 
 Con questo strumento si vede tutta l'immagine, con sopra la cornice del ritaglio e le parti fuori scurite. Con gli altri strumenti si vede solo il risultato.
 
@@ -8,10 +8,10 @@ Con questo strumento si vede tutta l'immagine, con sopra la cornice del ritaglio
 
 ## Ruotare
 
-- **Rotazione**: il cursore, o scrivi i gradi nel numero accanto, da -180° a 180° a decimi di grado, con una tacca ogni 45°. Vanno bene sia il punto sia la virgola.
-- Tieni premuto Maiusc e gira la rotellina sopra l'immagine: 0,1° a scatto. Comodo per allineare l'orizzonte alle linee dei terzi.
+- **Rotazione**: usa il cursore, o scrivi i gradi nel campo accanto, da -180° a 180° a decimi di grado, con una tacca ogni 45°. Vanno bene sia il punto sia la virgola.
+- Tieni premuto Maiusc e gira la rotellina sopra l'immagine: 0,1° per scatto. Comodo per allineare l'orizzonte alle linee dei terzi.
 - **Torna a 0°** rimette l'angolo a zero.
-- ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) e ![Ruota di 90° in senso orario](icon://rotate-cw-square) nella barra degli strumenti (**Ctrl + Maiusc + R**, **Ctrl + R**) girano l'immagine di un quarto, insieme a ciò che ci è disegnato sopra e al ritaglio.
+- ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) e ![Ruota di 90° in senso orario](icon://rotate-cw-square) nella barra degli strumenti (**Ctrl + Maiusc + R**, **Ctrl + R**) ruotano l'immagine di un quarto di giro, insieme a ciò che ci è disegnato sopra e al ritaglio.
 
 ## Raddrizzare
 
@@ -42,4 +42,4 @@ Dove il ritaglio va oltre l'immagine, gli angoli sono **Trasparenti** (si vedono
 - Esc durante un trascinamento rimette il ritaglio com'era; altrimenti con questo strumento Esc chiude la pagina (chiedendo prima, se ci sono modifiche non salvate).
 - Puoi tornare a questo strumento e cambiare rotazione e ritaglio in qualsiasi momento.
 - Una foto Ultra HDR resta HDR: la sua parte HDR viene ruotata e ritagliata insieme alla foto.
-- Per girare o riflettere un'immagine nel visore, senza l'editor, vedi [Ruotare e riflettere](rotate.md).
+- Per ruotare o riflettere soltanto un'immagine nel visore, senza l'editor, vedi [Ruotare e riflettere](rotate.md).
