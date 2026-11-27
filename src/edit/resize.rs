@@ -243,6 +243,23 @@ mod tests {
         assert!(fits(14_142, 14_142));
     }
 
+    /// The crop stops at 200 megapixels too, as Paste and New image, not only at 20 000 a side:
+    /// two sides dragged far made 20 000 × 20 000 (1.6 GB) of a small photo (audit E.8). A photo
+    /// larger than that keeps all of itself.
+    #[test]
+    fn crop_within_the_pixels() {
+        let most = crate::new_image::MAX_PIXELS as f32;
+        for keep in [false, true] {
+            let (w, h, capped) = capped((20_000.0, 20_000.0), crop_most(1000.0, 800.0), keep);
+            assert!(capped && w * h <= most * 1.001, "{w} × {h}, kept proportions {keep}");
+            if keep {
+                assert!((w - h).abs() < 1.0, "{w} × {h}");
+            }
+        }
+        assert_eq!(capped((25_000.0, 12_000.0), crop_most(25_000.0, 12_000.0), true), (25_000.0, 12_000.0, false));
+        assert_eq!(capped((20_000.0, 9_000.0), crop_most(1000.0, 800.0), true), (20_000.0, 9_000.0, false));
+    }
+
     fn rect(x: f32, y: f32, w: f32, h: f32) -> Obj {
         Obj { shape: Shape::Rect(Area { centre: Pt::new(x, y), w, h, rot: 0.0 }), style: Style { width: 4.0, ..Style::default() } }
     }
