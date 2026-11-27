@@ -42,7 +42,12 @@ foreach ($p in $pkgs) {
     $inside = @($files | Where-Object { $_.DirectoryName -ne $dir })
     $csrc = (Test-Path -LiteralPath (Join-Path $dir "build.rs")) -and @(Get-ChildItem -LiteralPath $dir -Recurse -File -Include *.c, *.cc, *.cpp, *.cxx -ErrorAction SilentlyContinue |
         Where-Object { $_.FullName.Substring($dir.Length) -notmatch '\\(tests?|examples|benches|target)\\' }).Count -gt 0
-    if ($csrc -and -not $inside -and -not $cNoNotice.ContainsKey($p.name)) { $unlisted += "$($p.name) $($p.version)" }
+    $notice = "$PSScriptRoot\licenses\c\$($p.name).txt"
+    if ($csrc -and -not $inside -and (Test-Path -LiteralPath $notice)) {
+        [void]$sb.AppendLine("")
+        [void]$sb.AppendLine("--- C or C++ library inside")
+        [void]$sb.AppendLine((Get-Content -Raw -Encoding utf8 -LiteralPath $notice))
+    } elseif ($csrc -and -not $inside -and -not $cNoNotice.ContainsKey($p.name)) { $unlisted += "$($p.name) $($p.version)" }
     if (-not $files) { $missing += "$($p.name) $($p.version) ($($p.license))"; [void]$sb.AppendLine("(no licence file in the package: the full text of $($p.license) is at the end of this file)"); continue }
     foreach ($f in $files) {
         [void]$sb.AppendLine("")

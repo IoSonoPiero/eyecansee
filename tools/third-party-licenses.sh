@@ -52,7 +52,9 @@ unlisted=()
             csrc=$(find "$dir" \( -path '*/test/*' -o -path '*/tests/*' -o -path '*/examples/*' -o -path '*/benches/*' \
                 -o -path '*/target/*' \) -prune -o -type f \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.cxx' \) -print -quit)
         fi
-        if [[ -n $csrc && -z $inside && -z ${C_NO_NOTICE[$name]:-} ]]; then
+        if [[ -n $csrc && -z $inside && -f tools/licenses/c/$name.txt ]]; then
+            echo; echo "--- C or C++ library inside"; cat "tools/licenses/c/$name.txt"; echo
+        elif [[ -n $csrc && -z $inside && -z ${C_NO_NOTICE[$name]:-} ]]; then
             unlisted+=("$name $ver")
         fi
         if [[ ${#files[@]} -eq 0 ]]; then
