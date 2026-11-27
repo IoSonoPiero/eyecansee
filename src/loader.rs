@@ -85,8 +85,9 @@ pub enum Msg {
     Frames(String, Arc<crate::frames::Sequence>),
     /// The video of a Motion Photo read by the viewer (`motion::video_start`), to play it there.
     Motion(String, Arc<Vec<u8>>),
-    /// The part of the sphere a 360° panorama read by the viewer covers (`pano::detect`, #188).
-    Pano(String, crate::pano::Pano),
+    /// The part of the sphere a 360° panorama read by the viewer covers (`pano::detect`, #188);
+    /// `None`: the picture read is no panorama.
+    Pano(String, Option<crate::pano::Pano>),
     /// The image encoded with the options of `generation`, and the encoded file decoded back
     /// (`None`: no decoder for that format in this build).
     Encoded(u64, Result<(Arc<Vec<u8>>, Option<ColorImage>), String>),
@@ -697,9 +698,9 @@ impl Loader {
                             if let Some(start) = crate::motion::video_start(&bytes) {
                                 let _ = tx.send(Msg::Motion(path.clone(), Arc::new(bytes[start..].to_vec())));
                             }
-                            if let Some(pano) = crate::pano::detect(&bytes) {
-                                let _ = tx.send(Msg::Pano(path.clone(), pano));
-                            }
+                            // Also when it is none: a file written again without its tags (a panorama
+                            // saved upside down) loses the one read before (audit 27/11 V.3).
+                            let _ = tx.send(Msg::Pano(path.clone(), crate::pano::detect(&bytes)));
                             return decode::decode(&bytes, &path);
                         }
                         let mesh = Arc::new(crate::occt::from_file(local, || crate::model::parse_with(&bytes, &path, &sibling))?);

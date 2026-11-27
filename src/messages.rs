@@ -70,9 +70,12 @@ impl App {
                 Msg::Motion(path, video) => {
                     self.motion.read.insert(path, video);
                 }
-                Msg::Pano(path, pano) => {
+                Msg::Pano(path, Some(pano)) => {
                     log!("panorama {path:?}: {pano:?}");
                     self.pano.read.insert(path, pano);
+                }
+                Msg::Pano(path, None) => {
+                    self.pano.read.remove(&path);
                 }
                 Msg::EditPrepared(path, r) => self.on_edit_prepared(path, r),
                 Msg::EditWritten(path, mark, over) => self.on_edit_written(path, mark, over),

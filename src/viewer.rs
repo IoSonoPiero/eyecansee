@@ -283,6 +283,7 @@ impl App {
         self.full.clear();
         self.frames.read.clear();
         self.motion.read.clear();
+        self.pano.read.clear();
         self.model.meshes.clear();
         // Opened again, a model starts from the default view, without the section left on.
         self.model.of = None;
