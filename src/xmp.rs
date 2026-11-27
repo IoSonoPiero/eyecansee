@@ -465,7 +465,7 @@ fn description(props: &[Prop], seen: &[(String, String)]) -> String {
     }
     // Without the characters XML does not allow: a comment with a binary byte made the whole
     // packet refused (audit E.5).
-    let esc = |s: &str| quick_xml::escape::escape(&s.chars().filter(|&c| crate::edit::render::xml_char(c)).collect::<String>()).into_owned();
+    let esc = |s: &str| quick_xml::escape::escape(s.chars().filter(|&c| crate::edit::render::xml_char(c)).collect::<String>()).into_owned();
     let mut d = format!("<rdf:Description rdf:about=\"\" xmlns:dc=\"{DC}\" xmlns:photoshop=\"{PHOTOSHOP}\" xmlns:exif=\"{EXIF}\">");
     for p in missing {
         let name = format!("{}:{}", p.prefix, p.name);
