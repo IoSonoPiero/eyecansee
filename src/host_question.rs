@@ -35,6 +35,16 @@ impl Question {
         }
     }
 
+    /// The window's title, of the Fluent id `id`.
+    pub(crate) fn title(&self, i18n: &crate::i18n::I18n, id: &str) -> String {
+        i18n.t(id)
+    }
+
+    /// The window's question, of the Fluent id `id` with `args`.
+    pub(crate) fn ask(&self, i18n: &crate::i18n::I18n, id: &str, args: &[(&str, &str)]) -> String {
+        i18n.t_args(id, args)
+    }
+
     /// Trusted: the certificate or the key shown, and only that one.
     pub(crate) fn trust(&self) {
         match self {

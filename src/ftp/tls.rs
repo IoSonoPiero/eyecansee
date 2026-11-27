@@ -51,10 +51,14 @@ pub(super) fn waiting(key: &str) -> bool {
 /// The user trusts the certificate asked about: its fingerprint is added to `known_certs`.
 pub fn trust(u: &Unknown) {
     let Some(path) = crate::settings::config_path("known_certs") else { return };
-    let mut text = std::fs::read_to_string(&path).unwrap_or_default();
-    text.push_str(&format!("{} {}\n", u.key, u.fingerprint));
+    let text = with_trusted(&std::fs::read_to_string(&path).unwrap_or_default(), &u.key, &u.fingerprint);
     let r = path.parent().map(std::fs::create_dir_all).transpose().and_then(|_| std::fs::write(&path, text));
     log!("ftps: certificate of {} trusted: {r:?}", u.label);
+}
+
+/// `known_certs` as `text`, with the fingerprint `fp` of `key` trusted.
+fn with_trusted(text: &str, key: &str, fp: &str) -> String {
+    format!("{text}{key} {fp}\n")
 }
 
 fn known(key: &str, fp: &str) -> bool {

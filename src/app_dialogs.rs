@@ -196,8 +196,8 @@ impl App {
             return;
         };
         let (cert, (host, fingerprint)) = (question.cert(), question.shown());
-        let text = self.i18n.t_args(if cert { "cert-ask" } else { "host-ask" }, &[("host", &host), ("fingerprint", &fingerprint)]);
-        let title = self.i18n.t(if cert { "cert-title" } else { "host-title" });
+        let text = question.ask(&self.i18n, if cert { "cert-ask" } else { "host-ask" }, &[("host", &host), ("fingerprint", &fingerprint)]);
+        let title = question.title(&self.i18n, if cert { "cert-title" } else { "host-title" });
         let (ok, cancel) = (self.i18n.t("host-ok"), self.i18n.t("delete-no"));
         let answer = crate::confirm::answer(ctx, &mut self.key_answer, "host");
         // Cancel highlighted: trusting a server is for good, its fingerprint is to be read (#311).
