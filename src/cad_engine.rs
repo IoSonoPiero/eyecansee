@@ -61,7 +61,8 @@ impl App {
                     let title = egui::FontId::new(20.0, egui::FontFamily::Name(crate::BOLD.into()));
                     ui.label(egui::RichText::new(t("cad-engine-title", &[])).font(title).color(light));
                     ui.add_space(10.0);
-                    ui.add(egui::Label::new(egui::RichText::new(t("cad-engine-ask", &[("size", &size)])).color(light)).wrap());
+                    let ask = crate::component::button_id(&c, "cad-engine-ask", "cad-engine-ask-update");
+                    ui.add(egui::Label::new(egui::RichText::new(t(ask, &[("size", &size)])).color(light)).wrap());
                     match &state {
                         State::Downloading(done) => {
                             ui.add_space(10.0);
@@ -107,7 +108,7 @@ impl App {
                 ui.add_enabled(false, egui::Button::new(text));
             }
             State::Missing | State::Failed(_) => {
-                let hover = self.i18n.t_args("cad-engine-ask", &[("size", &size)]);
+                let hover = self.i18n.t_args(crate::component::button_id(&c, "cad-engine-ask", "cad-engine-ask-update"), &[("size", &size)]);
                 let id = crate::component::button_id(&c, "cad-engine-button", "cad-engine-update-button");
                 if ui.add(crate::theme::alert_button(self.i18n.t_args(id, &[("size", &size)]))).on_hover_text(hover).clicked() {
                     self.cad_engine_download(ui.ctx());

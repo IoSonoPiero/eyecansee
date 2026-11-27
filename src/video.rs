@@ -398,7 +398,7 @@ impl App {
         match state {
             Engine::TooOld { found, required } => self.i18n.t_args("video-engine-old", &[("found", found), ("required", required), ("size", &size)]),
             Engine::Lacks { found, missing } => self.i18n.t_args("video-engine-lacks", &[("found", found), ("missing", missing), ("size", &size)]),
-            _ => self.i18n.t_args("video-component-ask", &[("size", &size)]),
+            _ => self.i18n.t_args(crate::component::button_id(&c, "video-component-ask", "video-component-ask-update"), &[("size", &size)]),
         }
     }
 
