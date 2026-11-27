@@ -892,4 +892,36 @@ mod tests {
         assert!(over.is_err(), "saved over with fewer bytes: {over:?}");
         assert_eq!(old.as_deref(), Some(&b"the original"[..]));
     }
+
+    /// Audit F.11 (27/11): a phone gives a file's size in 32 bits, and one that does not tell the
+    /// true size (mtp-rs asks it apart) leaves the largest, 4,294,967,295. A video of 5 GB from it
+    /// was stopped at 4 GB, "longer than expected", and the copy broke off. That size tells
+    /// nothing: the bytes are not checked against it. More than 4 GiB pass here, one MiB sent
+    /// again and again, none of it held.
+    #[test]
+    fn a_full_32_bit_size_is_not_known() {
+        let (tx, rx) = tokio::sync::mpsc::channel(4);
+        let (mut out, relay) = sized("v.mp4", u32::MAX as u64, rx);
+        let mib = Bytes::from(vec![0u8; 1 << 20]);
+        let feed = async move {
+            for _ in 0..4097 {
+                if tx.send(Ok(mib.clone())).await.is_err() {
+                    break;
+                }
+            }
+        };
+        let read = async {
+            let (mut got, mut errors) = (0u64, Vec::new());
+            while let Some(chunk) = out.recv().await {
+                match chunk {
+                    Ok(c) => got += c.len() as u64,
+                    Err(e) => errors.push(e.to_string()),
+                }
+            }
+            (got, errors)
+        };
+        let ((), (), (got, errors)) = tokio::runtime::Runtime::new().unwrap().block_on(async { tokio::join!(feed, relay, read) });
+        assert!(errors.is_empty(), "{errors:?} after {got} bytes");
+        assert_eq!(got, 4097 << 20);
+    }
 }
