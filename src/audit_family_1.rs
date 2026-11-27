@@ -31,7 +31,10 @@ pub(crate) fn guard() -> PathBuf {
         assert!(env(v).starts_with(&run), "{v} not in the folder of this run: {:?}", env(v));
     }
     assert_eq!(env("EYECANSEE_MULTI"), "1", "the single instance would reach the user's copy");
-    PathBuf::from(run).canonicalize().unwrap()
+    // On Windows `canonicalize` gives "\\?\C:\…", which is no address a user types or Windows hands
+    // to a program: started on it the app could not list it and opened the home folder (CI red from
+    // 113f93b, f5_reads_again_only_the_folder_open). The same path written as everywhere else.
+    PathBuf::from(PathBuf::from(run).canonicalize().unwrap().to_string_lossy().trim_start_matches(r"\\?\"))
 }
 
 /// For a test fixed and no longer ignored, run by `cargo test` with the others: unless it already
