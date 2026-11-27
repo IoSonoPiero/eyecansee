@@ -16,6 +16,12 @@ fn deadline(size: u64) -> std::time::Duration {
     std::time::Duration::from_secs(60 + size / (1 << 20))
 }
 
+/// The longest wait for what the phone goes on making (`finished_by_phone`) of `size` bytes;
+/// `windows_gave_up`: Windows stopped waiting for the copy (`unseen`).
+fn longest(size: u64, _windows_gave_up: bool) -> std::time::Duration {
+    deadline(size)
+}
+
 /// How long Windows (WPD) waits for a copy before it answers: `Copy` came back after 30.4 s with
 /// the phone still copying 6 GB (Redmi Note 9 Pro, prova W5, 27/11/2026). An answer before this is
 /// the phone's own: a copy refused at once (#59) is an error.
@@ -196,7 +202,7 @@ impl Phone {
         let (_waiting, _deaf) = (Waiting::start_at(what, path, began), turn::Deaf::start(&self.serial, path));
         log!("phone {}: {what} {path}: the phone is still at it ({size} bytes), its result looked for", self.serial);
         let parent = (folder != ObjectHandle::ROOT).then_some(folder);
-        let pace = wait::Pace { look: LOOK, most: deadline(size), leave: &LEAVE };
+        let pace = wait::Pace { look: LOOK, most: longest(size, free.is_some()), leave: &LEAVE };
         let look = |at: std::time::Duration| async move {
             let t = std::time::Instant::now();
             let found = match to.list_objects(parent).await {
