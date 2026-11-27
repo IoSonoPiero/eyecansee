@@ -625,6 +625,34 @@ mod tests {
         assert_eq!(left, (Some(text.to_string()), false));
     }
 
+    /// Audit 1.11 (d): a new folder is saved at once; the size of the window and the volume once
+    /// they have stayed the same for `QUIET`, one save for a whole drag; nothing when nothing
+    /// changed.
+    #[test]
+    fn moving_settings_saved_before_the_exit() {
+        use std::time::{Duration, Instant};
+        let m = |location: &str, width: f32, volume: u32| Moving { location: Some(location.into()), size: Some([width, 600.0]), maximized: false, volume };
+        let t = Instant::now();
+        let at = |ms: u64| t + Duration::from_millis(ms);
+        let mut a = Autosave::new(m("/a", 900.0, 100));
+        assert!(!a.due(&m("/a", 900.0, 100), at(0)), "nothing changed");
+        assert!(a.due(&m("/b", 900.0, 100), at(10)), "a new folder at once");
+        assert!(!a.due(&m("/b", 900.0, 100), at(20)), "saved already");
+        // The border dragged for a second, then left.
+        for (i, width) in [910.0, 950.0, 1000.0].into_iter().enumerate() {
+            assert!(!a.due(&m("/b", width, 100), at(100 + 500 * i as u64)), "while it moves");
+        }
+        assert!(a.waiting());
+        assert!(!a.due(&m("/b", 1000.0, 100), at(1100 + 2900)), "not quiet long enough");
+        assert!(a.due(&m("/b", 1000.0, 100), at(1100 + 3000)), "quiet for QUIET");
+        assert!(!a.waiting() && !a.due(&m("/b", 1000.0, 100), at(5000)));
+        assert!(!a.due(&m("/b", 1000.0, 40), at(6000)));
+        assert!(a.due(&m("/b", 1000.0, 40), at(9000)), "the volume too");
+        // A change taken back before it is saved: nothing to save.
+        assert!(!a.due(&m("/b", 1000.0, 60), at(10_000)));
+        assert!(!a.due(&m("/b", 1000.0, 40), at(14_000)) && !a.waiting());
+    }
+
     /// A value this version does not know (a file written by a newer one) loses only its key: the
     /// others are kept, and the file is copied aside as `.bad` (audit 1.11).
     #[test]
