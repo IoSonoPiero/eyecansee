@@ -506,4 +506,27 @@ mod tests {
         h.app.tell_notice(message("Third"));
         assert_eq!(shown(&h).as_deref(), Some("Second"), "a message passed the one waiting before it");
     }
+
+    /// Audit 27/11 A.3 (F.6 a): the messages of other jobs ended in the background (a kept copy
+    /// saved, a Save not possible) took the place of the message open, as before #329; they wait
+    /// behind it, and come one at a time.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn background_messages_wait_for_the_one_open() {
+        if own_folder("jobs_report::tests::background_messages_wait_for_the_one_open") {
+            return;
+        }
+        let mut h = Harness::new(&folder("jobs-tell", &["a.png"]));
+        h.app.notice = Some(message("First message"));
+        h.app.tx.send(Msg::KeptSaved(Ok("/kept/a.jpg".into()))).unwrap();
+        h.app.tx.send(Msg::Prepared("a.tif".into(), Default::default(), Err((crate::loader::SKIPPED, "a.tif".into())))).unwrap();
+        h.frame(Vec::new());
+        let shown = |h: &Harness| h.app.notice.as_ref().map(|n| n.title.clone());
+        assert_eq!(shown(&h).as_deref(), Some("First message"), "a message from the background took the place of the one open");
+        for next in [h.app.i18n.t("kept-saved-title"), h.app.i18n.t("save-not-possible")] {
+            h.key(egui::Key::Enter);
+            h.frame(Vec::new());
+            assert_eq!(shown(&h).as_deref(), Some(next.as_str()), "after Enter");
+        }
+    }
 }
