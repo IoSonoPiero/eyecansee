@@ -7,7 +7,7 @@ La griglia mostra cosa c'è nella cartella aperta: prima la cella ![..](icon://c
 - ![Cartella](icon://color-folder) Le **cartelle**, in ordine di nome.
 - Le **foto**, ognuna nella sua casella con il nome sotto.
 - I **video**, con un fotogramma del video e il simbolo ![Video](icon://color-video) nell'angolo. Vedi [Riprodurre i video](video.md).
-- I **file audio**, con la loro copertina e il simbolo ![Audio](icon://color-audio), oppure con una nota se non hanno copertina.
+- I **file audio**, con la loro copertina e il simbolo ![Audio](icon://color-audio), oppure con una nota musicale se non hanno copertina.
 - I **modelli 3D** e i **disegni CAD**, con un'immagine del modello o del disegno. Vedi [Modelli 3D](model-3d.md) e [Disegni CAD](cad.md).
 
 Tieni il mouse fermo su un file per vederne i dettagli, in due colonne: il nome intero con l'estensione (quello sotto la miniatura può essere tagliato), il peso, la data del file e, quando i suoi metadati sono già stati letti, le dimensioni in pixel. Su una cartella compare il suo nome.
@@ -45,11 +45,11 @@ La scelta vale per tutte le cartelle finché non la cambi. La barra di stato con
 
 Il cursore in fondo a destra nella barra strumenti, accanto a ![Dimensione miniature](icon://image), ingrandisce o rimpicciolisce le miniature, in sette misure da 64 a 256 pixel: si ferma su ciascuna, segnata da una tacca sotto, e la misura è scritta accanto. Le celle si allargano su tutta la larghezza della griglia.
 
-Sotto ogni miniatura ci sono il nome, le dimensioni in pixel e il peso, e la data, con la durata di video e file audio; in **Opzioni > Miniature > Sotto le miniature** scegli quali vedere, tutte spuntate all'inizio (vedi [Opzioni](options.md)). Con le miniature piccole resta solo il nome.
+Sotto ogni miniatura ci sono il nome, le dimensioni in pixel e il peso, e la data, con la durata di video e file audio; in **Strumenti > Opzioni… > Miniature > Sotto le miniature** scegli quali vedere, tutte spuntate all'inizio (vedi [Opzioni](options.md)). Con le miniature piccole resta solo il nome.
 
 ## Miniature
 
-EyeCanSee prepara prima la miniatura del file selezionato, poi quelle visibili nella finestra, poi le altre della cartella. Le miniature restano salvate su disco, così la volta dopo la cartella si apre subito; una miniatura viene rifatta quando il suo file cambia. Le foto grandi (RAW, HEIC, PSD, TIFF a 16 bit) occupano molta più memoria dei JPEG mentre se ne fa la miniatura: EyeCanSee ne prepara insieme solo quante ne stanno in un quarto della memoria del computer, così le loro miniature arrivano più lentamente, e una molto grande viene preparata da sola. Le miniature delle foto più piccole non aspettano dietro una grande: passano prima finché c'è posto, e dopo qualche secondo tocca alla grande. Una foto che chiederebbe più di metà della memoria del computer non ha la miniatura, e di un file più grande di 32 MB EyeCanSee legge solo l'inizio, quando basta a dirlo: al suo posto c'è ![Troppo grande per la miniatura](icon://color-picture) con la scritta **Troppo grande per la miniatura**. Il visore la apre solo se scegli **Apri comunque** (vedi [Guardare le immagini](viewer.md)).
+EyeCanSee prepara prima la miniatura del file selezionato, poi quelle visibili nella finestra, poi le altre della cartella. Le miniature restano salvate su disco, così la volta dopo la cartella si apre subito; una miniatura viene rifatta quando il suo file cambia. Le foto grandi (RAW, HEIC, PSD, TIFF a 16 bit) occupano molta più memoria dei JPEG mentre se ne fa la miniatura: EyeCanSee ne prepara insieme solo quante ne stanno in un quarto della memoria del computer, così le loro miniature arrivano più lentamente, e una molto grande viene preparata da sola. Le miniature delle foto più piccole non aspettano dietro una grande: passano prima finché c'è posto, e dopo qualche secondo tocca alla grande. Una foto che chiederebbe più della metà della memoria del computer non ha la miniatura, e di un file più grande di 32 MB EyeCanSee legge solo l'inizio, quando basta a dirlo: al suo posto c'è ![Troppo grande per la miniatura](icon://color-picture) con la scritta **Troppo grande per la miniatura**. Il visore la apre solo se scegli **Apri comunque** (vedi [Guardare le immagini](viewer.md)).
 
 Se una miniatura sembra sbagliata, fai clic destro sul file (o su più file selezionati) e scegli **Aggiorna miniature**: vale per ogni tipo di file, anche per un file audio, la cui miniatura è la sua copertina. **Visualizza > Aggiorna tutte le miniature della cartella** (**Maiusc + F5**) le rifà tutte. Lo spazio che le miniature occupano su disco si regola nelle [Opzioni](options.md).
 
@@ -59,12 +59,12 @@ Se una miniatura sembra sbagliata, fai clic destro sul file (o su più file sele
 
 ## Il menù del clic destro
 
-- Su un **file**: le azioni che funzionano su di lui, come Apri, Carosello, Modifica immagine…, Converti…, Ridimensiona, Taglia, Copia, Rinomina… ed Elimina…. Con più file selezionati, il menù agisce su tutti (vedi [Selezionare i file](selection.md)).
+- Su un **file**: le azioni che funzionano su quel file, come Apri, Carosello, Modifica immagine…, Converti…, Ridimensiona, Taglia, Copia, Rinomina… ed Elimina…. Con più file selezionati, il menù agisce su tutti (vedi [Selezionare i file](selection.md)).
 - Su una **cartella**: Apri, Nuova cartella qui dentro…, Taglia, Copia, Incolla in questa cartella, Aggiungi questa cartella ai segnalibri (vedi [Segnalibri](bookmarks.md)), Trova duplicati…, Rinomina…, Elimina…, Elimina definitivamente….
 - Su uno **spazio vuoto**: Incolla (quando hai copiato qualcosa), Seleziona tutto, Nuova cartella…, Cartella superiore, Aggiorna, Mostra e Trova duplicati….
 
-Una voce segnata con **\*** funziona solo su una parte dei file scelti (per esempio Converti… sulle foto e sui video che ci sono in mezzo, Ridimensiona sulle foto; anche le cartelle selezionate insieme ai file restano fuori); una riga in fondo al menù lo dice. Una voce che non funziona su nessuno resta al suo posto, grigia: tieni il mouse sopra per leggere il perché (per esempio "Nessuna immagine tra i file scelti").
+Una voce segnata con **\*** funziona solo su una parte dei file scelti (per esempio Converti… sulle foto e sui video tra quelli scelti, Ridimensiona sulle foto; anche le cartelle selezionate insieme ai file restano fuori); una riga in fondo al menù lo dice. Una voce che non funziona su nessuno resta al suo posto, grigia: tieni il mouse sopra per leggere il perché (per esempio "Nessuna immagine tra i file scelti").
 
 ## La barra di stato
 
-In fondo alla finestra: quante cartelle, immagini, video e file audio ci sono nella cartella, e nome, peso e data del file selezionato (di una cartella, il nome). Con più elementi selezionati dice quanti sono e quanto pesano i loro file. Dopo Copia o Taglia ricorda di premere **Ctrl + V**. A destra, **Tasti** elenca i tasti della griglia mentre ci passi sopra, o finché non lo clicchi di nuovo (tutti i tasti sono in [Scorciatoie da tastiera](keyboard.md)).
+In fondo alla finestra: quante cartelle, immagini, video e file audio ci sono nella cartella, e nome, peso e data del file selezionato (di una cartella, il nome). Con più elementi selezionati dice quanti sono e quanto pesano i loro file. Dopo Copia o Taglia ricorda di premere **Ctrl + V**. A destra, **Tasti** elenca i tasti della griglia mentre ci passi sopra, o finché non ci fai clic di nuovo (tutti i tasti sono in [Scorciatoie da tastiera](keyboard.md)).
