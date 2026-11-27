@@ -486,4 +486,26 @@ mod tests {
         h.frame(Vec::new());
         assert!(h.app.notice.is_none() && h.app.waiting.is_empty());
     }
+
+    /// Audit 27/11 F.5 (Windows): the message "The phone is not answering" closes by itself when
+    /// the phone answers; the end of the copy, come in the same frame and waiting behind it, was
+    /// left in the queue, and a message come after it went in front of it.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn a_message_waiting_behind_the_stall_comes_when_it_closes() {
+        if own_folder("jobs_report::tests::a_message_waiting_behind_the_stall_comes_when_it_closes") {
+            return;
+        }
+        let mut h = Harness::new(&folder("jobs-stall", &["a.png"]));
+        h.app.phone_stall_on(Some(("a.jpg".into(), 20, "upload".into())));
+        assert!(h.app.stall_notice.is_some() && h.app.notice.is_some(), "the stall message not shown");
+        h.app.tell_notice(message("Copy finished"));
+        h.app.phone_stall_on(None);
+        let shown = |h: &Harness| h.app.notice.as_ref().map(|n| n.title.clone());
+        assert_eq!(shown(&h).as_deref(), Some("Copy finished"), "the message waiting behind the stall did not come");
+        h.app.notice = None;
+        h.app.waiting.push_back(super::Waiting::Notice(message("Second")));
+        h.app.tell_notice(message("Third"));
+        assert_eq!(shown(&h).as_deref(), Some("Second"), "a message passed the one waiting before it");
+    }
 }
