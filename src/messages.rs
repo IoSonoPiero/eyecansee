@@ -649,6 +649,9 @@ impl App {
         {
             p.by_phone.unplugged();
         }
+        // The last folder of a disk unplugged goes with it: the panel no longer shows it under a
+        // disk plugged at the same place (another stick of the same label, audit 27/11 F.12).
+        self.last_dirs.retain(|k, _| !k.starts_with('/') || k == "/" || d.iter().any(|e| e.path == *k));
         self.devices = d;
         if unplugged || gone {
             log!("device with the open folder unplugged");

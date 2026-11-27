@@ -79,8 +79,11 @@ impl App {
         } else if d.path == self.base {
             self.set_dir(String::new());
         } else if d.path.starts_with('/') {
-            // A disk of this computer: back in the folder last visited on it (#314).
-            let at = crate::navigation::folder_under(&self.last_dirs, &d.path).map_or_else(|| d.path.clone(), |(full, _)| full);
+            // A disk of this computer: back in the folder last visited on it (#314), if it is still
+            // there (another stick of the same label, or the folder removed elsewhere: its root,
+            // audit 27/11 F.12).
+            let last = crate::navigation::folder_under(&self.last_dirs, &d.path).filter(|(full, _)| std::path::Path::new(full).is_dir());
+            let at = last.map_or_else(|| d.path.clone(), |(full, _)| full);
             if self.base == "/" { self.set_dir(at.trim_start_matches('/').to_string()) } else { self.open_source(ctx, &at) }
         } else {
             self.open_back(ctx, &d.path);
