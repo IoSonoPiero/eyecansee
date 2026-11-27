@@ -255,9 +255,11 @@ fn mount_kind<'a>(mounts: &'a str, path: &str) -> Option<&'a str> {
 /// Is this path of this computer on a share of the network, mounted as a folder (SMB, NFS, sshfs,
 /// a share GNOME opened through gvfs, and the like)? Another computer may be writing there
 /// (audit F.10 of 27/11). Not a phone or a camera through gvfs: only this computer writes there.
+/// Through links, where it really is (a folder `~/NAS` that leads to `/mnt/nas`).
 #[cfg(not(windows))]
 pub fn on_network(path: &Path) -> bool {
-    std::fs::read_to_string("/proc/self/mounts").is_ok_and(|m| network_in(&m, &path.to_string_lossy()))
+    let real = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    std::fs::read_to_string("/proc/self/mounts").is_ok_and(|m| network_in(&m, &real.to_string_lossy()))
 }
 
 /// Windows: a network drive, mapped to a letter or a path `\\server\share` (`GetDriveTypeW`, as
