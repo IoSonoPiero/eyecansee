@@ -9,8 +9,8 @@ To convert or resize many images at once, use [Converting and resizing images](c
 ## Opening the page
 
 - In the grid, select one image and click ![Save as…](icon://file-output) in the toolbar, or choose **File > Save as…**, or right-click the image and choose **Save as…**.
-- In the viewer, press **Ctrl + Shift + S**, or use the same menu items. If you turned or flipped the image in the viewer, it is saved turned.
-- A 3D model or a CAD drawing can be saved as a picture too. In the viewer as it is shown on screen: a model at least 1920 pixels on its long side, a drawing with the layout you are looking at. From the grid a model from its starting view, 1920 × 1440 pixels, and a drawing whole. With other files selected too, **Save as…** is marked with **\*** and works on the one picture, model or drawing among them. **Ctrl + S** and **File > Save** save over the original, which a model or a drawing cannot be: there they are greyed out, and pointing at **Save** says what to use instead.
+- In the viewer, press **Ctrl + Shift + S**, or use the same menu items. If you rotated or flipped the image in the viewer, it is saved that way.
+- A 3D model or a CAD drawing can be saved as a picture too. In the viewer, as it is shown on screen: a model at least 1920 pixels on its long side, a drawing with the layout you are looking at. From the grid, a model from its starting view at 1920 × 1440 pixels, and a drawing whole. With other files selected too, **Save as…** is marked with **\*** and works on the one picture, model or drawing among them. **Ctrl + S** and **File > Save** save over the original, which is not possible for a model or a drawing: for these they are greyed out, and pointing at **Save** says what to use instead.
 - In the viewer of a video, **Save frame as…** (also **Ctrl + Shift + S**) pauses it and opens this page with the frame shown: see [Playing videos](video.md). The frame has no file of its own, so its size on disk and the percentage are not shown.
 - In the editor, **Save as…** opens this page with the edited image (see [Saving an edited image](editor-save.md)). Closing it without saving (**Cancel**, **Esc** or the window's ✕) goes back to the editor, with the changes.
 
@@ -22,22 +22,22 @@ The page takes the whole window. On the left is the original, on the right the c
 
 The image on the right is the real file: every time you change an option, EyeCanSee makes the file again and shows it. While it works, the size says "Working out the size…" and **Save** waits, so the size you see is always the size of the file you will get.
 
-An image flipped or rotated in the viewer is shown so on both sides, so the two match; under the original its size on disk stays, with what the viewer did, for example "rotated 90° clockwise in the viewer".
+An image flipped or rotated in the viewer is shown that way on both sides, so that the two match; under the original its size on disk stays, with what the viewer did, for example "rotated 90° clockwise in the viewer".
 
 Tick **100%** to see the real pixels. Then drag either image to move both, so you compare the same spot.
 
 ## Saving
 
-1. Choose the **Format**. The page opens on the format of the last image saved from it while EyeCanSee is open; the first time on JPEG. A new image from the editor always opens on PNG. An image too large for that format (WebP holds at most 16383 pixels on a side, JPEG 65500, GIF and TGA 65535) opens on JPEG or PNG as the first time. The options of the format start as described below.
+1. Choose the **Format**. The page opens with the format of the last image saved from it while EyeCanSee is open; the first time, with JPEG. A new image from the editor always opens with PNG. An image too large for that format (WebP holds at most 16383 pixels on a side, JPEG 65500, GIF and TGA 65535) opens with JPEG or PNG, as the first time. The options of the format start as described below.
 2. Change its options if you want (see below).
 3. Check the folder in **Folder**: at first it is the original's. To save somewhere else click **Browse…** and choose another folder, also on another device: a phone, a disk or a saved server, as in [Converting and resizing images](convert.md). **Enter** or **Use this folder** chooses it, **Esc** or **Cancel** keeps the folder you had.
 4. Check the name in **File name**, then click **Save**.
 
 If the name is already taken in that folder, " (2)" is added, and the page tells you before you save. Once saved, the page closes.
 
-Opened from the viewer, the viewer then shows the new file, already turned or flipped as you left it. The original stays as it is on disk: it is no longer marked as modified, and closing asks nothing. If you saved into another folder, the viewer stays on the original and a message says where the new file is. If you close the page without saving, or saving fails, the viewer stays as it was, turns included. The same holds when you open it from the editor started in the viewer: once the file is saved the editor closes, and the viewer does as above.
+If you opened the page from the viewer, the viewer then shows the new file, already turned or flipped as you left it. The original stays as it is on disk: it is no longer marked as modified, and closing asks nothing. If you saved into another folder, the viewer stays on the original and a message says where the new file is. If you close the page without saving, or saving fails, the viewer stays as it was, turns included. The same holds when you open it from the editor started in the viewer: once the file is saved the editor closes, and the viewer does as above.
 
-**Cancel**, next to **Save**, closes the page without saving, as **Esc** or the ✕ of the window do: from the editor you are back in the editor, otherwise where you opened it. While the file is being written it is greyed out.
+**Cancel**, next to **Save**, closes the page without saving, as **Esc** or the window's ✕ do: from the editor you are back in the editor, otherwise where you opened it. While the file is being written it is greyed out.
 
 ## Formats and options
 
