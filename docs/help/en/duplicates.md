@@ -1,12 +1,12 @@
 # Finding duplicates
 
-Finds identical files in a folder and its subfolders, so you can delete the extra copies and free space. Identical means the same file byte for byte, also under another name or in another folder. Photos that were resized, converted or saved again are not identical, and are not found. It works on every source: the computer, external disks, phones and servers.
+Finds identical files in a folder and its subfolders, so you can delete the extra copies and free space. Identical means the same file byte for byte, even under another name or in another folder. Photos that were resized, converted or saved again are not identical, and are not found. It works on every source: the computer, external disks, phones and servers.
 
 ## Searching
 
 1. Open the folder to search, or right-click a folder.
 2. Click ![Find duplicates…](icon://scan-search) in the toolbar, or choose **Tools > Find duplicates…** (**Ctrl + D**), or **Find duplicates…** from the right-click menu of a folder or of an empty spot of the grid.
-3. Choose whether to look **Also in subfolders** (on at first).
+3. Choose whether to look **Also in subfolders** (on by default).
 4. Click **Search** (or press **Enter**; **Esc** cancels).
 
 A window shows how many files have been examined out of those found, and how much has been read; **Cancel** stops the search. Only files with the same size are read and compared, so on a computer it is quick. On a phone every file that could be a copy is read in full, and it takes time: the window says so.
@@ -17,7 +17,7 @@ Trash folders and hidden folders are left out. A folder or a file reached again 
 
 ![Finding duplicates](../img/duplicates.webp)
 
-The results fill the window. Every group of identical files has its thumbnail and one line per copy, with its date and its path below the folder searched (the full path when you point at it).
+The results fill the window. Every group of identical files has its thumbnail and one line per copy, with its date and its path inside the folder searched (the full path when you point at it).
 
 - The box on each line means **Delete this copy**. A click on the text of the line ticks or unticks it too.
 - The copies to delete are faded and struck through; the one that stays says **Stays**.
@@ -28,9 +28,9 @@ The results fill the window. Every group of identical files has its thumbnail an
 
 At the start every group keeps its first copy and marks the others. **Order** decides which copy is first, for all the groups:
 
-- **Date, oldest first** (the default): to the minute, as shown; with the same date, the shorter path.
+- **Date, oldest first** (the default): to the minute, as shown; with the same date, the shorter path comes first.
 - **Shortest name**: copies usually have something added to the name, such as "photo copy.jpg" or "photo (2).jpg", so the original stays even when the dates are the same.
-- **Path**: order of folder and name, as in the grid (`photo2` before `photo10`).
+- **Path**: by folder and name, as in the grid (`photo2` before `photo10`).
 
 **Keep the first**, **Keep the last** and **Keep all** mark every group at once; then you can change single boxes.
 

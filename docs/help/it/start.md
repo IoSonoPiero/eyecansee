@@ -11,7 +11,7 @@ EyeCanSee mostra le foto, i video, i modelli 3D e i disegni CAD di una cartella 
 - **Pannello laterale** a sinistra: i tuoi dischi, i telefoni, i server salvati e le cartelle di questo computer. Vedi [Cartelle e pannello laterale](folders.md).
 - **Griglia** al centro: le sottocartelle e i file della cartella aperta, come miniature. Vedi [La griglia delle miniature](grid.md).
 - **Pannello dei metadati** sotto la griglia: le informazioni sul file selezionato. Vedi [Informazioni sul file](metadata.md).
-- **Barra di stato** in fondo: quante cartelle e quanti file ci sono, e nome, peso e data del file selezionato (di una cartella, il nome).
+- **Barra di stato** in fondo: quante cartelle e quanti file ci sono, e nome, peso e data del file selezionato (per una cartella, solo il nome).
 
 ## Aprire una cartella
 
@@ -25,25 +25,25 @@ EyeCanSee resta aperto in una sola copia: se è già aperto, una foto o una cart
 
 ## Guardare una foto
 
-Fai doppio clic su una miniatura, oppure selezionala e premi **Invio**: la foto riempie la finestra. Per tornare indietro premi **Esc**, fai doppio clic sulla foto (oppure, come scelto nelle Opzioni, vai a schermo intero) o usa ![Torna alla griglia](icon://layout-grid) **Torna alla griglia**. Vedi [Guardare le immagini](viewer.md).
+Fai doppio clic su una miniatura, oppure selezionala e premi **Invio**: la foto riempie la finestra. Per tornare indietro premi **Esc**, fai doppio clic sulla foto o usa ![Torna alla griglia](icon://layout-grid) **Torna alla griglia**. Nelle Opzioni il doppio clic si può impostare per andare invece a schermo intero. Vedi [Guardare le immagini](viewer.md).
 
 ## Menù, pulsanti e tasti
 
 - Il **clic destro** su qualunque cosa (una miniatura, una cartella, uno spazio vuoto della griglia, la foto nel visore) apre un menù con quello che puoi farci.
 - Ogni azione ha una voce di menù, con il tasto scritto accanto. L'elenco di tutti i tasti è in [Scorciatoie da tastiera](keyboard.md).
-- Quando la finestra è stretta, i pulsanti della barra strumenti che non ci stanno passano nel menù ![Altre operazioni](icon://ellipsis) **Altre operazioni**: prima quelli dell'immagine e degli strumenti, poi le operazioni sui file, il pulsante dei metadati, la stella dei segnalibri e Aggiorna. La barra degli indirizzi resta sempre in vista, e i menù e la barra di stato vanno su più righe invece di essere tagliati.
-- Ogni cursore ha delle tacche sotto, una per ogni passo su cui si ferma o su valori tondi, e la sua misura è scritta accanto o prima.
-- **F11**, oppure **Visualizza > Schermo intero**, mette la finestra a schermo intero, e la riporta com'era.
+- Quando la finestra è stretta, i pulsanti della barra strumenti che non ci stanno passano nel menù ![Altre operazioni](icon://ellipsis) **Altre operazioni**: prima quelli dell'immagine e degli strumenti, poi le operazioni sui file, il pulsante dei metadati, la stella dei segnalibri e Aggiorna. La barra degli indirizzi resta sempre in vista, e i menù e la barra di stato vanno a capo su più righe invece di essere tagliati.
+- Ogni cursore ha delle tacche sotto: una per ogni passo su cui si ferma, oppure una per ogni valore tondo. Il suo valore è scritto accanto o prima.
+- **F11**, oppure **Visualizza > Schermo intero**, mette la finestra a schermo intero e la riporta com'era.
 
 ## Aiuto
 
-Premi **F1** in qualunque momento: questa guida si apre sulla pagina di ciò che stai facendo. Premi di nuovo **F1** per chiuderla, oppure premi **Esc** due volte di seguito col puntatore sopra la guida; quando la guida è sopra una finestra, per esempio un messaggio, due **Esc** la chiudono ovunque sia il puntatore, e la finestra resta aperta. **Aiuto > Guida** apre l'elenco di tutte le pagine.
+Premi **F1** in qualunque momento: questa guida si apre sulla pagina di ciò che stai facendo. Premi di nuovo **F1** per chiuderla, oppure premi **Esc** due volte di seguito col puntatore sopra la guida. Quando la guida è sopra un'altra finestra, per esempio un messaggio, due **Esc** chiudono la guida ovunque sia il puntatore, e l'altra finestra resta aperta. **Aiuto > Guida** apre l'elenco di tutte le pagine.
 
-Il campo in alto a sinistra cerca in tutte le pagine ed è già pronto quando la guida si apre: un risultato apre la sua pagina con le parole trovate evidenziate. L'evidenziazione segue il campo, e ![Svuota la ricerca](icon://x) lo svuota.
+Il campo in alto a sinistra cerca in tutte le pagine, e ci puoi scrivere appena la guida si apre. Ogni risultato apre la sua pagina, con le parole trovate evidenziate. L'evidenziazione segue ciò che c'è nel campo, e ![Svuota la ricerca](icon://x) lo svuota.
 
 ## Suggerimenti all'avvio
 
-Al primo avvio del giorno una finestra mostra un suggerimento: una cosa che EyeCanSee sa fare, con un'immagine o i passi da seguire. La primissima volta il primo suggerimento arriva appena si chiude con **Fine** la finestra del primo avvio; chiusa con **Salta** o **Esc**, i suggerimenti cominciano il giorno dopo.
+Al primo avvio del giorno una finestra mostra un suggerimento: una cosa che EyeCanSee sa fare, con un'immagine o i passi da seguire. La primissima volta il primo suggerimento arriva appena chiudi con **Fine** la finestra del primo avvio. Se la chiudi con **Salta** o **Esc**, i suggerimenti cominciano il giorno dopo.
 
 ![Suggerimenti all'avvio](../img/tips.webp)
 
@@ -52,7 +52,7 @@ Al primo avvio del giorno una finestra mostra un suggerimento: una cosa che EyeC
 - **Chiudi** (o **Invio** o **Esc**) chiude la finestra. Finché è aperta, gli altri tasti non arrivano alla griglia dietro (**F1** apre comunque questa guida).
 - **Non mostrare più all'avvio** ferma i suggerimenti. Per riaverli, spunta **Mostra un suggerimento all'avvio** in **Strumenti > Opzioni… > Generale** (vedi [Opzioni](options.md)).
 
-I suggerimenti non compaiono quando EyeCanSee parte per aprire un'immagine o una cartella da un altro programma.
+I suggerimenti non compaiono quando un altro programma avvia EyeCanSee per aprire un'immagine o una cartella.
 
 ## Una copia delle tue foto
 

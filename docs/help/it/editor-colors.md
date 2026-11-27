@@ -45,6 +45,6 @@ Esc annulla. Con uno strumento di disegno, **Alt + clic** prende subito un color
 ## Colori da qualsiasi punto dello schermo
 
 - **Linux**: il pulsante del contagocce e **Maiusc + I** aprono il selettore di colore del sistema, per prendere un colore da qualsiasi punto dello schermo. **I** lo prende sull'immagine, con il riquadro.
-- **Windows**: il contagocce prende un colore dall'immagine. Per prenderne uno altrove sullo schermo, premi sull'immagine e lascia dove c'è il colore; il riquadro mostra il colore sotto il puntatore.
+- **Windows**: il contagocce prende un colore dall'immagine. Per prenderne uno altrove sullo schermo, premi il pulsante del mouse sull'immagine e rilascialo dove c'è il colore; il riquadro mostra il colore sotto il puntatore.
 
-Il contagocce è nella barra solo dove c'è un colore da scegliere: non con Seleziona senza niente di selezionato, non per un riflettore, un filtro o una zona incollata, non con Ritaglia e ruota.
+Il contagocce è nella barra solo dove c'è un colore da scegliere: non con Seleziona quando non c'è niente di selezionato, non per un riflettore, un filtro o una zona incollata, non con Ritaglia e ruota.

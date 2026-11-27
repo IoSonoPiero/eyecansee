@@ -1,6 +1,6 @@
 # Lines and arrows
 
-![Arrow](icon://move-up-right) **Arrow** (A) and ![Line](icon://slash) **Line** (L) draw straight or bent lines, to point at something or to underline it.
+![Arrow](icon://move-up-right) **Arrow** (A) and ![Line](icon://slash) **Line** (L) draw straight or curved lines, to point at something or to underline it.
 
 ## Drawing
 
@@ -12,7 +12,7 @@
 
 A selected line or arrow has three handles: its two ends and its middle.
 
-- Drag an end to move it. A bent line keeps its shape.
+- Drag an end to move it. A curved line keeps its shape.
 - Drag the middle handle to bend the line into a curve. Drop it back in the middle of the two ends and the line is straight again.
 - To move the whole line, use ![Select](icon://mouse-pointer-2) **Select** and drag it.
 

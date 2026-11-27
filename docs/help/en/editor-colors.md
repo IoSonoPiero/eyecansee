@@ -11,13 +11,13 @@ The bar starts with one of two labels:
 - **Next object:** nothing is selected. The style is for the next object you draw with this tool.
 - **Selected object:** the changes go to the selected object, and stay for the next ones of the same kind.
 
-EyeCanSee remembers the last style of each kind of object, also after closing. Widths are kept in proportion to the image, so a line looks the same on a small and on a large photo.
+EyeCanSee remembers the last style of each kind of object, even after it is closed. Widths are kept in proportion to the image, so a line looks the same on a small and on a large photo.
 
 ## Colours
 
 - Eight ready-made colours: red, orange, yellow, green, blue, purple, black and white. The one in use is ringed.
 - **Other colour**: the button after them opens a colour picker.
-- Rectangles, ellipses and speech bubbles have two rows: **Border:** and **Fill:**. The fill can also be none (the white square crossed in red).
+- Rectangles, ellipses and speech bubbles have two rows: **Border:** and **Fill:**. The fill can also be none (the white square crossed out in red).
 - A speech bubble also has the colour of its **Letters:**.
 
 ## Width, size and opacity
@@ -45,6 +45,6 @@ Esc cancels. With a drawing tool, **Alt + click** takes a colour at once and kee
 ## Colours from anywhere on the screen
 
 - **Linux**: the eyedropper button and **Shift + I** open the system's colour picker, to take a colour from anywhere on the screen. **I** takes it on the image, with the box.
-- **Windows**: the eyedropper takes a colour from the image. To take one from elsewhere on the screen, press on the image and let go where the colour is; the box shows the colour under the pointer.
+- **Windows**: the eyedropper takes a colour from the image. To take one from elsewhere on the screen, press the mouse button on the image and release it where the colour is; the box shows the colour under the pointer.
 
-The eyedropper is in the bar only where there is a colour to choose: not with Select and nothing selected, not for a spotlight, a filter or a pasted part, not with Crop and rotate.
+The eyedropper is in the bar only where there is a colour to choose: not with Select when nothing is selected, not for a spotlight, a filter or a pasted part, not with Crop and rotate.
