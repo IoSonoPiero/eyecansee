@@ -786,6 +786,15 @@ mod tests {
         assert_eq!(other("HRESULT 0x80070057: parameter"), "error-detail");
     }
 
+    /// Prova W5 on Windows (27/11): a 4 GiB file from the computer to the phone's FAT32 card ended
+    /// with "storage full", mtp-rs's English, as the detail of the error. The phone says the same
+    /// for a storage that is full and for a file too big for it (`StoreFull`, `ObjectTooLarge`):
+    /// both in the user's language.
+    #[test]
+    fn a_file_the_storage_does_not_take_is_said_in_the_users_language() {
+        assert_eq!(super::error(mtp_rs::Error::StorageFull).0, "error-phone-full");
+    }
+
     #[test]
     fn forget_opens_anew() {
         let a = super::Phone::shared("FORGET-TEST");
