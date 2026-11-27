@@ -57,6 +57,7 @@ error-no-sftp = The server answers over SSH but has no SFTP service.
     ({ $detail })
 error-host-unknown = { $detail } has never been used from this computer: confirm its key to connect.
 error-cert-unknown = The certificate of { $detail } is not signed by a known authority: confirm it to connect.
+error-ftp-listing-too-big = The server sent a listing of { $detail } larger than 64 MB: EyeCanSee stopped reading it.
 error-host-changed = The key of { $detail } has changed: it is not the one recorded in ~/.ssh/known_hosts, so EyeCanSee does not connect.
     Someone may be pretending to be that server.
     If the server was reinstalled, remove its old line from known_hosts.

@@ -126,6 +126,7 @@ fn abs(path: &str) -> String {
 
 fn error(e: FtpError, path: &str) -> Error {
     match &e {
+        FtpError::ConnectionError(io) if io.kind() == std::io::ErrorKind::FileTooLarge => ("error-ftp-listing-too-big", path.to_string()),
         FtpError::UnexpectedResponse(r) if r.status == Status::NotLoggedIn => ("error-login", path.to_string()),
         FtpError::UnexpectedResponse(r) if r.status == Status::FileUnavailable => {
             let body = String::from_utf8_lossy(&r.body).to_lowercase();
@@ -138,6 +139,10 @@ fn error(e: FtpError, path: &str) -> Error {
         _ => ("error-detail", format!("{path}: {e}")),
     }
 }
+
+/// The most a folder's listing may hold: a hostile server could send one without an end, and it
+/// was read whole (audit 27/11 S.10). A line of LIST is about 70 bytes: some 900,000 items.
+const LISTING_MAX: u64 = 64 << 20;
 
 /// The connection is gone (closed by the server after its idle timeout, network down).
 fn broken(e: &FtpError) -> bool {
@@ -392,10 +397,14 @@ impl Server {
         Ok(if home.is_empty() { String::new() } else { format!("{home}/") })
     }
 
-    /// The text of a listing of `dir`: `cmd` is MLSD or LIST.
+    /// The text of a listing of `dir`: `cmd` is MLSD or LIST. Past `LISTING_MAX` the reading
+    /// stops, and the connection, left in the middle of the transfer, is not used again.
     async fn listing(&self, s: &mut Stream, cmd: &str, dir: &str) -> Result<String, FtpError> {
         let mut d = self.data(s, format!("{cmd} {}", abs(dir)), 0).await?;
-        let bytes = read_up_to(&mut d, u64::MAX).await?;
+        let bytes = read_up_to(&mut d, LISTING_MAX + 1).await?;
+        if bytes.len() as u64 > LISTING_MAX {
+            return Err(FtpError::ConnectionError(std::io::Error::new(std::io::ErrorKind::FileTooLarge, "listing larger than 64 MiB")));
+        }
         close_data(s, d, false).await?;
         Ok(String::from_utf8_lossy(&bytes).into_owned())
     }
