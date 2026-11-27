@@ -34,6 +34,7 @@ video-no-audio = Questo video non ha l'audio
 video-not-video = Il file non è un video, o è rovinato.
 video-no-frame = Nessun fotogramma si può mostrare: il video è rovinato.
 video-no-sound = L'audio non si può riprodurre: non si è potuta aprire nessuna uscita audio.
+video-no-decoder = Il video usa un formato che il motore video non sa leggere.
 video-frame-back-busy = Preparo il fotogramma precedente…
 video-stalled =
     Da 20 secondi non arrivano dati: il telefono o il server non risponde.

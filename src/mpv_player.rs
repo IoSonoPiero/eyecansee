@@ -23,6 +23,8 @@ struct State {
     failed: bool,
     /// mpv loaded the file (`wait_loaded`): from then on mpv idle means it dropped it.
     loaded: bool,
+    /// The file had a video track when loaded, not a cover image (`video_track`).
+    video_track: bool,
     /// Who asked for the frame shown at the video's own size (`Player::grab`).
     grab: Option<Grab>,
     /// The frames drawn are kept with their time, for the frames back (`video_back`).
@@ -65,6 +67,9 @@ pub enum Failure {
     /// mpv loaded the file, then dropped it: with no sound output that opens, a file with sound
     /// only goes so (mpv's `AO_INIT_FAILED`, #327).
     NoSound,
+    /// mpv loaded the file, then dropped it, with a video track: its picture is in a format this
+    /// libmpv has no decoder for, with or without sound (audit 27/11 V.2).
+    NoDecoder,
 }
 
 impl Failure {
@@ -76,6 +81,7 @@ impl Failure {
             Failure::NoPicture => "video-no-frame\u{1}".into(),
             Failure::Read(e) => e.clone(),
             Failure::NoSound => "video-no-sound\u{1}".into(),
+            Failure::NoDecoder => "video-no-decoder\u{1}".into(),
         }
     }
 }
@@ -250,7 +256,8 @@ impl Player {
     /// state, never a timer, so a slow phone or server only keeps the spinner longer.
     pub fn error(&self) -> Option<Failure> {
         if self.dropped() {
-            return Some(Failure::NoSound);
+            // A video track there when the file was loaded: its picture did not decode.
+            return Some(if self.shared.state.lock().unwrap().video_track { Failure::NoDecoder } else { Failure::NoSound });
         }
         let read = self.mpv.stream.as_ref().and_then(|s| s.last_error());
         let failed = self.shared.state.lock().unwrap().failed;
@@ -461,6 +468,13 @@ fn start_tracks(mpv: &Mpv, seek: Option<[String; 3]>) {
     }
 }
 
+/// Whether the file loaded has a video track that is not a cover image (`track-list`, read before
+/// any track is chosen; once mpv drops the file the list is empty).
+fn video_track(mpv: &Mpv) -> bool {
+    let count = mpv.property::<i64>("track-list/count", FORMAT_INT64).unwrap_or(0);
+    (0..count).any(|i| mpv.string(&format!("track-list/{i}/type")).as_deref() == Some("video") && mpv.property::<c_int>(&format!("track-list/{i}/image"), FORMAT_FLAG) != Some(1))
+}
+
 /// The rotation of the video track mpv chooses by itself: the first one marked default, or else
 /// the first one (`track-list`, read before any track is chosen).
 fn rotation_ahead(mpv: &Mpv) -> i64 {
@@ -500,7 +514,8 @@ fn draw_loop(mpv: &Mpv, shared: &Shared, seek: Option<[String; 3]>, repaint: imp
     if !wait_loaded(mpv, shared, &repaint) {
         return;
     }
-    shared.change(|st| st.loaded = true);
+    let video = video_track(mpv);
+    shared.change(|st| (st.loaded, st.video_track) = (true, video));
     start_tracks(mpv, seek);
     loop {
         let (size, grab) = {
