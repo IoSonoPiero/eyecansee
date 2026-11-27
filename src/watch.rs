@@ -157,8 +157,13 @@ impl App {
         if !cfg!(windows) {
             return;
         }
+        self.phone_stall_on(crate::mtp::waiting(crate::mtp::STALL_SECS));
+    }
+
+    /// `phone_stall` for the call `waiting` for `mtp::STALL_SECS` or more, if any (`mtp::waiting`).
+    pub(crate) fn phone_stall_on(&mut self, waiting: Option<(String, u64, String)>) {
         // The phone copying or moving between its storages is busy, not stalled: no "unplug".
-        match crate::mtp::waiting(crate::mtp::STALL_SECS).filter(|(_, _, what)| what != "copy" && what != "move") {
+        match waiting.filter(|(_, _, what)| what != "copy" && what != "move") {
             Some((name, _, what)) if self.stall_notice.is_none() && self.notice.is_none() => {
                 let text = if what == "upload" {
                     self.i18n.t_args("phone-stalled-upload", &[("name", &crate::save_dialogs::md(&name))])
