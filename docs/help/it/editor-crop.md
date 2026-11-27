@@ -27,7 +27,7 @@ Con questo strumento si vede tutta l'immagine, con sopra la cornice del ritaglio
 - **Solo immagine**: il ritaglio più grande senza angoli vuoti. Segue la rotazione, ed è quello predefinito.
 - **Tutta l'immagine**: tutta l'immagine ruotata, con gli angoli vuoti.
 
-La misura del risultato è nella barra di stato. Il ritaglio si ferma a 20.000 pixel per lato (o alla misura di una foto più grande), e la barra di stato lo dice.
+La misura del risultato è nella barra di stato. Il ritaglio si ferma a 20.000 pixel per lato e a 200 megapixel in tutto (o alla misura di una foto più grande), e la barra di stato lo dice.
 
 ## Angoli vuoti
 

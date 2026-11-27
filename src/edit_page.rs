@@ -386,7 +386,7 @@ impl Window {
     }
 
     /// The largest the crop may be (`resize::crop_most`).
-    fn crop_most(&self) -> (f32, f32) {
+    fn crop_most(&self) -> crate::edit::resize::Most {
         let (iw, ih) = self.size();
         crate::edit::resize::crop_most(iw, ih)
     }

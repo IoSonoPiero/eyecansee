@@ -18,22 +18,41 @@ pub const MAX_SIDE: u32 = crate::new_image::MAX_SIDE;
 /// As Convert and resize.
 pub const MAX_PERCENT: u32 = 1000;
 
-/// The largest crop of an image of `iw` × `ih` as it stands: `MAX_SIDE` a side, or the image's
-/// own side when it is larger, so a photo is never cut by the limit (audit 5.10).
-pub fn crop_most(iw: f32, ih: f32) -> (f32, f32) {
-    (iw.max(MAX_SIDE as f32), ih.max(MAX_SIDE as f32))
+/// The largest a crop may be: its sides, and its pixels in all.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Most {
+    pub w: f32,
+    pub h: f32,
+    pub pixels: f32,
+}
+
+/// The largest crop of an image of `iw` × `ih` as it stands: `MAX_SIDE` a side and as many pixels
+/// as a new image may have, or the image's own when it is larger, so a photo is never cut by the
+/// limit (audit 5.10). With the sides alone, two of them dragged far made 400 megapixels of a
+/// small photo (audit E.8).
+pub fn crop_most(iw: f32, ih: f32) -> Most {
+    Most { w: iw.max(MAX_SIDE as f32), h: ih.max(MAX_SIDE as f32), pixels: (iw * ih).max(crate::new_image::MAX_PIXELS as f32) }
 }
 
 /// `w` × `h` no larger than `most`: both by the same factor when the proportions are kept
-/// (`keep`), else each side alone; and whether it was larger.
-pub fn capped((w, h): (f32, f32), most: (f32, f32), keep: bool) -> (f32, f32, bool) {
-    match () {
-        _ if w <= most.0 && h <= most.1 => (w, h, false),
+/// (`keep`), else each side alone, and for the pixels the longer one; and whether it was larger.
+pub fn capped((w, h): (f32, f32), most: Most, keep: bool) -> (f32, f32, bool) {
+    let (w, h, sides) = match () {
+        _ if w <= most.w && h <= most.h => (w, h, false),
         _ if keep => {
-            let k = (most.0 / w).min(most.1 / h);
+            let k = (most.w / w).min(most.h / h);
             (w * k, h * k, true)
         }
-        _ => (w.min(most.0), h.min(most.1), true),
+        _ => (w.min(most.w), h.min(most.h), true),
+    };
+    match () {
+        _ if w * h <= most.pixels => (w, h, sides),
+        _ if keep => {
+            let k = (most.pixels / (w * h)).sqrt();
+            (w * k, h * k, true)
+        }
+        _ if w >= h => (most.pixels / h, h, true),
+        _ => (w, most.pixels / w, true),
     }
 }
 

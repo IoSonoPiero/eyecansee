@@ -205,8 +205,9 @@ impl App {
         }
         // The crop stopped at its largest size.
         if std::mem::take(&mut w.crop_capped) {
-            let (mw, mh) = w.crop_most();
-            w.note = Some((i18n.t_args("edit-crop-max", &[("w", &(mw as u32).to_string()), ("h", &(mh as u32).to_string())]), ui.input(|i| i.time) + 6.0));
+            let m = w.crop_most();
+            let (mw, mh, mp) = ((m.w as u32).to_string(), (m.h as u32).to_string(), ((m.pixels / 1e6) as u32).to_string());
+            w.note = Some((i18n.t_args("edit-crop-max", &[("w", &mw), ("h", &mh), ("mp", &mp)]), ui.input(|i| i.time) + 6.0));
         }
         // A copy too large for other programs (X11), once "Copied" is shown.
         if !w.copying

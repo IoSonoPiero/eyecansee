@@ -697,7 +697,7 @@ fn wheel(ui: &egui::Ui, w: &mut Window, view: &View, rect: Rect, turn: bool) {
 /// `start` with the side or corner (`sx`, `sy`) moved to `p`, the opposite one staying where it
 /// was; with `ratio`, the proportions kept (only corners then). At least a pixel, at most `most`
 /// (`resize::crop_most`), and whether it stopped there.
-fn resized(start: Crop, sx: i8, sy: i8, p: Vec2, ratio: Option<f32>, most: (f32, f32)) -> (Crop, bool) {
+fn resized(start: Crop, sx: i8, sy: i8, p: Vec2, ratio: Option<f32>, most: crate::edit::resize::Most) -> (Crop, bool) {
     let (mut l, mut r) = (start.cx - start.w / 2.0, start.cx + start.w / 2.0);
     let (mut t, mut b) = (start.cy - start.h / 2.0, start.cy + start.h / 2.0);
     match sx {
@@ -730,7 +730,7 @@ mod tests {
     fn resize() {
         let start = Crop::centred(100.0, 50.0);
         // Right side out by 20: the left one stays.
-        let most = (20_000.0, 20_000.0);
+        let most = crate::edit::resize::crop_most(100.0, 50.0);
         assert_eq!(resized(start, 1, 0, egui::vec2(70.0, 0.0), None, most), (Crop { cx: 10.0, cy: 0.0, w: 120.0, h: 50.0 }, false));
         // Top left corner with 1:1: square, the bottom right corner stays.
         let (sq, _) = resized(start, -1, -1, egui::vec2(-40.0, -40.0), Some(1.0), most);
@@ -748,10 +748,10 @@ mod tests {
         use crate::edit::doc::Doc;
         let max = crate::edit::resize::MAX_SIDE as f32;
         let start = Crop::centred(100.0, 50.0);
-        let (far, capped) = resized(start, 1, 0, egui::vec2(60_000.0, 0.0), None, (max, max));
+        let (far, capped) = resized(start, 1, 0, egui::vec2(60_000.0, 0.0), None, crate::edit::resize::crop_most(100.0, 50.0));
         assert!(capped);
         assert_eq!((far.w, far.h, far.cx - far.w / 2.0), (max, 50.0, -50.0), "the left side stays");
-        let (both, _) = resized(start, -1, -1, egui::vec2(-90_000.0, -90_000.0), Some(2.0), (max, max));
+        let (both, _) = resized(start, -1, -1, egui::vec2(-90_000.0, -90_000.0), Some(2.0), crate::edit::resize::crop_most(100.0, 50.0));
         assert!(both.w <= max && both.h <= max && (both.w / both.h - 2.0).abs() < 1e-3, "{both:?}");
         assert_eq!((both.cx + both.w / 2.0, both.cy + both.h / 2.0), (50.0, 25.0), "the bottom right corner stays");
         // All of a photo of 20 000 × 2000 straightened by 10°: 20 043 across.
