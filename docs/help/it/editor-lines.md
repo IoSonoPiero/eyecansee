@@ -1,6 +1,6 @@
 # Linee e frecce
 
-![Freccia](icon://move-up-right) **Freccia** (A) e ![Linea](icon://slash) **Linea** (L) disegnano linee dritte o curve, per indicare qualcosa o sottolinearla.
+![Freccia](icon://move-up-right) **Freccia** (A) e ![Linea](icon://slash) **Linea** (L) disegnano linee dritte o curve, per indicare qualcosa o sottolinearlo.
 
 ## Disegnare
 
