@@ -133,15 +133,16 @@ pub fn read(bytes: &[u8], unpacked: &Unpacked) -> Result<Mesh, String> {
         .ok()
         .and_then(|d| d.descendants().find(|n| n.attribute("Type").is_some_and(|t| t.ends_with("/3dmodel"))).and_then(|n| n.attribute("Target")).map(str::to_string))
         .unwrap_or_else(|| "/3D/3dmodel.model".into());
-    let mut files = Files { zip, unpacked, texts: HashMap::new(), pictures: HashMap::new(), written: 0 };
+    let mut files = Files { zip, unpacked, texts: HashMap::new(), pictures: HashMap::new(), written: 0, tree: Tree::of(crate::model_limit::THREE_MF) };
     let text = files.text(&main)?;
-    let doc = parse_xml(&text, crate::model_limit::THREE_MF)?;
+    let doc = parse_within(&text, crate::model_limit::THREE_MF, &mut files.tree)?;
     let mut b = Builder::up_to(crate::model_limit::THREE_MF);
     let model = Model::new(&doc);
+    let open = [(files.index(&main), &model)];
     for item in doc.descendants().filter(|n| n.has_tag_name_local("item")) {
         let Some(id) = item.attribute("objectid") else { continue };
         let path = item.attribute_local("path").unwrap_or(&main).to_string();
-        place(&mut b, &mut files, &main, &model, &path, id, &transform(item), 0)?;
+        place(&mut b, &mut files, &main, &model, &open, &path, id, &transform(item), 0)?;
     }
     files.unpacked.check()?;
     let mut mesh = b.finish(true)?;
@@ -158,6 +159,8 @@ struct Files<'b, 'u> {
     pictures: HashMap<usize, u16>,
     /// The triangles written in the texts read so far, counted before they are parsed (`model_limit`).
     written: usize,
+    /// What the trees of its model files may still take, all of them together (audit 27/11, D.4).
+    tree: Tree,
 }
 
 impl Files<'_, '_> {
@@ -265,18 +268,30 @@ impl Local for Node<'_, '_> {
     }
 }
 
-/// Adds object `id` of the model file `path`, moved by `m`.
+/// The model files open up the stack of `place`, by their place in the zip, with their trees.
+type Open<'o, 'a, 'i> = [(Option<usize>, &'o Model<'a, 'i>)];
+
+/// Adds object `id` of the model file `path`, moved by `m`; `main` is the file of `model`, and
+/// `open` the files whose trees are open up the stack, `model`'s among them.
 #[allow(clippy::too_many_arguments)]
-fn place(b: &mut Builder, files: &mut Files, main: &str, model: &Model, path: &str, id: &str, m: &Transform, depth: u32) -> Result<(), String> {
+fn place(b: &mut Builder, files: &mut Files, main: &str, model: &Model, open: &Open, path: &str, id: &str, m: &Transform, depth: u32) -> Result<(), String> {
     if depth > 32 {
         return Err("components nested too deep".into());
     }
     b.visit()?;
-    if files.index(path).is_none() || files.index(path) != files.index(main) {
+    let at = files.index(path);
+    if at.is_none() || at != files.index(main) {
+        // A file whose tree is open up the stack is placed from it, not parsed again: each step
+        // into another file kept a tree of its own (audit 27/11, D.4).
+        if let Some(&(_, other)) = open.iter().find(|(k, _)| k.is_some() && *k == at) {
+            return place(b, files, path, other, open, path, id, m, depth + 1);
+        }
         let text = files.text(path)?;
-        let doc = parse_xml(&text, crate::model_limit::THREE_MF)?;
+        let doc = parse_within(&text, crate::model_limit::THREE_MF, &mut files.tree)?;
         let other = Model::new(&doc);
-        return place(b, files, path, &other, path, id, m, depth + 1);
+        let mut more = open.to_vec();
+        more.push((at, &other));
+        return place(b, files, path, &other, &more, path, id, m, depth + 1);
     }
     let Some(object) = model.objects.get(id) else { return Ok(()) };
     if let Some(mesh) = object.children().find(|n| n.has_tag_name_local("mesh")) {
@@ -285,7 +300,7 @@ fn place(b: &mut Builder, files: &mut Files, main: &str, model: &Model, path: &s
     for c in object.descendants().filter(|n| n.has_tag_name_local("component")) {
         let Some(child) = c.attribute("objectid") else { continue };
         let child_path = c.attribute_local("path").unwrap_or(main).to_string();
-        place(b, files, main, model, &child_path, child, &then(&transform(c), m), depth + 1)?;
+        place(b, files, main, model, open, &child_path, child, &then(&transform(c), m), depth + 1)?;
     }
     Ok(())
 }
@@ -345,20 +360,43 @@ fn tree_most(limit: crate::model_limit::Limit) -> (usize, usize) {
     (nodes * limit.max, attributes * limit.max)
 }
 
+/// What the trees of the XML of one model may still take (`tree_most`): one file, or all the
+/// model files of a 3MF together.
+pub(crate) struct Tree {
+    nodes: usize,
+    attributes: usize,
+}
+
+impl Tree {
+    pub(crate) fn of(limit: crate::model_limit::Limit) -> Self {
+        let (nodes, attributes) = tree_most(limit);
+        Tree { nodes, attributes }
+    }
+}
+
 /// `text` as XML of the format of `limit`, refused with `OFFERED` before its tree takes more than
 /// `tree_most`: its attributes counted first (one `=` each at least), its nodes by roxmltree as
 /// it builds them. A DTD only outside 3MF, as before.
 pub(crate) fn parse_xml(text: &str, limit: crate::model_limit::Limit) -> Result<Document<'_>, String> {
+    parse_within(text, limit, &mut Tree::of(limit))
+}
+
+/// `parse_xml` within what is `left`, which the tree then takes.
+fn parse_within<'t>(text: &'t str, limit: crate::model_limit::Limit, left: &mut Tree) -> Result<Document<'t>, String> {
     let (nodes, attributes) = tree_most(limit);
     let refused = |n: usize| crate::model_limit::too_many(crate::model_limit::OFFERED, n);
-    if text.bytes().filter(|&b| b == b'=').count() > attributes {
+    let equals = text.bytes().filter(|&b| b == b'=').count();
+    if equals > left.attributes {
         return Err(refused(attributes));
     }
-    let options = roxmltree::ParsingOptions { allow_dtd: limit != crate::model_limit::THREE_MF, nodes_limit: u32::try_from(nodes).unwrap_or(u32::MAX), ..xml_options() };
-    Document::parse_with_options(text, options).map_err(|e| match e {
+    let options = roxmltree::ParsingOptions { allow_dtd: limit != crate::model_limit::THREE_MF, nodes_limit: u32::try_from(left.nodes).unwrap_or(u32::MAX), ..xml_options() };
+    let doc = Document::parse_with_options(text, options).map_err(|e| match e {
         roxmltree::Error::NodesLimitReached => refused(nodes),
         e => e.to_string(),
-    })
+    })?;
+    left.nodes = left.nodes.saturating_sub(doc.descendants().count());
+    left.attributes -= equals;
+    Ok(doc)
 }
 
 /// The first file of the zip whose name ends with `ext` (AMF, Collada's ZAE).
