@@ -345,16 +345,21 @@ pub(crate) fn xml_options<'a>() -> roxmltree::ParsingOptions<'a> {
     roxmltree::ParsingOptions { allow_dtd: true, nodes_limit: u32::try_from(nodes).unwrap_or(u32::MAX), ..Default::default() }
 }
 
-/// The nodes and the attributes roxmltree may build for one XML file of a format, by triangle
-/// of its cap (audit 27/11, D.4): its tree takes about 80 bytes a node and 72 an attribute, 10
-/// to 20 times the text, which is what `Unpacked` counts. Counted on the real files of the
-/// collection, by triangle read: 3MF up to 4.1 nodes and 9.6 attributes (with textures), AMF up
-/// to 11 nodes (a short file more, and its structure some 20) and 1.6 attributes, Collada and
-/// X3D up to 3.2 nodes and 1.2 attributes; so a file at the cap of its format still opens.
+/// The nodes and the attributes roxmltree may build for the XML of one model, by triangle of
+/// the cap of its format (audit 27/11, D.4): its tree takes about 80 bytes a node and 72 an
+/// attribute, 10 to 20 times the text, which is what `Unpacked` counts. Counted by triangle read
+/// (`audit_d4_nodes_live`): the real 3MF files of the collection up to 4.1 nodes and 9.6
+/// attributes (with textures), made ones 3.1 nodes and 4.6 attributes with shared points and one
+/// element a line, 8 and 12 with three points of its own for each triangle; AMF real up to 11
+/// nodes, made 20 (shared points), 26 (with normals), 57 and 93 (points of their own); Collada and
+/// X3D up to 3.2 nodes and 1.2 attributes. So the 3MF and AMF files with shared points open up to
+/// the cap of their format; those with points of their own for each triangle are refused before
+/// (a 3MF with textures from 8.7 million triangles, an AMF from 2.6 million), as their tree at the
+/// cap would take far more than the 8 GB the caps are made for.
 fn tree_most(limit: crate::model_limit::Limit) -> (usize, usize) {
     let (nodes, attributes) = match limit.format {
-        "three-mf" => (6, 12),
-        "amf" => (24, 2),
+        "three-mf" => (9, 14),
+        "amf" => (30, 2),
         _ => (4, 2),
     };
     (nodes * limit.max, attributes * limit.max)
@@ -579,7 +584,7 @@ mod tests {
     fn audit_d4_xml_tree_limited() {
         let most = 8 * crate::model_limit::COLLADA.max;
         assert!(xml_options().nodes_limit as usize <= most, "nodes_limit {}: the tree of the XML without a limit", xml_options().nodes_limit);
-        // Scaled: a cap of 1000 triangles, so 6000 nodes and 12 000 attributes for a 3MF.
+        // Scaled: a cap of 1000 triangles, so 9000 nodes and 14 000 attributes for a 3MF.
         let limit = crate::model_limit::Limit { max: 1000, format: "three-mf" };
         let model = |n: usize, vertex: &str| format!("<model><resources><object id=\"1\"><mesh><vertices>{}</vertices></mesh></object></resources></model>", vertex.repeat(n));
         for (what, text) in [("nodes", model(10_000, "<vertex/>")), ("attributes", model(5_000, r#"<vertex x="0" y="0" z="0"/>"#))] {
