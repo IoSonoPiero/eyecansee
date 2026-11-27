@@ -136,10 +136,10 @@ pub(crate) fn before_window(settings: &mut Settings) -> Option<wgpu::Backends> {
 /// and the text (`App::new`): the broken driver, at every start while it lasts, before the fall
 /// back to DirectX 12, which a broken driver also is.
 pub(crate) fn notice() -> Option<(&'static str, &'static str)> {
-    notice_for(BROKEN_NOW.load(Ordering::Relaxed), FELL_BACK.load(Ordering::Relaxed))
+    notice_for(BROKEN_NOW.load(Ordering::Relaxed), false, FELL_BACK.load(Ordering::Relaxed))
 }
 
-fn notice_for(broken: bool, fell_back: bool) -> Option<(&'static str, &'static str)> {
+fn notice_for(broken: bool, _broken_before: bool, fell_back: bool) -> Option<(&'static str, &'static str)> {
     if broken {
         Some(("graphics-broken-title", "graphics-broken-text"))
     } else if fell_back {
@@ -186,7 +186,7 @@ pub(crate) fn frame_drawn(ctx: &egui::Context) {
         return;
     }
     let Some(path) = crate::settings::config_path(MARK) else { return };
-    if take_after_first(&path, ctx.cumulative_frame_nr()) {
+    if take_after_first(&path, ctx.cumulative_frame_nr(), std::time::Duration::ZERO) {
         MARKED.store(false, Ordering::Relaxed);
         log!("graphics: first frame drawn, mark taken away");
     } else {
@@ -195,7 +195,7 @@ pub(crate) fn frame_drawn(ctx: &egui::Context) {
 }
 
 /// The mark at `path` taken away once `frames` (completed) is at least one; true when done.
-fn take_after_first(path: &Path, frames: u64) -> bool {
+fn take_after_first(path: &Path, frames: u64, _alive: std::time::Duration) -> bool {
     if frames == 0 {
         return false;
     }
@@ -327,13 +327,13 @@ mod tests {
             assert_eq!(s.graphics, Graphics::Directx12);
             assert!(!dir.join(MARK).exists());
             assert!(dir.join(BROKEN).exists(), "remembered");
-            assert_eq!(notice_for(plan.broken, plan.fell_back), Some(("graphics-broken-title", "graphics-broken-text")));
+            assert_eq!(notice_for(plan.broken, false, plan.fell_back), Some(("graphics-broken-title", "graphics-broken-text")));
             // The starts after: the same, with no mark, so Vulkan is never loaded again.
             for _ in 0..3 {
                 let again = plan_in(&dir, s.graphics, || false);
                 assert_eq!(again, p(DX12, false, false, true));
                 apply(&dir, &again, &mut s);
-                assert_eq!(notice_for(again.broken, again.fell_back), Some(("graphics-broken-title", "graphics-broken-text")), "said at every start");
+                assert_eq!(notice_for(again.broken, true, again.fell_back), Some(("graphics-broken-title", "graphics-broken-text")), "said at every start");
             }
             clean(&dir);
         }
@@ -367,15 +367,15 @@ mod tests {
         assert_eq!(plan, p(DX12, false, false, false));
         apply(&dir, &plan, &mut s);
         assert!(!dir.join(BROKEN).exists());
-        assert_eq!(notice_for(plan.broken, plan.fell_back), None, "the tip of the day again");
+        assert_eq!(notice_for(plan.broken, true, plan.fell_back), None, "the tip of the day again");
         clean(&dir);
     }
 
     #[test]
     fn notices() {
-        assert_eq!(notice_for(false, false), None);
-        assert_eq!(notice_for(false, true), Some(("vulkan-failed-title", "vulkan-failed-text")));
-        assert_eq!(notice_for(true, true), Some(("graphics-broken-title", "graphics-broken-text")));
+        assert_eq!(notice_for(false, false, false), None);
+        assert_eq!(notice_for(false, false, true), Some(("vulkan-failed-title", "vulkan-failed-text")));
+        assert_eq!(notice_for(true, false, true), Some(("graphics-broken-title", "graphics-broken-text")));
     }
 
     /// The cards are asked about once at most, also when two answers need them.
@@ -406,9 +406,9 @@ mod tests {
         let path = dir.join(MARK);
         let mut s = Settings { graphics: Graphics::Vulkan, ..Settings::default() };
         apply(&dir, &plan_in(&dir, s.graphics, unasked), &mut s);
-        assert!(!take_after_first(&path, 0), "not before a frame is drawn");
+        assert!(!take_after_first(&path, 0, std::time::Duration::ZERO), "not before a frame is drawn");
         assert!(path.exists());
-        assert!(take_after_first(&path, 1));
+        assert!(take_after_first(&path, 1, std::time::Duration::ZERO));
         assert!(!path.exists());
         // The next start with Vulkan: no fall back.
         assert_eq!(plan_in(&dir, s.graphics, unasked), p(None, true, false, false));
