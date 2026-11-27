@@ -367,6 +367,50 @@ mod tests {
         assert_eq!(crate::source::BYTES_READ.with(std::cell::Cell::get), 0, "read again from the phone or the server");
     }
 
+    /// The file changed on the phone or the server after the viewer read it (another program put
+    /// another photo under its name): Save turns the file as it is now, not the copy kept from
+    /// before, which would take the new photo's place (audit E.6 a).
+    #[test]
+    fn viewer_save_reads_a_changed_file_again() {
+        let dal = opendal::Operator::new(opendal::services::Memory::default()).unwrap();
+        let op = Store::Dal(dal.clone());
+        let jpeg = |w, h| {
+            let mut b = Vec::new();
+            image::DynamicImage::new_rgb8(w, h).write_to(&mut std::io::Cursor::new(&mut b), image::ImageFormat::Jpeg).unwrap();
+            b
+        };
+        let path = "dcim/open-copy-changed.jpg";
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(dal.write(path, jpeg(64, 48))).unwrap();
+        rt.block_on(crate::view_memory::read(&op, path, None, crate::view_memory::Use::View, false)).unwrap();
+        rt.block_on(dal.write(path, jpeg(32, 16))).unwrap();
+        let turn = crate::transform::Turn::default().then(crate::transform::Op::Cw);
+        let (bytes, _) = rt.block_on(turned(&op, path, turn, false)).unwrap();
+        let img = image::load_from_memory(&bytes).unwrap();
+        assert_eq!((img.width(), img.height()), (16, 32), "the photo of before turned in place of the new one");
+    }
+
+    /// A picture kept on this computer is not turned when the turn needs more than half of the
+    /// memory, as one read from its source: the viewer asks first (audit E.6 b).
+    #[test]
+    fn viewer_save_of_the_open_copy_minds_the_memory() {
+        let dal = opendal::Operator::new(opendal::services::Memory::default()).unwrap();
+        let op = Store::Dal(dal.clone());
+        let mut png = Vec::new();
+        image::DynamicImage::new_rgba8(1000, 1000).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let turn = crate::transform::Turn::default().then(crate::transform::Op::Cw);
+        let ram = 4 << 20;
+        for path in ["dcim/open-copy-large.png", "dcim/never-opened-large.png"] {
+            rt.block_on(dal.write(path, png.clone())).unwrap();
+        }
+        let e = rt.block_on(turned_for(&op, "dcim/never-opened-large.png", turn, false, ram)).unwrap_err();
+        assert_eq!(e.0, TOO_LARGE, "read from its source");
+        rt.block_on(crate::view_memory::read(&op, "dcim/open-copy-large.png", None, crate::view_memory::Use::View, true)).unwrap();
+        let r = rt.block_on(turned_for(&op, "dcim/open-copy-large.png", turn, false, ram));
+        assert_eq!(r.err().map(|e| e.0), Some(TOO_LARGE), "from the copy kept on this computer");
+    }
+
     /// The editor's overwrite: with a trash folder that cannot be made (a file has its name) the
     /// original stays as it was, under its name, and no hidden file is left; `replace` instead
     /// writes over it and leaves the original hidden. With a trash that works, the original goes
