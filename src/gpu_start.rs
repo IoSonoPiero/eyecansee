@@ -422,6 +422,24 @@ mod tests {
         clean(&dir);
     }
 
+    /// Audit A.5: on Linux the window that cannot be opened is not always the driver's fault (the
+    /// OpenGL of NVIDIA's own driver, #321; a session with no screen), and drivers are not updated
+    /// from the maker's website there: a text of its own, which points to the guide.
+    #[test]
+    fn no_window_on_linux_says_what_is_true() {
+        assert_eq!(no_window_id(true), "graphics-no-window");
+        let id = no_window_id(false);
+        assert_ne!(id, "graphics-no-window");
+        for (lang, ftl, maker) in [("en", include_str!("../locales/en.ftl"), "maker"), ("it", include_str!("../locales/it.ftl"), "produttore")] {
+            let start = format!("{id} = ");
+            let mut lines = ftl.lines().skip_while(|l| !l.starts_with(&start));
+            let first = lines.next().unwrap_or_else(|| panic!("{lang}: no {id}"));
+            let text: Vec<&str> = std::iter::once(first).chain(lines.take_while(|l| l.starts_with(' '))).collect();
+            let text = text.join("\n");
+            assert!(!text.contains(maker) && text.contains(&format!("docs/help/{lang}/limits.md")), "{lang}: {text}");
+        }
+    }
+
     #[test]
     fn notices() {
         assert_eq!(notice_for(false, false, false), None);
