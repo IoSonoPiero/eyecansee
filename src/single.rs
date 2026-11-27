@@ -398,7 +398,7 @@ fn read_address(conn: impl Read) -> Option<String> {
 #[cfg(unix)]
 fn same_user_as_me(conn: &Stream) -> bool {
     // SAFETY: geteuid has no failure and no side effects.
-    same_user(conn.peer_creds().ok().and_then(|c| c.euid()), unsafe { libc::geteuid() })
+    same_user(peer_cred(conn).as_ref(), unsafe { libc::geteuid() })
 }
 
 /// Windows: the named pipe is made with the default rights, which give other users read access
@@ -408,9 +408,29 @@ fn same_user_as_me(_: &Stream) -> bool {
     true
 }
 
+/// What the kernel says of the other side of `conn` (`SO_PEERCRED`), as it says it; `None` if it
+/// cannot be read.
 #[cfg(unix)]
-fn same_user(peer: Option<libc::uid_t>, me: libc::uid_t) -> bool {
-    peer == Some(me)
+fn peer_cred(conn: &Stream) -> Option<libc::ucred> {
+    use std::os::fd::{AsFd, AsRawFd};
+    let Stream::UdSocket(conn) = conn;
+    // What an unconnected socket gives: nobody.
+    let mut cred = libc::ucred { pid: 0, uid: libc::uid_t::MAX, gid: libc::gid_t::MAX };
+    let size = size_of::<libc::ucred>() as libc::socklen_t;
+    let mut len = size;
+    // SAFETY: the descriptor is open as long as `conn` is borrowed; `cred` and `len` are valid
+    // for writes, and `len` is the size of `cred`.
+    let read = unsafe {
+        libc::getsockopt(conn.as_fd().as_raw_fd(), libc::SOL_SOCKET, libc::SO_PEERCRED, (&raw mut cred).cast(), &raw mut len)
+    };
+    (read == 0 && len == size).then_some(cred)
+}
+
+/// D3: only the same user, never one whose credentials are unknown. A pid of 0 counts as unknown,
+/// as it did when `interprocess` read the credentials (its `peer_creds` gives an error then).
+#[cfg(unix)]
+fn same_user(peer: Option<&libc::ucred>, me: libc::uid_t) -> bool {
+    peer.is_some_and(|c| c.pid != 0 && c.uid == me)
 }
 
 impl App {
@@ -682,13 +702,84 @@ mod tests {
         assert_eq!(super::pause_after(50), None);
     }
 
+    #[cfg(unix)]
+    fn cred(pid: libc::pid_t, uid: libc::uid_t) -> libc::ucred {
+        libc::ucred { pid, uid, gid: uid }
+    }
+
     /// D3: only the same user, never one whose credentials are unknown.
     #[cfg(unix)]
     #[test]
     fn same_user_only() {
-        assert!(super::same_user(Some(1000), 1000));
-        assert!(!super::same_user(Some(1001), 1000));
+        assert!(super::same_user(Some(&cred(4242, 1000)), 1000));
+        assert!(!super::same_user(Some(&cred(4242, 1001)), 1000));
+        assert!(!super::same_user(Some(&cred(4242, 0)), 1000));
         assert!(!super::same_user(None, 1000));
+    }
+
+    /// #361: the kernel gives a pid of 0 for a process in another PID namespace (each `flatpak run`
+    /// has its own) and still its user: the user alone decides. Another user stays refused there
+    /// too, and so does a socket with no credentials (pid 0, uid -1).
+    #[cfg(unix)]
+    #[test]
+    fn same_user_in_another_pid_namespace() {
+        assert!(super::same_user(Some(&cred(0, 1000)), 1000));
+        assert!(!super::same_user(Some(&cred(0, 1001)), 1000));
+        assert!(!super::same_user(Some(&cred(0, 0)), 1000));
+        assert!(!super::same_user(Some(&cred(0, libc::uid_t::MAX)), 1000));
+        // The user the kernel gives for one it cannot name in this user namespace.
+        assert!(!super::same_user(Some(&cred(0, 65534)), 1000));
+    }
+
+    /// The credentials read on a real socket, on both sides: this process and this user.
+    #[cfg(unix)]
+    #[test]
+    fn peer_cred_read() {
+        let socket = test_socket("cred");
+        let listener = interprocess::local_socket::ListenerOptions::new().name(super::ns_name(&socket).unwrap()).create_sync().unwrap();
+        let start = Stream::connect(super::ns_name(&socket).unwrap()).unwrap();
+        let copy = listener.accept().unwrap();
+        // SAFETY: geteuid has no failure and no side effects.
+        let me = unsafe { libc::geteuid() };
+        for side in [&start, &copy] {
+            let cred = super::peer_cred(side).unwrap();
+            assert_eq!((cred.pid, cred.uid), (std::process::id() as libc::pid_t, me));
+            assert!(super::same_user_as_me(side));
+        }
+    }
+
+    /// The start of `in_another_pid_namespace`, run by it in a PID namespace of its own.
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore = "run by a_start_in_another_pid_namespace_hands_over"]
+    fn in_another_pid_namespace() {
+        let Ok(socket) = std::env::var(NAMESPACE_SOCKET) else { return };
+        assert_eq!(std::process::id(), 1, "not in a PID namespace of its own");
+        assert_eq!(super::hand_over_to(&socket, "/sandbox"), Handover::Done);
+    }
+
+    #[cfg(target_os = "linux")]
+    const NAMESPACE_SOCKET: &str = "EYECANSEE_TEST_NAMESPACE_SOCKET";
+
+    /// #361 on real sockets: a start in another PID namespace (as a second `flatpak run`) sees a
+    /// pid of 0 for the copy listening, and still hands its address over.
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore = "needs unshare and user namespaces open to users: cargo test a_start_in_another_pid_namespace -- --ignored"]
+    fn a_start_in_another_pid_namespace_hands_over() {
+        let socket = test_socket("namespace");
+        let inbox = super::listen_on(&socket).unwrap();
+        // SAFETY: geteuid has no failure and no side effects.
+        let me = unsafe { libc::geteuid() };
+        let mut start = std::process::Command::new("unshare")
+            .args(["--user", &format!("--map-user={me}"), "--pid", "--fork"])
+            .arg(std::env::current_exe().unwrap())
+            .args(["--exact", "single::tests::in_another_pid_namespace", "--ignored", "--nocapture"])
+            .env(NAMESPACE_SOCKET, &socket)
+            .spawn()
+            .unwrap();
+        assert_eq!(arrived(&inbox, 1), ["/sandbox"]);
+        assert!(start.wait().unwrap().success());
     }
 
     #[test]
