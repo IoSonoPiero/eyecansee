@@ -278,7 +278,10 @@ fn size_over_half_the_memory_not_read() {
     let (got, most) = crate::test_alloc::peak(|| rt.block_on(super::read_for(&op, "a.jpg", 200 << 20, ram)));
     let read = source::BYTES_READ.with(std::cell::Cell::get);
     assert!(most < 16 << 20 && read == 0, "{} MB held and {read} bytes read for a size of 200 MB on a computer of 64 MB", most >> 20);
-    assert!(got.unwrap().is_empty());
+    let got = got.unwrap();
+    assert!(got.is_empty());
+    // The panel says it has no metadata (`meta-no-exif`), without a sidecar.
+    assert_eq!(panel(&got, "a.jpg", None), "");
 }
 
 /// Every picture under `EYECANSEE_SAMPLES` (the private collection, `notes/test-files`) gives the
