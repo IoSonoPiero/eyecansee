@@ -653,6 +653,44 @@ pub(crate) mod tests {
         assert!(sound.is_none() && played, "sound only: {sound:?}, {}", mpv_state(&audio));
     }
 
+    /// Audit V.2 (27/11): a video whose picture mpv has no decoder for (a codec this libmpv does
+    /// not know; here a Matroska track with a made-up codec). Without sound mpv dropped it, and
+    /// the viewer said that no sound output could be opened (#327's message); with sound, the
+    /// sound played under a spinner to its end, and nothing was said. Neither is a sound output
+    /// that does not open, and both say so. Skipped without libmpv (the CI) or ffmpeg.
+    #[test]
+    fn a_picture_without_a_decoder_says_so() {
+        if !available() {
+            println!("skipped: no libmpv");
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!("eyecansee-v2-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let made = |name: &str, sound: bool| -> Option<Vec<u8>> {
+            let file = dir.join(name);
+            let mut args = vec!["-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=d=1:s=160x120:r=10"];
+            args.extend(if sound { ["-f", "lavfi", "-i", "sine=d=1", "-c:a", "libopus"].as_slice() } else { ["-an"].as_slice() });
+            args.extend(["-c:v", "libx264"]);
+            let ok = std::process::Command::new("ffmpeg").args(&args).arg(&file).status().ok()?.success();
+            let mut bytes = std::fs::read(&file).ok().filter(|_| ok)?;
+            let at = bytes.windows(15).position(|w| w == b"V_MPEG4/ISO/AVC")?;
+            bytes[at..at + 15].copy_from_slice(b"V_EYECANSEE/XYZ");
+            Some(bytes)
+        };
+        let (silent, sound) = (made("silent.mkv", false), made("sound.mkv", true));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (Some(silent), Some(sound)) = (silent, sound) else {
+            println!("skipped: no ffmpeg");
+            return;
+        };
+        let open = |input| Player::open(input, 0, true, || {}).unwrap();
+        let (silent, sound) = (open(stream(silent)), open(stream(sound)));
+        let said = (settled(&silent), settled(&sound));
+        println!("{said:?}\nsilent: {}\nsound: {}", mpv_state(&silent), mpv_state(&sound));
+        assert!(said.0.is_some() && said.0 != Some(Failure::NoSound), "without sound: {:?}", said.0);
+        assert!(said.1.is_some() && said.1 != Some(Failure::NoSound), "with sound: {:?}", said.1);
+    }
+
     /// #327: a file with sound only, with no sound output that opens, says why instead of a
     /// spinner forever (mpv loads it, then drops it with `AO_INIT_FAILED`). In a child process
     /// whose sound server cannot be reached: the variables are the whole process's, and the
