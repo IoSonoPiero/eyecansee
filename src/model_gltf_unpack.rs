@@ -536,4 +536,37 @@ mod tests {
         let plain = super::plain(&super::glb(json.as_bytes(), bin), &|_| None, &Unpacked::new(24 + 36 * 2)).unwrap().unwrap();
         assert_eq!(crate::model::parse(&plain, "q.glb").unwrap().tris.len(), 50);
     }
+
+    /// Draco (#178, Piero 27/11): every glTF and GLB under `EYECANSEE_DRACO` (and its folders)
+    /// read without a panic of the Draco decoder: `three_ferrari.glb` of the collection made it
+    /// add with an overflow (a build with the checks of the arithmetic, as the tests).
+    #[test]
+    #[ignore]
+    fn draco_without_a_panic_live() {
+        let Ok(dir) = std::env::var("EYECANSEE_DRACO") else { return };
+        let mut stack = vec![std::path::PathBuf::from(dir)];
+        let mut panicked = Vec::new();
+        while let Some(d) = stack.pop() {
+            for f in std::fs::read_dir(&d).unwrap().flatten() {
+                let path = f.path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                let name = path.file_name().unwrap().to_string_lossy().to_lowercase();
+                if !name.ends_with(".glb") && !name.ends_with(".gltf") {
+                    continue;
+                }
+                let bytes = std::fs::read(&path).unwrap();
+                let folder = path.parent().unwrap().to_path_buf();
+                let sibling = move |uri: &str| std::fs::read(folder.join(crate::model::percent_decoded(uri).unwrap_or_else(|| uri.to_string()))).ok();
+                let r = std::panic::catch_unwind(|| crate::model_gltf::read(&bytes, &sibling, &Default::default()).map(|m| m.tris.len()));
+                println!("DRACO {name}: {r:?}");
+                if r.is_err() {
+                    panicked.push(name);
+                }
+            }
+        }
+        assert!(panicked.is_empty(), "a panic reading {panicked:?}");
+    }
 }
