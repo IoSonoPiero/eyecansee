@@ -157,7 +157,7 @@ pub(crate) fn row(ui: &mut egui::Ui, (a, have): (&Addon, &Have), dl: &Slot, i18n
 }
 
 /// The add-on's name with the version people see (`Component::shown`): "Video engine 1.1",
-/// "FFmpeg 9.0", "CAD engine 1.0" (Piero, 23/11/2026).
+/// "FFmpeg 9.0", "CAD engine 1.1" (Piero, 23/11/2026).
 fn title(i18n: &I18n, a: &Addon) -> String {
     format!("{} {}", i18n.t(a.name), a.component.shown)
 }
@@ -278,7 +278,7 @@ pub(crate) mod tests {
         let it = crate::i18n::I18n::new("it");
         let titles: Vec<String> = crate::component::addons().iter().map(|a| super::title(&it, a)).collect();
         let video = if cfg!(windows) { "Motore video 1.0" } else { "Motore video 1.1" };
-        assert_eq!(titles, vec![video.to_string(), "FFmpeg 9.0".to_string(), "Motore CAD 1.0".to_string()]);
+        assert_eq!(titles, vec![video.to_string(), "FFmpeg 9.0".to_string(), "Motore CAD 1.1".to_string()]);
     }
 
     use super::*;
