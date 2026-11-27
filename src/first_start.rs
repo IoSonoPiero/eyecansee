@@ -207,9 +207,15 @@ pub(crate) fn ended(downloads: &[Download]) -> Option<bool> {
 }
 
 /// The add-ons whose place `at_start` needs, out of `kinds`: for each, `component::have` reads
-/// the disk and asks the system's copy (for FFmpeg, `ffmpeg -decoders`).
-pub(crate) fn to_read(_s: &Settings, kinds: &[&'static str], _opened_with_address: bool) -> Vec<&'static str> {
-    kinds.to_vec()
+/// the disk and asks the system's copy (for FFmpeg, `ffmpeg -decoders`), before the window
+/// (audit C.4). None with an address (no window), all on the first start (the window shows them
+/// all), then only those not offered yet: the others `at_start` would not show anyway.
+pub(crate) fn to_read(s: &Settings, kinds: &[&'static str], opened_with_address: bool) -> Vec<&'static str> {
+    match (opened_with_address, s.welcome_seen) {
+        (true, _) => Vec::new(),
+        (false, false) => kinds.to_vec(),
+        (false, true) => kinds.iter().copied().filter(|k| !offered(s, k)).collect(),
+    }
 }
 
 fn offered(s: &Settings, kind: &str) -> bool {
