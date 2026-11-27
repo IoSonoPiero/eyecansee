@@ -85,6 +85,95 @@ fn tiff_long_pointer_lists_not_held() {
     assert!(most < 16 << 20, "{} MB held for a file of {} KB", most >> 20, bytes.len() >> 10);
 }
 
+/// A HEIC whose `iloc` gives offsets and lengths in no bytes at all, each item with 65 535 extents
+/// that take nothing to read (audit E.4, scaled down: 65 535 items kept the panel busy for
+/// minutes): read whole, at once.
+#[test]
+fn heif_extents_of_no_bytes_whole() {
+    let mut iloc = vec![0u8; 4];
+    iloc.extend([0, 0]);
+    iloc.extend(100u16.to_be_bytes());
+    for id in 0..100u16 {
+        iloc.extend(id.to_be_bytes());
+        iloc.extend(0u16.to_be_bytes());
+        iloc.extend(0xFFFFu16.to_be_bytes());
+    }
+    let meta = boxed(b"meta", &[&[0u8; 4][..], &boxed(b"iinf", &[0; 6]), &boxed(b"iloc", &iloc)].concat());
+    let bytes = [boxed(b"ftyp", b"heic\0\0\0\0mif1heic"), meta].concat();
+    let mut s = Sparse::new(bytes.len(), 0);
+    s.fill(0, &bytes);
+    let start = std::time::Instant::now();
+    let plan = planner("a.heic").unwrap()(&s);
+    assert_eq!(plan, Plan::Whole, "after {:?}", start.elapsed());
+}
+
+/// A TIFF whose two hundred main directories all point at the same table of twenty thousand
+/// strips: the strips noted stop at a number no real file has, and it is read whole (audit E.4).
+#[test]
+fn tiff_strips_of_many_directories_bounded() {
+    let n = 20_000u32;
+    let (offsets, counts) = (10_000u32, 10_000 + 4 * n);
+    let table_end = (counts + 4 * n) as usize;
+    let strips: Vec<u8> = (0..n).flat_map(|i| (table_end as u32 + 64 * i).to_le_bytes()).collect();
+    let ones: Vec<u8> = (0..n).flat_map(|_| 1u32.to_le_bytes()).collect();
+    let dir = |next: u32| ifd(&[(0x0111, LONG, n, offsets), (0x0117, LONG, n, counts)], next);
+    let size = ifd(&[], 0).len() + 24;
+    let mut parts: Vec<(usize, Vec<u8>)> = (0..200).map(|k| (8 + k * size, dir(if k < 199 { (8 + (k + 1) * size) as u32 } else { 0 }))).collect();
+    parts.extend([(offsets as usize, strips), (counts as usize, ones)]);
+    let mut bytes = file(table_end + 64 * n as usize, &parts.iter().map(|(at, p)| (*at, p.as_slice())).collect::<Vec<_>>());
+    bytes[..8].copy_from_slice(b"II*\0\x08\0\0\0");
+    let mut s = Sparse::new(bytes.len(), 0);
+    s.fill(0, &bytes);
+    let (plan, most) = crate::test_alloc::peak(|| planner("a.tif").unwrap()(&s));
+    assert!(most < 32 << 20, "{} MB held, {:?}", most >> 20, std::mem::discriminant(&plan));
+}
+
+/// Thousands of pixel parts without thousands of structure parts: at once, not one against each
+/// (audit E.4: 256 directories of 1000 entries and a million strips took hours).
+#[test]
+fn subtract_many_from_many_at_once() {
+    let from: Vec<Range<usize>> = (0..100_000).map(|i| i * 100..i * 100 + 50).collect();
+    let out: Vec<Range<usize>> = (0..10_000).map(|i| i * 1000 + 40..i * 1000 + 60).collect();
+    let start = std::time::Instant::now();
+    let left = super::tiff::subtract(&from, &out);
+    let took = start.elapsed();
+    assert_eq!(left.len(), 100_000);
+    assert_eq!((left[0].clone(), left[10].clone()), (0..40, 1000..1040));
+    assert!(took < std::time::Duration::from_secs(1), "{took:?}");
+}
+
+/// A PNG whose end holds thousands of pixel chunk headers that all lead to the same large chunk,
+/// whose checksum is wrong: each would check it again (audit E.4). At once.
+#[test]
+fn png_many_false_last_pixels_at_once() {
+    let (headers, big) = (4000usize, 100_000usize);
+    let head = [&b"\x89PNG\r\n\x1a\n"[..], &13u32.to_be_bytes(), b"IHDR", &[0; 17]].concat();
+    // A first pixel chunk, then bytes not read; then the end of the file.
+    let gap = 1 << 20;
+    let first = [&(gap as u32).to_be_bytes()[..], b"IDAT"].concat();
+    let tail_at = head.len() + 12 + gap + 4096;
+    let big_at = tail_at + 8 * headers + 16;
+    let mut tail = Vec::new();
+    for k in 0..headers {
+        tail.extend(((big_at - (tail_at + 8 * k) - 12) as u32).to_be_bytes());
+        tail.extend(b"IDAT");
+    }
+    tail.extend([0; 16]);
+    tail.extend((big as u32).to_be_bytes());
+    tail.extend(b"tEXt");
+    tail.extend(vec![b'x'; big + 4]);
+    let iend = [&[0u8; 4][..], b"IEND", &0xAE42_6082u32.to_be_bytes()].concat();
+    let start = [head, first].concat();
+    let len = tail_at + tail.len() + iend.len();
+    let mut s = Sparse::new(len, 0);
+    s.fill(0, &start);
+    s.fill(tail_at, &[tail, iend].concat());
+    let begin = std::time::Instant::now();
+    let plan = planner("a.png").unwrap()(&s);
+    let took = begin.elapsed();
+    assert!(took < std::time::Duration::from_secs(1), "{took:?}: {:?}", std::mem::discriminant(&plan));
+}
+
 /// A RAF: the JPEG preview after its segments; in Fujifilm's TIFF, the sensor data but its start.
 #[test]
 fn raf_preview_and_sensor_data() {
