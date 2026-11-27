@@ -694,6 +694,54 @@ async fn still_from_copy(op: &Store, path: &str, size: u64, side: u32) -> Result
 
 #[cfg(test)]
 mod tests {
+    /// Audit 27/11 V.1 on a real phone: the player closes while a read of 1 MiB of a big file of
+    /// the phone is under way, 20 times, at a different moment each time; after every close the
+    /// phone must still list a folder (26/11 a read let go half way left the Redmi answering
+    /// nothing). The biggest file of `DCIM/Camera/` or `DCIM/EyeCanSee-guida/` of the first
+    /// storage is read, never written:
+    /// `EYECANSEE_MTP=<serial> cargo test closing_a_phone_read_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn closing_a_phone_read_live() {
+        use crate::mpv::Reader;
+        use std::time::{Duration, Instant};
+        let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let op = Store::Mtp(Arc::new(crate::mtp::Phone::new(&serial)));
+        let (dir, file, size) = rt.block_on(async {
+            let first = op.list("").await.map_err(|e| format!("{e:?}")).unwrap().dirs[0].clone();
+            let mut best: Option<(String, String, u64)> = None;
+            for sub in ["DCIM/Camera/", "DCIM/EyeCanSee-guida/"] {
+                let dir = format!("{first}{sub}");
+                if let Ok(l) = op.list(&dir).await {
+                    for f in l.files {
+                        if best.as_ref().is_none_or(|b| f.size > b.2) {
+                            best = Some((dir.clone(), f.path.clone(), f.size));
+                        }
+                    }
+                }
+            }
+            best.expect("no file in DCIM/Camera or DCIM/EyeCanSee-guida")
+        });
+        println!("reading {file}, {size} bytes");
+        assert!(size >= 4 << 20, "{file} is too small: {size} bytes");
+        for round in 0..20u64 {
+            let reader = Arc::new(StoreReader::new(rt.handle().clone(), &op, &file, size, false));
+            let r = reader.clone();
+            let offset = (round * (37 << 20)) % (size - (1 << 20));
+            let reading = std::thread::spawn(move || r.read(offset, 1 << 20).map(|b| b.len()));
+            std::thread::sleep(Duration::from_millis(5 + round * 7));
+            reader.cancel();
+            let read = reading.join().unwrap();
+            drop(reader);
+            let t = Instant::now();
+            let listed = rt.block_on(async { tokio::time::timeout(Duration::from_secs(20), op.list(&dir)).await });
+            let ok = matches!(listed, Ok(Ok(_)));
+            println!("round {round}: read {read:?}, listing {} in {:?}", if ok { "ok" } else { "FAILED" }, t.elapsed());
+            assert!(ok, "round {round}: the phone did not list {dir} after the close");
+        }
+    }
+
     /// A video's metadata are kept under a key that changes when a `.SRT` or a `gps.sqlite` comes
     /// beside it later: they are read again instead of staying without the position (15/11).
     #[test]
