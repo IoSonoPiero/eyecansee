@@ -1,13 +1,13 @@
 # Scorciatoie da tastiera
 
-Tutti i tasti di EyeCanSee, divisi per posto. I menù mostrano il tasto accanto a ogni voce, e passando sopra un pulsante della barra strumenti compaiono il nome e il tasto. Nella griglia, nel visore, nell'editor e in Trova duplicati il pulsante **Tasti** in basso a destra elenca i tasti di ciò che stai guardando.
+Tutti i tasti di EyeCanSee, divisi per dove si usano. I menù mostrano il tasto accanto a ogni voce, e passando sopra un pulsante della barra degli strumenti compaiono il nome e il tasto. Nella griglia, nel visore, nell'editor e in Trova duplicati il pulsante **Tasti** in basso a destra elenca i tasti di ciò che stai guardando.
 
 ## Ovunque
 
 | Tasto | Azione |
 |---|---|
 | F1 | Apre questa guida sulla pagina di ciò che stai facendo; di nuovo per chiuderla |
-| Esc due volte, di seguito | Chiude questa guida, col puntatore sopra o mentre scrivi nel suo campo di ricerca (un solo Esc esce dal campo). Sopra una finestra, per esempio un messaggio, ovunque sia il puntatore: la finestra resta aperta |
+| Esc due volte, rapidamente | Chiude questa guida, col puntatore sopra o mentre scrivi nel suo campo di ricerca (un solo Esc esce soltanto dal campo). Quando la guida è aperta sopra una finestra, per esempio un messaggio, si chiude ovunque sia il puntatore, e la finestra resta aperta |
 | Tab, **Maiusc + Tab** (con questa guida aperta) | Passano tra il campo di ricerca, l'indice e la pagina di questa guida; non arrivano alla griglia o al visore sotto |
 
 ## Nella griglia e nel visore
@@ -15,23 +15,23 @@ Tutti i tasti di EyeCanSee, divisi per posto. I menù mostrano il tasto accanto 
 | Tasto | Azione |
 |---|---|
 | F5 | Rilegge la cartella aperta, solo quella (nel visore resta sull'immagine aperta) |
-| F6 | Porta la tastiera su **Annulla** di una copia, di una conversione o di un'esportazione di modelli 3D in corso (con più di uno, F6 di nuovo passa al successivo); **Invio** o **Spazio** la fermano |
+| F6 | Porta la tastiera su **Annulla** di un lavoro in corso: una copia, una conversione o un'esportazione di modelli 3D (con più lavori, F6 di nuovo passa al successivo); **Invio** o **Spazio** lo fermano |
 | F11 | Schermo intero e ritorno; nel visore si vede solo l'immagine, senza menù né barre |
 | **Ctrl + R**, **Ctrl + Maiusc + R** | Ruota la foto di 90° in senso orario, antiorario: nel visore la vedi prima di salvarla, nella griglia le foto selezionate vengono salvate dopo la conferma (vedi [Ruotare e riflettere](rotate.md)) |
 | **Ctrl + Z**, **Ctrl + Y** | Nel visore: annulla, ripete una rotazione o riflessione non salvata |
 | **Ctrl + Maiusc + D** | Segnalibri: si apre l'elenco; ↓ ci entra, Invio apre il segnalibro scelto (vedi [Segnalibri](bookmarks.md)) |
 
-Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** le chiudono; dopo i loro pulsanti **Tab** raggiunge la piccola icona di copia (**Copia il messaggio**), e **Invio** su di essa copia il testo. In quelle che chiedono una scelta, all'apertura è evidenziato un pulsante: la scelta principale, oppure **Annulla** quando la scelta principale non si può annullare (eliminare definitivamente o in un cestino, eliminare cartelle, salvare sopra molte foto o sopra un originale eliminato definitivamente, fidarsi di un server nuovo, eliminare un server salvato o la password principale) o farebbe perdere dati. **Tab**, **Maiusc + Tab** e le frecce passano tra i pulsanti e gli altri controlli della finestra, nell'ordine che hanno sullo schermo, **Invio** o **Spazio** premono quello evidenziato (su una casella, un elenco o un link spuntano la casella, aprono l'elenco o il link; in un elenco aperto le frecce e **Invio** scelgono, **Esc** chiude solo l'elenco), **Esc** annulla. Quando un nome è già usato, è evidenziato **Tieni entrambi**. Con questa guida aperta sopra la finestra, **Esc** va prima alla guida (due la chiudono, come ovunque), **Invio** non risponde alla finestra, e ciò che scrivi nel campo di ricerca della guida resta lì.
+Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** chiudono la finestra; dopo i suoi pulsanti **Tab** raggiunge la piccola icona di copia (**Copia il messaggio**), e **Invio** su di essa copia il testo. Nelle finestre che chiedono una scelta, all'apertura è evidenziato un pulsante: la scelta principale, oppure **Annulla** quando la scelta principale non si può annullare (eliminare definitivamente o in un cestino, eliminare cartelle, salvare sopra molte foto o sopra un originale eliminato definitivamente, fidarsi di un server nuovo, eliminare un server salvato o la password principale) o farebbe perdere dati. **Tab**, **Maiusc + Tab** e le frecce passano tra i pulsanti e gli altri controlli della finestra, nell'ordine che hanno sullo schermo. **Invio** o **Spazio** premono quello evidenziato (su una casella, un elenco o un link spuntano la casella, aprono l'elenco o il link; in un elenco aperto le frecce e **Invio** scelgono, ed **Esc** chiude solo l'elenco). **Esc** annulla. Quando un nome è già usato, è evidenziato **Tieni entrambi**. Con questa guida aperta sopra la finestra, **Esc** va prima alla guida (due la chiudono, come ovunque), **Invio** non risponde alla finestra, e ciò che scrivi nel campo di ricerca della guida resta lì.
 
-In **Informazioni su EyeCanSee** all'apertura non è evidenziato niente: **Invio** o **Esc** la chiudono. **Tab** e **Maiusc + Tab** passano tra i suoi link e **Copia (per segnalare un problema)**, **Invio** o **Spazio** aprono o premono quello evidenziato.
+In **Informazioni su EyeCanSee** all'apertura non è evidenziato niente: **Invio** o **Esc** la chiudono. **Tab** e **Maiusc + Tab** passano tra i suoi link e **Copia (per segnalare un problema)**; **Invio** o **Spazio** aprono o premono quello evidenziato.
 
-In **Nuova immagine** e **Opzioni**, **Tab** e **Maiusc + Tab** fanno il giro dei loro controlli: dall'ultimo si torna al primo, e al contrario; non arrivano mai ai menu o alla griglia sotto la finestra. Lo stesso in **Gestione server** e nella scelta della cartella di **Salva come** e **Converti**: **Tab** e le frecce passano tra posti, cartelle e pulsanti, **Invio** su una cartella ci entra. In **Apri indirizzo**, **Segnalibri > Configura…**, la password principale, **Converti** e **Ridimensiona** dell'editor, **Tab** con niente evidenziato va ai loro campi, elenchi e pulsanti, e le frecce passano dall'uno all'altro.
+In **Nuova immagine** e **Opzioni**, **Tab** e **Maiusc + Tab** fanno il giro dei loro controlli: dall'ultimo si torna al primo, e al contrario; non arrivano mai ai menù o alla griglia sotto la finestra. Lo stesso vale in **Gestione server** e nella scelta della cartella di **Salva come** e **Converti**: **Tab** e le frecce passano tra posti, cartelle e pulsanti, e **Invio** su una cartella ci entra. In **Apri indirizzo**, **Segnalibri > Configura…**, la finestra della password principale, **Converti** e **Ridimensiona** dell'editor, **Tab** con niente evidenziato va ai loro campi, elenchi e pulsanti, e le frecce passano dall'uno all'altro.
 
-In un elenco a discesa (un formato, una misura, un'unità) **Spazio** o **Invio** lo aprono con la tastiera sulla voce scelta, le frecce proseguono da lì, **Invio** o **Spazio** scelgono una voce e chiudono l'elenco, **Esc** lo chiude com'era.
+In un elenco a discesa (un formato, una misura, un'unità) **Spazio** o **Invio** lo aprono con la tastiera sulla voce scelta, le frecce proseguono da lì, **Invio** o **Spazio** scelgono una voce e chiudono l'elenco, ed **Esc** lo chiude senza cambiare la scelta.
 
-Nel suggerimento all'avvio, → e ← mostrano il suggerimento successivo e quello precedente; all'apertura è evidenziato **Chiudi**, **Tab** e **Maiusc + Tab** passano, nell'ordine che hanno sullo schermo, tra **Leggi di più nella guida**, **Indietro**, **Avanti**, **Chiudi** e **Non mostrare più all'avvio**, **Invio** o **Spazio** premono quello evidenziato, **Esc** lo chiude; gli altri tasti non fanno niente, tranne **F1**, che apre questa guida (vedi [Per cominciare](start.md)).
+Nel suggerimento all'avvio, → e ← mostrano il suggerimento successivo e quello precedente. All'apertura è evidenziato **Chiudi**. **Tab** e **Maiusc + Tab** passano tra **Leggi di più nella guida**, **Indietro**, **Avanti**, **Chiudi** e **Non mostrare più all'avvio**, nell'ordine che hanno sullo schermo. **Invio** o **Spazio** premono quello evidenziato, ed **Esc** chiude il suggerimento. Gli altri tasti non fanno niente, tranne **F1**, che apre questa guida (vedi [Per cominciare](start.md)).
 
-Nella finestra del primo avvio ogni pagina si apre col suo pulsante principale evidenziato (**Avanti**, poi **Fine**, oppure **Scarica** con un componente spuntato; nella pagina dell'icona sul desktop **Avanti** prima di **Sì** o **No** dice solo di scegliere, e dopo la risposta torna evidenziato **Avanti**); **Invio** o **Spazio** premono il pulsante evidenziato, **Tab**, **Maiusc + Tab** e le frecce passano tra i pulsanti nell'ordine che hanno sullo schermo e raggiungono anche le scelte della pagina, **Esc** chiude la finestra. Quando chiede prima di chiudere, è evidenziato **Scarica e chiudi** e **Esc** torna **Indietro**.
+Nella finestra del primo avvio ogni pagina si apre col suo pulsante principale evidenziato: **Avanti**, poi **Fine**, oppure **Scarica** quando un componente è spuntato. Nella pagina dell'icona sul desktop, **Avanti** premuto prima di **Sì** o **No** dice solo di scegliere, e dopo la risposta torna evidenziato **Avanti**. **Invio** o **Spazio** premono il pulsante evidenziato. **Tab**, **Maiusc + Tab** e le frecce passano tra i pulsanti, nell'ordine che hanno sullo schermo, e raggiungono anche le scelte della pagina. **Esc** chiude la finestra. Quando chiede prima di chiudere, è evidenziato **Scarica e chiudi** ed **Esc** torna **Indietro**.
 
 ## Nella griglia
 
@@ -75,13 +75,13 @@ Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositiv
 
 | Tasto | Azione |
 |---|---|
-| Tab, **Maiusc + Tab** | Passano tra i pulsanti delle barre: **Invio** e **Spazio** premono il pulsante col bordo, gli altri tasti del visore funzionano come sempre (← e → cambiano immagine, **Esc** torna alla griglia); sul cursore dello zoom ← e → cambiano lo zoom |
-| →, Spazio, Pagina giù | Immagine successiva |
-| ←, Backspace, Pagina su | Immagine precedente |
+| Tab, **Maiusc + Tab** | Passano tra i pulsanti delle barre: **Invio** e **Spazio** premono il pulsante evidenziato, gli altri tasti del visore funzionano come sempre (← e → cambiano immagine, **Esc** torna alla griglia); sul cursore dello zoom ← e → cambiano lo zoom |
+| →, Spazio, Pag↓ | Immagine successiva |
+| ←, Backspace, Pag↑ | Immagine precedente |
 | Inizio, Fine | Prima, ultima immagine |
 | Spazio (su un'animazione) | La mette in pausa e la fa ripartire |
 | Spazio (su una foto in movimento) | Riproduce il suo video |
-| Pagina giù, Pagina su (su un TIFF con più pagine) | Pagina successiva, precedente |
+| Pag↓, Pag↑ (su un TIFF con più pagine) | Pagina successiva, precedente |
 | P (su un panorama a 360°) | Foto piatta, e di nuovo la vista a 360° |
 | Esc | Torna alla griglia (a schermo intero prima esce dallo schermo intero); chiude EyeCanSee quando **La X della finestra torna alla griglia** è spenta nelle [Opzioni](options.md) |
 | Doppio clic | Torna alla griglia, oppure schermo intero e ritorno, come scelto nelle [Opzioni](options.md) |
@@ -105,13 +105,13 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | **Ctrl + ←**, **Ctrl + →** | 5 secondi indietro, avanti |
 | **.**, **,** | Un fotogramma avanti, indietro (in pausa; non su un file audio) |
 | **Ctrl + R**, **Ctrl + Maiusc + R** | Ruota il video a destra, a sinistra (vedi [Ruotare e riflettere](rotate.md)) |
-| **Ctrl + Z**, **Ctrl + Y** | Annulla, ripeti una rotazione non salvata |
+| **Ctrl + Z**, **Ctrl + Y** | Annulla, ripete una rotazione non salvata |
 | **Ctrl + S** | Salva la rotazione del video |
 | ↑, ↓ (o la rotellina sul video) | Alza, abbassa il volume |
 | M | Toglie e rimette l'audio |
 | **Ctrl + Maiusc + S** | Mette in pausa e salva come immagine il fotogramma mostrato (vedi [Riprodurre i video](video.md)) |
-| →, Pagina giù | Elemento successivo |
-| ←, Backspace, Pagina su | Elemento precedente |
+| →, Pag↓ | Elemento successivo |
+| ←, Backspace, Pag↑ | Elemento precedente |
 | Inizio, Fine | Primo, ultimo elemento |
 | Esc | Torna alla griglia, o chiude EyeCanSee come sopra |
 | Invio | Torna alla griglia |
@@ -125,9 +125,9 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce |
 | 0 | Torna alla vista iniziale |
 | M | Misura: ingombro, superficie, volume e la distanza tra due punti cliccati (Backspace toglie l'ultimo punto, Esc cancella i punti e poi chiude la misura, **Ctrl + C** copia i risultati, M di nuovo la chiude) |
-| S | Sezione: taglia il modello con un piano (X, Y, Z l'asse; **Alt + rotellina**, virgola e punto lo spostano; F l'altro lato) |
-| Pagina giù, Spazio | Elemento successivo |
-| Pagina su, Backspace | Elemento precedente |
+| S | Sezione: taglia il modello con un piano (X, Y, Z l'asse; **Alt + rotellina**, virgola e punto lo spostano; F tiene l'altro lato) |
+| Pag↓, Spazio | Elemento successivo |
+| Pag↑, Backspace | Elemento precedente |
 | Inizio, Fine | Primo, ultimo elemento |
 | F2, Canc, **Maiusc + Canc** | Rinomina ed elimina, come nella griglia |
 | **Ctrl + Maiusc + S** | Salva il modello come si vede, come immagine (**Ctrl + S**, che salva sopra l'originale, su un modello è grigio) |
@@ -140,8 +140,8 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 |---|---|
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce; trascina per spostarti |
 | 0 | Tutto il disegno |
-| →, Spazio, Pagina giù | File successivo |
-| ←, Backspace, Pagina su | File precedente |
+| →, Spazio, Pag↓ | File successivo |
+| ←, Backspace, Pag↑ | File precedente |
 | Inizio, Fine | Primo, ultimo file |
 | L, **Maiusc + L** | Layout successivo, precedente |
 | **Ctrl + L** | Riquadro dei livelli |
@@ -157,8 +157,8 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | Tasto | Azione |
 |---|---|
 | Spazio | Mette in pausa e riprende |
-| →, Pagina giù | Immagine successiva |
-| ←, Pagina su | Immagine precedente |
+| →, Pag↓ | Immagine successiva |
+| ←, Pag↑ | Immagine precedente |
 | Esc (o un doppio clic) | Chiude il carosello |
 
 ## Nell'editor
@@ -187,16 +187,16 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | **Ctrl + Alt + I** | Ridimensiona l'immagine (vedi [Modificare un'immagine](editor.md)) |
 | **Maiusc + rotellina** | Con Ritaglia e ruota: ruota di 0,1° |
 | Invio | Con Ritaglia e ruota: applica il ritaglio |
-| + e − (o la rotellina del mouse), 0 | Ingrandisce e rimpicciolisce, tutto in vista |
+| + e − (o la rotellina del mouse), 0 | Ingrandisce e rimpicciolisce; 0: tutto in vista |
 | Trascinare col tasto destro o centrale | Sposta la vista (con Ritaglia e ruota: trascinare fuori dal ritaglio, con qualunque tasto) |
 | Doppio clic | Con Ritaglia e ruota: tutto in vista |
 | **Ctrl + S** | Salva copia, o Sovrascrivi l'originale se scelto nelle Opzioni (vedi [Salvare un'immagine modificata](editor-save.md)) |
 | **Ctrl + Maiusc + S** | Salva come |
-| Esc | Un passo alla volta: ferma ciò che è in corso, chiude il testo, lascia la selezione; poi chiude l'editor |
+| Esc | Un passo alla volta: ferma ciò che è in corso, chiude il testo, toglie la selezione; poi chiude l'editor |
 
 Vedi [Modificare un'immagine](editor.md).
 
 ## In altre pagine
 
-- **Salva come**: **Tab** e **Maiusc + Tab** passano tra i suoi controlli, le frecce dall'uno all'altro, **Invio** o **Spazio** preme quello evidenziato; **Esc** chiude la pagina senza salvare.
-- **Trova duplicati**: **↑** e **↓** passano tra le copie, **Spazio** spunta o toglie, **Esc** chiude. Invio non elimina. **Tab** va ai controlli della pagina; lì le frecce passano dall'uno all'altro.
+- **Salva come**: **Tab** e **Maiusc + Tab** passano tra i suoi controlli, le frecce passano dall'uno all'altro, **Invio** o **Spazio** premono quello evidenziato; **Esc** chiude la pagina senza salvare.
+- **Trova duplicati**: **↑** e **↓** passano tra le copie, **Spazio** mette o toglie la spunta, **Esc** chiude. Invio non elimina. **Tab** va ai controlli della pagina; lì le frecce passano dall'uno all'altro.
