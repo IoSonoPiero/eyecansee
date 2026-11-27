@@ -101,6 +101,10 @@ pub struct Settings {
     /// Options > Diagnostics: each start writes a log file in the data folder (`logging`, #189).
     /// Read from the next start, before the rest of the settings (`log_switch`).
     pub diagnostic_log: bool,
+    /// The file is there but could not be read (no permission, held by another program): this
+    /// start leaves it alone and does not save over it. Never in the file.
+    #[serde(skip)]
+    pub(crate) not_read: bool,
 }
 
 /// After Save copy, Update copy or Overwrite in the editor (issue #95): the page stays open (as
@@ -300,6 +304,7 @@ impl Default for Settings {
             welcome_seen: false,
             addons_offered: Vec::new(),
             diagnostic_log: false,
+            not_read: false,
         }
     }
 }
@@ -333,9 +338,11 @@ pub(crate) fn config_path(name: &str) -> Option<PathBuf> {
 }
 
 impl Settings {
-    /// Missing file: default values. A file that cannot be read (no permission, not UTF-8: UTF-16
-    /// or ANSI as PowerShell and Notepad may save it) or is not JSON: set aside as `.bad`, so the
-    /// save at exit does not overwrite what the user wrote. A value this version does not know (a
+    /// Missing file: default values. A file that is not UTF-8 (UTF-16 or ANSI as PowerShell and
+    /// Notepad may save it) or is not JSON: set aside as `.bad`, so the save at exit does not
+    /// overwrite what the user wrote. A file that cannot be read now (no permission, held open by
+    /// another program, a folder in its place): default values, the file left alone and never
+    /// saved over during this start (`not_read`; audit 27/11, doubt of area 6). A value this version does not know (a
     /// file written by a newer one, a wrong edit): only that key takes its default (`tolerant`).
     pub fn load() -> Self {
         path().map_or_else(Self::default, |p| Self::load_from(&p))
@@ -347,8 +354,12 @@ impl Settings {
         let text = match std::fs::read(path).map(String::from_utf8) {
             Ok(Ok(text)) => text,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Self::default(),
-            other => {
-                log!("settings: {path:?} not read ({:?}), set aside", other.err());
+            Err(e) => {
+                log!("settings: {path:?} not read ({e}), left alone and not saved over");
+                return Self { not_read: true, ..Self::default() };
+            }
+            Ok(Err(e)) => {
+                log!("settings: {path:?} not UTF-8 ({e}), set aside");
                 let _ = std::fs::rename(path, &bad);
                 return Self::default();
             }
@@ -423,6 +434,10 @@ impl Settings {
 
     /// `save` to a given file.
     pub(crate) fn save_to(&self, path: &Path) {
+        if self.not_read {
+            log!("settings: not saved, {path:?} could not be read at the start");
+            return;
+        }
         let Some(dir) = path.parent() else { return };
         let Ok(text) = serde_json::to_string_pretty(self) else { return };
         let tmp = path.with_extension(format!("json.{}.tmp", std::process::id()));
@@ -521,12 +536,15 @@ mod tests {
         assert_eq!(Settings::load_from(&path), Settings::default());
         Settings::default().save_to(&path);
         assert_eq!(std::fs::read(path.with_extension("json.bad")).ok(), Some(utf16), "the file is set aside as it was");
-        // An error other than "not found" (here a folder where the file should be): set aside too.
+        // An error other than "not found" (here a folder where the file should be): left alone
+        // (audit 27/11), and not saved over.
         std::fs::remove_file(&path).unwrap();
         std::fs::remove_file(path.with_extension("json.bad")).unwrap();
         std::fs::create_dir(&path).unwrap();
-        assert_eq!(Settings::load_from(&path), Settings::default());
-        assert!(path.with_extension("json.bad").is_dir() && !path.exists());
+        let s = Settings::load_from(&path);
+        assert_eq!(s, Settings { not_read: true, ..Settings::default() });
+        s.save_to(&path);
+        assert!(path.is_dir() && !path.with_extension("json.bad").exists());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
