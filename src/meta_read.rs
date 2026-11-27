@@ -242,6 +242,12 @@ const PANEL: Reading = Reading { fill: 0, head: HEAD, cost: READ_COST };
 /// readers need, or the whole file when it is small, of a format without a plan, or on a phone
 /// that reads only from the start (`video_read::whole_only`).
 pub async fn read(op: &Store, path: &str, size: u64) -> Result<Vec<u8>, Error> {
+    read_for(op, path, size, crate::thumb_memory::ram()).await
+}
+
+/// `read` on a computer with `ram` bytes of memory.
+pub(crate) async fn read_for(op: &Store, path: &str, size: u64, ram: u64) -> Result<Vec<u8>, Error> {
+    let _ = ram;
     if size <= WHOLE_UNDER || crate::video_read::whole_only(op) {
         return op.read(path).await;
     }
