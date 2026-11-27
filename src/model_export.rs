@@ -904,6 +904,22 @@ pub(crate) mod tests {
         assert!(notes(&many, Kind::Glb).contains(&"model-export-lost-left-out"), "{:?}", notes(&many, Kind::Glb));
     }
 
+    /// Audit 27/11, D.8 (#340): a point cloud (PLY) and the lines and points of a glTF are drawn
+    /// as small solids, and so exported, four times the points and triangles of each; the end of
+    /// the export did not say so.
+    #[test]
+    fn audit_d8_solids_said() {
+        let none: crate::model::Sibling = &|_| None;
+        let cloud = b"ply\nformat ascii 1.0\nelement vertex 3\nproperty float x\nproperty float y\nproperty float z\nend_header\n0 0 0\n1 0 0\n0 1 0\n";
+        let lines = r#"{"asset":{"version":"2.0"},"buffers":[{"uri":"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAA","byteLength":24}],"bufferViews":[{"buffer":0,"byteLength":24}],"accessors":[{"bufferView":0,"componentType":5126,"count":2,"type":"VEC3","max":[1,0,0],"min":[0,0,0]}],"meshes":[{"primitives":[{"attributes":{"POSITION":0},"mode":1}]}],"nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0}"#;
+        for (name, bytes) in [("cloud.ply", &cloud[..]), ("lines.gltf", lines.as_bytes())] {
+            for kind in Kind::ALL {
+                let notes = export_file(bytes, name, none, kind, &|_| true, &Beside { stem: "q", free: &|n| n.to_string() }).unwrap().1;
+                assert!(!notes.is_empty(), "{name} as {kind:?}: exported as solids, nothing said");
+            }
+        }
+    }
+
     /// #312: every writer stops when told to, also on a model of one material (glTF wrote a
     /// material's triangles before asking), and says how far it is on the way.
     #[test]
