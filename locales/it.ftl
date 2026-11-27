@@ -191,7 +191,11 @@ phone-copy-notice = Il telefono copia da solo e intanto non risponde: per questo
 phone-copy-keep = Non scollegare il telefono.
 phone-copy-long = Questo file dura da più di 3 minuti. Il telefono continua finché non ha finito: puoi solo aspettare.
 phone-copy-cancel-tip = Il telefono finisce il file in corso, poi EyeCanSee toglie quella copia. I file già copiati restano.
-phone-copy-cancelled = Annullata, aspetto il telefono
+phone-copy-cancelled = Annullata
+phone-copy-leave = Smetti di aspettare
+phone-copy-leave-tip = EyeCanSee smette di aspettare il telefono. Il telefono può finire questo file da solo: in quel caso la copia resta sul telefono.
+phone-copy-leaving = Smetto di aspettare…
+phone-copy-leaving-note = EyeCanSee smette di aspettare. Se il telefono finisce questo file da solo, la copia resta sul telefono.
 phone-copy-cancelled-note = Il telefono finisce questo file, poi EyeCanSee toglie la copia appena fatta.
 phone-copy-others = { $n ->
     [one] L'altro file non viene copiato.
@@ -279,6 +283,7 @@ list-more-images = { $n ->
     [one] e un'altra
    *[other] e altre { $n }
 }
+error-phone-left = EyeCanSee ha smesso di aspettare il telefono, che lavorava ancora su { $detail }. Se il telefono finisce da solo, quello che ha fatto resta sul telefono. Finché lavora non risponde.
 error-copy-not-made = Il telefono non ha fatto la copia di { $detail }: l'originale non è stato toccato.
 error-copy-not-whole = La copia di { $detail } non è arrivata intera: l'originale non è stato toccato.
 error-pc-space = Non c'è abbastanza spazio libero su questo computer per { $detail }: un file grande dentro il telefono passa da qui. Libera un po' di spazio e riprova.
@@ -332,6 +337,15 @@ delete-phone-busy = Il telefono sta { $what ->
         [move] spostando
        *[other] copiando
     } { $name } ({ $s } s): **{ $button }** si attiva quando ha finito.
+quit-phone-title = Il telefono sta ancora lavorando
+quit-phone-ask = Il telefono sta { $what ->
+        [move] spostando
+       *[other] copiando
+    } { $name } da solo e non si può fermare. Chiudere EyeCanSee adesso?
+
+    Il telefono può finire questo file da solo: in quel caso quello che ha fatto resta sul telefono.
+quit-phone-yes = Chiudi EyeCanSee
+quit-phone-no = Continua ad aspettare
 status-phone-working = Il telefono sta { $what ->
         [move] spostando
        *[other] copiando

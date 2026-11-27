@@ -32,6 +32,7 @@ mod storages;
 pub(crate) mod turn;
 mod undo;
 mod wait;
+pub use across::{leave, leaving, stay};
 pub use events::{Change, on_change, take_changes};
 
 /// Device storages with the name shown as a folder.
@@ -127,6 +128,13 @@ impl Drop for Waiting {
     fn drop(&mut self) {
         *WAITING.lock().unwrap() = None;
     }
+}
+
+/// For the tests of the app without a screen (each in a process of its own, `own_folder`): a
+/// phone copying `path` by itself (`working`) until the guard is dropped.
+#[cfg(test)]
+pub(crate) fn copying_for_tests(path: &str) -> impl Drop {
+    Waiting::start("copy", path)
 }
 
 /// Seconds after which a call still waiting on Windows is taken for WPD's stall: ~340 s
@@ -451,7 +459,8 @@ impl Phone {
             }
         };
         let size = self.size_across(path, (&storage, handle), &to).await?;
-        let _quiet = size.map(|_| self.quiet());
+        let quiet = size.map(|_| self.quiet());
+        across::stay();
         self.own.mark(handle);
         if new_name != source::name(path) {
             self.queued("rename", path, storage.rename(handle, new_name)).await.map_err(error)?;
@@ -460,7 +469,7 @@ impl Phone {
         match (self.queued_kept("move", path, storage.move_object(handle, folder, Some(to.id()))).await, size) {
             // To the other storage, past the 30 s mtp-rs waits: the phone is still moving it.
             ((Err(mtp_rs::Error::Timeout), turn), Some(size)) => {
-                self.finished_by_phone(("move", began, turn), path, (&to, folder), (new_name, size), Some((&storage, handle))).await?;
+                self.finished_by_phone(("move", began, turn), path, (&to, folder), (new_name, size), Some((&storage, handle))).await.map_err(|e| across::kept_quiet(e, quiet))?;
             }
             ((r, _), _) => r.map_err(error)?,
         }
@@ -670,7 +679,11 @@ impl Phone {
             undo::finish(cancel.load(Ordering::Relaxed), self.remove_copy(&tmp, name, h), self.move_into(&made, &dir, source::name(dest))).await
         }
         .await;
-        let gone = self.delete(&tmp).await;
+        // Not from a phone that answers nothing now: the folder is left for the next copy here.
+        let gone = match &copied {
+            Err(e) if across::unanswering(e) => Ok(()),
+            _ => self.delete(&tmp).await,
+        };
         copied.and(gone)
     }
 

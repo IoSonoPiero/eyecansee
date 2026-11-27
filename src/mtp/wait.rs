@@ -2,7 +2,7 @@
 //! destination is looked at every few seconds until the item is there. Apart from the phone, so
 //! that it runs in the tests with a destination that is not one.
 
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use mtp_rs::ObjectHandle;
@@ -33,7 +33,9 @@ pub(super) enum End {
 /// Looks at the destination with `look` (given the time waited so far) every `Pace::look` until
 /// it finds what is waited for. A look that fails is the phone still at work, which answers
 /// nothing (the reading was given up too): the wait goes on, unless the failure says the phone is
-/// gone (`gone`, in the words of Windows too).
+/// gone (`gone`, in the words of Windows too). The wait is left (`Pace::leave`) between two looks,
+/// never during one: a call of mtp-rs dropped half way can leave the phone's session stuck
+/// (mtp-rs, AGENTS.md, "dropped future"), so leaving takes as long as the look under way.
 pub(super) async fn until_arrived<F, Fut>(pace: Pace<'_>, mut look: F) -> End
 where
     F: FnMut(Duration) -> Fut,
@@ -41,7 +43,9 @@ where
 {
     let start = Instant::now();
     while start.elapsed() < pace.most {
-        tokio::time::sleep(pace.look).await;
+        if left(&pace).await {
+            return End::Left;
+        }
         match look(start.elapsed()).await {
             Ok(Some(h)) => return End::Arrived(h),
             Ok(None) => {}
@@ -52,9 +56,25 @@ where
     End::Late
 }
 
+/// The pause before a look, in short steps: `true` as soon as the wait is left.
+async fn left(pace: &Pace<'_>) -> bool {
+    const STEP: Duration = Duration::from_millis(100);
+    let until = Instant::now() + pace.look;
+    loop {
+        if pace.leave.load(Ordering::Relaxed) {
+            return true;
+        }
+        let rest = until.saturating_duration_since(Instant::now());
+        if rest.is_zero() {
+            return false;
+        }
+        tokio::time::sleep(rest.min(STEP)).await;
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::AtomicUsize;
 
     use super::*;
 

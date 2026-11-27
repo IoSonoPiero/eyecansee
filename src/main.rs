@@ -166,6 +166,7 @@ mod pano;
 mod pano_view;
 mod presets;
 mod psd;
+mod quit_phone;
 mod render3d;
 mod render_gpu;
 mod render_shine;
@@ -562,6 +563,8 @@ struct App {
     deleting: usize,
     /// Window closed during a copy: it closes when the copy has stopped.
     quit_after_transfer: bool,
+    /// The ✕ while a phone copies by itself: its question, and its answer.
+    quit_phone: quit_phone::Quit,
     /// "Don't save" before quitting: the turned picture stays as shown until the window goes,
     /// and the ✕ that follows does not ask again (a frame of the picture not turned showed first).
     quit_dropped_turn: bool,

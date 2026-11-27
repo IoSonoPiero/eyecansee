@@ -8,10 +8,11 @@ use super::*;
 /// How often the destination is read while the phone works.
 const LOOK: std::time::Duration = std::time::Duration::from_secs(3);
 
-/// The most a phone may take for `size` bytes between its storages: a minute, plus 1 MB/s (the
-/// card of the Redmi took 16 MB/s).
+/// The most a phone may take for `size` bytes: a minute, plus 4 MB/s, a quarter of the slowest
+/// seen (the card of the Redmi took 16 MB/s). It was 1 MB/s: 1 h 47 min of wait for 6 GB that
+/// never showed (#354 on Windows, 27/11); now 26 minutes, and the wait can be left (`leave`).
 fn deadline(size: u64) -> std::time::Duration {
-    std::time::Duration::from_secs(60 + size / (1 << 20))
+    std::time::Duration::from_secs(60 + size / (4 << 20))
 }
 
 /// How long Windows (WPD) waits for a copy before it answers: `Copy` came back after 30.4 s with
@@ -44,7 +45,49 @@ pub(super) fn copy_error(e: mtp_rs::Error, path: &str) -> Error {
 }
 
 /// Raised by who no longer wants to wait for the phone (`wait::Pace::leave`).
-static LEAVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static LEAVE: AtomicBool = AtomicBool::new(false);
+
+/// The wait for a phone that goes on copying or moving a file by itself was left (`leave`).
+pub(super) const LEFT: &str = "error-phone-left";
+
+/// EyeCanSee stops waiting for the phone that goes on copying or moving a file by itself
+/// (`finished_by_phone`): asked by the user, after Cancel or to close the program (#354). The wait
+/// under way ends before its next look at the destination, and one that starts when the call
+/// under way is given up ends at once. The phone may still finish the file: what it makes stays.
+pub fn leave() {
+    LEAVE.store(true, Ordering::Relaxed);
+}
+
+/// `leave` was asked, and no copy or move has started since.
+pub fn leaving() -> bool {
+    LEAVE.load(Ordering::Relaxed)
+}
+
+/// A new paste, copy or move: what was asked for the one before (`leave`) is not for it.
+pub fn stay() {
+    LEAVE.store(false, Ordering::Relaxed);
+}
+
+/// Whether `e` is of a phone left at work: the wait for it left (`LEFT`) or over. It answers
+/// nothing until it is done.
+fn left_at_work(e: &Error) -> bool {
+    matches!(e.0, LEFT | "error-phone-timeout")
+}
+
+/// Whether `e` is of a phone that answers nothing now: left at work, or gone. Nothing more is
+/// asked of it to tidy up (each call would wait for it again, 30 s or more).
+pub(super) fn unanswering(e: &Error) -> bool {
+    left_at_work(e) || e.0 == "error-phone-disconnected"
+}
+
+/// The error `e` of a wait for the phone, with the phone's events (`quiet`) left off when the
+/// phone is still at work (`Quiet::stay`).
+pub(super) fn kept_quiet(e: Error, quiet: Option<Quiet<'_>>) -> Error {
+    if let Some(quiet) = quiet.filter(|_| left_at_work(&e)) {
+        quiet.stay();
+    }
+    e
+}
 
 /// Whether the item looked for is where the phone puts it: `name` with `size` bytes among `found`.
 fn arrived(found: &[(String, u64, ObjectHandle)], name: &str, size: u64) -> Option<ObjectHandle> {
@@ -56,6 +99,16 @@ fn arrived(found: &[(String, u64, ObjectHandle)], name: &str, size: u64) -> Opti
 /// 30 s, and every next call stayed waiting for ever, Cancel too; without them the destination
 /// answers again once the phone is done (Redmi Note 9 Pro, 2 GB to the SD card, 25/11/2026).
 pub(super) struct Quiet<'a>(&'a Phone);
+
+impl Quiet<'_> {
+    /// The events stay off: the phone was left at work (the wait for it left, or over), and with
+    /// them waited for the calls that come next would never get the session back (see `Quiet`).
+    /// They start again when the phone is opened anew.
+    fn stay(self) {
+        log!("phone {}: left at work, its events stay off", self.0.serial);
+        std::mem::forget(self);
+    }
+}
 
 impl Drop for Quiet<'_> {
     fn drop(&mut self) {
@@ -136,7 +189,11 @@ impl Phone {
                 Ok(h)
             }
             wait::End::Gone(e) => Err(error(e)),
-            wait::End::Late | wait::End::Left => {
+            wait::End::Left => {
+                log!("phone {}: {what} {path}: the wait left after {:.0} s, the phone may still be at it", self.serial, start.elapsed().as_secs_f32());
+                Err((LEFT, path.to_string()))
+            }
+            wait::End::Late => {
                 log!("phone {}: {what} {path}: not done by the phone in {:.0} s", self.serial, start.elapsed().as_secs_f32());
                 Err(("error-phone-timeout", path.to_string()))
             }
@@ -156,12 +213,13 @@ impl Phone {
         // A copy is made by the phone also inside one storage: a big one takes longer than mtp-rs
         // waits there too (6 GB, about a minute). The events stop for a file that may (`Quiet`).
         let size = self.size_of(path, (&storage, handle)).await?;
-        let _quiet = (size >= LONG_COPY).then(|| (self.quiet(), turn::Deaf::start(&self.serial, path)));
+        let (quiet, _deaf) = (size >= LONG_COPY).then(|| (self.quiet(), turn::Deaf::start(&self.serial, path))).unzip();
+        stay();
         let began = std::time::Instant::now();
         let h = match self.queued_kept("copy", path, self.marked(storage.copy_object(handle, folder, Some(to.id())))).await {
             // Given up while the phone is still copying it (`still_at_it`).
             (Err(e), turn) if still_at_it(&e, size, began.elapsed()) => {
-                let h = self.finished_by_phone(("copy", began, turn), path, (&to, folder), (source::name(path), size), None).await?;
+                let h = self.finished_by_phone(("copy", began, turn), path, (&to, folder), (source::name(path), size), None).await.map_err(|e| kept_quiet(e, quiet))?;
                 self.own.mark(h);
                 h
             }
@@ -214,6 +272,21 @@ mod tests {
         assert_eq!(arrived(&found, "b.mp4", 20), None);
         assert_eq!(arrived(&found, "c.mp4", 10), None);
         assert_eq!(deadline(0).as_secs(), 60);
-        assert_eq!(deadline(2 << 30).as_secs(), 60 + 2048);
+        assert_eq!(deadline(2 << 30).as_secs(), 60 + 512);
+        assert_eq!(deadline(6 << 30).as_secs() / 60, 26);
     }
+
+    /// #354: a phone left at work (the wait for it left by the user, or over) or gone answers
+    /// nothing: nothing more is asked of it to tidy up, and its events stay off only while it may
+    /// still be at work. A copy it refused, or cancelled, is of a phone that answers.
+    #[test]
+    fn a_phone_that_answers_nothing_is_not_asked_more() {
+        let e = |id: &'static str| (id, "Download/a.mp4".to_string());
+        assert!(unanswering(&e(LEFT)) && left_at_work(&e(LEFT)));
+        assert!(unanswering(&e("error-phone-timeout")) && left_at_work(&e("error-phone-timeout")));
+        assert!(unanswering(&e("error-phone-disconnected")) && !left_at_work(&e("error-phone-disconnected")));
+        assert!(!unanswering(&e(NOT_MADE)) && !unanswering(&e("error-cancelled")));
+        assert_eq!(kept_quiet(e(NOT_MADE), None), e(NOT_MADE));
+    }
+
 }

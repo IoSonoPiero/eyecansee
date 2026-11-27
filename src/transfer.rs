@@ -17,7 +17,7 @@ mod progress;
 mod through_pc;
 #[cfg(test)]
 pub use by_phone::LONG_SECS;
-pub use by_phone::{Bar, Data, Note, Seen, view};
+pub use by_phone::{Bar, Data, Leave, Note, Seen, view};
 pub use progress::{Phase, Progress};
 pub use through_pc::Staging;
 pub(crate) use through_pc::remove_left;
@@ -295,6 +295,8 @@ pub fn announce(clip: &Clip, to: &Store, to_dir: &str, p: &Progress) {
 
 async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress, gone: &mut Vec<String>) -> Result<(), Error> {
     let _ = p.begun.set(Instant::now());
+    // A wait for the phone left during the paste before is not this one's.
+    crate::mtp::stay();
     let same = clip.base == to_base;
     announce(clip, to, to_dir, p);
     let present = Names::read(to, to_dir).await?;
