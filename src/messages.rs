@@ -864,4 +864,25 @@ mod tests {
         assert!(local.join("a.png").is_file(), "the computer's a.png deleted");
         assert!(h.app.files().iter().any(|f| f.path == a), "the computer's a.png taken out of its grid by the server's deletion");
     }
+
+    /// Audit 27/11 T.3 (#40): photos of a phone copied (Ctrl+C: the clip holds its session), the
+    /// phone unplugged and plugged again: the session of before, broken, was handed out again,
+    /// and every folder said the phone was unplugged. Unplugged, the phone is forgotten: whoever
+    /// still holds the old session keeps it, a new opening gets a new one.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn a_phone_unplugged_is_opened_anew() {
+        if own_folder("messages::tests::a_phone_unplugged_is_opened_anew") {
+            return;
+        }
+        let mut h = Harness::new(&folder("phone-anew", &["a.png"]));
+        let serial = "TESTPHONE0001";
+        let held = crate::mtp::Phone::shared(serial);
+        let phone = crate::devices::Device { name: "Phone".into(), path: format!("mtp://{serial}/"), phone: true, serial: Some(serial.into()), block: None, internal: false };
+        h.app.tx.send(Msg::Devices(vec![phone])).unwrap();
+        h.frame(Vec::new());
+        h.app.tx.send(Msg::Devices(Vec::new())).unwrap();
+        h.frame(Vec::new());
+        assert!(!std::sync::Arc::ptr_eq(&held, &crate::mtp::Phone::shared(serial)), "the session of the phone unplugged handed out again");
+    }
 }
