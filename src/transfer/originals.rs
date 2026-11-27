@@ -60,9 +60,21 @@ async fn within(clip: &Clip, (to, to_base): (&Store, &str), src: &str, list: &[(
 /// moment: if `dest` goes with it, they are one, the original gets its name back and the move
 /// stops, saying so; copied over itself, it would have been written over and then deleted as the
 /// original. A source that cannot rename stops too: it cannot be told.
+/// Meanwhile the original put aside is held as one being saved (`SAVING`): a listing of its folder
+/// (the grid reads it again) would give it its name back halfway (`Store::recover`, which puts
+/// back one left by a move stopped there, audit F.7 of 27/11), and it would be told as not the same.
 pub(super) async fn not_the_same(from: &Store, src: &str, to: &Store, dest: &str) -> Result<(), Error> {
+    let held = src.trim_end_matches('/').to_string();
+    crate::source::SAVING.lock().unwrap().insert(held.clone());
+    let r = aside_and_back(from, src, to, dest).await;
+    crate::source::SAVING.lock().unwrap().remove(&held);
+    r
+}
+
+/// `not_the_same`, the original held.
+async fn aside_and_back(from: &Store, src: &str, to: &Store, dest: &str) -> Result<(), Error> {
     let own = name(src);
-    let aside = from.rename(src, &format!(".{own}.eyecansee-moving")).await.map_err(|e| {
+    let aside = from.rename(src, name(&crate::trash::moving_name(src))).await.map_err(|e| {
         log!("move: {src:?} not put aside to tell it from {dest:?}: {e:?}");
         ("error-move-not-told", own.to_string())
     })?;

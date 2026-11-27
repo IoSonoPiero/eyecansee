@@ -20,12 +20,15 @@ pub const TRASH_DIR: &str = ".EyeCanSee-trash";
 /// ".name.eyecansee-inplace" until that copy is finished (`replace::copy_in_place`). A file
 /// replaced by a paste, where the new one cannot be renamed over it, waits as
 /// ".name.eyecansee-aside" (`aside_name`): never the name of a save's original, which a save cut
-/// short may have left and is never touched by a paste (issue #91).
+/// short may have left and is never touched by a paste (issue #91). The original of a move steps
+/// aside as ".name.eyecansee-moving" for a moment (`moving_name`), to tell whether the item it
+/// would replace is itself (`transfer::originals::not_the_same`).
 const NEW: &str = ".eyecansee-new";
 const OLD: &str = ".eyecansee-old";
 const INPLACE: &str = ".eyecansee-inplace";
 const ASIDE: &str = ".eyecansee-aside";
-const ENDS: [&str; 4] = [NEW, OLD, INPLACE, ASIDE];
+const MOVING: &str = ".eyecansee-moving";
+const ENDS: [&str; 5] = [NEW, OLD, INPLACE, ASIDE, MOVING];
 
 /// Images being saved over themselves: `Store::recover` leaves their hidden files alone.
 pub static SAVING: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
@@ -68,6 +71,17 @@ pub fn save_names(path: &str) -> (String, String) {
 /// The hidden path a file `path` replaced by a paste waits under until the new file has its name.
 pub fn aside_name(path: &str) -> String {
     format!("{}{}", parent(path), hidden(name(path), ASIDE))
+}
+
+/// The hidden path the original `path` of a move steps aside under for a moment (`MOVING`).
+pub fn moving_name(path: &str) -> String {
+    format!("{}{}", parent(path), hidden(name(path), MOVING))
+}
+
+/// Whether a folder's name is that of a folder a move put aside (`moving_name`): the only hidden
+/// folder `Store::recover` puts back.
+pub fn moved_aside(name: &str) -> bool {
+    name.starts_with('.') && name.ends_with(MOVING)
 }
 
 /// The hidden path of the whole new version of `path` while it is copied into `path` in place.
@@ -226,7 +240,8 @@ impl Store {
     /// being copied into its image in place (hard links) is whole, and the image may be cut: the
     /// copy is made again, or the new file takes the name if it is free. A file a paste put aside
     /// (`aside_name`) is an original too, and the one that gets the name back before an older
-    /// original a save left.
+    /// original a save left; so is the original a move put aside (`moving_name`, audit F.7 of
+    /// 27/11), a file or a folder, which gets its name back when it is free.
     pub(crate) async fn recover(&self, dir: &str, leftovers: &[File]) {
         self.recover_at(dir, leftovers, Instant::now()).await;
     }
@@ -238,8 +253,9 @@ impl Store {
         let Ok(names) = self.names(dir).await else { return };
         for file in leftovers {
             let (path, own) = (&file.path, name(&file.path));
-            if own.ends_with(NEW) && !self.quiet(file, now) {
-                log!("recover {path:?}: a server's new file, still changing or seen for the first time: left");
+            // An original a move put aside on a server may be another computer's move on its way.
+            if (own.ends_with(NEW) || own.ends_with(MOVING)) && !self.quiet(file, now) {
+                log!("recover {path:?}: a server's new file or original put aside, still changing or seen for the first time: left");
                 continue;
             }
             let Some(original) = owner(dir, own, &names) else {
@@ -650,14 +666,20 @@ mod tests {
         for (f, data) in [(".a.jpg.eyecansee-moving", "a"), ("b.jpg", "b there"), (".b.jpg.eyecansee-moving", "b")] {
             std::fs::write(p.join(f), data).unwrap();
         }
+        // A folder put aside the same way.
+        std::fs::create_dir_all(p.join(".album.eyecansee-moving")).unwrap();
+        std::fs::write(p.join(".album.eyecansee-moving/c.jpg"), b"c").unwrap();
+        assert_eq!(name(&moving_name("moving/a.jpg")), ".a.jpg.eyecansee-moving");
         let l = tokio::runtime::Runtime::new().unwrap().block_on(op.list("moving/")).unwrap();
         let files: Vec<String> = l.files.iter().map(|f| f.path.clone()).collect();
         let a = std::fs::read_to_string(p.join("a.jpg")).ok();
         let b_aside = p.join(".b.jpg.eyecansee-moving").exists();
+        let album = p.join("album/c.jpg").exists();
         std::fs::remove_dir_all(&dir).unwrap();
         assert_eq!(files, ["moving/a.jpg", "moving/b.jpg"], "the original put aside by a move is not seen");
         assert_eq!(a.as_deref(), Some("a"));
         assert!(b_aside, "the original put aside went, its name taken");
+        assert!(album, "the folder put aside by a move is not back");
     }
 
     /// A copy in place of a file with two names (hard links) cut short: the new file, whole, is

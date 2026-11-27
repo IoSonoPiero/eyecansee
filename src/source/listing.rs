@@ -86,7 +86,8 @@ impl Listing {
     /// items are not shown, apart from EyeCanSee's trash folders; `shown` false hides it too
     /// (Windows' hidden attribute, a file being written). Folder paths end in "/".
     pub(crate) fn add(&mut self, path: String, name: &str, is_dir: bool, size: u64, modified: String, shown: bool) {
-        if !is_dir && leftover(name) {
+        // A folder a move put aside too (audit F.7 of 27/11): its name back when free.
+        if (!is_dir && leftover(name)) || (is_dir && crate::trash::moved_aside(name)) {
             self.leftovers.push(File { path: path.clone(), size, modified: modified.clone() });
         }
         if !is_dir && android_trashed(name).is_some() {
