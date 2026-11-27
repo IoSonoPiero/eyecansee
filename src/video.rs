@@ -554,12 +554,7 @@ fn kept_for(kept: Option<(String, mpv::Place)>, path: &str) -> Option<mpv::Place
 /// Why a video does not play, as `I18n::cannot_load` says it: a Fluent id with no detail (`id\u{1}`),
 /// or the phone's or the server's own error, already so.
 fn said(failure: &mpv::Failure) -> String {
-    match failure {
-        mpv::Failure::NotVideo => "video-not-video\u{1}".into(),
-        mpv::Failure::NoPicture => "video-no-frame\u{1}".into(),
-        mpv::Failure::Read(e) => e.clone(),
-        mpv::Failure::NoSound => "video-no-sound\u{1}".into(),
-    }
+    failure.said()
 }
 
 /// The video fitted to the area (frames drawn at that size by mpv) and its bar. Click: play or

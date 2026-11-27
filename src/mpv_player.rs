@@ -67,6 +67,19 @@ pub enum Failure {
     NoSound,
 }
 
+impl Failure {
+    /// As `I18n::cannot_load` says it: a Fluent id with no detail (`id\u{1}`), or the phone's or
+    /// the server's own error, already so (moved from `video.rs`).
+    pub(crate) fn said(&self) -> String {
+        match self {
+            Failure::NotVideo => "video-not-video\u{1}".into(),
+            Failure::NoPicture => "video-no-frame\u{1}".into(),
+            Failure::Read(e) => e.clone(),
+            Failure::NoSound => "video-no-sound\u{1}".into(),
+        }
+    }
+}
+
 /// What a video that reached its end showed: a video track (`video`), that track a cover image
 /// (`cover`), a frame that reached the screen (`shown`, mpv's `vo-configured`).
 struct Picture {
