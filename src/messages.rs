@@ -662,6 +662,12 @@ impl App {
         // The last folder of a disk unplugged goes with it: the panel no longer shows it under a
         // disk plugged at the same place (another stick of the same label, audit 27/11 F.12).
         self.last_dirs.retain(|k, _| !k.starts_with('/') || k == "/" || d.iter().any(|e| e.path == *k));
+        // A phone unplugged: its session is broken; whoever still holds it (the clip of a copy,
+        // the viewer) keeps it, the next opening gets a new one (audit 27/11 T.3, #40).
+        for s in self.devices.iter().filter_map(|e| e.serial.as_deref()).filter(|s| !has(&d, s)) {
+            log!("phone {s}: unplugged, its session forgotten");
+            crate::mtp::Phone::forget(s);
+        }
         self.devices = d;
         if unplugged || gone {
             log!("device with the open folder unplugged");
