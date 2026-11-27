@@ -234,6 +234,12 @@ pub fn on_ntfs(path: &str) -> bool {
 }
 
 fn ntfs_in(mounts: &str, path: &str) -> bool {
+    mount_kind(mounts, path).is_some_and(|kind| matches!(kind, "fuseblk" | "ntfs" | "ntfs3"))
+}
+
+/// The type of the file system that holds the absolute `path`, as `mounts` (/proc/self/mounts)
+/// says: the one mounted deepest above it.
+fn mount_kind<'a>(mounts: &'a str, path: &str) -> Option<&'a str> {
     let inside = |mount: &str| path == mount || path.starts_with(&format!("{}/", mount.trim_end_matches('/')));
     mounts
         .lines()
@@ -243,7 +249,30 @@ fn ntfs_in(mounts: &str, path: &str) -> bool {
             inside(&mount).then_some((mount.len(), kind))
         })
         .max_by_key(|(len, _)| *len)
-        .is_some_and(|(_, kind)| matches!(kind, "fuseblk" | "ntfs" | "ntfs3"))
+        .map(|(_, kind)| kind)
+}
+
+/// Is this path of this computer on a share of the network, mounted as a folder (SMB, NFS, sshfs,
+/// a share GNOME opened through gvfs, and the like)? Another computer may be writing there
+/// (audit F.10 of 27/11). Not a phone or a camera through gvfs: only this computer writes there.
+#[cfg(not(windows))]
+pub fn on_network(path: &Path) -> bool {
+    std::fs::read_to_string("/proc/self/mounts").is_ok_and(|m| network_in(&m, &path.to_string_lossy()))
+}
+
+/// Windows: not told yet.
+#[cfg(windows)]
+pub fn on_network(_: &Path) -> bool {
+    false
+}
+
+fn network_in(mounts: &str, path: &str) -> bool {
+    let network = |kind: &str| {
+        matches!(kind, "nfs" | "nfs4" | "cifs" | "smb3" | "smbfs" | "ncpfs" | "afs" | "ceph" | "glusterfs" | "9p" | "davfs")
+            || kind.strip_prefix("fuse.").is_some_and(|f| matches!(f, "sshfs" | "rclone" | "s3fs" | "curlftpfs" | "glusterfs" | "davfs2" | "gvfsd-fuse"))
+    };
+    let device = path.contains("/gvfs/mtp:") || path.contains("/gvfs/gphoto2:");
+    !device && mount_kind(mounts, path).is_some_and(network)
 }
 
 /// /proc/self/mounts writes spaces and the like in octal: "Sea\040photos" → "Sea photos".
@@ -586,6 +615,14 @@ mod tests {
         assert!(!ntfs_in(mounts, "/run/media/u/My Diskette/a.jpg"));
         assert!(!ntfs_in(mounts, "/mnt/Linux/a.jpg"));
         assert!(!ntfs_in(mounts, "/home/u/a.jpg"));
+        // Audit F.10 of 27/11: shares of the network, not a phone through gvfs.
+        let mounts = "/dev/nvme0n1p3 / btrfs rw 0 0\n//nas/photos /mnt/nas cifs rw 0 0\nnas:/srv /mnt/nfs nfs4 rw 0 0\nu@box: /home/u/box fuse.sshfs rw 0 0\ngvfsd-fuse /run/user/1000/gvfs fuse.gvfsd-fuse rw 0 0\n/dev/sda1 /mnt/nas/usb ext4 rw 0 0\n";
+        for path in ["/mnt/nas/a.jpg", "/mnt/nfs/b/c.jpg", "/home/u/box/a.jpg", "/run/user/1000/gvfs/smb-share:server=nas,share=photos/a.jpg"] {
+            assert!(network_in(mounts, path), "{path}");
+        }
+        for path in ["/home/u/a.jpg", "/mnt/nas/usb/a.jpg", "/mnt/nasty/a.jpg", "/run/user/1000/gvfs/mtp:host=Phone_X/DCIM/a.jpg"] {
+            assert!(!network_in(mounts, path), "{path}");
+        }
         assert_eq!(unescape_mount("/mnt/Linux"), "/mnt/Linux");
         assert_eq!(unescape_udev("MY\\x20DISK\\x2020\\x2f07"), "MY DISK 20/07");
     }

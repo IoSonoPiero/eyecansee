@@ -291,9 +291,10 @@ impl Store {
     }
 
     /// Whether a save's new file `file` may be touched: at once where only this computer writes
-    /// (a disk, a phone), on a server once it has stayed as it is (`settled`).
+    /// (a disk, a phone), on a server or a share of the network once it has stayed as it is
+    /// (`settled`).
     fn quiet(&self, file: &File, now: Instant) -> bool {
-        let Some(key) = self.shared_key(file, |_| false) else { return true };
+        let Some(key) = self.shared_key(file, crate::devices::on_network) else { return true };
         let mut seen = SEEN_NEW.lock().unwrap();
         let quiet = settled(&mut seen, &key, file, now);
         if quiet {
@@ -303,15 +304,20 @@ impl Store {
     }
 
     /// What a save's new file `file` is remembered by (`quiet`) where other computers may write
-    /// too: its server and its path. `None` where only this computer writes (a disk, a phone).
-    /// `_network`: whether a path of this computer is on a share of the network.
-    fn shared_key(&self, file: &File, _network: impl Fn(&std::path::Path) -> bool) -> Option<String> {
+    /// too: its server and its path, or its path on a share of the network mounted as a folder or
+    /// a drive (`network`, audit F.10 of 27/11). `None` where only this computer writes (a disk,
+    /// a phone).
+    fn shared_key(&self, file: &File, network: impl Fn(&std::path::Path) -> bool) -> Option<String> {
         // The server by its address, not by its connection: one dropped when the folder is left
         // and made anew when it is opened again is the same server.
         let server = match self {
             Store::Ftp(s) => s.place(),
             Store::Sftp(s) => s.place(),
-            Store::Dal(_) | Store::Mtp(_) => return None,
+            Store::Dal(_) => {
+                let local = self.local_file(&file.path)?;
+                return network(&local).then(|| format!("file {}", local.display()));
+            }
+            Store::Mtp(_) => return None,
         };
         Some(format!("{server} {}", file.path))
     }
