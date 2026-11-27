@@ -787,6 +787,35 @@ mod tests {
         }
     }
 
+    /// Audit 27/11, S.10 a (#178): the pictures of the materials were all read and decoded at
+    /// once (in parallel, up to 512 MB each) before the cap of `MAX_TEXTURES` left out those
+    /// beyond. A .gltf with 66 pictures in the files next to it: no more than 64 are read.
+    #[test]
+    fn audit_s10a_pictures_up_to_the_cap() {
+        let floats: Vec<u8> = [0f32, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0].iter().flat_map(|f| f.to_le_bytes()).collect();
+        let data = base64::engine::general_purpose::STANDARD.encode(floats);
+        let n = 66;
+        let list = |f: &dyn Fn(usize) -> String| (0..n).map(f).collect::<Vec<_>>().join(",");
+        let gltf = format!(
+            r#"{{"asset":{{"version":"2.0"}},"buffers":[{{"uri":"data:application/octet-stream;base64,{data}","byteLength":60}}],"bufferViews":[{{"buffer":0,"byteLength":36}},{{"buffer":0,"byteOffset":36,"byteLength":24}}],"accessors":[{{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","max":[1,1,0],"min":[0,0,0]}},{{"bufferView":1,"componentType":5126,"count":3,"type":"VEC2"}}],"images":[{}],"textures":[{}],"materials":[{}],"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0,"TEXCOORD_0":1}},"material":0}}]}}],"nodes":[{{"mesh":0}}],"scenes":[{{"nodes":[0]}}],"scene":0}}"#,
+            list(&|i| format!(r#"{{"uri":"p{i}.png"}}"#)),
+            list(&|i| format!(r#"{{"source":{i}}}"#)),
+            list(&|i| format!(r#"{{"pbrMetallicRoughness":{{"baseColorTexture":{{"index":{i}}}}}}}"#)),
+        );
+        let mut png = Vec::new();
+        image::RgbaImage::from_pixel(2, 2, image::Rgba([0, 0, 255, 255])).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let asked = std::sync::atomic::AtomicUsize::new(0);
+        let sibling = |_: &str| {
+            asked.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            Some(png.clone())
+        };
+        let m = super::read(gltf.as_bytes(), &sibling, &Default::default()).unwrap();
+        assert_eq!(m.textures.len(), crate::model::MAX_TEXTURES);
+        assert!(m.pictures_cut.contains(&crate::model_export::LOST_LEFT_OUT));
+        let asked = asked.load(std::sync::atomic::Ordering::Relaxed);
+        assert!(asked <= crate::model::MAX_TEXTURES, "{asked} pictures read for {} kept", crate::model::MAX_TEXTURES);
+    }
+
     /// `counted_as_read_t5` on real files: every .glb and .gltf under `EYECANSEE_GLTF`, the count
     /// never below the triangles read (dropped ones only make it higher) when the file has only
     /// triangles.
