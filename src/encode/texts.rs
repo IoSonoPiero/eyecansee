@@ -37,6 +37,12 @@ pub struct Texts {
 /// The most a compressed PNG text is read to (a small file must not ask for much memory).
 const INFLATED_MAX: u64 = 1 << 20;
 
+/// The most all the compressed texts of a PNG are read to, together, and the most authors kept:
+/// thousands of small chunks each expanding to a MB filled the memory (audit E.3). The chunks
+/// past these are still copied into a PNG as they are.
+const INFLATED_ALL: u64 = 4 << 20;
+const AUTHORS: usize = 100;
+
 impl Texts {
     pub fn is_empty(&self) -> bool {
         *self == Texts::default()
@@ -89,11 +95,12 @@ fn chunks(png: &[u8]) -> Vec<([u8; 4], &[u8])> {
 
 fn png(bytes: &[u8]) -> Texts {
     let mut t = Texts::default();
+    let mut left = INFLATED_ALL;
     for (kind, data) in chunks(bytes) {
         match &kind {
             b"gAMA" | b"cHRM" | b"sRGB" | b"cICP" => t.png_color.push((kind, data.to_vec())),
             b"tEXt" | b"zTXt" | b"iTXt" => {
-                let Some((key, value)) = png_text(&kind, data) else { continue };
+                let Some((key, value)) = png_text(&kind, data, &mut left) else { continue };
                 if key == "XML:com.adobe.xmp" || key.starts_with("Raw profile type") {
                     continue;
                 }
@@ -106,7 +113,8 @@ fn png(bytes: &[u8]) -> Texts {
                     "comment" => Field::Comment,
                     _ => continue,
                 };
-                if !value.trim().is_empty() && (field == Field::Author || !t.fields.iter().any(|(f, _)| *f == field)) {
+                let authors = t.fields.iter().filter(|(f, _)| *f == Field::Author).count();
+                if !value.trim().is_empty() && (if field == Field::Author { authors < AUTHORS } else { !t.fields.iter().any(|(f, _)| *f == field) }) {
                     t.fields.push((field, value));
                 }
             }
@@ -117,14 +125,14 @@ fn png(bytes: &[u8]) -> Texts {
 }
 
 /// Keyword and text of a PNG text chunk: tEXt and zTXt in Latin-1, iTXt in UTF-8, compressed or
-/// not. `None` when it cannot be read.
-fn png_text(kind: &[u8; 4], data: &[u8]) -> Option<(String, String)> {
+/// not, expanded to `left` bytes at most (less what it took). `None` when it cannot be read.
+fn png_text(kind: &[u8; 4], data: &[u8], left: &mut u64) -> Option<(String, String)> {
     let at = data.iter().position(|&c| c == 0)?;
     let key: String = data[..at].iter().map(|&c| c as char).collect();
     let rest = &data[at + 1..];
     let value = match kind {
         b"tEXt" => rest.iter().map(|&c| c as char).collect(),
-        b"zTXt" => inflate(rest.get(1..)?)?.iter().map(|&c| c as char).collect(),
+        b"zTXt" => inflate(rest.get(1..)?, left)?.iter().map(|&c| c as char).collect(),
         _ => {
             // Compression flag and method, language and translated keyword, each ended by a zero.
             let (&flag, rest) = rest.split_first()?;
@@ -133,15 +141,16 @@ fn png_text(kind: &[u8; 4], data: &[u8]) -> Option<(String, String)> {
             let rest = &rest[lang + 1..];
             let translated = rest.iter().position(|&c| c == 0)?;
             let raw = &rest[translated + 1..];
-            String::from_utf8(if flag == 1 { inflate(raw)? } else { raw.to_vec() }).ok()?
+            String::from_utf8(if flag == 1 { inflate(raw, left)? } else { raw.to_vec() }).ok()?
         }
     };
     Some((key, value))
 }
 
-fn inflate(data: &[u8]) -> Option<Vec<u8>> {
+fn inflate(data: &[u8], left: &mut u64) -> Option<Vec<u8>> {
     let mut out = Vec::new();
-    flate2::read::ZlibDecoder::new(data).take(INFLATED_MAX).read_to_end(&mut out).ok()?;
+    flate2::read::ZlibDecoder::new(data).take(INFLATED_MAX.min(*left)).read_to_end(&mut out).ok()?;
+    *left -= out.len() as u64;
     Some(out)
 }
 
