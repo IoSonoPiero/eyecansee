@@ -2,7 +2,7 @@
 //! camera stored inside, the metadata, the stream mpv plays, and a still for the thumbnails.
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use tokio::runtime::Handle;
@@ -304,9 +304,21 @@ impl StoreReader {
         StoreReader { rt, op: op.clone(), path: path.to_string(), size, copy: whole.then(std::sync::OnceLock::new), copied: Arc::default(), ahead: None, closed }
     }
 
-    /// `work`, on the runtime, unless the player closes first: then an error at once (#276).
-    /// From mpv's threads, outside the runtime.
-    fn until_closed<T>(&self, work: impl std::future::Future<Output = Result<T, String>>) -> Result<T, String> {
+    /// `work` in a task of its own, waited for unless the player closes first: then an error at
+    /// once (#276), and `work` goes on to its end by itself. A read of a phone let go half way left
+    /// the phone answering nothing (Redmi Note 9 Pro, 26/11 night; audit 27/11 V.1). From mpv's
+    /// threads, outside the runtime.
+    fn until_closed<T: Send + 'static>(&self, work: impl std::future::Future<Output = Result<T, String>> + Send + 'static) -> Result<T, String> {
+        if *self.closed.borrow() {
+            return Err(said(("error-cancelled", String::new())));
+        }
+        let task = self.rt.spawn(work);
+        self.wait_until_closed(async { task.await.unwrap_or_else(|e| Err(e.to_string())) })
+    }
+
+    /// `work`, on the runtime, unless the player closes first: then an error at once, and `work`
+    /// is dropped. Only for a wait that can be let go: a channel, a whole copy followed (`copy_whole`).
+    fn wait_until_closed<T>(&self, work: impl std::future::Future<Output = Result<T, String>>) -> Result<T, String> {
         let mut closed = self.closed.subscribe();
         // Closed already: not even started. Both ready: the closing wins (`biased`), else a
         // read after the close could still give data (once in 10 runs under load).
@@ -356,7 +368,7 @@ impl StoreReader {
             }
             let a = ahead.as_mut().expect("just started");
             if a.left.is_empty() {
-                let next = self.until_closed(async { Ok(a.chunks.recv().await) });
+                let next = self.wait_until_closed(async { Ok(a.chunks.recv().await) });
                 match next? {
                     Some(Ok(chunk)) => a.left = chunk,
                     end => {
@@ -395,19 +407,60 @@ impl StoreReader {
 /// A whole copy being made: whoever asks for the same file meanwhile (the viewer, a thumbnail
 /// asked again after the folder was read again) waits for it and follows its bytes. Three copies
 /// of the same video at once made each three times slower (2026-10-31).
+#[derive(Default)]
 struct InFlight {
-    done: tokio::sync::OnceCell<Result<PathBuf, String>>,
+    done: tokio::sync::watch::Sender<Option<Result<PathBuf, String>>>,
     copied: AtomicU64,
+    /// Raised when nobody waits for it any more (`Waiter`): the copy stops at its next chunk.
+    cancel: AtomicBool,
+    /// Who waits for it now, changed under the lock of `IN_FLIGHT`.
+    waiters: AtomicUsize,
 }
 
 static IN_FLIGHT: std::sync::Mutex<Vec<(String, Arc<InFlight>)>> = std::sync::Mutex::new(Vec::new());
+
+/// One who waits for a whole copy (`copy_whole`). The copy runs in a task of its own and is never
+/// dropped half way (a phone's transfer let go half way left the phone answering nothing, 26/11;
+/// audit 27/11 V.1). The last one to leave before its end stops it by its own way, at its next
+/// chunk (on a phone `Phone::stop_download`), and it is no longer under way: the next one asking
+/// starts afresh, its bytes counted from 0 (V.5).
+struct Waiter(Arc<InFlight>);
+
+impl Waiter {
+    /// Waits for the copy of `key` under way, or starts it.
+    fn join(op: &Store, path: &str, size: u64, key: &str) -> Waiter {
+        let mut all = IN_FLIGHT.lock().unwrap();
+        let flight = match all.iter().find(|(k, _)| k == key) {
+            Some((_, f)) => f.clone(),
+            None => {
+                let f = Arc::new(InFlight::default());
+                all.push((key.to_string(), f.clone()));
+                tokio::spawn(run_copy(op.clone(), path.to_string(), size, key.to_string(), f.clone()));
+                f
+            }
+        };
+        flight.waiters.fetch_add(1, Ordering::Relaxed);
+        Waiter(flight)
+    }
+}
+
+impl Drop for Waiter {
+    fn drop(&mut self) {
+        let mut all = IN_FLIGHT.lock().unwrap();
+        if self.0.waiters.fetch_sub(1, Ordering::Relaxed) == 1 && self.0.done.borrow().is_none() {
+            self.0.cancel.store(true, Ordering::Relaxed);
+            all.retain(|(_, f)| !Arc::ptr_eq(f, &self.0));
+        }
+    }
+}
 
 /// One whole copy at a time: the phone answers one request at a time, two copies shared its speed
 /// and both ended late (6.4 s alone, 15 s each in pairs).
 static ONE_COPY: Semaphore = Semaphore::const_new(1);
 
 /// The whole file in a temporary file, read in order in one go (`copied` counts the bytes); one
-/// copied before and still kept (`COPIES`), or being copied now, is used.
+/// copied before and still kept (`COPIES`), or being copied now, is used. Only a wait: dropped,
+/// the copy goes on for the others waiting for it, or stops by its own way (`Waiter`).
 async fn copy_whole(op: &Store, path: &str, size: u64, copied: &AtomicU64) -> Result<PathBuf, String> {
     // ponytail: path and size only; two phones with the same path and size would share a copy.
     let key = format!("{path}\0{size}");
@@ -415,53 +468,52 @@ async fn copy_whole(op: &Store, path: &str, size: u64, copied: &AtomicU64) -> Re
         copied.store(size, Ordering::Relaxed);
         return Ok(tmp);
     }
-    let flight = {
-        let mut all = IN_FLIGHT.lock().unwrap();
-        match all.iter().find(|(k, _)| *k == key) {
-            Some((_, f)) => f.clone(),
-            None => {
-                let f = Arc::new(InFlight { done: tokio::sync::OnceCell::new(), copied: AtomicU64::new(0) });
-                all.push((key.clone(), f.clone()));
-                f
-            }
-        }
-    };
-    let make = flight.done.get_or_init(|| async {
-        let _one = ONE_COPY.acquire().await;
-        match kept_copy(&key, size) {
-            Some(tmp) => Ok(tmp),
-            None => copy_now(op, path, size, &flight.copied, key.clone()).await,
-        }
-    });
+    let waiter = Waiter::join(op, path, size, &key);
+    let mut done = waiter.0.done.subscribe();
     // Its bytes passed on to this caller's counter (the viewer's bar) while it lasts.
-    tokio::pin!(make);
     let r = loop {
         tokio::select! {
-            r = &mut make => break r.clone(),
-            () = tokio::time::sleep(std::time::Duration::from_millis(200)) => copied.store(flight.copied.load(Ordering::Relaxed), Ordering::Relaxed),
+            r = done.wait_for(Option::is_some) => break r.ok().and_then(|d| d.clone()).unwrap_or_else(|| Err("copy ended".into())),
+            () = tokio::time::sleep(std::time::Duration::from_millis(200)) => copied.store(waiter.0.copied.load(Ordering::Relaxed), Ordering::Relaxed),
         }
     };
-    IN_FLIGHT.lock().unwrap().retain(|(_, f)| !Arc::ptr_eq(f, &flight));
     if r.is_ok() {
         copied.store(size, Ordering::Relaxed);
     }
     r
 }
 
-async fn copy_now(op: &Store, path: &str, size: u64, copied: &AtomicU64, key: String) -> Result<PathBuf, String> {
+/// The copy of `copy_whole`, in its turn, to its end or until nobody waits for it.
+async fn run_copy(op: Store, path: String, size: u64, key: String, flight: Arc<InFlight>) {
+    let r = {
+        let _one = ONE_COPY.acquire().await;
+        if flight.cancel.load(Ordering::Relaxed) {
+            Err(said(("error-cancelled", String::new())))
+        } else {
+            match kept_copy(&key, size) {
+                Some(tmp) => Ok(tmp),
+                None => copy_now(&op, &path, size, (&flight.copied, &flight.cancel), key.clone()).await,
+            }
+        }
+    };
+    let mut all = IN_FLIGHT.lock().unwrap();
+    all.retain(|(_, f)| !Arc::ptr_eq(f, &flight));
+    flight.done.send_replace(Some(r));
+}
+
+async fn copy_now(op: &Store, path: &str, size: u64, (copied, cancel): (&AtomicU64, &AtomicBool), key: String) -> Result<PathBuf, String> {
     // Only the user can read it, under a name nobody can work out, never through a link (#190).
     let (tmp, mut file) = crate::temp_file::create(&temp_prefix(), "tmp").map_err(|e| e.to_string())?;
-    // Removed unless the copy ends well, also when it is let go half way (the player closed, #276).
+    // Removed unless the copy ends well, also when nobody waits for it any more (#276).
     let mut partial = Partial(Some(tmp.clone()));
     let (tx, mut rx) = tokio::sync::mpsc::channel::<std::io::Result<bytes::Bytes>>(4);
-    let never = std::sync::atomic::AtomicBool::new(false);
     let write = async move {
         while let Some(chunk) = rx.recv().await {
             std::io::Write::write_all(&mut file, &chunk.map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         }
         Ok(())
     };
-    let (sent, written) = futures_util::future::join(op.send_chunks(path, size, tx, copied, &never), write).await;
+    let (sent, written) = futures_util::future::join(op.send_chunks(path, size, tx, copied, cancel), write).await;
     match sent.map_err(said).and(written) {
         Ok(()) => {
             partial.0 = None;
@@ -532,13 +584,16 @@ impl crate::mpv::Reader for StoreReader {
     /// From mpv's threads, outside the runtime: waiting here is allowed.
     fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>, String> {
         match &self.copy {
-            Some(copy) => match copy.get_or_init(|| self.until_closed(self.copy_whole())) {
+            Some(copy) => match copy.get_or_init(|| self.wait_until_closed(self.copy_whole())) {
                 Ok((_, file)) => Self::read_copy(file, offset, len),
                 Err(e) => Err(e.clone()),
             },
             None if let Some(ahead) = &self.ahead => self.read_ahead(ahead, offset, len),
             // With the error's id: the log said only the path when the file was gone (2026-10-29).
-            None => self.until_closed(async { self.op.read_range(&self.path, offset, len).await.map_err(said) }),
+            None => {
+                let (op, path) = (self.op.clone(), self.path.clone());
+                self.until_closed(async move { op.read_range(&path, offset, len).await.map_err(said) })
+            }
         }
     }
 
