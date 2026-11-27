@@ -119,7 +119,18 @@ pub(crate) async fn kept(op: &Store, path: &str) -> Option<Vec<u8>> {
         let c = copies.iter().find(|c| c.key == key)?;
         (c.file.clone(), c.sha, c.len, c.owner.as_ref().is_some_and(|o| o.strong_count() == 0))
     };
-    let now = if gone { None } else { op.size(path).await.ok() };
+    let now = if gone {
+        None
+    } else {
+        // Not known for now (a server without the command, the connection down): not used, kept.
+        match op.size(path).await {
+            Ok(now) => Some(now),
+            Err(e) => {
+                log!("open copy of {path:?} not used: its size not asked ({e:?})");
+                return None;
+            }
+        }
+    };
     match std::fs::read(&file) {
         Ok(bytes) if now == Some(len) && sha256(&bytes) == sha => {
             log!("{path:?} read from its open copy on this computer");
