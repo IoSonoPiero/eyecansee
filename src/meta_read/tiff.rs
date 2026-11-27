@@ -54,7 +54,8 @@ pub(crate) const FUJI: Dialect = Dialect {
     raw: true,
 };
 
-/// Directories read at most: a broken file could point at many.
+/// Directories read at most: a broken file could point at many. Also the most directories one
+/// entry may point at, and the most waiting to be read (real files: a few, audit E.1).
 const MOST: usize = 256;
 
 /// TIFF compressions coded as JPEG: old and new JPEG, a lossy DNG's.
@@ -107,6 +108,9 @@ pub(crate) fn walk(s: &Sparse, base: usize, d: &Dialect, needs: &mut Vec<Range<u
         if let Some((next, inner)) = noted(directory(s, (base, at, main), little, d, &mut found, needs), needs)? {
             todo.extend(next.map(|n| (n, true)));
             todo.extend(inner.into_iter().map(|n| (n, false)));
+            if todo.len() > MOST {
+                return Err(Stop::Whole);
+            }
         }
     }
     Ok(subtract(&subtract(&merged(found.pixels, PADDING), &found.structure), &found.kept))
@@ -153,6 +157,9 @@ fn directory(s: &Sparse, (base, at, main): (usize, usize, bool), little: bool, d
     let mut inner = Vec::new();
     let get = |tag: u16| entries.iter().find(|e| e.tag == tag);
     for e in entries.iter().filter(|e| d.pointers.contains(&e.tag)) {
+        if e.count > MOST {
+            return Err(Stop::Whole);
+        }
         if let Some(v) = noted(values(s, e, little), needs)? {
             inner.extend(v.into_iter().map(|o| base + o));
         }
