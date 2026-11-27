@@ -853,4 +853,30 @@ mod tests {
         assert_eq!(ratio(50, Some(200)), Some(25));
     }
 
+    /// Audit 27/11 F.3: with the folder's listing gone (an address from outside on the same source
+    /// clears them) or in error, no name was taken: the name of the original stayed, and Save
+    /// wrote over it, without a question and without the trash.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn save_as_without_the_listing_keeps_the_original() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("convert::tests::save_as_without_the_listing_keeps_the_original") {
+            return;
+        }
+        let dir = folder("save-as-no-listing", &["a.jpg"]);
+        let before = std::fs::read(dir.join("a.jpg")).unwrap();
+        let mut h = Harness::new(&dir);
+        let a = h.app.files()[0].path.clone();
+        h.app.open_convert(Some(a));
+        h.until(|app| app.convert.as_ref().is_some_and(|w| matches!(w.result, Some(Ok(_))) && !w.busy), "the picture encoded");
+        assert_eq!(h.app.convert.as_ref().map(|w| crate::batch::typed_name(&w.name, w.options.format)).as_deref(), Some("a.jpg"), "the name proposed is not the original's");
+        h.app.listings.clear();
+        let mut w = h.app.convert.take().unwrap();
+        let (to, name) = h.app.convert_dest(&w);
+        h.app.convert_save(&h.ctx.clone(), &mut w, &to, &name);
+        h.app.convert = Some(w);
+        h.until(|app| app.convert.is_none(), "saved");
+        assert_eq!(std::fs::read(dir.join("a.jpg")).unwrap(), before, "the original written over");
+        assert!(dir.join("a (2).jpg").is_file(), "the new file not beside it: {:?}", std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name()).collect::<Vec<_>>());
+    }
 }
