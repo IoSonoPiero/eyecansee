@@ -249,12 +249,21 @@ impl App {
                     ui.add_space(8.0);
                     ui.label("© 2026 Pierluigi Montinaro");
                     ui.label(t("about-license"));
+                    ui.label(t("about-warranty"));
                     // Tab goes through the links and the copy of the card, Enter or Space opens or
                     // presses the one highlighted; none is at first, so Enter closes (#311).
                     crate::confirm::join("about", &ui.hyperlink_to(t("about-license-link"), "https://www.gnu.org/licenses/gpl-3.0.html"));
                     crate::confirm::join("about", &ui.hyperlink_to(t("about-source"), env!("CARGO_PKG_REPOSITORY")));
                     ui.add_space(8.0);
                     ui.weak(t("about-third-party"));
+                    // The file of the package (#262); a copy built from source has none.
+                    if let Some(file) = crate::licenses::find() {
+                        let link = ui.link(t("about-third-party-link"));
+                        crate::confirm::join("about", &link);
+                        if link.clicked() {
+                            crate::kept::open_path(file);
+                        }
+                    }
                     // The card the window is drawn with, to copy into a report of a problem (#319).
                     if let Some(card) = &card {
                         ui.add_space(8.0);
@@ -503,6 +512,34 @@ mod tests {
         h.app.options = true;
         h.frame(Vec::new());
         h
+    }
+
+    /// Help > About, in both languages (#359): the lines on the warranty under the licence and the
+    /// name of the link to the libraries' licences, in a window as wide as before.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn about_says_no_warranty() {
+        if own_folder("app_dialogs::tests::about_says_no_warranty") {
+            return;
+        }
+        let mut h = Harness::new(&folder("about-warranty", &["a.png"]));
+        for (lang, line, link) in [("en", "It comes with no warranty", "Licenses of the libraries"), ("it", "È distribuito senza alcuna garanzia", "Licenze delle librerie")] {
+            h.app.i18n = crate::i18n::I18n::new(lang);
+            assert!(h.app.i18n.t("about-warranty").starts_with(line), "{lang}");
+            assert_eq!(h.app.i18n.t("about-third-party-link"), link, "{lang}");
+            h.app.about = true;
+            for _ in 0..3 {
+                h.frame(Vec::new());
+            }
+            // The layer of a window is its title's (`egui::Window::new`), as in `window_keys`.
+            let title = h.app.i18n.t("menu-about");
+            let rect = h.ctx.memory(|m| m.area_rect(egui::Id::unique(Some(title.as_str())))).expect("no About window");
+            // The new lines wrap as the tagline does: the window keeps its width (340 points in
+            // both languages on 27/11) and fits a screen 768 pixels high.
+            assert!(rect.width() <= 360.0 && rect.height() <= 600.0, "{lang}: About is {} × {} points", rect.width(), rect.height());
+            h.key(Key::Escape);
+            assert!(!h.app.about, "{lang}: Esc did not close About");
+        }
     }
 
     /// #311: with Options open the keys never reach the grid, the viewer or the shortcuts under

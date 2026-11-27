@@ -57,7 +57,7 @@ fn draw(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n, now: &Now) {
         // Made if needed: the button works also before the first log.
         let made = std::fs::create_dir_all(&folder);
         log!("options: folder of the logs {folder:?}: {made:?}");
-        crate::kept::open_folder(&folder);
+        crate::kept::open_path(&folder);
     }
 }
 

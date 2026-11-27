@@ -95,6 +95,7 @@ mod help_icons;
 mod i18n;
 mod jobs_report;
 mod kept;
+mod licenses;
 mod icons;
 mod listing;
 mod loader;

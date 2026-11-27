@@ -296,9 +296,13 @@ menu-about = About EyeCanSee
 menu-meta = Metadata boxes
 about-tagline = Viewer, manager and editor for photos, videos, 3D models and CAD drawings, for Linux and Windows
 about-license = Free software under the GNU General Public License, version 3 or later.
+about-warranty =
+    It comes with no warranty, to the extent permitted by law: you use it at your own risk.
+    You may copy, share and change it under the terms of this license.
 about-license-link = License text
 about-source = Source code on GitHub
 about-third-party = Built with open source libraries: their licenses come with every package of EyeCanSee.
+about-third-party-link = Licenses of the libraries
 about-gpu = Graphics card in use:
 about-gpu-copy = Copy (to report a problem)
 gpu-discrete = dedicated card

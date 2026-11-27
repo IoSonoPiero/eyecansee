@@ -226,7 +226,7 @@ impl App {
             }
             // The window stays: the image still has to reach the phone or server ("Try again").
             Some(Some(Choice::SaveAs)) => self.save_kept_as(ctx, k.file),
-            Some(Some(Choice::Folder)) => open_folder(Path::new(&folder)),
+            Some(Some(Choice::Folder)) => open_path(Path::new(&folder)),
             Some(None) => {
                 self.kept.remove(0);
             }
@@ -288,13 +288,14 @@ fn copy_whole(file: &Path, to: &Path) -> std::io::Result<()> {
     r
 }
 
-/// The folder in the system's file manager.
-pub(crate) fn open_folder(folder: &Path) {
+/// A folder in the system's file manager, or a file in the program the system opens it with (the
+/// licences of the libraries, from About).
+pub(crate) fn open_path(path: &Path) {
     #[cfg(windows)]
-    let r = std::process::Command::new("explorer").arg(folder).spawn();
+    let r = std::process::Command::new("explorer").arg(path).spawn();
     #[cfg(not(windows))]
-    let r = std::process::Command::new("xdg-open").arg(folder).spawn();
-    log!("open folder {folder:?}: {:?}", r.map(|_| ()));
+    let r = std::process::Command::new("xdg-open").arg(path).spawn();
+    log!("open {path:?}: {:?}", r.map(|_| ()));
 }
 
 #[cfg(test)]

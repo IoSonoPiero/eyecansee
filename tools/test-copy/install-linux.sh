@@ -24,6 +24,10 @@ else
     git diff --quiet HEAD || commit="$commit (with uncommitted changes)"
     install -Dm755 target/prova/eyecansee "$DIR/eyecansee"
     install -Dm644 assets/eyecansee-prova.png "$DIR/eyecansee-prova.png"
+    # The licences of the libraries next to the program, as in the zip: About opens them (src/licenses.rs).
+    # Not needed to start it: without jq, About only has no link.
+    tools/third-party-licenses.sh "$DIR/THIRD-PARTY-LICENSES.txt" --locked --features test-copy 2>/dev/null \
+        || echo "THIRD-PARTY-LICENSES.txt not made (is jq installed?)"
     cat > "$DIR/avvia.sh" <<'RUN'
 #!/bin/sh
 logs="$HOME/.cache/eyecansee-prova/registri"
