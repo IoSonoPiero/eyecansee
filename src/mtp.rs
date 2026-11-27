@@ -31,6 +31,7 @@ mod events;
 mod storages;
 pub(crate) mod turn;
 mod undo;
+mod wait;
 pub use events::{Change, on_change, take_changes};
 
 /// Device storages with the name shown as a folder.
@@ -664,37 +665,6 @@ impl Phone {
         .await;
         let gone = self.delete(&tmp).await;
         copied.and(gone)
-    }
-
-    /// `CopyObject` of `path` into the folder `dir`. A handle equal to the original's means a copy
-    /// not made (see `copy_inside`): it is never renamed or moved.
-    async fn copy_object(&self, path: &str, dir: &str) -> Result<ObjectHandle, Error> {
-        let (storage, handle) = self.locate(path).await?;
-        let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
-        // Into the storage of `dir`, which may not be the one of `path` (audit 2.7).
-        let (to, folder) = match self.locate(dir).await? {
-            (to, Some(h)) => (to, h),
-            (to, None) => (to, ObjectHandle::ROOT),
-        };
-        // A copy is made by the phone also inside one storage: a big one takes longer than mtp-rs
-        // waits there too (6 GB, about a minute). The events stop for a file that may (`across`).
-        let size = self.size_of(path, (&storage, handle)).await?;
-        let _quiet = (size >= LONG_COPY).then(|| (self.quiet(), turn::Deaf::start(&self.serial, path)));
-        let began = std::time::Instant::now();
-        let h = match self.queued_kept("copy", path, self.marked(storage.copy_object(handle, folder, Some(to.id())))).await {
-            // Given up while the phone is still copying it (`across::still_at_it`).
-            (Err(e), turn) if across::still_at_it(&e, size, began.elapsed()) => {
-                let h = self.finished_by_phone(("copy", began, turn), path, (&to, folder), (source::name(path), size), None).await?;
-                self.own.mark(h);
-                h
-            }
-            (r, _) => r.map_err(|e| across::copy_error(e, path))?,
-        };
-        log!("phone {}: copy {path} into {dir}: handle {} -> {}", self.serial, handle.0, h.0);
-        if h == handle {
-            return Err((NOT_MADE, path.to_string()));
-        }
-        Ok(h)
     }
 
     async fn storage_of(&self, path: &str) -> Result<Arc<Storage>, Error> {

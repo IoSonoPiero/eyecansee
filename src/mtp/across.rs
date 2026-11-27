@@ -98,7 +98,7 @@ impl Phone {
 
     /// After a copy or a move of `path` (begun at `began`) into `folder` of the storage `to`, given up by mtp-rs at
     /// 30 s: the phone is still at it. Its turn, held since the call (`queued_kept`), is kept, so nothing else is asked meanwhile but the
-    /// destination, read every few seconds (a reading while the phone works is given up at 30 s
+    /// destination, read every few seconds (`wait::until_arrived`; a reading while the phone works is given up at 30 s
     /// too, and mtp-rs goes on), until `name` is there with `size` bytes and, for a move, the item
     /// `moved` is no longer on its storage. The handle of what arrived.
     pub(super) async fn finished_by_phone(&self, (what, began, _turn): (&str, std::time::Instant, turn::Turn<'_>), path: &str, (to, folder): (&Storage, ObjectHandle), (name, size): (&str, u64), moved: Option<(&Storage, ObjectHandle)>) -> Result<ObjectHandle, Error> {
@@ -106,31 +106,69 @@ impl Phone {
         let (_waiting, _deaf) = (Waiting::start_at(what, path, began), turn::Deaf::start(&self.serial, path));
         log!("phone {}: {what} {path}: the phone is still at it ({size} bytes), its result looked for", self.serial);
         let parent = (folder != ObjectHandle::ROOT).then_some(folder);
-        while start.elapsed() < deadline(size) {
-            tokio::time::sleep(LOOK).await;
+        let pace = wait::Pace { look: LOOK, most: deadline(size) };
+        let look = |at: std::time::Duration| async move {
             let t = std::time::Instant::now();
             let found = match to.list_objects(parent).await {
                 Ok(objects) => objects.into_iter().map(|o| (o.filename, o.size, o.handle)).collect::<Vec<_>>(),
-                Err(e) if e.is_disconnected() => return Err(error(e)),
                 // The phone is still copying: this reading was given up too.
                 Err(e) => {
-                    log!("phone {}: {what} {path}: destination not read ({e}) in {:.1} s, at {:.0} s", self.serial, t.elapsed().as_secs_f32(), start.elapsed().as_secs_f32());
-                    continue;
+                    log!("phone {}: {what} {path}: destination not read ({e}) in {:.1} s, at {:.0} s", self.serial, t.elapsed().as_secs_f32(), at.as_secs_f32());
+                    return Err(e);
                 }
             };
             let there = found.iter().find(|(n, _, _)| n == name).map(|(_, s, _)| *s);
-            log!("phone {}: {what} {path}: destination read in {:.1} s, at {:.0} s: {there:?} of {size} bytes", self.serial, t.elapsed().as_secs_f32(), start.elapsed().as_secs_f32());
-            let Some(h) = arrived(&found, name, size) else { continue };
+            log!("phone {}: {what} {path}: destination read in {:.1} s, at {:.0} s: {there:?} of {size} bytes", self.serial, t.elapsed().as_secs_f32(), at.as_secs_f32());
+            let Some(h) = arrived(&found, name, size) else { return Ok(None) };
             if let Some((from, old)) = moved
                 && from.get_object_info(old).await.is_ok_and(|i| i.storage_id == from.id())
             {
-                continue;
+                return Ok(None);
             }
-            log!("phone {}: {what} {path}: done by the phone in {:.0} s", self.serial, start.elapsed().as_secs_f32());
-            return Ok(h);
+            Ok(Some(h))
+        };
+        match wait::until_arrived(pace, look).await {
+            wait::End::Arrived(h) => {
+                log!("phone {}: {what} {path}: done by the phone in {:.0} s", self.serial, start.elapsed().as_secs_f32());
+                Ok(h)
+            }
+            wait::End::Gone(e) => Err(error(e)),
+            wait::End::Late => {
+                log!("phone {}: {what} {path}: not done by the phone in {:.0} s", self.serial, start.elapsed().as_secs_f32());
+                Err(("error-phone-timeout", path.to_string()))
+            }
         }
-        log!("phone {}: {what} {path}: not done by the phone in {:.0} s", self.serial, start.elapsed().as_secs_f32());
-        Err(("error-phone-timeout", path.to_string()))
+    }
+
+    /// `CopyObject` of `path` into the folder `dir`. A handle equal to the original's means a copy
+    /// not made (see `copy_inside`): it is never renamed or moved.
+    pub(super) async fn copy_object(&self, path: &str, dir: &str) -> Result<ObjectHandle, Error> {
+        let (storage, handle) = self.locate(path).await?;
+        let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
+        // Into the storage of `dir`, which may not be the one of `path` (audit 2.7).
+        let (to, folder) = match self.locate(dir).await? {
+            (to, Some(h)) => (to, h),
+            (to, None) => (to, ObjectHandle::ROOT),
+        };
+        // A copy is made by the phone also inside one storage: a big one takes longer than mtp-rs
+        // waits there too (6 GB, about a minute). The events stop for a file that may (`Quiet`).
+        let size = self.size_of(path, (&storage, handle)).await?;
+        let _quiet = (size >= LONG_COPY).then(|| (self.quiet(), turn::Deaf::start(&self.serial, path)));
+        let began = std::time::Instant::now();
+        let h = match self.queued_kept("copy", path, self.marked(storage.copy_object(handle, folder, Some(to.id())))).await {
+            // Given up while the phone is still copying it (`still_at_it`).
+            (Err(e), turn) if still_at_it(&e, size, began.elapsed()) => {
+                let h = self.finished_by_phone(("copy", began, turn), path, (&to, folder), (source::name(path), size), None).await?;
+                self.own.mark(h);
+                h
+            }
+            (r, _) => r.map_err(|e| copy_error(e, path))?,
+        };
+        log!("phone {}: copy {path} into {dir}: handle {} -> {}", self.serial, handle.0, h.0);
+        if h == handle {
+            return Err((NOT_MADE, path.to_string()));
+        }
+        Ok(h)
     }
 }
 
