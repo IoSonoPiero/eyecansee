@@ -245,9 +245,15 @@ pub async fn read(op: &Store, path: &str, size: u64) -> Result<Vec<u8>, Error> {
     read_for(op, path, size, crate::thumb_memory::ram()).await
 }
 
-/// `read` on a computer with `ram` bytes of memory.
+/// `read` on a computer with `ram` bytes of memory. A file over half of it, or a size from the
+/// listing that says so (a server's or a phone's, true or not), is not read at all: the buffer
+/// alone would not fit, and failing to make it closes the program (audit E.2). The panel shows
+/// what it has without the file (its sidecar).
 pub(crate) async fn read_for(op: &Store, path: &str, size: u64, ram: u64) -> Result<Vec<u8>, Error> {
-    let _ = ram;
+    if size > ram / 2 {
+        log!("metadata of {path:?} not read: {} MiB, over half the RAM", size >> 20);
+        return Ok(Vec::new());
+    }
     if size <= WHOLE_UNDER || crate::video_read::whole_only(op) {
         return op.read(path).await;
     }
