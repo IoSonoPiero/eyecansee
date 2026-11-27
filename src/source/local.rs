@@ -290,4 +290,19 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(l.dirs, [format!("{}visible/", s.dir)]);
     }
+
+    /// Audit F.4 (27/11): in the copy of a folder, a folder whose real place cannot be found
+    /// (`canonicalize` fails: a link to a disk where it always fails, as some RAM disks on
+    /// Windows) was kept as an empty path: a second one was taken for the first, skipped, and
+    /// arrived empty, the copy said done. Two such folders are told apart.
+    #[test]
+    fn folders_without_a_real_place_are_told_apart() {
+        let base = std::env::temp_dir().join(format!("eyecansee-walked-{}", std::process::id()));
+        let (a, b) = (base.join("missing-a"), base.join("missing-b"));
+        assert!(a.canonicalize().is_err() && b.canonicalize().is_err(), "no real place for either");
+        assert_ne!(walked_key(&a), walked_key(&b), "two folders taken for one");
+        // A folder that is there: where it really is, as before.
+        let here = std::env::temp_dir();
+        assert_eq!(walked_key(&here), here.canonicalize().unwrap());
+    }
 }
