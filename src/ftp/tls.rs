@@ -160,6 +160,18 @@ mod tests {
         assert_eq!(now.lines().collect::<Vec<_>>(), ["other:21 BB:02", "nas:990 CC:03"]);
     }
 
+    /// S.7: what tells a changed certificate: another fingerprint saved for the same server; not
+    /// the same one, nor one of another server, nor another port.
+    #[test]
+    fn a_certificate_confirmed_before_is_found() {
+        let saved = "nas:990 AA:01\nother:21 BB:02\n";
+        assert_eq!(super::earlier(saved, "nas:990", "CC:03").as_deref(), Some("AA:01"));
+        assert_eq!(super::earlier(saved, "nas:990", "AA:01"), None, "the same certificate");
+        assert_eq!(super::earlier(saved, "new:990", "CC:03"), None, "a server never confirmed");
+        assert_eq!(super::earlier(saved, "nas:21", "CC:03"), None, "another port");
+        assert_eq!(super::earlier("", "nas:990", "CC:03"), None);
+    }
+
     #[test]
     fn fingerprint_as_browsers() {
         let fp = super::fingerprint(b"abc");

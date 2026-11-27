@@ -896,7 +896,9 @@ mod tests {
         reader.cancel();
         let r = waiting.join().unwrap();
         let closed = t.elapsed();
-        std::thread::sleep(Duration::from_millis(700));
+        while !ended.load(Ordering::Relaxed) && !dropped.load(Ordering::Relaxed) && t.elapsed() < Duration::from_secs(10) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
         assert_eq!(r, Err(said(("error-cancelled", String::new()))));
         assert!(closed < Duration::from_millis(300), "the close waited {closed:?} for the read");
         assert!(!dropped.load(Ordering::Relaxed), "the read was let go half way at the close");
