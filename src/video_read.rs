@@ -807,6 +807,86 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
+    /// Audit V.1 (27/11): the player closes while a read of the phone is under way. The read is
+    /// not let go half way: it ends by itself, only the waiting for it stops. A phone's transfer
+    /// dropped half way left the phone answering nothing (Redmi Note 9 Pro, 26/11 night).
+    #[test]
+    fn closing_lets_a_read_under_way_end() {
+        use std::sync::atomic::AtomicBool;
+        use std::time::{Duration, Instant};
+        /// Raises its second flag when dropped before the first is raised: let go half way.
+        struct Under(Arc<AtomicBool>, Arc<AtomicBool>);
+        impl Drop for Under {
+            fn drop(&mut self) {
+                if !self.0.load(Ordering::Relaxed) {
+                    self.1.store(true, Ordering::Relaxed);
+                }
+            }
+        }
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&std::env::temp_dir().to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let reader = Arc::new(StoreReader::new(rt.handle().clone(), &op, "v.mp4", 100, false));
+        let (ended, dropped) = (Arc::new(AtomicBool::new(false)), Arc::new(AtomicBool::new(false)));
+        let (under, done) = (Under(ended.clone(), dropped.clone()), ended.clone());
+        let work = async move {
+            let _under = under;
+            tokio::time::sleep(Duration::from_millis(400)).await;
+            done.store(true, Ordering::Relaxed);
+            Ok::<_, String>(())
+        };
+        let r = reader.clone();
+        let waiting = std::thread::spawn(move || r.until_closed(work));
+        std::thread::sleep(Duration::from_millis(100));
+        let t = Instant::now();
+        reader.cancel();
+        let r = waiting.join().unwrap();
+        let closed = t.elapsed();
+        std::thread::sleep(Duration::from_millis(700));
+        assert_eq!(r, Err(said(("error-cancelled", String::new()))));
+        assert!(closed < Duration::from_millis(300), "the close waited {closed:?} for the read");
+        assert!(!dropped.load(Ordering::Relaxed), "the read was let go half way at the close");
+        assert!(ended.load(Ordering::Relaxed), "the read did not end by itself");
+    }
+
+    /// Audit V.1 and V.5 (27/11): the player closes during the whole copy of a phone's video (a
+    /// phone on Windows without partial reads). The copy is not let go half way: it stops by its
+    /// own way, which on a phone gives the phone back clean (`Phone::stop_download`), and nothing
+    /// of it is left behind: no copy waiting to be followed, whose bytes a viewer opened again
+    /// counted from where the old one had got to (V.5), no whole copy made after the close.
+    #[test]
+    fn closing_during_a_whole_copy_stops_it_by_its_own_way() {
+        use std::time::{Duration, Instant};
+        let dir = std::env::temp_dir().join(format!("eyecansee-closing-copy-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("closing-copy.mp4"), [5u8; 1000]).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        // The copy waits for its turn while the player closes.
+        let held = rt.block_on(ONE_COPY.acquire()).unwrap();
+        let reader = Arc::new(StoreReader::new(rt.handle().clone(), &op, "closing-copy.mp4", 1000, true));
+        let r = reader.clone();
+        let waiting = std::thread::spawn(move || r.read(0, 10));
+        std::thread::sleep(Duration::from_millis(200));
+        reader.cancel();
+        let read = waiting.join().unwrap();
+        drop(held);
+        let key = "closing-copy.mp4\u{0}1000";
+        let in_flight = || IN_FLIGHT.lock().unwrap().iter().any(|(k, _)| k == key);
+        let t = Instant::now();
+        while in_flight() && t.elapsed() < Duration::from_secs(2) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        // Its turn come, the copy has seen the close.
+        std::thread::sleep(Duration::from_millis(300));
+        let left = in_flight();
+        let made = kept_copy(key, 1000);
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(read, Err(said(("error-cancelled", String::new()))));
+        assert!(!left, "the copy left behind, waiting to be followed, after the close");
+        assert!(made.is_none(), "the copy went on to its end after the close: {made:?}");
+    }
+
     /// Without the video engine (#71): the camera's preview in the first bytes is found; a
     /// preview after them, or none, gives nothing (the whole file is not read for it).
     #[test]
