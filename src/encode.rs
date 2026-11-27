@@ -1033,6 +1033,30 @@ pub(crate) mod tests {
             assert!(xmp.contains(&format!("<exif:UserComment><rdf:Alt><rdf:li xml:lang=\"x-default\">{comment}</rdf:li>")), "{name}: {xmp}");
         }
     }
+
+    /// A JPEG comment and a PNG text with characters XML does not allow (binary bytes some
+    /// cameras write, a control character): the XMP of a copy in another format is still XML,
+    /// with the text but them (audit E.5).
+    #[test]
+    fn control_characters_out_of_the_xmp() {
+        let mut jpeg = Vec::new();
+        DynamicImage::ImageRgb8(image::RgbImage::new(8, 6)).write_to(&mut Cursor::new(&mut jpeg), image::ImageFormat::Jpeg).unwrap();
+        let jpeg = [&jpeg[..2], &[0xFF, 0xFE, 0, 5], b"a\x01b", &jpeg[2..]].concat();
+        let mut png = Vec::new();
+        DynamicImage::ImageRgb8(image::RgbImage::new(8, 6)).write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let mut extra = Vec::new();
+        crate::meta_write::chunk(&mut extra, b"tEXt", b"Comment\0a\x0bb");
+        let at = png.windows(4).position(|w| w == b"IDAT").unwrap() - 4;
+        png.splice(at..at, extra);
+        for (file, name, format) in [(jpeg, "x.jpg", Format::Png), (png, "x.png", Format::Jpeg)] {
+            let copy = Original::with_meta(crate::decode::decode_full(&file, name).unwrap(), &file).encode(&Options { format, ..Default::default() }).unwrap();
+            let xmp = Original::with_meta(DynamicImage::new_rgb8(1, 1), &copy).xmp.map(|x| String::from_utf8(x).unwrap()).unwrap_or_default();
+            let parsed = roxmltree::Document::parse(xmp.trim_end_matches(['\0', ' ', '\n']));
+            assert!(parsed.is_ok(), "{name}: {parsed:?} in {xmp:?}");
+            assert!(xmp.contains(">ab</rdf:li>"), "{name}: {xmp}");
+        }
+    }
+
     /// An EXIF with the camera, the date, a GPS position, a maker note that can move (Apple's) of
     /// `note` bytes and, if `thumb` is not 0, a thumbnail of `thumb` bytes.
     pub(crate) fn large_exif(note: usize, thumb: usize) -> Vec<u8> {
