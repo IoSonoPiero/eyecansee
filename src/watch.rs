@@ -171,7 +171,9 @@ impl App {
                     self.i18n.t("phone-stalled")
                 };
                 log!("phone stalled: message shown");
-                self.tell("phone-stalled-title", text.clone());
+                // Shown at once, not behind another window: when the phone answers it closes by
+                // itself, and once waiting it would come later, wrong.
+                self.notice = Some(crate::save_dialogs::Notice::new(self.i18n.t("phone-stalled-title"), text.clone()));
                 self.stall_notice = Some(text);
             }
             Some(_) => {}

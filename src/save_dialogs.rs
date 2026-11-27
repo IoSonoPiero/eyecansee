@@ -233,7 +233,7 @@ impl App {
             if let Some(text) = text {
                 // Not on a video, whose Save as… saves its frame (#16).
                 let save_as = (!self.viewing_video()).then_some(Act::Convert(None));
-                self.notice = Some(Notice { save_as, ..Notice::new(self.i18n.t("save-not-possible"), text) });
+                self.tell_notice(Notice { save_as, ..Notice::new(self.i18n.t("save-not-possible"), text) });
             }
             return;
         }
@@ -365,9 +365,10 @@ impl App {
         }
     }
 
-    /// A message window titled with the Fluent id `title`.
+    /// A message window titled with the Fluent id `title`; behind the message open, if any
+    /// (audit 27/11 A.3: it took its place).
     pub(crate) fn tell(&mut self, title: &str, text: String) {
-        self.notice = Some(Notice::new(self.i18n.t(title), text));
+        self.tell_notice(Notice::new(self.i18n.t(title), text));
     }
 }
 

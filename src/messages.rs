@@ -521,7 +521,7 @@ impl App {
                     None => loader::SKIPPED,
                 };
                 let text = self.i18n.t_args(id, &[("detail", &md(&name))]);
-                self.notice = Some(Notice { save_as, ..Notice::new(self.i18n.t("save-not-possible"), text) });
+                self.tell_notice(Notice { save_as, ..Notice::new(self.i18n.t("save-not-possible"), text) });
             }
             (id, detail) => {
                 log!("save: ERROR {id} {detail}");
