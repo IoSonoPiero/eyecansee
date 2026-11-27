@@ -35,7 +35,8 @@ pub(super) fn made(before: u64, (free, capacity): (u64, u64), size: u64) -> bool
 }
 
 impl Phone {
-    /// The free bytes and the capacity of `storage`, asked now.
+    /// The free bytes and the capacity of `storage`, asked now. Not in the phone's turn: the wait
+    /// for the phone holds it (`finished_by_phone`).
     pub(super) async fn space(&self, storage: &Storage) -> Option<(u64, u64)> {
         let (device, _) = self.open.get()?;
         let fresh = device.storage(storage.id()).await.ok()?;
@@ -45,11 +46,11 @@ impl Phone {
     /// Before a copy of `size` bytes into `to` that Windows may stop waiting for: the free bytes
     /// of `to`, to see the end of the copy by (`made_unseen`). Only on Windows, and only for a
     /// file that may take long: on Linux the listing shows the copy, and nothing more is asked.
-    pub(super) async fn free_before(&self, to: &Storage, size: u64) -> Option<u64> {
+    pub(super) async fn free_before(&self, path: &str, to: &Storage, size: u64) -> Option<u64> {
         if !cfg!(windows) || size < super::LONG_COPY {
             return None;
         }
-        self.space(to).await.filter(|(_, capacity)| *capacity > 0).map(|(free, _)| free)
+        self.queued("storage_info", path, self.space(to)).await.filter(|(_, capacity)| *capacity > 0).map(|(free, _)| free)
     }
 
     /// Whether the phone has made its copy of `size` bytes into `to`, which had `before` bytes

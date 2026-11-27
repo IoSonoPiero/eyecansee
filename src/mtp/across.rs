@@ -250,7 +250,7 @@ impl Phone {
         // A copy is made by the phone also inside one storage: a big one takes longer than mtp-rs
         // waits there too (6 GB, about a minute). The events stop for a file that may (`Quiet`).
         let size = self.size_of(path, (&storage, handle)).await?;
-        let free = self.free_before(&to, size).await;
+        let free = self.free_before(path, &to, size).await;
         let (quiet, _deaf) = (size >= LONG_COPY).then(|| (self.quiet(), turn::Deaf::start(&self.serial, path))).unzip();
         stay();
         let began = std::time::Instant::now();
