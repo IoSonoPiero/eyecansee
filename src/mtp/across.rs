@@ -14,16 +14,33 @@ fn deadline(size: u64) -> std::time::Duration {
     std::time::Duration::from_secs(60 + size / (1 << 20))
 }
 
+/// How long Windows (WPD) waits for a copy before it answers: `Copy` came back after 30.4 s with
+/// the phone still copying 6 GB (Redmi Note 9 Pro, prova W5, 27/11/2026). An answer before this is
+/// the phone's own: a copy refused at once (#59) is an error.
+const WPD_GAVE_UP: std::time::Duration = std::time::Duration::from_secs(25);
+
 /// A copy given up while the phone is still making it, so its result is looked for in the
-/// destination (`finished_by_phone`): past the 30 s mtp-rs waits for an answer (`Timeout`).
-pub(super) fn still_at_it(e: &mtp_rs::Error, _size: u64, _took: std::time::Duration) -> bool {
-    matches!(e, mtp_rs::Error::Timeout)
+/// destination (`finished_by_phone`): past the 30 s mtp-rs waits for an answer (`Timeout`, USB),
+/// or, on Windows, WPD's `Copy` back near 30 s with no new object there yet (`InvalidData`, #354),
+/// only for a file of `LONG_COPY` and a call that long.
+pub(super) fn still_at_it(e: &mtp_rs::Error, size: u64, took: std::time::Duration) -> bool {
+    match e {
+        mtp_rs::Error::Timeout => true,
+        mtp_rs::Error::InvalidData { .. } => size >= LONG_COPY && took >= WPD_GAVE_UP,
+        _ => false,
+    }
 }
 
-/// The error of a copy the phone did not make, for the window: the library's own text (in
-/// English) only in the log.
-pub(super) fn copy_error(e: mtp_rs::Error, _path: &str) -> Error {
-    error(e)
+/// The error of a copy the phone did not make, for the window: on Windows mtp-rs says it with
+/// `InvalidData` (no new object), in English, which goes to the log only.
+pub(super) fn copy_error(e: mtp_rs::Error, path: &str) -> Error {
+    match e {
+        mtp_rs::Error::InvalidData { message } => {
+            log!("copy of {path} not made: {message}");
+            (NOT_MADE, path.to_string())
+        }
+        e => error(e),
+    }
 }
 
 /// Whether the item looked for is where the phone puts it: `name` with `size` bytes among `found`.
