@@ -24,7 +24,7 @@ Senza riempimento la forma si seleziona solo dal bordo: un clic al suo interno v
 
 ![Evidenziatore](icon://highlighter) **Evidenziatore** (H): trascina un riquadro sopra ciò che vuoi segnare. Tieni premuto Maiusc per un quadrato.
 
-Colora la foto come un evidenziatore vero: il bianco prende il colore, le lettere scure restano scure e leggibili. All'inizio è giallo. Con meno **Opacità** il colore è più leggero. Non ha spessore: il riquadro è grande quanto lo trascini.
+Colora la foto come un evidenziatore vero: il bianco prende il colore, le lettere scure restano scure e leggibili. Il colore predefinito è il giallo. Con meno **Opacità** il colore è più leggero. Non ha spessore: il riquadro è grande quanto lo trascini.
 
 L'evidenziatore lavora sulla foto stessa, sotto gli oggetti che disegni: una freccia disegnata sopra mantiene il proprio colore.
 

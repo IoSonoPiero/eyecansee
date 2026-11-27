@@ -4,7 +4,7 @@ Converte i video in un altro formato o in un'altra misura, li ruota, li fa più 
 
 ## Avviare la conversione
 
-Seleziona i video nella griglia (si possono selezionare anche immagini) e scegli ![Converti…](icon://scaling) **Converti…** dalla barra strumenti, dal menu **Strumenti** (**Ctrl + B**) o dal clic destro. Se tra i file ci sono video, la finestra ha una parte **Video**. Rotazione e riflessioni e destinazione funzionano come per le immagini; tra le dimensioni si possono scegliere solo **Invariate**, **Percentuale dell'originale** ed **Entro**: vedi [Convertire e ridimensionare le immagini](convert.md).
+Seleziona i video nella griglia (si possono selezionare anche immagini) e scegli ![Converti…](icon://scaling) **Converti…** dalla barra strumenti, dal menu **Strumenti** (**Ctrl + B**) o dal clic destro. Se tra i file ci sono video, la finestra ha una parte **Video**. La rotazione, le riflessioni e la destinazione funzionano come per le immagini; tra le dimensioni si possono scegliere solo **Invariate**, **Percentuale dell'originale** ed **Entro**: vedi [Convertire e ridimensionare le immagini](convert.md).
 
 ## FFmpeg
 

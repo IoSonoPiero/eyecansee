@@ -22,8 +22,8 @@ video-component-progress = Scaricamento: { $done } di { $total }
 video-component-error = Scaricamento non riuscito: { $error }
 video-engine-old = Il motore video di questo computer è troppo vecchio: { $found }, mentre a EyeCanSee serve almeno libmpv { $required }. EyeCanSee può scaricare il suo, una volta sola ({ $size }).
 video-engine-lacks = Il motore video di questo computer ({ $found }) non sa riprodurre { $missing }, i formati in cui registrano i telefoni. EyeCanSee può scaricare il suo, che li riproduce, una volta sola ({ $size }).
-video-engine-system-only = Il motore video (libmpv) su questo computer non c'è, e nelle Opzioni è scelto di usare solo quello di sistema. Installalo (il pacchetto mpv), oppure cambia la scelta in Strumenti > Opzioni > Video.
-meta-video-engine = I dati di video e file audio li legge il motore video, che non è installato. Scaricalo una volta sola ({ $size }) con il pulsante Scarica il motore video nella barra dei menù, oppure apri il file.
+video-engine-system-only = Il motore video (libmpv) su questo computer non c'è, e nelle Opzioni è scelto di usare solo quello di sistema. Installalo (il pacchetto mpv), oppure cambia la scelta in Strumenti > Opzioni… > Video.
+meta-video-engine = I dati di video e file audio li legge il motore video, che non è installato. Scaricalo una volta sola ({ $size }) con il pulsante Scarica il motore video nella barra dei menu, oppure apri il file.
 video-play = Riproduci (Spazio)
 video-pause = Pausa (Spazio)
 video-mute = Silenzia (M)
@@ -433,12 +433,12 @@ opt-graphics-directx12 = DirectX 12
 opt-graphics-vulkan = Vulkan
 vulkan-failed-title = Vulkan non è partito
 vulkan-failed-text = L'ultimo avvio con Vulkan non è arrivato a mostrare la finestra: EyeCanSee ora disegna con DirectX 12.
-    Puoi cambiarlo in Opzioni > Aspetto.
+    Puoi cambiarlo in Strumenti > Opzioni… > Aspetto.
 graphics-broken-title = Il driver della scheda video non funziona
 graphics-broken-text = All'ultimo avvio il driver della scheda video ha chiuso EyeCanSee, e la scheda non sa disegnare con DirectX 12.
     EyeCanSee ora disegna senza la scheda video, più lentamente.
     Aggiorna il driver dal sito del produttore del PC o della scheda video.
-    Poi, per riprovare la scheda, scegli Vulkan in Opzioni > Aspetto.
+    Poi, per riprovare la scheda, scegli Vulkan in Strumenti > Opzioni… > Aspetto.
 graphics-no-window = EyeCanSee non è riuscito ad aprire la sua finestra: il driver della scheda video non funziona.
     Aggiornalo dal sito del produttore del PC o della scheda video, poi avvia di nuovo EyeCanSee.
 
@@ -943,21 +943,21 @@ model-export-beyond-why = { $n ->
    *[other] Hanno più triangoli di quanti EyeCanSee ne possa aprire in quel formato.
 }
 hint-model = Frecce o trascinare: ruotare | Maiusc + trascinare, trascinare col tasto centrale: spostare | Rotellina, + e −: zoom | 0: vista di partenza | M: misura | S: sezione sì e no | X, Y, Z: asse della sezione | . , o Alt + rotellina: sposta la sezione | F: l'altro lato della sezione | Spazio, Pag↓: successivo | Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | Ctrl + Maiusc + S: salva come immagine | Ctrl + C, Ctrl + X: copia, taglia il file | F2: rinomina | Canc, Maiusc + Canc: elimina, elimina definitivamente | F5: rileggi la cartella | Ctrl + Maiusc + D: segnalibri | Tab, Maiusc + Tab: i pulsanti delle barre | F6: annulla un lavoro | F11: schermo intero | F1: guida | Doppio clic: { $double } | Invio: torna alla griglia | Esc: indietro, o chiude EyeCanSee come la ✕ della finestra
-hint-edit-select = Clic: seleziona un oggetto | Trascinare: lo sposta | Trascinare un angolo o un capo: ridimensiona (Maiusc: un riquadro mantiene le proporzioni; un pezzo incollato le mantiene, Maiusc le libera) | Trascinare la maniglia tonda sopra l'oggetto: lo ruota (Maiusc: a scatti di 15°) | Doppio clic su un testo o un fumetto: cambia le lettere | I, Maiusc + I: contagocce, su un oggetto con un colore | Canc: elimina | Esc: lascia l'oggetto, poi chiude l'editor
-hint-edit-marquee = Trascinare: sceglie una zona | Maiusc + trascinare: un quadrato | Ctrl + C: copia la zona | Ctrl + X: la taglia | Ctrl + V: incolla come oggetto | Clic o Esc: lascia la zona (Esc di nuovo: chiude l'editor)
-hint-edit-arrow = Trascinare: disegna | Trascinare il punto di mezzo: curva | Trascinare un capo: lo sposta | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia, poi chiude l'editor
-hint-edit-line = Trascinare: disegna | Trascinare il punto di mezzo: curva | Trascinare un capo: lo sposta | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia, poi chiude l'editor
-hint-edit-pen = Trascinare: disegna | Trascinare un angolo: allarga | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia, poi chiude l'editor
-hint-edit-rect = Trascinare: disegna | Maiusc + trascinare: un quadrato | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia, poi chiude l'editor
-hint-edit-ellipse = Trascinare: disegna | Maiusc + trascinare: un cerchio | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia, poi chiude l'editor
-hint-edit-highlight = Trascinare: evidenzia | Maiusc + trascinare: un quadrato | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia, poi chiude l'editor
-hint-edit-spotlight = Trascinare: illumina una zona | Maiusc + trascinare: un quadrato o un cerchio | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | Canc: elimina | Esc: lascia, poi chiude l'editor
+hint-edit-select = Clic: seleziona un oggetto | Trascinare: lo sposta | Trascinare un angolo o un capo: ridimensiona (Maiusc: un riquadro mantiene le proporzioni; un pezzo incollato le mantiene, Maiusc le libera) | Trascinare la maniglia tonda sopra l'oggetto: lo ruota (Maiusc: a scatti di 15°) | Doppio clic su un testo o un fumetto: cambia le lettere | I, Maiusc + I: contagocce, su un oggetto con un colore | Canc: elimina | Esc: toglie la selezione dell'oggetto, poi chiude l'editor
+hint-edit-marquee = Trascinare: sceglie una zona | Maiusc + trascinare: un quadrato | Ctrl + C: copia la zona | Ctrl + X: la taglia | Ctrl + V: incolla come oggetto | Clic o Esc: toglie la selezione della zona (Esc di nuovo: chiude l'editor)
+hint-edit-arrow = Trascinare: disegna | Trascinare il punto di mezzo: curva | Trascinare un capo: lo sposta | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: toglie la selezione, poi chiude l'editor
+hint-edit-line = Trascinare: disegna | Trascinare il punto di mezzo: curva | Trascinare un capo: lo sposta | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: toglie la selezione, poi chiude l'editor
+hint-edit-pen = Trascinare: disegna | Trascinare un angolo: allarga | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: toglie la selezione, poi chiude l'editor
+hint-edit-rect = Trascinare: disegna | Maiusc + trascinare: un quadrato | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: toglie la selezione, poi chiude l'editor
+hint-edit-ellipse = Trascinare: disegna | Maiusc + trascinare: un cerchio | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: toglie la selezione, poi chiude l'editor
+hint-edit-highlight = Trascinare: evidenzia | Maiusc + trascinare: un quadrato | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: toglie la selezione, poi chiude l'editor
+hint-edit-spotlight = Trascinare: illumina una zona | Maiusc + trascinare: un quadrato o un cerchio | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | Canc: elimina | Esc: toglie la selezione, poi chiude l'editor
 hint-edit-text = Clic: mette un testo, poi lo scrivi | Invio: a capo | Doppio clic su un testo: lo cambia | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina (fuori dal campo) | Esc: finisce il testo, poi chiude l'editor
 hint-edit-bubble = Trascinare: disegna un fumetto, poi scrivi il testo | Invio: a capo | Trascinare la punta della coda: la orienta | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | Doppio clic: cambia il testo | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: finisce il testo, poi chiude l'editor
-hint-edit-step = Clic: numero seguente | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia, poi chiude l'editor
-hint-edit-stamp = Clic: mette il timbro | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia, poi chiude l'editor
-hint-edit-lens = Trascinare: disegna una lente | Maiusc + trascinare: un quadrato o un cerchio | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia, poi chiude l'editor
-hint-edit-cover = Trascinare: copre | Maiusc + trascinare: un quadrato | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia, poi chiude l'editor
+hint-edit-step = Clic: numero seguente | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: toglie la selezione, poi chiude l'editor
+hint-edit-stamp = Clic: mette il timbro | Trascinare un angolo: ridimensiona | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: toglie la selezione, poi chiude l'editor
+hint-edit-lens = Trascinare: disegna una lente | Maiusc + trascinare: un quadrato o un cerchio | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: toglie la selezione, poi chiude l'editor
+hint-edit-cover = Trascinare: copre | Maiusc + trascinare: un quadrato | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I, Maiusc + I: contagocce sull'immagine, sullo schermo | Alt + clic: prende un colore, lo strumento resta | Canc: elimina | Esc: toglie la selezione, poi chiude l'editor
 hint-edit-crop = Trascinare un lato o un angolo: ritaglia | Trascinare dentro: sposta il ritaglio | Trascinare fuori: sposta la vista | Maiusc + rotellina: ruota di 0,1° | Doppio clic: tutta l'immagine in vista | Invio: applica | Esc: chiude l'editor
 hint-edit-common = V, M, A, L, P, R, E, H, S, T, U, N, K, Z, B, C: gli strumenti | Rotellina, + e −: zoom | 0: tutta l'immagine | Trascinare col tasto destro o centrale: sposta la vista (con Ritaglia: qualunque tasto, fuori dal ritaglio) | Ctrl + Z, Ctrl + Y: annulla, ripeti | Ctrl + R, Ctrl + Maiusc + R: ruota a destra, a sinistra | Ctrl + Alt + I: ridimensiona | Ctrl + C, Ctrl + V: copia il risultato, incolla un'immagine (con Selezione: come sopra) | Ctrl + S, Ctrl + Maiusc + S: salva, salva come | Tab, Maiusc + Tab: i pulsanti delle barre | F1: guida
 hint-image = →, Spazio, Pag↓: successiva | ←, Backspace, Pag↑: precedente | Inizio, Fine: prima, ultima | Spazio su un'animazione: pausa e riprendi | Spazio su una foto in movimento: riproduce il video | Pag↓, Pag↑ su un TIFF con più pagine: pagina successiva, precedente | P su un panorama a 360°: vista a 360° | Rotellina, + e −: zoom (Ctrl + rotellina se la rotellina cambia immagine) | Trascinare: spostare un'immagine ingrandita | 0: adatta alla finestra | 1: 100% | Ctrl + R, Ctrl + Maiusc + R: ruota a destra, a sinistra | Ctrl + Z, Ctrl + Y: annulla, ripeti una rotazione non salvata | Ctrl + E: modifica immagine | Ctrl + S, Ctrl + Maiusc + S: salva, salva come | Ctrl + C, Ctrl + X: copia, taglia il file | F2: rinomina | Canc, Maiusc + Canc: elimina, elimina definitivamente | F5: rileggi la cartella | Ctrl + Maiusc + D: segnalibri | Tab, Maiusc + Tab: i pulsanti delle barre | F6: annulla un lavoro | F11: schermo intero | F1: guida | Doppio clic: { $double } | Invio: torna alla griglia | Esc: indietro, o chiude EyeCanSee come la ✕ della finestra
@@ -1953,7 +1953,7 @@ opt-tab-slideshow = Carosello
 opt-tab-video = Video
 opt-tab-editor = Editor
 opt-tab-resize = Ridimensiona
-opt-resize-intro = Le misure di Ridimensiona, nel menù del clic destro sulle miniature e in Strumenti. Ognuna crea delle copie accanto agli originali, nel loro formato e con i loro metadati, con la misura nel nome ("foto (1920 px).jpg").
+opt-resize-intro = Le misure di Ridimensiona, nel menu del clic destro sulle miniature e in Strumenti. Ognuna crea delle copie accanto agli originali, nel loro formato e con i loro metadati, con la misura nel nome ("foto (1920 px).jpg").
 opt-resize-name = Nome
 opt-resize-remove = Togli
 opt-resize-add = Aggiungi
@@ -2103,7 +2103,7 @@ ffmpeg-ask-title = Serve FFmpeg
 turn-video-need-ffmpeg = Un video ruotato lo salva FFmpeg, che EyeCanSee qui non ha ancora.
     Si scarica una volta sola ({ $size }) nella cartella dei dati dell'app; poi il salvataggio prosegue.
 batch-video-system-only = FFmpeg su questo computer non c'è, e nelle Opzioni è scelto di usare solo quello di sistema.
-    Installalo, oppure cambia la scelta in Strumenti > Opzioni > Video.
+    Installalo, oppure cambia la scelta in Strumenti > Opzioni… > Video.
 batch-video-not-ready = Scegli come convertire i video.
 batch-skip-video = { $detail }: è un video e manca FFmpeg.
 batch-skip-audio = { $detail }: è un file audio e manca FFmpeg.
@@ -2156,7 +2156,7 @@ motion-play = Riproduci il movimento (Spazio)
 opt-tips = Mostra un suggerimento all'avvio
 opt-tips-hint = Una volta al giorno, all'avvio di EyeCanSee, una finestra mostra una cosa che sa fare, con Indietro e Avanti per vedere le altre.
 tip-off = Non mostrare più all'avvio
-tip-off-hint = I suggerimenti non compariranno più. Per riaverli: Strumenti > Opzioni > Generale > Mostra un suggerimento all'avvio.
+tip-off-hint = I suggerimenti non compariranno più. Per riaverli: Strumenti > Opzioni… > Generale > Mostra un suggerimento all'avvio.
 tip-back = Indietro
 tip-next = Avanti
 tip-count = Suggerimento { $n } di { $of }

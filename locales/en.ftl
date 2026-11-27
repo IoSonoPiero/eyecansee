@@ -23,7 +23,7 @@ video-component-progress = Downloading: { $done } of { $total }
 video-component-error = The download failed: { $error }
 video-engine-old = The video engine on this computer is too old: { $found }, while EyeCanSee needs at least libmpv { $required }. EyeCanSee can download its own, once ({ $size }).
 video-engine-lacks = The video engine on this computer ({ $found }) cannot play { $missing }, the formats phones record in. EyeCanSee can download its own, which plays them, once ({ $size }).
-video-engine-system-only = The video engine (libmpv) is not on this computer, and the Options say to use the system's only. Install it (the mpv package), or change the choice under Tools > Options > Video.
+video-engine-system-only = The video engine (libmpv) is not on this computer, and the Options say to use the system's only. Install it (the mpv package), or change the choice under Tools > Options… > Video.
 meta-video-engine = The details of videos and audio files are read by the video engine, which is not installed. Download it once ({ $size }) with the Download the video engine button in the menu bar, or open the file.
 video-play = Play (Space)
 video-pause = Pause (Space)
@@ -435,12 +435,12 @@ opt-graphics-directx12 = DirectX 12
 opt-graphics-vulkan = Vulkan
 vulkan-failed-title = Vulkan did not start
 vulkan-failed-text = The last start with Vulkan did not get as far as showing the window: EyeCanSee now draws with DirectX 12.
-    You can change it in Options > Look.
+    You can change it in Tools > Options… > Look.
 graphics-broken-title = The graphics card's driver does not work
 graphics-broken-text = At the last start the graphics card's driver closed EyeCanSee, and the card cannot draw with DirectX 12.
     EyeCanSee now draws without the graphics card, more slowly.
     Update the driver from the website of the computer's maker or of the graphics card's maker.
-    Then, to try the card again, choose Vulkan in Options > Look.
+    Then, to try the card again, choose Vulkan in Tools > Options… > Look.
 graphics-no-window = EyeCanSee could not open its window: the graphics card's driver does not work.
     Update it from the website of the computer's maker or of the graphics card's maker, then start EyeCanSee again.
 
@@ -930,21 +930,21 @@ model-export-beyond-why = { $n ->
    *[other] They have more triangles than EyeCanSee can open in that format.
 }
 hint-model = Arrows or drag: rotate | Shift + drag, middle button drag: move | Wheel, + and −: zoom | 0: starting view | M: measure | S: section on and off | X, Y, Z: axis of the section | . , or Alt + wheel: move the section | F: the other side of the section | Space, Page Down: next | Backspace, Page Up: previous | Home, End: first, last | Ctrl + Shift + S: save as an image | Ctrl + C, Ctrl + X: copy, cut the file | F2: rename | Del, Shift + Del: delete, delete for good | F5: read the folder again | Ctrl + Shift + D: bookmarks | Tab, Shift + Tab: the buttons of the bars | F6: cancel a job | F11: full screen | F1: guide | Double click: { $double } | Enter: back to the grid | Esc: back, or close EyeCanSee as the window's ✕
-hint-edit-select = Click: select an object | Drag: move it | Drag a corner or an end: resize (Shift: a box keeps its proportions; a pasted piece keeps them, Shift frees them) | Drag the round handle above the object: rotate it (Shift: 15° at a time) | Double click on a text or bubble: change its letters | I, Shift + I: eyedropper, on an object with a colour | Del: delete | Esc: let go of the object, then close the editor
-hint-edit-marquee = Drag: choose a part | Shift + drag: a square | Ctrl + C: copy the part | Ctrl + X: cut it | Ctrl + V: paste as an object | Click or Esc: let go of the part (Esc again: close the editor)
-hint-edit-arrow = Drag: draw | Drag the middle point: bend | Drag an end: move it | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go, then close the editor
-hint-edit-line = Drag: draw | Drag the middle point: bend | Drag an end: move it | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go, then close the editor
-hint-edit-pen = Drag: draw | Drag a corner: stretch | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go, then close the editor
-hint-edit-rect = Drag: draw | Shift + drag: a square | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go, then close the editor
-hint-edit-ellipse = Drag: draw | Shift + drag: a circle | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go, then close the editor
-hint-edit-highlight = Drag: highlight | Shift + drag: a square | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go, then close the editor
-hint-edit-spotlight = Drag: light a part | Shift + drag: a square or a circle | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | Del: delete | Esc: let go, then close the editor
+hint-edit-select = Click: select an object | Drag: move it | Drag a corner or an end: resize (Shift: a box keeps its proportions; a pasted piece keeps them, Shift frees them) | Drag the round handle above the object: rotate it (Shift: 15° at a time) | Double click on a text or bubble: change its letters | I, Shift + I: eyedropper, on an object with a colour | Del: delete | Esc: deselect the object, then close the editor
+hint-edit-marquee = Drag: choose a part | Shift + drag: a square | Ctrl + C: copy the part | Ctrl + X: cut it | Ctrl + V: paste as an object | Click or Esc: deselect the part (Esc again: close the editor)
+hint-edit-arrow = Drag: draw | Drag the middle point: bend | Drag an end: move it | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: deselect, then close the editor
+hint-edit-line = Drag: draw | Drag the middle point: bend | Drag an end: move it | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: deselect, then close the editor
+hint-edit-pen = Drag: draw | Drag a corner: stretch | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: deselect, then close the editor
+hint-edit-rect = Drag: draw | Shift + drag: a square | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: deselect, then close the editor
+hint-edit-ellipse = Drag: draw | Shift + drag: a circle | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: deselect, then close the editor
+hint-edit-highlight = Drag: highlight | Shift + drag: a square | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: deselect, then close the editor
+hint-edit-spotlight = Drag: light a part | Shift + drag: a square or a circle | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | Del: delete | Esc: deselect, then close the editor
 hint-edit-text = Click: put a text, then type it | Enter: new line | Double click on a text: change it | Drag the round handle: rotate (Shift: 15° at a time) | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete (outside the field) | Esc: end the text, then close the editor
 hint-edit-bubble = Drag: draw a bubble, then type its text | Enter: new line | Drag the end of the tail: point it | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | Double click: change the text | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: end the text, then close the editor
-hint-edit-step = Click: next number | Drag a corner: resize (Shift: same proportions) | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go, then close the editor
-hint-edit-stamp = Click: put the stamp | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go, then close the editor
-hint-edit-lens = Drag: draw a magnifier | Shift + drag: a square or a circle | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go, then close the editor
-hint-edit-cover = Drag: cover | Shift + drag: a square | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: let go, then close the editor
+hint-edit-step = Click: next number | Drag a corner: resize (Shift: same proportions) | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: deselect, then close the editor
+hint-edit-stamp = Click: put the stamp | Drag a corner: resize | Drag the round handle: rotate (Shift: 15° at a time) | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: deselect, then close the editor
+hint-edit-lens = Drag: draw a magnifier | Shift + drag: a square or a circle | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: deselect, then close the editor
+hint-edit-cover = Drag: cover | Shift + drag: a square | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I, Shift + I: eyedropper on the image, on the screen | Alt + click: take a colour, the tool stays | Del: delete | Esc: deselect, then close the editor
 hint-edit-crop = Drag a side or corner: crop | Drag inside: move the crop | Drag outside: move the view | Shift + wheel: rotate by 0.1° | Double click: whole image in view | Enter: apply | Esc: close the editor
 hint-edit-common = V, M, A, L, P, R, E, H, S, T, U, N, K, Z, B, C: the tools | Wheel, + and −: zoom | 0: whole image | Right or middle button drag: move the view (with Crop: any button, outside the crop) | Ctrl + Z, Ctrl + Y: undo, redo | Ctrl + R, Ctrl + Shift + R: rotate right, left | Ctrl + Alt + I: resize | Ctrl + C, Ctrl + V: copy the result, paste an image (with Selection: as above) | Ctrl + S, Ctrl + Shift + S: save, save as | Tab, Shift + Tab: the buttons of the bars | F1: guide
 hint-image = →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Space on an animation: pause and play | Space on a motion photo: play its video | Page Down, Page Up on a TIFF with pages: next, previous page | P on a 360° panorama: 360° view | Wheel, + and −: zoom (Ctrl + wheel when the wheel changes image) | Drag: move a zoomed image | 0: fit the window | 1: 100% | Ctrl + R, Ctrl + Shift + R: rotate right, left | Ctrl + Z, Ctrl + Y: undo, redo an unsaved rotation | Ctrl + E: edit image | Ctrl + S, Ctrl + Shift + S: save, save as | Ctrl + C, Ctrl + X: copy, cut the file | F2: rename | Del, Shift + Del: delete, delete for good | F5: read the folder again | Ctrl + Shift + D: bookmarks | Tab, Shift + Tab: the buttons of the bars | F6: cancel a job | F11: full screen | F1: guide | Double click: { $double } | Enter: back to the grid | Esc: back, or close EyeCanSee as the window's ✕
@@ -2090,7 +2090,7 @@ ffmpeg-ask-title = FFmpeg needed
 turn-video-need-ffmpeg = A turned video is saved by FFmpeg, which EyeCanSee has not got here yet.
     It is downloaded once ({ $size }) into the app's data folder; then the saving goes on.
 batch-video-system-only = FFmpeg is not on this computer, and the Options say to use the system's only.
-    Install it, or change the choice under Tools > Options > Video.
+    Install it, or change the choice under Tools > Options… > Video.
 batch-video-not-ready = Choose how to convert the videos.
 batch-skip-video = { $detail }: a video, and FFmpeg is missing.
 batch-skip-audio = { $detail }: an audio file, and FFmpeg is missing.
@@ -2143,7 +2143,7 @@ motion-play = Play motion (Space)
 opt-tips = Show a tip at startup
 opt-tips-hint = Once a day, when EyeCanSee starts, a window shows one thing it can do, with Back and Next to see the others.
 tip-off = Don't show at startup
-tip-off-hint = The tips will not appear again. To have them back: Tools > Options > General > Show a tip at startup.
+tip-off-hint = The tips will not appear again. To have them back: Tools > Options… > General > Show a tip at startup.
 tip-back = Back
 tip-next = Next
 tip-count = Tip { $n } of { $of }
