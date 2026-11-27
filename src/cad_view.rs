@@ -369,4 +369,27 @@ mod tests {
         h.app.close_viewer();
         assert!(h.app.model.cad.sheets.is_empty(), "{:?}", kept(&h));
     }
+
+    /// Audit 27/11, D.2: layout 3 remembered for a drawing saved again with two layouts; the
+    /// status bar asked for the third and the interface panicked. Now the model is shown.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn audit_d2_fewer_layouts() {
+        if own_folder("cad_view::tests::audit_d2_fewer_layouts") {
+            return;
+        }
+        let dir = folder("layouts", &["a.dxf"]);
+        let mut h = Harness::new(&dir);
+        let path = h.app.files()[0].path.clone();
+        let layout = |name: &str| (name.to_string(), std::sync::Arc::new(crate::cad::Drawing::default()));
+        let drawing = crate::cad::Drawing { sheets: vec![layout("A"), layout("B")], ..Default::default() };
+        h.app.model.cad.drawings.insert(path.clone(), std::sync::Arc::new(drawing));
+        h.app.model.cad.sheet = (path.clone(), 3);
+        let model = h.app.i18n.t("cad-model");
+        assert_eq!(h.app.cad_sheet_name(0), Some(format!("{model} (1/3)")));
+        assert_eq!((h.app.cad_sheet(&path), h.app.cad_sheet_waiting(0)), (0, false));
+        // A layout the drawing has stays.
+        h.app.model.cad.sheet = (path.clone(), 2);
+        assert_eq!(h.app.cad_sheet_name(0), Some("B (3/3)".to_string()));
+    }
 }
