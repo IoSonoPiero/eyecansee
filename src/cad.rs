@@ -782,6 +782,70 @@ mod tests {
         assert!(read(&[0u8; 64], "x.dxf").is_err());
     }
 
+    /// A DXF whose model places a block of one hidden line `placed` times (and draws a line), with
+    /// `layouts` layouts, each with a window on the model.
+    pub(crate) fn placed_with_layouts(placed: u32, layouts: &[&str]) -> Vec<u8> {
+        let (rows, cols) = (placed.div_ceil(1000), placed.min(1000));
+        let block = "0\nSECTION\n2\nBLOCKS\n0\nBLOCK\n8\n0\n2\nK\n70\n0\n10\n0\n20\n0\n30\n0\n3\nK\n0\nLINE\n8\n0\n60\n1\n10\n0\n20\n0\n30\n0\n11\n1\n21\n1\n31\n0\n0\nENDBLK\n8\n0\n0\nENDSEC\n";
+        let dxf = format!("{block}0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n30\n0\n11\n10\n21\n10\n31\n0\n0\nINSERT\n8\n0\n2\nK\n10\n0\n20\n0\n30\n0\n70\n{cols}\n71\n{rows}\n44\n0.01\n45\n0.01\n0\nENDSEC\n0\nEOF\n");
+        let mut doc = DxfReader::from_reader(Cursor::new(dxf.into_bytes())).and_then(|r| r.read()).unwrap();
+        for name in layouts {
+            doc.add_layout(name).unwrap();
+            let mut v = acadrust::entities::Viewport::new();
+            v.id = 2;
+            v.center = Vector3::new(5.0, 5.0, 0.0);
+            (v.width, v.height, v.view_height) = (20.0, 20.0, 20.0);
+            v.view_center = Vector3::new(5.0, 5.0, 0.0);
+            doc.add_entity_to_layout(EntityType::Viewport(Box::new(v)), name).unwrap();
+        }
+        acadrust::DxfWriter::new(&doc).write_to_vec().unwrap()
+    }
+
+    /// Audit 27/11, D.3 (#179): the caps of a drawing went from zero for its model and again for
+    /// each layout, and every window on the model placed its blocks again: a file of a few KB with
+    /// N layouts did N + 1 times the work, and kept N + 1 drawings. A block placed 999 000 times
+    /// (just under `MAX_VISITS`) and three layouts with a window: four million placed, where the
+    /// whole file may place twice `MAX_VISITS`. The layouts beyond are left out.
+    #[test]
+    fn audit_d3_caps_for_the_whole_file() {
+        let d = read(&placed_with_layouts(999_000, &["A", "B", "C"]), "a.dxf").unwrap();
+        let names: Vec<&str> = d.sheets.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, ["A"], "the blocks placed again for every layout");
+        // Under the cap of the file, every layout is drawn.
+        let d = read(&placed_with_layouts(1000, &["A", "B", "C"]), "a.dxf").unwrap();
+        assert_eq!(d.sheets.len(), 3);
+    }
+
+    /// Audit 27/11, D.3: every DWG and DXF under `EYECANSEE_CAD` (and its folders), read: whether
+    /// it opens, its points, and its layouts with their items, to compare before and after the
+    /// caps of the whole file.
+    #[test]
+    #[ignore]
+    fn audit_d3_live() {
+        let Ok(dir) = std::env::var("EYECANSEE_CAD") else { return };
+        let mut stack = vec![std::path::PathBuf::from(dir)];
+        let mut paths = Vec::new();
+        while let Some(d) = stack.pop() {
+            for f in std::fs::read_dir(&d).unwrap().flatten() {
+                let path = f.path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("dwg") || e.eq_ignore_ascii_case("dxf")) {
+                    paths.push(path);
+                }
+            }
+        }
+        paths.sort();
+        for path in paths {
+            let r = read(&std::fs::read(&path).unwrap(), &path.to_string_lossy());
+            let said = match &r {
+                Ok(d) => format!("{} items, {} points, layouts {:?}", d.items.len(), d.points, d.sheets.iter().map(|(n, s)| (n.as_str(), s.items.len())).collect::<Vec<_>>()),
+                Err(e) => format!("error {e}"),
+            };
+            println!("SHEETS {}: {said}", path.display());
+        }
+    }
+
     /// Audit 6.6: one INSERT that repeats a block of one TEXT in 32767 rows and 32767 columns (the
     /// most a DXF can say; 65535 in a DWG): a thousand million texts, which `MAX_POINTS` does not
     /// count (only the points of the lines). It must be refused before the memory is full.
