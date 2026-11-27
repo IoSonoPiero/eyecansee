@@ -490,6 +490,26 @@ mod tests {
         assert!(plain(&stopped.text).starts_with("To /in/\n\n1 file not read:"), "{}", stopped.text);
     }
 
+    /// Audit F.6 (b) of 27/11: a copy stopped by an error that also left something out (here a file
+    /// not read) said where it went and the list, but not why it stopped: the reason was only in
+    /// the error bar, which a change of place clears (P7 of 26/11, put right then only for the copy
+    /// with no list, `quiet_copy`). On top it says what that one says: the files done, and why.
+    #[test]
+    fn a_copy_stopped_with_a_list_says_why() {
+        let p = two_of_three();
+        *p.failed.lock().unwrap() = vec![("a/c.jpg".to_string(), ("error-detail", "timeout".to_string()))];
+        let gone: Result<(), Error> = Err(("error-phone-disconnected", "device disconnected".into()));
+        for lang in ["en", "it"] {
+            let i18n = crate::i18n::I18n::new(lang);
+            for cut in [false, true] {
+                let n = super::transfer_notice(&i18n, cut, "/in/", &gone, &p).unwrap();
+                let alone = super::quiet_copy(&i18n, cut, "/in/", &gone, &p);
+                assert!(n.text.starts_with(&format!("{}\n\n", alone.text)), "{lang}: why it stopped is not said: {}", n.text);
+                assert!(n.copy.as_deref().is_some_and(|c| c.starts_with(&format!("{}\n\n", alone.copy))), "{lang}: {:?}", n.copy);
+            }
+        }
+    }
+
     /// The part of a quiet copy, in English and Italian: finished, moved, cancelled, stopped.
     #[test]
     fn quiet_copy_says_what_happened() {
