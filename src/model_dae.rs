@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use roxmltree::{Document, Node};
+use roxmltree::Node;
 
 use crate::model::{Builder, IDENTITY, Mat4, Mesh, Sibling, apply, mul, rotation};
 use crate::model_3mf::Local;
@@ -21,7 +21,7 @@ type Look = (Option<[u8; 3]>, u16);
 
 pub fn read(bytes: &[u8], zipped: bool, sibling: Sibling, unpacked: &crate::model_3mf::Unpacked) -> Result<Mesh, String> {
     let text = if zipped { crate::model_3mf::unzipped(bytes, ".dae", unpacked)? } else { crate::model_3mf::text(bytes) };
-    let doc = Document::parse_with_options(&text, crate::model_3mf::xml_options()).map_err(|e| e.to_string())?;
+    let doc = crate::model_3mf::parse_xml(&text, crate::model_limit::COLLADA)?;
     // Several elements may share an id (an effect named as its geometry): all kept, by kind.
     let mut ids: HashMap<&str, Vec<Node>> = HashMap::new();
     for n in doc.descendants() {

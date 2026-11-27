@@ -129,13 +129,13 @@ fn transform(node: Node) -> Transform {
 pub fn read(bytes: &[u8], unpacked: &Unpacked) -> Result<Mesh, String> {
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
     let rels = entry(&mut zip, "_rels/.rels", unpacked).unwrap_or_default();
-    let main = Document::parse(&rels)
+    let main = parse_xml(&rels, crate::model_limit::THREE_MF)
         .ok()
         .and_then(|d| d.descendants().find(|n| n.attribute("Type").is_some_and(|t| t.ends_with("/3dmodel"))).and_then(|n| n.attribute("Target")).map(str::to_string))
         .unwrap_or_else(|| "/3D/3dmodel.model".into());
     let mut files = Files { zip, unpacked, texts: HashMap::new(), pictures: HashMap::new(), written: 0 };
     let text = files.text(&main)?;
-    let doc = Document::parse(&text).map_err(|e| e.to_string())?;
+    let doc = parse_xml(&text, crate::model_limit::THREE_MF)?;
     let mut b = Builder::up_to(crate::model_limit::THREE_MF);
     let model = Model::new(&doc);
     for item in doc.descendants().filter(|n| n.has_tag_name_local("item")) {
@@ -274,7 +274,7 @@ fn place(b: &mut Builder, files: &mut Files, main: &str, model: &Model, path: &s
     b.visit()?;
     if files.index(path).is_none() || files.index(path) != files.index(main) {
         let text = files.text(path)?;
-        let doc = Document::parse(&text).map_err(|e| e.to_string())?;
+        let doc = parse_xml(&text, crate::model_limit::THREE_MF)?;
         let other = Model::new(&doc);
         return place(b, files, path, &other, path, id, m, depth + 1);
     }
@@ -322,9 +322,43 @@ fn mesh_part(b: &mut Builder, files: &mut Files, model: &Model, object: Node, me
     b.add_textured(pos, tris, colors, place)
 }
 
-/// XML of 3D formats: a DTD is allowed (X3D has one), its entities stay limited by roxmltree.
+/// XML of 3D formats: a DTD is allowed (X3D has one), its entities stay limited by roxmltree;
+/// the nodes at most those of the format that allows the most (`tree_most`), each format's own
+/// set by `parse_xml`.
 pub(crate) fn xml_options<'a>() -> roxmltree::ParsingOptions<'a> {
-    roxmltree::ParsingOptions { allow_dtd: true, ..Default::default() }
+    let nodes = [crate::model_limit::THREE_MF, crate::model_limit::AMF, crate::model_limit::COLLADA, crate::model_limit::X3D].map(|l| tree_most(l).0).into_iter().max().unwrap_or(0);
+    roxmltree::ParsingOptions { allow_dtd: true, nodes_limit: u32::try_from(nodes).unwrap_or(u32::MAX), ..Default::default() }
+}
+
+/// The nodes and the attributes roxmltree may build for one XML file of a format, by triangle
+/// of its cap (audit 27/11, D.4): its tree takes about 80 bytes a node and 72 an attribute, 10
+/// to 20 times the text, which is what `Unpacked` counts. Counted on the real files of the
+/// collection, by triangle read: 3MF up to 4.1 nodes and 9.6 attributes (with textures), AMF up
+/// to 11 nodes (a short file more, and its structure some 20) and 1.6 attributes, Collada and
+/// X3D up to 3.2 nodes and 1.2 attributes; so a file at the cap of its format still opens.
+fn tree_most(limit: crate::model_limit::Limit) -> (usize, usize) {
+    let (nodes, attributes) = match limit.format {
+        "three-mf" => (6, 12),
+        "amf" => (24, 2),
+        _ => (4, 2),
+    };
+    (nodes * limit.max, attributes * limit.max)
+}
+
+/// `text` as XML of the format of `limit`, refused with `OFFERED` before its tree takes more than
+/// `tree_most`: its attributes counted first (one `=` each at least), its nodes by roxmltree as
+/// it builds them. A DTD only outside 3MF, as before.
+pub(crate) fn parse_xml(text: &str, limit: crate::model_limit::Limit) -> Result<Document<'_>, String> {
+    let (nodes, attributes) = tree_most(limit);
+    let refused = |n: usize| crate::model_limit::too_many(crate::model_limit::OFFERED, n);
+    if text.bytes().filter(|&b| b == b'=').count() > attributes {
+        return Err(refused(attributes));
+    }
+    let options = roxmltree::ParsingOptions { allow_dtd: limit != crate::model_limit::THREE_MF, nodes_limit: u32::try_from(nodes).unwrap_or(u32::MAX), ..xml_options() };
+    Document::parse_with_options(text, options).map_err(|e| match e {
+        roxmltree::Error::NodesLimitReached => refused(nodes),
+        e => e.to_string(),
+    })
 }
 
 /// The first file of the zip whose name ends with `ext` (AMF, Collada's ZAE).
@@ -507,6 +541,14 @@ mod tests {
     fn audit_d4_xml_tree_limited() {
         let most = 8 * crate::model_limit::COLLADA.max;
         assert!(xml_options().nodes_limit as usize <= most, "nodes_limit {}: the tree of the XML without a limit", xml_options().nodes_limit);
+        // Scaled: a cap of 1000 triangles, so 6000 nodes and 12 000 attributes for a 3MF.
+        let limit = crate::model_limit::Limit { max: 1000, format: "three-mf" };
+        let model = |n: usize, vertex: &str| format!("<model><resources><object id=\"1\"><mesh><vertices>{}</vertices></mesh></object></resources></model>", vertex.repeat(n));
+        for (what, text) in [("nodes", model(10_000, "<vertex/>")), ("attributes", model(5_000, r#"<vertex x="0" y="0" z="0"/>"#))] {
+            let (r, peak) = crate::test_alloc::peak(|| parse_xml(&text, limit).map(|d| d.descendants().count()));
+            assert!(r.as_ref().is_err_and(|e| e.starts_with(crate::model_limit::OFFERED)) && peak < 1 << 20, "{what}: {r:?}, {peak} bytes");
+        }
+        assert_eq!(parse_xml(&model(100, r#"<vertex x="0" y="0" z="0"/>"#), limit).map(|d| d.descendants().count()), Ok(106));
     }
 
     /// Audit 27/11, D.4: the nodes and attributes roxmltree builds for the XML of every 3MF, AMF,
@@ -542,7 +584,7 @@ mod tests {
                 };
                 let (mut nodes, mut attributes, mut most) = (0, 0, 0);
                 for t in &texts {
-                    if let Ok(doc) = Document::parse_with_options(t, xml_options()) {
+                    if let Ok(doc) = Document::parse_with_options(t, roxmltree::ParsingOptions { allow_dtd: true, ..Default::default() }) {
                         let n = doc.descendants().count();
                         (nodes, most) = (nodes + n, most.max(n));
                         attributes += doc.descendants().map(|n| n.attributes().len()).sum::<usize>();
@@ -551,6 +593,16 @@ mod tests {
                 let tris = crate::model::parse(&bytes, &name).map_or(0, |m| m.tris.len());
                 let per = |n: usize| n as f64 / tris.max(1) as f64;
                 println!("NODES {name}: {nodes} nodes (most in one file {most}), {attributes} attributes, {tris} triangles: {:.2} nodes and {:.2} attributes a triangle", per(nodes), per(attributes));
+                // None refused by the limits of its format.
+                use crate::model_limit::{AMF, COLLADA, THREE_MF, X3D};
+                let limit = match ext.as_str() {
+                    "3mf" => THREE_MF,
+                    "amf" => AMF,
+                    "dae" | "zae" => COLLADA,
+                    _ => X3D,
+                };
+                let (most_nodes, most_attributes) = tree_most(limit);
+                assert!(most <= most_nodes && texts.iter().all(|t| t.bytes().filter(|&b| b == b'=').count() <= most_attributes), "{name}");
             }
         }
     }

@@ -3,7 +3,7 @@
 //! colours of triangles, vertices, volumes, objects and materials.
 
 use std::collections::HashMap;
-use roxmltree::{Document, Node};
+use roxmltree::Node;
 
 use crate::model::{Builder, Mesh};
 
@@ -14,7 +14,7 @@ pub fn read(bytes: &[u8], unpacked: &crate::model_3mf::Unpacked) -> Result<Mesh,
     let text = if bytes.starts_with(b"PK") { crate::model_3mf::unzipped(bytes, ".amf", unpacked)? } else { crate::model_3mf::text(bytes) };
     // Counted before the XML is parsed (`model_limit`).
     crate::model_limit::AMF.check(crate::model_limit::xml_triangles(&text))?;
-    let doc = Document::parse_with_options(&text, crate::model_3mf::xml_options()).map_err(|e| e.to_string())?;
+    let doc = crate::model_3mf::parse_xml(&text, crate::model_limit::AMF)?;
     let root = doc.root_element();
     let ids = |tag: &str| -> HashMap<&str, Node> { root.children().filter(|n| n.has_tag_name(tag)).filter_map(|n| Some((n.attribute("id")?, n))).collect() };
     let (objects, materials, constellations) = (ids("object"), ids("material"), ids("constellation"));

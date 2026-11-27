@@ -362,7 +362,7 @@ fn join(nums: Vec<f32>, strs: Vec<String>, nodes: Vec<Rc<SceneNode>>) -> Value {
 }
 
 fn xml(text: &str) -> Result<SceneNode, String> {
-    let doc = roxmltree::Document::parse_with_options(text, crate::model_3mf::xml_options()).map_err(|e| e.to_string())?;
+    let doc = crate::model_3mf::parse_xml(text, crate::model_limit::X3D)?;
     let mut defs = HashMap::new();
     let scene = doc.descendants().find(|n| n.has_tag_name("Scene")).ok_or("no Scene in the X3D file")?;
     Ok(SceneNode { kind: "Scene".into(), fields: vec![("".into(), Value::Nodes(xml_children(scene, &mut defs, 0)?))] })
