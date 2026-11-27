@@ -323,7 +323,7 @@ impl crate::App {
     /// free one beside it.
     fn convert_dest(&self, w: &Window) -> (String, String) {
         let dir = w.dest_dir();
-        let name = crate::source::free_name(&self.convert_taken(w, &dir), &crate::batch::typed_name(&w.name, w.options.format));
+        let name = crate::source::free_name(&self.convert_taken(w, &dir).unwrap_or_default(), &crate::batch::typed_name(&w.name, w.options.format));
         (dir, name)
     }
 
@@ -333,10 +333,13 @@ impl crate::App {
         let (path, bytes) = (format!("{dir}{final_name}"), bytes.clone());
         let sent = match (w.dest_store(), &self.loader) {
             (Some(store), _) => self.save_in_place(ctx, store.clone(), path, bytes),
-            (None, Some(loader)) => {
+            (None, Some(loader)) if self.convert_taken(w, dir).is_some() => {
                 loader.save(path, bytes);
                 true
             }
+            // Without the folder's names (a listing gone or in error) the name shown may be taken,
+            // the original's even: written under a name free there, read again (audit 27/11 F.3).
+            (None, Some(loader)) => self.save_in_place(ctx, loader.store(), path, bytes),
             (None, None) => false,
         };
         if sent {
@@ -346,22 +349,23 @@ impl crate::App {
     }
 
     /// The names taken in `dir`, where the file goes: the grid's for its own place (`save_in_place`
-    /// checks them again elsewhere), those read in a folder chosen (`folder`).
-    fn convert_taken(&self, w: &Window, dir: &str) -> HashSet<String> {
+    /// checks them again elsewhere), those read in a folder chosen (`folder`). `None`: not known,
+    /// the grid has no good listing of that folder (gone, or in error).
+    fn convert_taken(&self, w: &Window, dir: &str) -> Option<HashSet<String>> {
         if let Some(f) = &w.folder {
-            return f.taken();
+            return Some(f.taken());
         }
         let here = w.dest_base(&self.base) == self.base;
         // What the grid does not show is taken too: a hidden "e (2).jpg" was overwritten.
         match self.listings.get(dir).filter(|_| here) {
-            Some(Ok(l)) => l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/').to_string()).chain(l.unseen.iter().cloned()).collect(),
-            _ => HashSet::new(),
+            Some(Ok(l)) => Some(l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/').to_string()).chain(l.unseen.iter().cloned()).collect()),
+            _ => None,
         }
     }
 
-    /// Save as… from the editor, or into a folder chosen: written there (`place`, `folder`),
-    /// under a name free there: the grid may show another place, whose names say nothing of that
-    /// folder. `true`: sent.
+    /// Save as… from the editor, into a folder chosen, or with no good listing of its folder:
+    /// written there (`place`, `folder`), under a name free there: the grid may show another place,
+    /// whose names say nothing of that folder. `true`: sent.
     fn save_in_place(&self, ctx: &egui::Context, store: crate::source::Store, path: String, data: Arc<Vec<u8>>) -> bool {
         let (tx, ctx) = (self.tx.clone(), ctx.clone());
         self.rt.spawn(async move {
