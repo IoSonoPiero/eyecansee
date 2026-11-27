@@ -625,6 +625,20 @@ mod tests {
         assert!(!settled(&mut seen, "k", &file(1, "1795516265"), at(400)));
     }
 
+    /// Audit F.10 of 27/11 (rest of #339): a share of the network mounted as a folder or a drive
+    /// (SMB, NFS, sshfs) is a disk to EyeCanSee, where a save's new file was taken at once for the
+    /// rest of a save cut short and tidied: another computer saving there failed. There it waits
+    /// as on a server; on a disk of this computer it does not.
+    #[test]
+    fn a_new_file_on_a_share_waits_as_on_a_server() {
+        let dir = std::env::temp_dir();
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let file = File { path: "shared/.a.jpg.eyecansee-new".into(), size: 10, modified: "then".into() };
+        assert_eq!(op.shared_key(&file, |_| false), None, "a disk of this computer");
+        let key = op.shared_key(&file, |p| p.ends_with("shared/.a.jpg.eyecansee-new"));
+        assert!(key.as_deref().is_some_and(|k| k.ends_with("shared/.a.jpg.eyecansee-new")), "a share of the network: taken at once ({key:?})");
+    }
+
     /// What a paste cut short left (issue #91): a file put aside alone takes its name back; with
     /// the new file and a save's older original beside it, the file put aside gets the name, the
     /// new file goes and the save's original stays hidden; one next to its image stays.
