@@ -1487,6 +1487,31 @@ mod tests {
         assert!(gone.is_empty(), "{gone:?}");
     }
 
+    /// Audit F.1 of 27/11 (#195), a link below to another level of the folder moved:
+    /// `Desk/album/2024` leads to `Photos/album` itself. Refused as well, nothing written.
+    #[cfg(unix)]
+    #[test]
+    fn f1_folder_below_is_a_link_to_the_folder_moved() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-f1-level-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("Photos/album/2024")).unwrap();
+        std::fs::create_dir_all(dir.join("Desk/album")).unwrap();
+        std::fs::write(dir.join("Photos/album/2024/y.jpg"), b"y").unwrap();
+        std::os::unix::fs::symlink("../../Photos/album", dir.join("Desk/album/2024")).unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let clip = Clip { op: op.clone(), base: "test-f1://".into(), paths: vec!["Photos/album/".into()], cut: true, text: String::new() };
+        let replace = HashMap::from([("Photos/album/".to_string(), Choice::Replace)]);
+        let (gone, r) = rt.block_on(run(&clip, &op, "test-f1://", "Desk/", &replace, &Progress::default()));
+        let mut there: Vec<String> = std::fs::read_dir(dir.join("Photos/album")).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        there.sort();
+        let y = std::fs::read(dir.join("Photos/album/2024/y.jpg")).ok();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(r.map_err(|e| e.0), Err("error-move-same-item"));
+        assert!(gone.is_empty(), "{gone:?}");
+        assert_eq!((there, y.as_deref()), (vec!["2024".to_string()], Some(&b"y"[..])), "something written into the folder moved, or gone from it");
+    }
+
     /// Audit F.1 of 27/11 (#195), a file a level below: in the real folder of arrival, `x.jpg` is a
     /// link to the `x.jpg` of the folder moved. Written over itself through the link, then deleted
     /// as the original.

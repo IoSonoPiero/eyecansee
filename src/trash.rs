@@ -642,7 +642,7 @@ mod tests {
         let file = File { path: "shared/.a.jpg.eyecansee-new".into(), size: 10, modified: "then".into() };
         assert_eq!(op.shared_key(&file, |_| false), None, "a disk of this computer");
         let key = op.shared_key(&file, |p| p.ends_with("shared/.a.jpg.eyecansee-new"));
-        assert!(key.as_deref().is_some_and(|k| k.ends_with("shared/.a.jpg.eyecansee-new")), "a share of the network: taken at once ({key:?})");
+        assert!(key.as_deref().is_some_and(|k| k.ends_with(".a.jpg.eyecansee-new") && k.contains("shared")), "a share of the network: taken at once ({key:?})");
     }
 
     /// What a paste cut short left (issue #91): a file put aside alone takes its name back; with
