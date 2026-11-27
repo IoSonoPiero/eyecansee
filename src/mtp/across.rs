@@ -14,6 +14,18 @@ fn deadline(size: u64) -> std::time::Duration {
     std::time::Duration::from_secs(60 + size / (1 << 20))
 }
 
+/// A copy given up while the phone is still making it, so its result is looked for in the
+/// destination (`finished_by_phone`): past the 30 s mtp-rs waits for an answer (`Timeout`).
+pub(super) fn still_at_it(e: &mtp_rs::Error, _size: u64, _took: std::time::Duration) -> bool {
+    matches!(e, mtp_rs::Error::Timeout)
+}
+
+/// The error of a copy the phone did not make, for the window: the library's own text (in
+/// English) only in the log.
+pub(super) fn copy_error(e: mtp_rs::Error, _path: &str) -> Error {
+    error(e)
+}
+
 /// Whether the item looked for is where the phone puts it: `name` with `size` bytes among `found`.
 fn arrived(found: &[(String, u64, ObjectHandle)], name: &str, size: u64) -> Option<ObjectHandle> {
     found.iter().find(|(n, s, _)| n == name && *s == size).map(|(_, _, h)| *h)
@@ -108,6 +120,33 @@ impl Phone {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What WPD answers on Windows when the phone copies a big file inside a storage: `Copy` back
+    /// after about 30 s, no new object in the destination yet, and mtp-rs gives `InvalidData` (6 GB,
+    /// Redmi Note 9 Pro, prova W5, 27/11/2026). The phone finished the copy all the same.
+    fn wpd_no_new_object() -> mtp_rs::Error {
+        mtp_rs::Error::invalid_data("the device reported a copy it didn't make: no new object appeared in the destination")
+    }
+
+    /// #354 on Windows: a long copy WPD gave up is still being made by the phone; the same answer
+    /// at once, or for a small file, is a copy the phone refused (#59) and stays an error.
+    #[test]
+    fn a_copy_wpd_gave_up_is_still_being_made() {
+        let s = std::time::Duration::from_secs;
+        assert!(still_at_it(&mtp_rs::Error::Timeout, 1, s(30)), "USB: the 30 s of mtp-rs");
+        assert!(still_at_it(&wpd_no_new_object(), 6 << 30, s(30)), "WPD: 6 GB, back after 30 s");
+        assert!(!still_at_it(&wpd_no_new_object(), 6 << 30, s(1)), "WPD: refused at once");
+        assert!(!still_at_it(&wpd_no_new_object(), 1 << 20, s(30)), "WPD: a small file");
+        assert!(!still_at_it(&mtp_rs::Error::Disconnected, 6 << 30, s(30)), "unplugged");
+    }
+
+    /// #354 on Windows: a copy the phone did not make says so in the user's language, with the file;
+    /// mtp-rs's English text only in the log.
+    #[test]
+    fn a_copy_not_made_says_so_in_the_users_language() {
+        assert_eq!(copy_error(wpd_no_new_object(), "Download/a.mp4"), (NOT_MADE, "Download/a.mp4".to_string()));
+        assert_eq!(copy_error(mtp_rs::Error::Disconnected, "Download/a.mp4").0, "error-phone-disconnected");
+    }
 
     #[test]
     fn what_arrived_and_how_long() {

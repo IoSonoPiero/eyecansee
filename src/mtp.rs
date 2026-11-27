@@ -682,13 +682,13 @@ impl Phone {
         let _quiet = (size >= LONG_COPY).then(|| (self.quiet(), turn::Deaf::start(&self.serial, path)));
         let began = std::time::Instant::now();
         let h = match self.queued_kept("copy", path, self.marked(storage.copy_object(handle, folder, Some(to.id())))).await {
-            // Past the 30 s mtp-rs waits: the phone is still copying it.
-            (Err(mtp_rs::Error::Timeout), turn) => {
+            // Given up while the phone is still copying it (`across::still_at_it`).
+            (Err(e), turn) if across::still_at_it(&e, size, began.elapsed()) => {
                 let h = self.finished_by_phone(("copy", began, turn), path, (&to, folder), (source::name(path), size), None).await?;
                 self.own.mark(h);
                 h
             }
-            (r, _) => r.map_err(error)?,
+            (r, _) => r.map_err(|e| across::copy_error(e, path))?,
         };
         log!("phone {}: copy {path} into {dir}: handle {} -> {}", self.serial, handle.0, h.0);
         if h == handle {
