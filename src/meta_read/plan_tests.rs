@@ -70,6 +70,21 @@ fn tiff_padding_big_directories_and_next_links() {
     assert_eq!(skipped("a.tif", &bytes), [1000..5001]);
 }
 
+/// A directory of fifty entries that each point at the same hundred thousand directories (audit
+/// E.1, scaled down: a file of 2 MB made so asked for gigabytes): the plan does not hold a value
+/// for each of them.
+#[test]
+fn tiff_long_pointer_lists_not_held() {
+    const SHORT: u16 = 3;
+    let n = 100_000u32;
+    let entries: Vec<_> = (0..50).map(|_| (0x014A, SHORT, n, 2000)).collect();
+    let bytes = file(2000 + 2 * n as usize + 100, &[(0, b"II*\0\x08\0\0\0"), (8, &ifd(&entries, 0))]);
+    let mut s = Sparse::new(bytes.len(), 0);
+    s.fill(0, &bytes);
+    let (_, most) = crate::test_alloc::peak(|| planner("a.tif").unwrap()(&s));
+    assert!(most < 16 << 20, "{} MB held for a file of {} KB", most >> 20, bytes.len() >> 10);
+}
+
 /// A RAF: the JPEG preview after its segments; in Fujifilm's TIFF, the sensor data but its start.
 #[test]
 fn raf_preview_and_sensor_data() {
