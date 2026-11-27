@@ -11,7 +11,7 @@ A viewer and manager for photos, videos, 3D models and CAD drawings, with an ima
 
 Website: [eyecansee.montinaro.info](https://eyecansee.montinaro.info/)
 
-It is early in development. This page lists only what works now: new features arrive step by step, each one only when it is ready and tested.
+It is under active development. This page lists only what works now: new features arrive step by step, each one only when it is ready and tested.
 
 - No import and no database: you open a folder and the photos are there.
 - Folders, disks, SFTP and FTP servers and Android phones are browsed the same way.
@@ -54,9 +54,18 @@ It is early in development. This page lists only what works now: new features ar
 
 ## About
 
-I have been using computers since MS-DOS 3.22 and have worked in IT for over twenty years, mostly with Linux servers, Docker and networks. I am not a programmer any more, though, and have not been for years. I needed a photo and video viewer that just opens, without importing or cataloguing anything, and that treats folders, disks, servers and the phone the same way, on both Linux and Windows, so I started writing EyeCanSee with the help of [Claude Code](https://claude.com/claude-code). I test every feature on my own computers and devices before it goes in, and the guide says what is known not to work.
+I have been using computers since MS-DOS 3.22 and have worked in IT for over twenty years, mostly with Linux servers, Docker and networks. I am not a programmer any more, though, and have not been for years. I needed a photo and video viewer that just opens, without importing or cataloguing anything, and that treats folders, disks, servers and the phone the same way, on both Linux and Windows, so I started writing EyeCanSee with the help of [Claude Code](https://claude.com/claude-code).
 
 Bug reports and suggestions are welcome in the [issues](https://github.com/IoSonoPiero/eyecansee/issues).
+
+### Use of AI
+
+Almost all of EyeCanSee is written by generative AI. [Claude Code](https://claude.com/claude-code), Anthropic's coding agent, writes the code, the automated tests and the documentation, guide included, on my instructions, and almost every commit says so in its `Co-Authored-By` line. I decide what the program does and how it behaves, and nothing is released without my go-ahead. I do not read the code line by line: what I check is what the program does.
+
+- **By hand**: I try every new feature on Fedora and on Windows, on my own computers, disks, servers and phones, before the release that brings it. The [phones](#phones) and [servers](#servers) it was tried with are listed below.
+- **Automated tests**: more than 1,300 on Linux and about 1,200 on Windows, run at every push to `main` together with Clippy (warnings are errors) and `cargo deny` (known vulnerabilities and licences): see the [Actions](https://github.com/IoSonoPiero/eyecansee/actions). A defect that a test can reproduce gets its test first, which must fail before the fix.
+- **Releases**: built by GitHub Actions, which also installs and starts the Windows packages. The packages and the self-update are then tried in Linux and Windows virtual machines, and I sign every release with a key that is not on GitHub.
+- **Known limits**: the guide says what is known not to work ([Known limits](docs/help/en/limits.md)), and so does the [roadmap](ROADMAP.md#known-limitations).
 
 ## Why another image and video manager?
 
