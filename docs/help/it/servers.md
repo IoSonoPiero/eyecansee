@@ -16,7 +16,7 @@ sftp://utente@example.com:2222/home/utente/Foto
 sftp://mio-nas/
 ```
 
-L'ultimo è un alias di `~/.ssh/config`. Senza utente, FTP entra come `anonymous`. Un indirizzo senza cartella si apre nella cartella da cui parte il server (di solito la tua home lì). Le password non compaiono mai nella barra degli indirizzi.
+L'ultimo è un alias di `~/.ssh/config`. Senza utente, FTP entra come `anonymous`. Un indirizzo senza cartella si apre nella cartella da cui parte il server (di solito la tua cartella home sul server). Le password non compaiono mai nella barra degli indirizzi.
 
 ## La prima connessione
 
@@ -34,7 +34,7 @@ L'ultimo è un alias di `~/.ssh/config`. Senza utente, FTP entra come `anonymous
 ## Lavorare su un server
 
 - Naviga, guarda, copia, sposta, rinomina, elimina e converti come sul computer. Rinomine e spostamenti, cartelle comprese, li fa il server stesso, quindi sono veloci.
-- Eliminare sposta il file in una cartella nascosta `.EyeCanSee-trash` accanto a lui, a meno che tu non abbia scelto altro nelle opzioni (vedi [Eliminare e cestino](delete.md)).
+- Eliminare sposta il file in una cartella nascosta `.EyeCanSee-trash` accanto al file, a meno che tu non abbia scelto altro nelle opzioni (vedi [Eliminare e cestino](delete.md)).
 - Un'immagine modificata viene prima tenuta su questo computer e poi mandata: se l'invio non riesce, l'originale sul server resta com'era, e una finestra propone **Riprova**, **Salva come…** e **Apri la cartella**.
 - I video partono mentre vengono letti, un pezzo alla volta, senza essere copiati interi.
 - Le modifiche fatte sul server da altri programmi non si vedono da sole: premi **F5**.
