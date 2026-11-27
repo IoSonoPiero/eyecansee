@@ -232,7 +232,8 @@ pub fn view(s: &Seen) -> View {
         let speed = bytes as f64 / secs;
         (speed as u64, (s.total.saturating_sub(s.done) as f64 / speed).round() as u64)
     });
-    let leave = match (s.cancelling && phone.is_some(), s.leaving) {
+    // Only on a file the phone has had for some seconds: a small one is done before.
+    let leave = match (s.cancelling && phone.is_some_and(|(_, _, secs)| *secs >= SAY_SECS), s.leaving) {
         (false, _) => Leave::No,
         (true, false) => Leave::Offered,
         (true, true) => Leave::Asked,
@@ -393,6 +394,7 @@ mod tests {
         let asked = view(&s(true, true));
         assert_eq!((asked.leave, asked.note), (Leave::Asked, Note::Left), "the copy is no longer removed: said");
         assert_eq!(view(&Seen { counting: Some(3), ..s(true, false) }).leave, Leave::No, "counting");
+        assert_eq!(view(&Seen { file: Some(("a.jpg".into(), 4 * MB, SAY_SECS - 1)), ..s(true, false) }).leave, Leave::No, "a file just given to the phone");
         assert_eq!(view(&Seen { through_pc: true, ..s(true, false) }).leave, Leave::No, "through the computer");
     }
 

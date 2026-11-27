@@ -439,6 +439,7 @@ mod tests {
         for lang in ["en", "it"] {
             crate::mtp::stay();
             let (mut h, p) = copying(&format!("phone-copy-leave-{lang}"), 1);
+            p.by_phone.begin_ago("big.mp4", GB, 40);
             h.app.i18n = crate::i18n::I18n::new(lang);
             frames(&mut h);
             h.blur();
@@ -487,7 +488,7 @@ mod tests {
         frames(&mut h);
         let controls = |h: &Harness| crate::box_keys::controls(&h.ctx);
         assert_eq!(controls(&h).len(), 0, "cancelled, no phone at work: only the greyed Cancel");
-        let working = crate::mtp::copying_for_tests("Internal storage/DCIM/big.mp4");
+        let working = crate::mtp::copying_for_tests("Internal storage/DCIM/big.mp4", 40);
         frames(&mut h);
         let stop = controls(&h);
         assert_eq!(stop.len(), 1, "cancelled while the phone copies alone: no way out in the box");

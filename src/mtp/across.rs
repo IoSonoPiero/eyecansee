@@ -8,11 +8,12 @@ use super::*;
 /// How often the destination is read while the phone works.
 const LOOK: std::time::Duration = std::time::Duration::from_secs(3);
 
-/// The most a phone may take for `size` bytes: a minute, plus 4 MB/s, a quarter of the slowest
-/// seen (the card of the Redmi took 16 MB/s). It was 1 MB/s: 1 h 47 min of wait for 6 GB that
-/// never showed (#354 on Windows, 27/11); now 26 minutes, and the wait can be left (`leave`).
+/// The most a phone may take for `size` bytes between its storages: a minute, plus 1 MB/s (the
+/// card of the Redmi took 16 MB/s). Long for a big file (1 h 47 min for 6 GB), and kept: a slow
+/// card must not be given up while it works, and the wait ends before that when the phone is
+/// unplugged (`gone`) or the user leaves it (`leave`), which it did not on Windows (#354).
 fn deadline(size: u64) -> std::time::Duration {
-    std::time::Duration::from_secs(60 + size / (4 << 20))
+    std::time::Duration::from_secs(60 + size / (1 << 20))
 }
 
 /// How long Windows (WPD) waits for a copy before it answers: `Copy` came back after 30.4 s with
@@ -97,14 +98,19 @@ const WPD_INNER: u64 = 1 << 30;
 const WPD_CARD: u64 = 128 << 20;
 
 /// The biggest file a phone is left to copy by itself inside one storage; `None`: any size.
-/// `wpd`: through Windows (WPD); `first`: inside its first storage, the internal one. Windows
-/// stops waiting for the phone's copy after about 30 s, and from then on shows nothing of what
-/// the phone made until the phone is plugged in again: its driver answers the listings from what
-/// it knows, and learns of an object only from the answer it no longer waits for (the phone sends
-/// no event for a copy it was asked for). So nothing can be done with the copy, not even seeing
-/// it (#354, prova W5, 27/11: 6 GB whole on the phone, in no listing, File Explorer's neither). A
-/// bigger file goes through the computer (`transfer::through_pc`). Through USB (Linux) mtp-rs
-/// gives the call up at 30 s too, but the listing is the phone's own: the wait works at any size.
+/// `wpd`: through Windows (WPD); `first`: inside its first storage, taken for the internal one
+/// (Android lists it first: not checked on other phones). Windows stops waiting for the phone's
+/// copy after about 30 s, and from then on shows nothing of what the phone made until the phone
+/// is plugged in again (#354, prova W5, 27/11: 6 GB whole on the phone, in no listing, File
+/// Explorer's neither, the listing read in 0.0 s). Why, as far as it can be told from outside:
+/// the Windows driver answers the listings from what it knows (Microsoft's WPD blog, 2007:
+/// calls "handled by the MTP driver" that "do not require the driver to talk to the device") and
+/// learns of a new object from the answer it no longer waits for, or from an event, which
+/// Android does not send for a copy it was asked for (AOSP, `MtpStorageManager`: the object is
+/// frozen in `beginCopyObject`, and `generalEndAddObject` notifies nothing when it worked). So
+/// nothing can be done with the copy, not even seeing it. A bigger file goes through the
+/// computer (`transfer::through_pc`). Through USB (Linux) mtp-rs gives the call up at 30 s too,
+/// but the listing is the phone's own: the wait works at any size.
 pub(crate) fn alone_limit(wpd: bool, first: bool) -> Option<u64> {
     wpd.then_some(if first { WPD_INNER } else { WPD_CARD })
 }
@@ -312,8 +318,7 @@ mod tests {
         assert_eq!(arrived(&found, "b.mp4", 20), None);
         assert_eq!(arrived(&found, "c.mp4", 10), None);
         assert_eq!(deadline(0).as_secs(), 60);
-        assert_eq!(deadline(2 << 30).as_secs(), 60 + 512);
-        assert_eq!(deadline(6 << 30).as_secs() / 60, 26);
+        assert_eq!(deadline(2 << 30).as_secs(), 60 + 2048);
     }
 
     /// #354: a phone left at work (the wait for it left by the user, or over) or gone answers

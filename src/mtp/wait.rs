@@ -118,7 +118,7 @@ mod tests {
             let (end, looks) = ended(300, || Err(gone()));
             assert!(matches!(end, End::Gone(_)) && looks == 1, "{what}: {end:?} after {looks} looks");
         }
-        let (end, looks) = ended(60, || Err(mtp_rs::Error::Timeout));
+        let (end, looks) = ended(300, || Err(mtp_rs::Error::Timeout));
         assert!(matches!(end, End::Late) && looks > 1, "the phone still copying: {end:?} after {looks} looks");
     }
 

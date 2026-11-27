@@ -136,11 +136,21 @@ impl Drop for Waiting {
 }
 
 /// For the tests of the app without a screen (each in a process of its own, `own_folder`): a
-/// phone copying `path` by itself (`working`) until the guard is dropped.
+/// phone copying `path` by itself (`working`) since `secs` seconds, until the guard is dropped.
 #[cfg(test)]
-pub(crate) fn copying_for_tests(path: &str) -> impl Drop {
-    Waiting::start("copy", path)
+pub(crate) fn copying_for_tests(path: &str, secs: u64) -> impl Drop {
+    Waiting::start_at("copy", path, std::time::Instant::now().checked_sub(std::time::Duration::from_secs(secs)).expect("a clock that old"))
 }
+
+/// The phone has been copying or moving one file by itself for long enough to be waited for
+/// (`LONG_WORK` seconds): what the user is then offered is a way out of the wait (#354). A file
+/// of a few megabytes is done before that, and Cancel or the ✕ stop at its end as always.
+pub fn working_long() -> Option<(String, String)> {
+    working().filter(|(_, _, secs)| *secs >= LONG_WORK).map(|(what, name, _)| (what, name))
+}
+
+/// See `working_long`.
+pub const LONG_WORK: u64 = 2;
 
 /// Seconds after which a call still waiting on Windows is taken for WPD's stall: ~340 s
 /// unless the cable is unplugged. Calls that are only slow end well before.

@@ -31,7 +31,8 @@ pub(crate) enum Close {
     Now,
 }
 
-/// The ✕ during a copy: `working`, a phone is copying or moving a file by itself (`mtp::working`);
+/// The ✕ during a copy: `working`, a phone has been copying or moving a file by itself for some
+/// seconds (`mtp::working_long`: a small file is done before, and the copy stops at its end);
 /// `confirmed`, "Close EyeCanSee" was answered already.
 pub(crate) fn on_close(working: bool, confirmed: bool) -> Close {
     match (confirmed, working) {
@@ -66,11 +67,12 @@ impl App {
             }
             return;
         }
-        match on_close(mtp::working().is_some(), self.quit_phone.confirmed.is_some()) {
+        let working = mtp::working_long();
+        match on_close(working.is_some(), self.quit_phone.confirmed.is_some()) {
             Close::Now => log!("close during a copy: asked again after the answer, closing now"),
             Close::Ask => {
                 log!("close during a copy the phone makes alone: asking first");
-                self.quit_phone.asking = mtp::working().map(|(what, name, _)| (what, name));
+                self.quit_phone.asking = working;
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             }
             // Closed in the middle, a phone kept half an operation and the next session got its
@@ -117,7 +119,7 @@ mod tests {
 
     #[test]
     fn what_the_x_does_during_a_copy() {
-        assert_eq!(on_close(false, false), Close::AtEnd, "a copy as any other: cancelled, closed at its end");
+        assert_eq!(on_close(false, false), Close::AtEnd, "a copy as any other, or a small file the phone ends at once: cancelled, closed at its end");
         assert_eq!(on_close(true, false), Close::Ask, "the phone works alone");
         assert_eq!(on_close(true, true), Close::Now, "asked and answered already");
         assert_eq!(on_close(false, true), Close::Now);
@@ -155,7 +157,14 @@ mod tests {
         assert!(p.cancel.load(Ordering::Relaxed) && h.app.quit_after_transfer, "the copy cancelled, closing at its end");
 
         let (mut h, p) = pasting("quit-phone");
-        let _working = crate::mtp::copying_for_tests("Internal storage/DCIM/big.mp4");
+        // A file the phone has just been given (a photo is done in less): no question either.
+        let just = crate::mtp::copying_for_tests("Internal storage/DCIM/small.jpg", 0);
+        assert!(!h.close() && h.app.quit_phone.asking.is_none(), "a file just given to the phone: no question");
+        assert!(p.cancel.load(Ordering::Relaxed) && h.app.quit_after_transfer, "the copy cancelled, closing at its end");
+        drop(just);
+        p.cancel.store(false, Ordering::Relaxed);
+        h.app.quit_after_transfer = false;
+        let _working = crate::mtp::copying_for_tests("Internal storage/DCIM/big.mp4", 40);
         let state = |h: &Harness, p: &crate::transfer::Progress| (h.app.quit_phone.asking.is_some(), p.cancel.load(Ordering::Relaxed), crate::mtp::leaving(), h.app.quit_after_transfer);
         assert!(!h.close(), "the window closed with the phone at work");
         assert_eq!(state(&h, &p), (true, false, false, false), "the ✕ asks, and nothing else yet");

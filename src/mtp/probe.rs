@@ -44,8 +44,11 @@ async fn listed_anew(device: &MtpDevice, id: mtp_rs::mtp::StorageId, name: &str)
 /// What a real phone and Windows show while and after the phone copies a file inside one storage,
 /// asked to mtp-rs directly (no wait of EyeCanSee in between), every 3 s: the listing of the
 /// destination from the session that asked the copy, the free space of the storage, the events,
-/// and the listing from a second session opened after the copy was given up. It answers, with
-/// one run: which of them shows the copy on Windows, and when.
+/// and the listing from a second session opened after the copy was given up (on Windows only:
+/// on Linux a second session would take the phone from the desktop). It answers, with one run:
+/// which of them shows the copy on Windows, and when. A copy that ends before Windows stops
+/// waiting (a small file, or an error at once) is looked at once and the probe ends: what went
+/// wrong shows in seconds.
 /// `EYECANSEE_MTP=<serial> EYECANSEE_MTP_BIG="<storage>/Download/prova-512MB.mp4" [EYECANSEE_PROBE_SECS=120] cargo test --release mtp_wpd_copy_probe_live -- --ignored --nocapture`
 #[test]
 #[ignore]
@@ -81,16 +84,20 @@ fn mtp_wpd_copy_probe_live() {
         let before = phone.space(&storage).await;
         println!("{name}: {size} bytes; free and capacity before {before:?}; copying into {dir}");
         let copied = storage.copy_object(handle, folder, Some(storage.id())).await;
-        println!("{} copy_object ended: {copied:?}", at(t));
+        // Given up by Windows (or by mtp-rs on Linux): only then is there something to wait for.
+        let given_up = copied.is_err() && t.elapsed() >= Duration::from_secs(25);
+        println!("{} copy_object ended: {copied:?}{}", at(t), if given_up { ": given up, the phone may still be copying" } else { ": the phone's own answer, one look and the probe ends" });
         let mut second = None;
         let mut seen = [None::<f32>; 3];
-        while t.elapsed() < Duration::from_secs(secs) {
+        let mut looked = false;
+        while t.elapsed() < Duration::from_secs(secs) && (given_up || !looked) {
+            looked = true;
             let (old, took) = listed(&storage, Some(folder), name).await;
             println!("{} listing, session of the copy ({:.1} s): {old:?}", at(t), took.as_secs_f32());
             let t1 = Instant::now();
             let space = phone.space(&storage).await;
             println!("{} free space and capacity ({:.1} s): {space:?}, taken {:?}", at(t), t1.elapsed().as_secs_f32(), before.zip(space).map(|(b, s)| b.0.saturating_sub(s.0)));
-            if second.is_none() {
+            if second.is_none() && cfg!(windows) {
                 second = super::open(&serial).await.map_err(|e| println!("{} second session not opened: {e:?}", at(t))).ok();
             }
             let anew = match &second {
@@ -118,14 +125,16 @@ fn mtp_wpd_copy_probe_live() {
 /// The same copy as a paste makes it (`Phone::copy_inside`), on Windows past the size a paste
 /// leaves to the phone there (`across::alone_limit`): with a file the phone takes more than 30 s
 /// to copy, Windows gives the copy up and EyeCanSee waits for the phone; the test prints how the
-/// wait ended (the copy there, "error-phone-copy-unseen" once its space is taken, or
-/// "error-phone-copy-lost" at the deadline) and how long it took. With `EYECANSEE_LOG=1` the log has
-/// every look of the wait.
-/// `EYECANSEE_MTP=<serial> EYECANSEE_MTP_BIG="<storage>/Download/prova-4GB.mp4" cargo test --release mtp_wpd_copy_inside_live -- --ignored --nocapture`
+/// wait ended (the copy there, "error-phone-copy-unseen" once its space is taken) and how long it
+/// took. The wait is left after `EYECANSEE_PROBE_SECS` (120 without it), as "Stop waiting" does
+/// ("error-phone-left"): the test never lasts much longer, and the way out is tried too. With
+/// `EYECANSEE_LOG=1` every look of the wait is printed with the rest (the log goes to stderr).
+/// `EYECANSEE_LOG=1 EYECANSEE_MTP=<serial> EYECANSEE_MTP_BIG="<storage>/Download/prova-512MB.mp4" [EYECANSEE_PROBE_SECS=120] cargo test --release mtp_wpd_copy_inside_live -- --ignored --nocapture`
 #[test]
 #[ignore]
 fn mtp_wpd_copy_inside_live() {
     let (serial, big) = (env("EYECANSEE_MTP"), env("EYECANSEE_MTP_BIG"));
+    let secs: u64 = std::env::var("EYECANSEE_PROBE_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(120);
     tokio::runtime::Runtime::new().unwrap().block_on(async {
         let phone = Phone::new(&serial);
         phone.list("").await.expect("the phone opens");
@@ -134,6 +143,11 @@ fn mtp_wpd_copy_inside_live() {
         phone.create_dir(&dir).await.unwrap();
         let dest = format!("{dir}{}", source::name(&big));
         let t = Instant::now();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(secs));
+            println!("{} {secs} s: the wait for the phone is left, as Stop waiting does", at(t));
+            super::leave();
+        });
         let r = phone.copy_inside(&big, &dest, &std::sync::atomic::AtomicBool::new(false)).await;
         println!("{} copy_inside ended: {r:?}", at(t));
         println!("{} the copy in a listing: {:?}", at(t), phone.names(&dir).await.map(|n| n.contains(source::name(&big))));
