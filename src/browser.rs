@@ -517,6 +517,91 @@ mod tests {
         assert_eq!(h.app.viewing, Some(1), "the arrow with no menu open");
     }
 
+    /// #358: the right-click menu of the viewer on file `at` of the folder shown, in English,
+    /// out of (`false`) and at full screen (`true`). Back to the grid first, Full screen second
+    /// with F11, its text the one of `full`.
+    fn viewer_menus(h: &mut Harness, at: usize) -> [Vec<MenuItem>; 2] {
+        h.app.i18n = crate::i18n::I18n::new("en");
+        h.app.viewing = Some(at);
+        [false, true].map(|full| {
+            let items = h.app.viewer_menu(full);
+            assert!(matches!(items.first(), Some(Some((_, _, Act::Back)))), "Back to the grid first: {items:?}");
+            let Some(Some((label, keys, Act::FullScreen))) = items.get(1) else { panic!("Full screen not second: {items:?}") };
+            assert_eq!((label.as_str(), keys.as_str()), (if full { "Leave full screen" } else { "Full screen" }, "F11"), "full = {full}");
+            items
+        })
+    }
+
+    /// #358: the id of the entry follows the window, in and out of full screen.
+    #[test]
+    fn full_screen_entry_text() {
+        assert_eq!(crate::viewer::full_label(false), "menu-full-screen");
+        assert_eq!(crate::viewer::full_label(true), "menu-leave-full-screen");
+        let en = crate::i18n::I18n::new("en");
+        assert_eq!((en.t("menu-full-screen"), en.t("menu-leave-full-screen")), ("Full screen".to_string(), "Leave full screen".to_string()));
+    }
+
+    /// #358: Full screen second in the viewer's menu of a file of a normal folder, before the
+    /// entries of the file (`file_items`).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn full_screen_in_the_viewer_menu_of_a_file() {
+        if own_folder("browser::tests::full_screen_in_the_viewer_menu_of_a_file") {
+            return;
+        }
+        let mut h = Harness::new(&folder("menu-full-file", &["a.png", "b.png"]));
+        for items in viewer_menus(&mut h, 0) {
+            assert!(items.len() > 3, "the entries of the file follow: {items:?}");
+            assert!(!items.iter().flatten().any(|(_, _, a)| matches!(a, Act::Restore(_))), "not the menu of a trash: {items:?}");
+        }
+    }
+
+    /// #358: Full screen also where `item_menu` stops early, with no target it can change
+    /// (`target()` is `None`): here the listing of the folder is gone while the viewer is open.
+    /// A file of a folder on this computer is never refused by `can_change_in` itself (only an
+    /// empty path or a phone's storage are).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn full_screen_in_the_viewer_menu_with_nothing_to_change() {
+        if own_folder("browser::tests::full_screen_in_the_viewer_menu_with_nothing_to_change") {
+            return;
+        }
+        let mut h = Harness::new(&folder("menu-full-none", &["a.png"]));
+        h.app.viewing = Some(0);
+        assert!(h.app.target().is_some(), "the file can be changed before");
+        let dir = h.app.dir.clone();
+        h.app.listings.remove(&dir);
+        assert!(h.app.target().is_none(), "nothing to change");
+        assert_eq!(h.app.item_menu(None, None).len(), 1, "item_menu stops early, only Back to the grid");
+        for items in viewer_menus(&mut h, 0) {
+            assert_eq!(items.len(), 2, "Back to the grid and Full screen: {items:?}");
+        }
+    }
+
+    /// #358: Full screen also in the viewer's menu of a file in a trash folder, where `item_menu`
+    /// gives only Restore and Delete permanently.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn full_screen_in_the_viewer_menu_of_a_file_in_a_trash() {
+        if own_folder("browser::tests::full_screen_in_the_viewer_menu_of_a_file_in_a_trash") {
+            return;
+        }
+        let dir = folder("menu-full-trash", &["a.png"]);
+        folder(&format!("menu-full-trash/{}", source::TRASH_DIR), &["b.png"]);
+        let mut h = Harness::new(&dir);
+        let trash = format!("{}{}/", h.app.dir, source::TRASH_DIR);
+        h.app.set_dir(trash);
+        h.until(|app| app.files().len() == 1 && app.listing_pending.is_empty(), "the trash listed");
+        h.app.viewing = Some(0);
+        let target = h.app.target().expect("the file in the trash");
+        assert!(source::in_trash(&target), "{target} not in a trash");
+        for items in viewer_menus(&mut h, 0) {
+            assert_eq!(items.len(), 5, "Back, Full screen, Restore, separator, Delete permanently: {items:?}");
+            assert!(matches!(items[2], Some((_, _, Act::Restore(_)))) && items[3].is_none(), "{items:?}");
+            assert!(matches!(items[4], Some((_, _, Act::Delete(_, true)))), "{items:?}");
+        }
+    }
+
     #[test]
     fn what_is_outside_a_menu() {
         use egui::Order;
