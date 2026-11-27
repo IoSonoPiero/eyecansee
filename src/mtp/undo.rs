@@ -23,6 +23,12 @@ pub(super) async fn finish(cancelled: bool, remove: impl Future<Output = Result<
     Err((CANCELLED, String::new()))
 }
 
+/// The end of a move with a new name (`Phone::move_into`), renamed in place before the move:
+/// `moved`, what the move came to; `back`, the old name given back.
+pub(super) async fn moved_or_named_back(moved: Result<(), Error>, _renamed: bool, _back: impl Future<Output = Result<(), Error>>) -> Result<(), Error> {
+    moved
+}
+
 impl Phone {
     /// The copy `h` the phone just made in the folder `dir`, named `name` there, deleted
     /// (`finish`). By its handle: the original has the same name when `dir` is its folder's
@@ -109,6 +115,28 @@ mod tests {
         let names = phone.names();
         assert!(names.contains(&("Download/a.mp4".to_string(), "copy")) && names.contains(&("DCIM/a.mp4".to_string(), "original")), "{names:?}");
         assert!(!names.iter().any(|(n, _)| n.contains(".EyeCanSee-copy")), "{names:?}");
+    }
+
+    /// Audit T.5 (27/11): a move with "Keep both" renames the item in place, then moves it; a
+    /// move that failed (a card full, a wait over) left the item in its folder under the new
+    /// name. It gets its old name back, and the move still says why it failed. Not when the
+    /// phone answers nothing now (each call would wait for it again), nor when the item was not
+    /// renamed, nor after a move that worked.
+    #[test]
+    fn a_failed_move_gives_the_old_name_back() {
+        let failed = || Err::<(), _>(("error-detail", "DCIM/a (2).mp4: no space left".to_string()));
+        let phone = Fake::new();
+        block(phone.place("DCIM/a.mp4", "DCIM/a (2).mp4")).unwrap();
+        let r = block(moved_or_named_back(failed(), true, phone.place("DCIM/a (2).mp4", "DCIM/a.mp4")));
+        assert_eq!(r, failed());
+        assert!(phone.names().contains(&("DCIM/a.mp4".to_string(), "original")), "the new name kept: {:?}", phone.names());
+        for (what, moved, renamed) in [("the phone answers nothing", Err(("error-phone-timeout", "DCIM/a (2).mp4".to_string())), true), ("not renamed", failed(), false), ("moved", Ok(()), true)] {
+            let phone = Fake::new();
+            block(phone.place("DCIM/a.mp4", "DCIM/a (2).mp4")).unwrap();
+            let r = block(moved_or_named_back(moved.clone(), renamed, phone.place("DCIM/a (2).mp4", "DCIM/a.mp4")));
+            assert_eq!(r, moved, "{what}");
+            assert!(phone.names().contains(&("DCIM/a (2).mp4".to_string(), "original")), "{what}: named back {:?}", phone.names());
+        }
     }
 
     /// A copy that cannot be removed says why, not "cancelled": it is still on the phone.
