@@ -90,7 +90,8 @@ impl App {
 
     /// For the status bar while measuring: what is measured, then the results or how to go on.
     pub(crate) fn measure_status(&self) -> Option<(String, bool)> {
-        let s = self.model.measure.shown.as_ref().filter(|_| self.model.measure.on)?;
+        // Not while the file is read: Measure stays on then (audit 27/11, D.7), its results are another file's.
+        let s = self.model.measure.shown.as_ref().filter(|_| self.model.measure.on && self.measure_off().is_none())?;
         if s.lines.is_empty() {
             return Some((format!("{}: {}", s.what, s.hint), false));
         }
