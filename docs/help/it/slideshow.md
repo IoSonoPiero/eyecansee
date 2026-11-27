@@ -1,13 +1,13 @@
 # Carosello
 
-Il **Carosello** mostra le foto una dopo l'altra a schermo intero, su fondo nero, con un passaggio tra l'una e l'altra.
+Il carosello mostra le foto una dopo l'altra a schermo intero, su fondo nero, con un passaggio tra l'una e l'altra.
 
 ## Avviare il carosello
 
 - **Visualizza > Carosello**, oppure ![Carosello](icon://presentation) **Carosello** nel menù del clic destro su una foto, nella griglia o nel visore.
 - Con più file selezionati mostra solo le foto e i video tra quelli, sempre a partire dal primo nella griglia.
 - Altrimenti mostra le foto e i video della cartella, a partire da quello scelto (o da quello aperto nel visore). Se il file scelto non è una foto né un video, parte dalla prima foto della cartella.
-- I modelli 3D, i disegni CAD e i file audio non compaiono mai. In una cartella senza foto né video, **Visualizza > Carosello** è spento.
+- I modelli 3D, i disegni CAD e i file audio non compaiono mai. In una cartella senza foto né video, la voce **Visualizza > Carosello** è grigia.
 
 ## Durante il carosello
 
@@ -20,7 +20,7 @@ Il **Carosello** mostra le foto una dopo l'altra a schermo intero, su fondo nero
 
 Per i primi secondi i tasti compaiono in basso; in pausa lo schermo dice **In pausa (Spazio per continuare)**.
 
-Un video scorre tutto, con l'audio, poi arriva la foto successiva; **Spazio** mette in pausa anche lui. Vedi [Riprodurre i video](video.md).
+Un video viene riprodotto fino alla fine, con l'audio, poi arriva la foto successiva; **Spazio** mette in pausa anche il video. Vedi [Riprodurre i video](video.md).
 
 Quando il carosello finisce torni dov'eri, sull'ultima foto mostrata.
 
@@ -28,12 +28,12 @@ Quando il carosello finisce torni dov'eri, sull'ultima foto mostrata.
 
 In **Strumenti > Opzioni… > Carosello**:
 
-- **Ogni immagine resta per**: quanti secondi (5 all'inizio).
-- **Passaggio tra le immagini**: **Nessuno (stacco netto)**, **Dissolvenza incrociata** (all'inizio), **Dissolvenza al nero**, **Scorrimento** o **Zoom e dissolvenza**. Con **Scorrimento**, tornando indietro le foto scorrono nel verso opposto.
-- **Ricomincia dopo l'ultima immagine** (attiva all'inizio): se è spenta, il carosello finisce dopo l'ultima foto.
+- **Ogni immagine resta per**: quanti secondi (5 come valore predefinito).
+- **Passaggio tra le immagini**: **Nessuno (stacco netto)**, **Dissolvenza incrociata** (quello predefinito), **Dissolvenza al nero**, **Scorrimento** o **Zoom e dissolvenza**. Con **Scorrimento**, tornando indietro le foto scorrono nel verso opposto.
+- **Ricomincia dopo l'ultima immagine** (attiva in modo predefinito): se è spenta, il carosello finisce dopo l'ultima foto.
 
 ## Da sapere
 
 La foto successiva viene letta in anticipo. Se non è ancora pronta (un file grande, un telefono, un server), quella in corso resta finché non lo è.
 
-Una foto o un video che non si apre (un file rovinato) viene saltato: per qualche secondo un piccolo avviso con il triangolo nell'angolo in alto a sinistra lo nomina, senza coprire le foto che seguono. Un video su un telefono o un server da cui per 20 secondi non arrivano dati viene saltato allo stesso modo, e la presentazione va avanti. Se nessuno dei file si apre, la presentazione si ferma e un messaggio in fondo alla finestra lo dice; quando la griglia li mostra già tutti con il triangolo, non parte nemmeno, e arriva solo il messaggio.
+Una foto o un video che non si apre (un file rovinato) viene saltato: per qualche secondo un piccolo avviso con il triangolo di attenzione nell'angolo in alto a sinistra lo nomina, senza coprire le foto che seguono. Un video su un telefono o un server da cui per 20 secondi non arrivano dati viene saltato allo stesso modo, e il carosello va avanti. Se nessuno dei file si apre, il carosello si ferma e un messaggio in fondo alla finestra lo dice; quando la griglia li mostra già tutti con il triangolo, non parte nemmeno, e arriva solo il messaggio.

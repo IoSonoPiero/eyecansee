@@ -5,9 +5,9 @@ The slideshow shows the pictures one after the other at full screen, on black, w
 ## Starting the slideshow
 
 - **View > Slideshow**, or ![Slideshow](icon://presentation) **Slideshow** in the right-click menu of a picture, in the grid or in the viewer.
-- With several files selected, it shows only the pictures and videos among them, always from the first in the grid.
+- With several files selected, it shows only the pictures and videos among them, always starting from the first one in the grid.
 - Otherwise it shows the pictures and videos of the folder, starting from the one chosen (or the one open in the viewer). If the file chosen is not a picture or a video, it starts from the first picture of the folder.
-- 3D models, CAD drawings and audio files are never shown. In a folder without pictures or videos, **View > Slideshow** is off.
+- 3D models, CAD drawings and audio files are never shown. In a folder without pictures or videos, **View > Slideshow** is greyed out.
 
 ## During the slideshow
 
@@ -20,7 +20,7 @@ The slideshow shows the pictures one after the other at full screen, on black, w
 
 The keys are shown at the bottom for the first seconds; while paused, the screen says **Paused (Space to go on)**.
 
-A video plays whole, with its audio, then the next picture comes; **Space** pauses it too. See [Playing videos](video.md).
+A video plays to the end, with its audio, then the next picture comes; **Space** pauses it too. See [Playing videos](video.md).
 
 When the slideshow ends you are back where you were, on the last picture shown.
 
@@ -28,9 +28,9 @@ When the slideshow ends you are back where you were, on the last picture shown.
 
 In **Tools > Options… > Slideshow**:
 
-- **Each image stays for**: how many seconds (5 at first).
-- **Passage between images**: **None (straight cut)**, **Crossfade** (at first), **Fade through black**, **Slide** or **Zoom and fade**. With **Slide**, going back the pictures slide the other way.
-- **Start again after the last image** (on at first): when off, the slideshow ends after the last picture.
+- **Each image stays for**: how many seconds (5 by default).
+- **Passage between images**: **None (straight cut)**, **Crossfade** (the default), **Fade through black**, **Slide** or **Zoom and fade**. With **Slide**, when you go back, the pictures slide the other way.
+- **Start again after the last image** (on by default): when off, the slideshow ends after the last picture.
 
 ## Good to know
 
