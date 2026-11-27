@@ -911,6 +911,14 @@ model-export-left-out-why = { $n ->
     [one] It has more than 64 pictures: EyeCanSee reads the first 64, and saves those.
    *[other] They have more than 64 pictures: EyeCanSee reads the first 64, and saves those.
 }
+model-export-solids-heading = { $n ->
+    [one] 1 model exported with its points and lines as small solids:
+   *[other] { $n } models exported with their points and lines as small solids:
+}
+model-export-solids-why = { $n ->
+    [one] EyeCanSee draws points and lines as small solids, and saves them so: each one becomes a few triangles. Programs for point clouds no longer read it as a cloud.
+   *[other] EyeCanSee draws points and lines as small solids, and saves them so: each one becomes a few triangles. Programs for point clouds no longer read them as clouds.
+}
 model-export-running = Exporting 3D models
 model-export-counts = Model { $n } of { $total }
 model-export-files = { $n ->

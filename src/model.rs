@@ -64,6 +64,8 @@ pub struct Mesh {
     /// Pictures not kept as the file has them: read smaller (`model_export::LOST_SMALLER`) or left
     /// out beyond `MAX_TEXTURES` (`LOST_LEFT_OUT`); said at the end of an export (#340).
     pub pictures_cut: Vec<&'static str>,
+    /// Points or lines drawn as small solids (a point cloud, `model_lines`), and so exported.
+    pub solids: bool,
 }
 
 /// How a surface takes the light beyond its colour, as glTF describes it (metallic-roughness).
@@ -122,6 +124,7 @@ pub(crate) struct Builder {
     warnings: Vec<&'static str>,
     /// What of the pictures was not kept as the file has it (`Mesh::pictures_cut`).
     cut: Vec<&'static str>,
+    solids: bool,
     /// The cap of the format read (`model_limit`).
     limit: crate::model_limit::Limit,
 }
@@ -196,6 +199,11 @@ impl Builder {
         Ok(())
     }
 
+    /// What follows are points or lines drawn as small solids (`Mesh::solids`).
+    pub(crate) fn made_solid(&mut self) {
+        self.solids = true;
+    }
+
     /// A picture for the triangles that follow, made smaller beyond `TEXTURE_SIDE`: its number
     /// for `add_textured`, or 0 when the model has too many already.
     pub(crate) fn texture(&mut self, img: image::RgbaImage) -> u16 {
@@ -254,7 +262,7 @@ impl Builder {
     }
 
     pub(crate) fn finish(self, z_up: bool) -> Result<Mesh, String> {
-        let Builder { pos, tris, colors, uv, textures, surfaces, shine, warnings, cut, .. } = self;
+        let Builder { pos, tris, colors, uv, textures, surfaces, shine, warnings, cut, solids, .. } = self;
         let finite = |p: &[f32; 3]| p.iter().all(|c| c.is_finite());
         let tris: Vec<(usize, [u32; 3])> = tris.into_iter().enumerate().filter(|(_, t)| t.iter().all(|&v| finite(&pos[v as usize]))).collect();
         if tris.is_empty() {
@@ -295,7 +303,7 @@ impl Builder {
         let shiny = matte > 0 || shine.iter().any(|s| s.0 > 0);
         let (surface, normals) = if shiny { tris.iter().enumerate().map(|(k, &(i, _))| pick(k, i)).unzip() } else { (Vec::new(), Vec::new()) };
         let surfaces = if shiny { surfaces } else { Vec::new() };
-        Ok(Mesh { pos, tris: tris.into_iter().map(|(_, t)| t).collect(), colors, z_up, center, radius, half, uv, tex, textures, surface, surfaces, normals, unit: None, warnings, pictures_cut: cut })
+        Ok(Mesh { pos, tris: tris.into_iter().map(|(_, t)| t).collect(), colors, z_up, center, radius, half, uv, tex, textures, surface, surfaces, normals, unit: None, warnings, pictures_cut: cut, solids })
     }
 }
 

@@ -921,6 +921,14 @@ model-export-left-out-why = { $n ->
     [one] Ha più di 64 immagini: EyeCanSee legge le prime 64, e salva quelle.
    *[other] Hanno più di 64 immagini: EyeCanSee legge le prime 64, e salva quelle.
 }
+model-export-solids-heading = { $n ->
+    [one] 1 modello esportato con i suoi punti e le sue linee come piccoli solidi:
+   *[other] { $n } modelli esportati con i loro punti e le loro linee come piccoli solidi:
+}
+model-export-solids-why = { $n ->
+    [one] EyeCanSee disegna punti e linee come piccoli solidi, e li salva così: ognuno diventa qualche triangolo. I programmi per le nuvole di punti non lo leggono più come una nuvola.
+   *[other] EyeCanSee disegna punti e linee come piccoli solidi, e li salva così: ognuno diventa qualche triangolo. I programmi per le nuvole di punti non li leggono più come nuvole.
+}
 model-export-running = Esportazione dei modelli 3D
 model-export-counts = Modello { $n } di { $total }
 model-export-files = { $n ->

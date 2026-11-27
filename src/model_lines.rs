@@ -33,6 +33,9 @@ pub(crate) fn fits(n: usize, limit: crate::model_limit::Limit) -> Result<(), Str
 
 /// Adds the lines and points to `b`, sized on everything in it and in them.
 pub(crate) fn add(b: &mut Builder, lines: &[Segment], points: &[Point]) -> Result<(), String> {
+    if !lines.is_empty() || !points.is_empty() {
+        b.made_solid();
+    }
     let ends = lines.iter().flat_map(|l| [l.0, l.1]).chain(points.iter().map(|p| p.0));
     let (mut lo, mut hi) = b.bounds().unwrap_or(([f32::MAX; 3], [f32::MIN; 3]));
     for p in ends.filter(|p| p.iter().all(|c| c.is_finite())) {

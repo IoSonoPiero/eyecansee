@@ -376,6 +376,8 @@ pub(crate) struct Said {
     /// With pictures read smaller, or some left out (`Mesh::pictures_cut`, #340).
     pub(crate) smaller: Vec<String>,
     pub(crate) left_out: Vec<String>,
+    /// With their points and lines as small solids (`Mesh::solids`, audit 27/11, D.8).
+    pub(crate) solids: Vec<String>,
 }
 
 impl ExportSaid {
@@ -426,9 +428,9 @@ impl ExportSaid {
     /// `model_export::lost`): said at the end.
     pub(crate) fn lost(&mut self, from: &str, notes: &[&'static str]) {
         let name = crate::source::name(from).to_string();
-        use crate::model_export::{LOST_LEFT_OUT, LOST_PICTURES, LOST_SMALLER, LOST_SURFACES};
+        use crate::model_export::{LOST_LEFT_OUT, LOST_PICTURES, LOST_SMALLER, LOST_SOLIDS, LOST_SURFACES};
         let said = &mut self.said;
-        for (id, names) in [(LOST_PICTURES, &mut said.pictures), (LOST_SURFACES, &mut said.surfaces), (LOST_SMALLER, &mut said.smaller), (LOST_LEFT_OUT, &mut said.left_out)] {
+        for (id, names) in [(LOST_PICTURES, &mut said.pictures), (LOST_SURFACES, &mut said.surfaces), (LOST_SMALLER, &mut said.smaller), (LOST_LEFT_OUT, &mut said.left_out), (LOST_SOLIDS, &mut said.solids)] {
             if notes.contains(&id) {
                 names.push(name.clone());
             }
@@ -466,6 +468,7 @@ pub(crate) fn export_notice(i18n: &crate::i18n::I18n, said: &Said, stopped: Opti
         Part::named(i18n, "model-export-surfaces-heading", "model-export-surfaces-why", &said.surfaces),
         Part::named(i18n, "model-export-smaller-heading", "model-export-smaller-why", &said.smaller),
         Part::named(i18n, "model-export-left-out-heading", "model-export-left-out-why", &said.left_out),
+        Part::named(i18n, "model-export-solids-heading", "model-export-solids-why", &said.solids),
     ];
     let title = i18n.t(if stopped.is_some() { "model-export-cancelled" } else { "model-export-done-title" });
     (*said != Said::default()).then(|| crate::notice_list::told(i18n, title, stopped.unwrap_or_default(), parts))

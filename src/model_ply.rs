@@ -490,6 +490,7 @@ fn point_cloud(pos: Vec<[f32; 3]>, rgb: &[[f32; 3]], limit: Limit) -> Result<Mes
     let s = (diag / (pos.len() as f32).sqrt() * 0.6).clamp(diag / 2000.0, diag / 100.0) / 3f32.sqrt();
     let corners = [[1.0, 1.0, 1.0], [1.0, -1.0, -1.0], [-1.0, 1.0, -1.0], [-1.0, -1.0, 1.0f32]];
     let mut b = Builder::up_to(limit);
+    b.made_solid();
     let tris: Vec<[u32; 3]> = (0..pos.len() as u32).flat_map(|i| [[0, 1, 2], [0, 3, 1], [0, 2, 3], [1, 3, 2]].map(|t| t.map(|v| i * 4 + v))).collect();
     let colors: Vec<Option<[u8; 3]>> = pos.iter().map(|(_, c)| *c).collect();
     let points = pos.iter().flat_map(|(p, _)| corners.map(|c| std::array::from_fn(|k| p[k] + c[k] * s))).collect();

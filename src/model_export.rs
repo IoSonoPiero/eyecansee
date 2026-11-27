@@ -177,6 +177,9 @@ pub(crate) const LOST_SURFACES: &str = "model-export-lost-surfaces";
 pub(crate) const LOST_SMALLER: &str = "model-export-lost-smaller";
 /// A model whose pictures beyond `model::MAX_TEXTURES` were left out at reading.
 pub(crate) const LOST_LEFT_OUT: &str = "model-export-lost-left-out";
+/// A model whose points or lines were drawn, and so exported, as small solids (`Mesh::solids`,
+/// audit 27/11, D.8): a cloud is no longer a cloud.
+pub(crate) const LOST_SOLIDS: &str = "model-export-lost-solids";
 
 /// What `kind` cannot hold of `mesh`, said at the end of the export (audit 6.16, the project's
 /// rule): STL and PLY have no place for pictures (their colours are put on the model) nor for
@@ -190,7 +193,7 @@ pub(crate) fn lost(mesh: &Mesh, kind: Kind) -> Vec<&'static str> {
     let shiny = s.iter().any(|s| s.roughness < 1.0 || s.glow != [0.0; 3] || s.bumps > 0 || s.rough_metal > 0 || s.occlusion_map > 0 || s.glow_map > 0);
     let maps = s.iter().any(|s| s.rough_metal > 0 || s.occlusion_map > 0);
     let pictures = mesh.tex.iter().any(|&k| k > 0);
-    match kind {
+    let mut out: Vec<&'static str> = match kind {
         Kind::Stl | Kind::Ply => [(pictures, LOST_PICTURES), (shiny, LOST_SURFACES)].into_iter().filter_map(|(lost, id)| lost.then_some(id)).collect(),
         Kind::Obj | Kind::Glb => {
             let mut out: Vec<&'static str> = (kind == Kind::Obj && maps).then_some(LOST_SURFACES).into_iter().collect();
@@ -198,7 +201,10 @@ pub(crate) fn lost(mesh: &Mesh, kind: Kind) -> Vec<&'static str> {
             out.extend(&mesh.pictures_cut);
             out
         }
-    }
+    };
+    // Points and lines as solids, in every format (audit 27/11, D.8).
+    out.extend(mesh.solids.then_some(LOST_SOLIDS));
+    out
 }
 
 /// Told how far an export is, 0 to 1; `false` stops it (`export_file`).
@@ -916,6 +922,7 @@ pub(crate) mod tests {
             for kind in Kind::ALL {
                 let notes = export_file(bytes, name, none, kind, &|_| true, &Beside { stem: "q", free: &|n| n.to_string() }).unwrap().1;
                 assert!(!notes.is_empty(), "{name} as {kind:?}: exported as solids, nothing said");
+                assert_eq!(notes, [LOST_SOLIDS], "{name} as {kind:?}");
             }
         }
     }
