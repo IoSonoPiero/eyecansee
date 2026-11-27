@@ -551,6 +551,34 @@ mod tests {
         assert_eq!(parse_xml(&model(100, r#"<vertex x="0" y="0" z="0"/>"#), limit).map(|d| d.descendants().count()), Ok(106));
     }
 
+    /// Audit 27/11, D.4: in a 3MF of several model files each file has its tree within the cap,
+    /// but every step into another file kept its tree while the components went on: two part
+    /// files whose components point at each other held a tree at each of the 32 steps allowed.
+    /// Measured against the same 3MF whose part does not point back.
+    #[test]
+    fn audit_d4_trees_of_files_up_the_stack() {
+        let filler = "<a/>".repeat(50_000);
+        let triangle = r#"<mesh><vertices><vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/></vertices><triangles><triangle v1="0" v2="1" v3="2"/></triangles></mesh>"#;
+        let part = |next: Option<&str>| {
+            let component = next.map_or(String::new(), |n| format!(r#"<components><component objectid="1" p:path="{n}"/></components>"#));
+            format!(r#"<model xmlns:p="p"><resources><object id="1">{triangle}{component}</object></resources><build/>{filler}</model>"#)
+        };
+        let zip3mf = |a: &str, b: &str| {
+            let mut w = zip::ZipWriter::new(Cursor::new(Vec::new()));
+            for (name, text) in [("3D/3dmodel.model", r#"<model xmlns:p="p"><resources/><build><item objectid="1" p:path="/3D/a.model"/></build></model>"#), ("3D/a.model", a), ("3D/b.model", b)] {
+                w.start_file(name, zip::write::SimpleFileOptions::default()).unwrap();
+                w.write_all(text.as_bytes()).unwrap();
+            }
+            w.finish().unwrap().into_inner()
+        };
+        let alone = zip3mf(&part(None), &part(None));
+        let looped = zip3mf(&part(Some("/3D/b.model")), &part(Some("/3D/a.model")));
+        let (r, one) = crate::test_alloc::peak(|| read(&alone, &Unpacked::default()).map(|m| m.tris.len()));
+        assert_eq!(r, Ok(1));
+        let (r, both) = crate::test_alloc::peak(|| read(&looped, &Unpacked::default()).map(|m| m.tris.len()));
+        assert!(both < 4 * one, "{both} bytes held against {one} for one part file ({r:?})");
+    }
+
     /// Audit 27/11, D.4: the nodes and attributes roxmltree builds for the XML of every 3MF, AMF,
     /// Collada and X3D under `EYECANSEE_MODELS` (and its folders), against the triangles read.
     #[test]
