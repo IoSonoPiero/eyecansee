@@ -1,11 +1,11 @@
 # Disks and USB sticks
 
-External disks, USB sticks and memory cards appear in the panel on the left as soon as you connect them, and work like the folders of the computer: browse, view, copy, move, delete and convert. Phones have a page of their own: [Android phones](phone.md).
+External disks, USB sticks and memory cards appear in the panel on the left as soon as you connect them, and work like the computer's folders: you can browse, view, copy, move, delete and convert. Phones have a page of their own: [Android phones](phone.md).
 
 ## Where they appear
 
-- When you connect a disk, a USB stick, a memory card or a phone, the **Devices** block appears at the top left, with its folders to expand like the tree. Disks have the ![Disk](icon://color-disk) icon, phones ![Phone](icon://color-phone).
-- Under **This computer** is the folder tree of the computer; on Windows also its own drives (![Internal disk](icon://color-internal-disk)).
+- When you connect a disk, a USB stick, a memory card or a phone, the **Devices** block appears at the top left, with folders you can expand, as in the tree. Disks have the ![Disk](icon://color-disk) icon, phones ![Phone](icon://color-phone).
+- Under **This computer** is the computer's folder tree; on Windows, also its drives (![Internal disk](icon://color-internal-disk)).
 - Click a device to open it on the right. When you disconnect it, it disappears; if you were looking at it, EyeCanSee goes back to your home folder.
 
 ![Disks and USB sticks](../img/devices.webp)
@@ -25,9 +25,9 @@ External disks, USB sticks and memory cards appear in the panel on the left as s
 
 ## Things to know
 
-- If you unplug a disk, a stick or a phone while one of its folders is open, the home folder opens and the status bar says for a few seconds which device was unplugged ("Device unplugged: …"). A picture or a video open from it closes.
+- If you unplug a disk, a stick or a phone while one of its folders is open, the home folder opens and the status bar says for a few seconds which device was unplugged ("Device unplugged: …"). A picture or a video opened from it is closed.
 - Thumbnails of a device stay in the cache after you disconnect it, so it opens quickly the next time.
 - While a picture from a phone or a server is open, EyeCanSee keeps the file it downloaded in its cache folder on this computer, so that saving does not download it again. The copy is deleted when you close the picture.
 - Folders on this computer and on disks update by themselves: files added, deleted or renamed by another program appear and disappear without F5.
-- On Linux, a folder opened through the file manager's connection (gvfs, for example a network folder opened from the Files app) is never saved over: there replacing a file can lose the original. Use **Save as…** instead.
+- On Linux, in a folder opened through the file manager's connection (gvfs, for example a network folder opened from the Files app), EyeCanSee never saves over a file: there, replacing a file can lose the original. Use **Save as…** instead.
 - On Linux, on an **NTFS** disk the Files app cannot restore from the trash: see [Known limits](limits.md).
