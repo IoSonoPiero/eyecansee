@@ -1403,6 +1403,31 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
+    /// Audit T.1 of 27/11 (#353): a move on one device is a rename for each item, and between the
+    /// storages of a phone the phone moves each file itself, minutes for many; on a server
+    /// thousands of renames. Cancel stopped nothing: every file went, and the move "finished".
+    /// Cancelled (here before the first), it stops before the next rename.
+    #[test]
+    fn cancel_stops_the_renames() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-cancel-renames-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("a")).unwrap();
+        std::fs::create_dir_all(dir.join("b")).unwrap();
+        let files: Vec<String> = (1..=5).map(|i| format!("a/{i}.jpg")).collect();
+        for f in &files {
+            std::fs::write(dir.join(f), b"x").unwrap();
+        }
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let clip = Clip { op: op.clone(), base: "test-renames://".into(), paths: files.clone(), cut: true, text: String::new() };
+        let p = Progress::default();
+        p.cancel.store(true, Ordering::Relaxed);
+        let (gone, r) = tokio::runtime::Runtime::new().unwrap().block_on(run(&clip, &op, "test-renames://", "b/", &HashMap::new(), &p));
+        let left = files.iter().filter(|f| dir.join(f).exists()).count();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!((left, gone.len()), (5, 0), "moved after Cancel (paste: {r:?})");
+        assert_eq!(r.map_err(|e| e.0), Err("error-cancelled"));
+    }
+
     /// Audit F.1 of 27/11 (#195): a folder cut and merged into a link of the same name that leads
     /// to it (`Desk/album` → `Photos/album`). Each file was written over itself through the link
     /// and then deleted as the original: the folder went whole, the link was left leading nowhere.
