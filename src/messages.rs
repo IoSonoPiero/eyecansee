@@ -19,15 +19,7 @@ use crate::listing::Arrival;
 impl App {
     pub(crate) fn receive(&mut self, ctx: &egui::Context) {
         while let Ok(msg) = self.rx.try_recv() {
-            // About paths of a source left meanwhile: there they are other items (audit 27/11 F.9).
-            let msg = match msg {
-                Msg::At(base, _) if base != self.base => {
-                    log!("dropped, of a source left: {}", without_password(&base));
-                    continue;
-                }
-                Msg::At(_, m) => *m,
-                m => m,
-            };
+            let Some(msg) = self.of_this_source(msg) else { continue };
             match msg {
                 Msg::Listed(base, dir, r) => self.on_listed(ctx, &base, dir, r),
                 Msg::At(..) => {}
@@ -105,6 +97,19 @@ impl App {
                 Msg::Update(r) => self.on_update(r),
                 Msg::Devices(d) => self.on_devices(ctx, d),
             }
+        }
+    }
+
+    /// `msg`, out of its `Msg::At`; `None` when it is about paths of a source left meanwhile,
+    /// where they are other items (audit 27/11 F.9).
+    fn of_this_source(&self, msg: Msg) -> Option<Msg> {
+        match msg {
+            Msg::At(base, _) if base != self.base => {
+                log!("dropped, of a source left: {}", without_password(&base));
+                None
+            }
+            Msg::At(_, m) => Some(*m),
+            m => Some(m),
         }
     }
 
