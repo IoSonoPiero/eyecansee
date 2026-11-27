@@ -62,8 +62,9 @@ pub enum Msg {
     Renamed(String, Result<String, source::Error>),
     /// New folder made (its path).
     MadeFolder(String, Result<(), source::Error>),
-    /// Names already in the paste destination (to ask about), or an error.
-    PasteCheck(Result<Vec<String>, source::Error>),
+    /// Names already in the paste destination (to ask about), or an error, for the check
+    /// numbered so (`file_dialogs::PASTE_CHECK`).
+    PasteCheck(u64, Result<Vec<String>, source::Error>),
     /// End of a copy or move: source items that went away, outcome.
     Pasted(Vec<String>, Result<(), source::Error>),
     /// Outcome of `update::check`: a newer version downloaded and checked, up to date, or an error.
@@ -255,10 +256,10 @@ impl Loader {
         self.op.clone()
     }
 
-    pub fn paste_check(&self, clip: transfer::Clip, dir: String) {
+    pub fn paste_check(&self, clip: transfer::Clip, dir: String, check: u64) {
         let (op, base, tx, ctx) = (self.op.clone(), self.base.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let _ = tx.send(Msg::PasteCheck(transfer::conflicts(&clip, &op, &base, &dir).await));
+            let _ = tx.send(Msg::PasteCheck(check, transfer::conflicts(&clip, &op, &base, &dir).await));
             ctx.request_repaint();
         });
     }

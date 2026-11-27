@@ -10,6 +10,14 @@ use crate::{App, PasteAsk, confirm, devices, source, theme, transfer};
 use crate::human::human_time;
 use crate::navigation::shown;
 
+/// The number of the last check of the names a paste would take (`App::paste`); 0: none yet.
+static PASTE_CHECK: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The answer of the check `check` is the one the paste open waits for: the last one asked.
+pub(crate) fn paste_check_wanted(check: u64) -> bool {
+    check == PASTE_CHECK.load(Ordering::Relaxed)
+}
+
 /// The check of the folders about to be deleted: running (its stop flag), or what it found (the
 /// first name not shown and its folder).
 pub(crate) enum DeleteCheck {
@@ -59,7 +67,10 @@ impl App {
         }
         let (Some(loader), Some(clip)) = (&self.loader, &self.clip) else { return };
         log!("paste into {dir:?}");
-        loader.paste_check(clip.clone(), dir.clone());
+        // Its own number: the answer of a check asked before (a slow phone or server, left
+        // meanwhile) is dropped instead of answering this paste (audit 27/11 F.2).
+        let check = PASTE_CHECK.fetch_add(1, Ordering::Relaxed) + 1;
+        loader.paste_check(clip.clone(), dir.clone(), check);
         self.paste_ask = Some(PasteAsk { dir, conflicts: None, choices: HashMap::new(), all: false });
     }
 
@@ -669,7 +680,7 @@ mod tests {
         let ctx = h.ctx.clone();
         h.app.clip(&ctx, Some(a), false);
         let into = format!("{}b/", h.app.dir);
-        h.app.tx.send(crate::loader::Msg::PasteCheck(Ok(Vec::new()))).unwrap();
+        h.app.tx.send(crate::loader::Msg::PasteCheck(0, Ok(Vec::new()))).unwrap();
         h.app.paste(Some(into.clone()));
         for _ in 0..30 {
             h.frame(Vec::new());

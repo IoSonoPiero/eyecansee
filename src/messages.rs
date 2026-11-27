@@ -50,7 +50,7 @@ impl App {
                 Msg::Restored(path, r) => self.on_restored(path, r),
                 Msg::Renamed(old, r) => self.on_renamed(old, r),
                 Msg::MadeFolder(path, r) => self.on_made_folder(path, r),
-                Msg::PasteCheck(r) => self.on_paste_check(r),
+                Msg::PasteCheck(check, r) => self.on_paste_check(check, r),
                 Msg::Pasted(gone, r) => self.on_pasted(ctx, gone, r),
                 Msg::Mounted(r) => self.on_mounted(ctx, r),
                 Msg::Open(address) => self.on_open(ctx, address),
@@ -374,7 +374,12 @@ impl App {
         }
     }
 
-    fn on_paste_check(&mut self, r: Result<Vec<String>, source::Error>) {
+    fn on_paste_check(&mut self, check: u64, r: Result<Vec<String>, source::Error>) {
+        // A check of a paste no longer open, or asked before the one open: not about this one.
+        if self.paste_ask.is_none() || !crate::file_dialogs::paste_check_wanted(check) {
+            log!("paste: the answer of an older check dropped");
+            return;
+        }
         match r {
             Ok(conflicts) => {
                 log!("paste: {} names taken", conflicts.len());
