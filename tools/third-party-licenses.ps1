@@ -16,6 +16,16 @@ $sb = [System.Text.StringBuilder]::new()
 [void]$sb.AppendLine("")
 foreach ($p in $pkgs) { [void]$sb.AppendLine(("- {0} {1} ({2})" -f $p.name, $p.version, $p.license)) }
 $missing = @()
+# A crate that builds C or C++ sources of its own (a build script, and such sources outside its
+# tests) puts a library inside the executable whose copyright the licence asks to repeat. Its
+# licence file is in a subfolder (libjpeg-turbo, libheif, libwebp, ring); where the package has
+# none, our copy of it is in tools\licenses\c\<crate>.txt (meshoptimizer, ufbx); or the crate is
+# here, with the reason no notice is needed. Any other one stops the script (audit 7.7).
+$cNoNotice = @{
+    "libsqlite3-sys" = "SQLite is in the public domain"
+    "wayland-backend" = "a small shim of the crate itself, under the crate's licence"
+}
+$unlisted = @()
 foreach ($p in $pkgs) {
     $dir = Split-Path $p.manifest_path
     $files = @(Get-ChildItem -Path $dir -File) | Where-Object { $_.Name -match '^(LICEN[CS]E|COPYING|NOTICE|UNLICENSE|COPYRIGHT)' }
@@ -29,6 +39,10 @@ foreach ($p in $pkgs) {
     if ($p.repository) { [void]$sb.AppendLine($p.repository) }
     [void]$sb.AppendLine("=" * 78)
     if ($p.authors) { [void]$sb.AppendLine("Copyright: " + ($p.authors -join ", ")) }
+    $inside = @($files | Where-Object { $_.DirectoryName -ne $dir })
+    $csrc = (Test-Path -LiteralPath (Join-Path $dir "build.rs")) -and @(Get-ChildItem -LiteralPath $dir -Recurse -File -Include *.c, *.cc, *.cpp, *.cxx -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName.Substring($dir.Length) -notmatch '\\(tests?|examples|benches|target)\\' }).Count -gt 0
+    if ($csrc -and -not $inside -and -not $cNoNotice.ContainsKey($p.name)) { $unlisted += "$($p.name) $($p.version)" }
     if (-not $files) { $missing += "$($p.name) $($p.version) ($($p.license))"; [void]$sb.AppendLine("(no licence file in the package: the full text of $($p.license) is at the end of this file)"); continue }
     foreach ($f in $files) {
         [void]$sb.AppendLine("")
@@ -58,3 +72,5 @@ foreach ($id in "MIT", "Apache-2.0", "BSD-3-Clause", "BSL-1.0", "OFL-1.1", "Ubun
 "crates: $($pkgs.Count)"
 "without licence file: $($missing.Count)"
 $missing
+if ($pkgs.Count -lt 100) { throw "cargo metadata gave $($pkgs.Count) crates" }
+if ($unlisted) { throw "C or C++ inside without its copyright notice (add tools\licenses\c\<crate>.txt): $($unlisted -join ', ')" }
