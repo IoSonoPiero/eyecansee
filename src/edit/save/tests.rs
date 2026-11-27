@@ -949,12 +949,12 @@ fn beyond_the_picture() {
 
     let thumb = file(&DynamicImage::ImageRgb8(RgbImage::from_pixel(16, 12, Rgb([9, 9, 9]))), Format::Jpeg, false);
     let motion = motion_photo(&motif(), &thumb);
-    let video = Beyond { video: true, pictures: false };
+    let video = Beyond { video: true, ..Beyond::default() };
     assert_eq!(planned(&motion, "a.jpg", true, Keep::All).beyond, video, "edited");
     // Its MPF segment (empty) keeps it from being turned whole: written again even only turned.
     assert_eq!(planned(&motion, "a.jpg", false, Keep::All).beyond, video, "only turned, not whole");
 
-    let pictures = Beyond { video: false, pictures: true };
+    let pictures = Beyond { pictures: true, ..Beyond::default() };
     assert_eq!(planned(&with_mpf(&[0x03_0000, 0x00_0000]), "a.jpg", true, Keep::All).beyond, pictures, "a depth map in the MPF");
     assert_eq!(planned(&with_mpf(&[0x03_0000, 0x02_0002]), "a.jpg", true, Keep::All).beyond, pictures, "a stereo shot");
     assert_eq!(planned(&with_mpf(&[0x03_0000, 0x01_0001, 0x01_0002]), "a.jpg", true, Keep::All).beyond, none, "previews only");
@@ -1002,7 +1002,7 @@ fn beyond_phone_samples() {
         let bytes = std::fs::read(dir.join(name)).unwrap_or_else(|e| panic!("{name} in {}: {e} (test-files/scarica.sh online-telefono)", dir.display()));
         let beyond = planned(&bytes, name, true, Keep::All).beyond;
         println!("{name}: {beyond:?}");
-        assert_eq!(beyond, Beyond { video, pictures: false }, "{name}");
+        assert_eq!(beyond, Beyond { video, ..Beyond::default() }, "{name}");
         // Only turned, with all the metadata: turned whole, the video with it.
         assert_eq!(planned(&bytes, name, false, Keep::All).beyond, Beyond::default(), "{name}: only turned");
         assert_eq!(planned(&bytes, name, false, Keep::Nothing).beyond.video, video, "{name}: turned without metadata, written again");

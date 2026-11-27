@@ -58,11 +58,13 @@ pub struct Plan {
 /// The parts of a phone photo besides its picture that a save written from the picture leaves
 /// out, for a line each in the confirmation (#201): the video of a Motion Photo or a MicroVideo,
 /// and pictures of their own (a depth map, the other shots of a stereo photo). Not the previews,
-/// which every save leaves out, nor the gain map of an Ultra HDR photo (`Plan::hdr_lost`).
+/// which every save leaves out, nor the gain map of an Ultra HDR photo (`Plan::hdr_lost`); and
+/// any other data after the end of the photo (the trailer of Samsung's portrait photos, audit E.7).
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub struct Beyond {
     pub video: bool,
     pub pictures: bool,
+    pub other: bool,
 }
 
 impl Beyond {
@@ -74,7 +76,10 @@ impl Beyond {
         }
         let video = crate::ultrahdr::has_video(bytes);
         let pictures = !hdr && !crate::ultrahdr::is(bytes) && (crate::ultrahdr::other_pictures(bytes) || container_others(bytes));
-        Beyond { video, pictures }
+        // Not after the pictures an MPF lists (its previews every save leaves out).
+        let after = crate::save_back::jpeg_end(bytes).is_some_and(|(end, mpf)| !mpf && bytes[end..].iter().any(|&x| x != 0));
+        let other = !video && !pictures && !hdr && !crate::ultrahdr::is(bytes) && after;
+        Beyond { video, pictures, other }
     }
 }
 

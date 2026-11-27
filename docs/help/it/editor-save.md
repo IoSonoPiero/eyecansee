@@ -8,7 +8,7 @@ L'editor non cambia mai l'originale se non lo chiedi. Il pulsante principale, **
 
 - Il nome è quello dell'originale con "(modificata)", per esempio `spiaggia (modificata).jpg`; "(modificata 2)" se quel nome è già preso.
 - Il formato è quello dell'originale quando EyeCanSee sa scriverlo (JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI). Altrimenti è un PNG se l'immagine ha trasparenza o viene da un file OpenEXR o Radiance HDR, e un JPEG negli altri casi (per esempio un HEIC, un RAW o un PSD).
-- Prima di scrivere, una finestra mostra il nome della copia e cosa perde, se perde qualcosa: ricodificata con una piccola perdita, 8 bit per colore invece di più, ciò che è più luminoso del bianco, il video di una foto in movimento, una mappa di profondità, l'EXIF, l'XMP o l'IPTC troppo grandi per un JPEG. **Salva** la scrive; **Annulla** torna indietro.
+- Prima di scrivere, una finestra mostra il nome della copia e cosa perde, se perde qualcosa: ricodificata con una piccola perdita, 8 bit per colore invece di più, ciò che è più luminoso del bianco, il video di una foto in movimento, una mappa di profondità, altri dati che un telefono mette dopo la foto, l'EXIF, l'XMP o l'IPTC troppo grandi per un JPEG. **Salva** la scrive; **Annulla** torna indietro.
 - Nella stessa finestra, **Metadati** sceglie cosa tiene la copia dei metadati dell'originale: **Tutti** (predefinito), **Tutti tranne il luogo** (senza posizione GPS, città, regione o paese: per una foto da condividere) o **Nessuno** (solo il profilo colore), come in [Salva come](save-as.md). La pagina ricorda la scelta per i salvataggi successivi, Sovrascrivi compreso, finché non si chiude. Una copia senza tutti i metadati viene sempre ricodificata, anche quando l'immagine è solo ruotata; una foto **Ultra HDR** resta HDR se salvata senza il luogo, ma non con **Nessuno**: la finestra lo dice. Se l'immagine ha un riquadro di copertura e la foto contiene il luogo dello scatto, una riga gialla sotto **Tutti** lo dice.
 
 L'originale resta com'è. La pagina resta aperta, così puoi continuare; intanto il visore dietro la pagina, e il titolo della finestra, restano sull'immagine che stai modificando. Quando la chiudi, la griglia seleziona l'ultimo file salvato e il visore lo mostra: la copia, o l'originale se l'hai sovrascritto dopo la copia.
@@ -48,7 +48,7 @@ Dove l'originale non si può sovrascrivere (un formato che EyeCanSee non riscriv
 
 - Un JPEG salvato come JPEG mantiene la qualità con cui era stato salvato, così non viene compresso di più. Un'immagine di un altro formato salvata come JPEG viene scritta con qualità 95.
 - I metadati (EXIF, XMP, IPTC, profilo colore, risoluzione) restano, con la misura nuova, senza le piccole anteprime dell'originale.
-- Una foto Ultra HDR del telefono resta HDR. Il video di una foto in movimento non viene conservato, a meno che tu l'abbia solo girata o riflessa. Non vengono conservate nemmeno una mappa di profondità né le altre immagini che una foto del telefono può contenere: la finestra prima del salvataggio lo dice.
+- Una foto Ultra HDR del telefono resta HDR. Il video di una foto in movimento non viene conservato, a meno che tu l'abbia solo girata o riflessa. Non vengono conservati nemmeno una mappa di profondità né le altre immagini o gli altri dati che una foto del telefono può contenere dopo la foto: la finestra prima del salvataggio lo dice.
 - Ogni oggetto, filtro e ritaglio viene applicato a piena grandezza.
 
 ## Chiudere con modifiche non salvate

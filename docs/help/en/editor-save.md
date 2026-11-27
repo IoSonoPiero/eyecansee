@@ -8,7 +8,7 @@ The editor never changes the original unless you ask. The main button, **Save co
 
 - Its name is the original's with "(edited)", for example `beach (edited).jpg`; "(edited 2)" when that name is taken.
 - Its format is the original's when EyeCanSee can write that format (JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI). Otherwise it is a PNG when the image has transparency or comes from an OpenEXR or Radiance HDR file, and a JPEG in the other cases (a HEIC, a RAW or a PSD, for example).
-- Before writing, a window shows the copy's name and what it loses, if anything: encoded again with a little loss, 8 bits per colour instead of more, what is brighter than white, the video of a motion photo, a depth map, the EXIF, XMP or IPTC too large for a JPEG. **Save** writes it; **Cancel** goes back.
+- Before writing, a window shows the copy's name and what it loses, if anything: encoded again with a little loss, 8 bits per colour instead of more, what is brighter than white, the video of a motion photo, a depth map, other data a phone puts after the photo, the EXIF, XMP or IPTC too large for a JPEG. **Save** writes it; **Cancel** goes back.
 - In the same window, **Metadata** chooses what the copy keeps of the original's metadata: **All** (the default), **All but the place** (no GPS position, no city, state or country: for a photo to share) or **None** (only the colour profile), as in [Save as](save-as.md). The page remembers the choice for its next saves, Overwrite included, until it is closed. A copy without all the metadata is always encoded again, even when the image is only turned; an **Ultra HDR** photo stays HDR when saved without the place, but not with **None**: the window says so. If the image has a cover box and the photo records the place where it was taken, a yellow line under **All** says so.
 
 The original stays as it is. The page stays open, so you can go on; meanwhile the viewer behind it, and the window's title, stay on the image you are editing. When you close it, the grid selects the file saved last and the viewer shows it: the copy, or the original if you overwrote it after the copy.
@@ -48,7 +48,7 @@ Where the original cannot be overwritten (a format EyeCanSee does not write back
 
 - A JPEG saved as JPEG keeps the quality it was saved with, so it is not compressed harder. A picture of another format saved as JPEG is written at quality 95.
 - The metadata (EXIF, XMP, IPTC, colour profile, resolution) stay, with the new size, without the small previews of the original.
-- An Ultra HDR photo from a phone stays HDR. The video of a motion photo is not kept, unless you only turned or flipped the photo. Neither is a depth map, nor the other pictures a phone photo may carry: the window before saving says so.
+- An Ultra HDR photo from a phone stays HDR. The video of a motion photo is not kept, unless you only turned or flipped the photo. Neither is a depth map, nor the other pictures or data a phone photo may carry after the photo: the window before saving says so.
 - Every object, filter and crop is applied at full size.
 
 ## Closing with changes not saved

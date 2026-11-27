@@ -287,6 +287,9 @@ impl App {
         if s.beyond.pictures {
             ids.push(if over { "edit-over-loss-pictures" } else { "edit-loss-pictures" });
         }
+        if s.beyond.other {
+            ids.push(if over { "edit-over-loss-other" } else { "edit-loss-other" });
+        }
         let mut text: String = ids.iter().map(|id| format!("\n\n{}", self.i18n.t(id))).collect();
         // Metadata too large for a JPEG (#217).
         if s.meta_left_out.any() {
