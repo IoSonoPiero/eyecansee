@@ -133,9 +133,9 @@ pub fn read(bytes: &[u8], unpacked: &Unpacked) -> Result<Mesh, String> {
         .ok()
         .and_then(|d| d.descendants().find(|n| n.attribute("Type").is_some_and(|t| t.ends_with("/3dmodel"))).and_then(|n| n.attribute("Target")).map(str::to_string))
         .unwrap_or_else(|| "/3D/3dmodel.model".into());
-    let mut files = Files { zip, unpacked, texts: HashMap::new(), pictures: HashMap::new(), written: 0, tree: Tree::of(crate::model_limit::THREE_MF) };
+    let mut files = Files { zip, unpacked, texts: HashMap::new(), pictures: HashMap::new(), written: 0, tree: Tree::of(crate::model_limit::THREE_MF), charged: HashMap::new() };
     let text = files.text(&main)?;
-    let doc = parse_within(&text, crate::model_limit::THREE_MF, &mut files.tree)?;
+    let doc = files.parse(files.index(&main), &text)?;
     let mut b = Builder::up_to(crate::model_limit::THREE_MF);
     let model = Model::new(&doc);
     let open = [(files.index(&main), &model)];
@@ -159,14 +159,31 @@ struct Files<'b, 'u> {
     pictures: HashMap<usize, u16>,
     /// The triangles written in the texts read so far, counted before they are parsed (`model_limit`).
     written: usize,
-    /// What the trees of its model files may still take, all of them together (audit 27/11, D.4).
+    /// What the trees of its model files may still take, all of them together (audit 27/11, D.4),
+    /// and what each file took the first time, by its place in the zip: a file parsed again
+    /// takes no more.
     tree: Tree,
+    charged: HashMap<usize, Tree>,
 }
 
 impl Files<'_, '_> {
     /// Where a path of the model is in the zip.
     fn index(&self, path: &str) -> Option<usize> {
         self.zip.index_for_name(path.trim_start_matches('/'))
+    }
+
+    /// `text`, the file at `at` in the zip, parsed within the limit the model files share.
+    fn parse<'t>(&mut self, at: Option<usize>, text: &'t str) -> Result<Document<'t>, String> {
+        let three_mf = crate::model_limit::THREE_MF;
+        if let Some(took) = at.and_then(|k| self.charged.get(&k)) {
+            return parse_within(text, three_mf, &mut Tree { nodes: took.nodes, attributes: took.attributes });
+        }
+        let before = Tree { nodes: self.tree.nodes, attributes: self.tree.attributes };
+        let doc = parse_within(text, three_mf, &mut self.tree)?;
+        if let Some(k) = at {
+            self.charged.insert(k, Tree { nodes: before.nodes - self.tree.nodes, attributes: before.attributes - self.tree.attributes });
+        }
+        Ok(doc)
     }
 
     fn text(&mut self, path: &str) -> Result<Rc<String>, String> {
@@ -287,7 +304,7 @@ fn place(b: &mut Builder, files: &mut Files, main: &str, model: &Model, open: &O
             return place(b, files, path, other, open, path, id, m, depth + 1);
         }
         let text = files.text(path)?;
-        let doc = parse_within(&text, crate::model_limit::THREE_MF, &mut files.tree)?;
+        let doc = files.parse(at, &text)?;
         let other = Model::new(&doc);
         let mut more = open.to_vec();
         more.push((at, &other));
