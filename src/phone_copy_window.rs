@@ -181,10 +181,10 @@ fn draw(ui: &mut egui::Ui, s: &Shown) -> (bool, bool) {
         });
     }
     ui.add_space(8.0);
-    // The explanation: smaller, its lines always there.
-    let small = egui::TextStyle::Small.resolve(ui.style());
+    // The explanation: at the size of the text (Piero, 27/11: small, it could not be read), its lines always there.
+    let small = egui::TextStyle::Body.resolve(ui.style());
     let colour = if s.note.1 { ui.visuals().text_color() } else { theme::faint(ui.visuals()) };
-    let height = ui.fonts_mut(|f| f.row_height(&small)) * NOTE_LINES;
+    let height = (ui.fonts_mut(|f| f.row_height(&small)) * NOTE_LINES).ceil();
     ui.allocate_ui_with_layout(egui::vec2(ui.available_width(), height), egui::Layout::top_down(egui::Align::Min), |ui| {
         ui.set_min_height(height);
         ui.add(egui::Label::new(egui::RichText::new(&s.note.0).font(small.clone()).color(colour)).wrap());
