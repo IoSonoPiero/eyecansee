@@ -604,6 +604,37 @@ mod tests {
         assert_eq!(folder_under(&h.app.last_dirs, &disk).map(|(_, r)| r).as_deref(), Some("DCIM"));
     }
 
+    /// Audit 27/11 F.12 (#314): a disk unplugged and plugged again (or another stick with the same
+    /// label, so the same place) opened at the folder last visited on it even when that folder was
+    /// gone: an empty grid, no error, and that folder under its name in the panel.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn a_disk_opens_at_its_root_when_its_last_folder_is_gone() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("navigation::tests::a_disk_opens_at_its_root_when_its_last_folder_is_gone") {
+            return;
+        }
+        let dir = folder("disk-gone", &["a.png"]);
+        std::fs::create_dir_all(dir.join("disk/DCIM")).unwrap();
+        std::fs::create_dir_all(dir.join("home")).unwrap();
+        let mut h = Harness::new(&dir);
+        let root = h.app.dir.clone();
+        let disk = format!("/{root}disk/");
+        let stick = devices::Device { name: "Disk".into(), path: disk.clone(), phone: false, serial: None, block: None, internal: false };
+        h.app.devices = vec![stick.clone()];
+        h.app.set_dir(format!("{root}disk/DCIM/"));
+        h.app.set_dir(format!("{root}home/"));
+        std::fs::remove_dir(dir.join("disk/DCIM")).unwrap();
+        let ctx = h.ctx.clone();
+        h.app.open_device(&ctx, &stick);
+        assert_eq!(h.app.dir, format!("{root}disk/"), "opened at a folder no longer on the disk");
+        // Unplugged: what was remembered of it goes with it.
+        h.app.set_dir(format!("{root}home/"));
+        h.app.tx.send(crate::loader::Msg::Devices(Vec::new())).unwrap();
+        h.frame(Vec::new());
+        assert_eq!(h.app.last_dirs.get(&disk), None, "the last folder of a disk unplugged kept");
+    }
+
     /// An address from outside while the editor is open is kept (the last one) and opened once it
     /// is closed; without the editor it opens at once, and "" (just come forward) is never kept.
     #[test]
