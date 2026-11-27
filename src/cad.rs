@@ -31,6 +31,27 @@ const MAX_PATTERN: usize = 200_000;
 /// they are taken, so that a file made on purpose ends in seconds: a test drawing with three
 /// dense hatches takes under a million. The hatches beyond are filled lightly.
 const MAX_HATCH_WORK: usize = 1_000_000_000;
+/// The model and the layouts of one file together spend at most this many times the caps of one
+/// sheet (points, elements, blocks placed, hatches, SHX pens), and each sheet its own caps at
+/// most (audit 27/11, D.3): a file with many layouts showing the model cannot do the work and
+/// keep the drawings again for each of them. A layout beyond is left out, as one beyond its own
+/// caps (`cad_layout::sheet`).
+const FILE_TIMES: usize = 2;
+
+/// What the sheets of a file read so far have spent of its caps (`FILE_TIMES`).
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Spent {
+    points: usize,
+    met: usize,
+    placed: usize,
+    hatch: usize,
+    pen: usize,
+}
+
+/// What one more sheet may spend of `max` when the file has spent `spent` of it already.
+fn share(max: usize, spent: usize) -> usize {
+    max.min((FILE_TIMES * max).saturating_sub(spent))
+}
 
 pub fn is_cad(name: &str) -> bool {
     name.rsplit_once('.').is_some_and(|(_, e)| CAD.contains(&e.to_lowercase().as_str()))
@@ -137,10 +158,11 @@ pub fn read_with(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> Re
         walk.entity(e, &top)?;
     }
     walk.finish()?;
+    let spent = walk.spent();
     if d.items.is_empty() {
         return Err("nothing to draw in the model space".into());
     }
-    d.sheets = crate::cad_layout::sheets(&doc, sibling, &fonts, (&layers[..], &index));
+    d.sheets = crate::cad_layout::sheets(&doc, sibling, &fonts, (&layers[..], &index), spent);
     Ok(d)
 }
 
@@ -216,6 +238,8 @@ pub(crate) struct Walk<'a> {
     hatch_work: usize,
     /// What the pens of the SHX texts may still do (`cad_text::strokes`), for the whole drawing.
     pen_work: usize,
+    /// What the sheets of the file drawn before this one spent (`after`).
+    before: Spent,
 }
 
 /// Where an XLINE or RAY passes, in drawing units, and how it is drawn.
@@ -238,7 +262,36 @@ pub(crate) fn n3(v: &Vector3) -> [f64; 3] {
 
 impl<'a> Walk<'a> {
     pub(crate) fn new(doc: &'a CadDocument, out: &'a mut Drawing) -> Self {
-        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default(), index: Default::default(), sets: Default::default(), set: 0, placed: 0, met: 0, hatch_work: MAX_HATCH_WORK, pen_work: MAX_POINTS }
+        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default(), index: Default::default(), sets: Default::default(), set: 0, placed: 0, met: 0, hatch_work: MAX_HATCH_WORK, pen_work: MAX_POINTS, before: Spent::default() }
+    }
+
+    /// A walk of one more sheet of a file whose sheets drawn before spent `before`.
+    pub(crate) fn after(mut self, before: Spent) -> Self {
+        (self.hatch_work, self.pen_work) = (share(MAX_HATCH_WORK, before.hatch), share(MAX_POINTS, before.pen));
+        self.before = before;
+        self
+    }
+
+    /// What the file has spent with this sheet, for the next one (`after`).
+    pub(crate) fn spent(&self) -> Spent {
+        let b = self.before;
+        Spent {
+            points: b.points + self.out.points,
+            met: b.met + self.met,
+            placed: b.placed + self.placed,
+            hatch: b.hatch + (share(MAX_HATCH_WORK, b.hatch) - self.hatch_work),
+            pen: b.pen + (share(MAX_POINTS, b.pen) - self.pen_work),
+        }
+    }
+
+    /// The points this sheet may still draw.
+    fn points_left(&self) -> usize {
+        share(MAX_POINTS, self.before.points).saturating_sub(self.out.points)
+    }
+
+    /// The error of a sheet beyond the points it may draw.
+    fn points_over(&self) -> Result<(), String> {
+        if self.out.points > share(MAX_POINTS, self.before.points) { Err(crate::model_limit::too_many(crate::model_limit::DRAWING_POINTS, MAX_POINTS)) } else { Ok(()) }
     }
 
     /// An item drawn, on the layers of the entity being drawn.
@@ -306,9 +359,7 @@ impl<'a> Walk<'a> {
 
     pub(crate) fn line(&mut self, pts: Vec<P>, t: &Affine, color: [u8; 3], fill: Option<f32>, stroke: Stroke) -> Result<(), String> {
         self.out.points += pts.len();
-        if self.out.points > MAX_POINTS {
-            return Err(crate::model_limit::too_many(crate::model_limit::DRAWING_POINTS, MAX_POINTS));
-        }
+        self.points_over()?;
         let pts: Vec<P> = pts.into_iter().map(|p| t.apply(p)).filter(|p| p[0].is_finite() && p[1].is_finite()).collect();
         let pieces = match (self.clip, fill) {
             (None, _) => vec![pts],
@@ -335,7 +386,7 @@ impl<'a> Walk<'a> {
         if let Some(font) = self.fonts.get(&style) {
             let stroke = Stroke { dash: Vec::new(), weight: THIN };
             // A letter can draw nothing and still work: counted for the whole drawing.
-            let mut left = self.pen_work.min(MAX_POINTS.saturating_sub(self.out.points));
+            let mut left = self.pen_work.min(self.points_left());
             let before = left;
             let lines = crate::cad_text::strokes(font, at, height, angle, &text, l.anchor, &mut left);
             self.pen_work -= before - left;
@@ -352,16 +403,14 @@ impl<'a> Walk<'a> {
     pub(crate) fn entity(&mut self, e: &EntityType, ctx: &Context) -> Result<(), String> {
         // Also those that draw nothing (empty texts, hidden ones) take time, placed in many blocks.
         self.met += 1;
-        if self.met > MAX_POINTS {
+        if self.met > share(MAX_POINTS, self.before.met) {
             return Err(crate::model_limit::too_many(crate::model_limit::DRAWING_ENTITIES, MAX_POINTS));
         }
         if e.common().invisible {
             return Ok(());
         }
         // Texts and pictures add their points without the check of `line`.
-        if self.out.points > MAX_POINTS {
-            return Err(crate::model_limit::too_many(crate::model_limit::DRAWING_POINTS, MAX_POINTS));
-        }
+        self.points_over()?;
         let Some(layer) = self.layer(e, ctx) else { return Ok(()) };
         let number = self.index.get(&layer.to_lowercase()).copied();
         let set = match number {
@@ -489,7 +538,7 @@ impl<'a> Walk<'a> {
     fn block(&mut self, name: &str, ctx: &Context) -> Result<(), String> {
         // Blocks inside blocks, each placed many times, must not take forever.
         self.placed += 1;
-        if self.placed > crate::model::MAX_VISITS {
+        if self.placed > share(crate::model::MAX_VISITS, self.before.placed) {
             return Err(crate::model_limit::too_many(crate::model_limit::DRAWING_PLACED, crate::model::MAX_VISITS));
         }
         let doc = self.doc;
@@ -527,7 +576,7 @@ impl<'a> Walk<'a> {
         let bounds: Vec<Vec<P>> = h.paths.iter().map(boundary).filter(|b| b.len() >= 3).collect();
         let thin = Stroke { dash: Vec::new(), weight };
         if !h.is_solid && !h.pattern.lines.is_empty() {
-            let budget = MAX_PATTERN.min(MAX_POINTS.saturating_sub(self.out.points) / 2);
+            let budget = MAX_PATTERN.min(self.points_left() / 2);
             let lines: Option<Vec<[P; 2]>> = h.pattern.lines.iter().try_fold(Vec::new(), |mut all, l| {
                 let family = cad_geom::PatternLine { angle: l.angle, base: [l.base_point.x, l.base_point.y], offset: [l.offset.x, l.offset.y], dashes: &l.dash_lengths };
                 all.extend(cad_geom::hatch_lines(&bounds, &family, budget.saturating_sub(all.len()), &mut self.hatch_work)?);
@@ -628,7 +677,7 @@ impl<'a> Walk<'a> {
 
     /// The XLINEs and RAYs met outside viewports, across the drawing's box (a little larger);
     /// a drawing made only of them gets a box around their points.
-    pub(crate) fn finish(mut self) -> Result<(), String> {
+    pub(crate) fn finish(&mut self) -> Result<(), String> {
         let lines = std::mem::take(&mut self.infinite);
         if lines.is_empty() {
             return Ok(());
@@ -662,9 +711,7 @@ impl<'a> Walk<'a> {
                 pts.extend(ring);
             }
         }
-        if self.out.points > MAX_POINTS {
-            return Err(crate::model_limit::too_many(crate::model_limit::DRAWING_POINTS, MAX_POINTS));
-        }
+        self.points_over()?;
         if !pts.is_empty() {
             self.put(Item::Line { pts, color, fill, stroke });
         }
