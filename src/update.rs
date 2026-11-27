@@ -89,9 +89,13 @@ fn appimage() -> Option<PathBuf> {
     appimage_of(std::env::current_exe().ok().as_deref(), std::env::var_os("APPIMAGE"), std::env::var_os("APPDIR"))
 }
 
-/// `appimage`, from what it reads: the file the runtime of an AppImage names.
-fn appimage_of(_exe: Option<&Path>, appimage: Option<std::ffi::OsString>, _appdir: Option<std::ffi::OsString>) -> Option<PathBuf> {
-    appimage.map(PathBuf::from)
+/// `appimage`, from what it reads: the file the runtime of an AppImage names, believed only when
+/// this executable runs from inside its mount (`APPDIR`). A program started by another AppImage
+/// inherits both variables: a copy built from source took that AppImage for its own, and the
+/// update would have replaced it (audit C.2).
+fn appimage_of(exe: Option<&Path>, appimage: Option<std::ffi::OsString>, appdir: Option<std::ffi::OsString>) -> Option<PathBuf> {
+    let inside = exe.zip(appdir).is_some_and(|(exe, dir)| exe.starts_with(dir));
+    appimage.filter(|_| inside).map(PathBuf::from)
 }
 
 impl Kind {
