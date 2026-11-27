@@ -139,23 +139,33 @@ pub(crate) async fn turned(op: &Store, path: &str, turn: crate::transform::Turn,
 
 /// `turned` on a computer with `ram` bytes of memory.
 async fn turned_for(op: &Store, path: &str, turn: crate::transform::Turn, anyway: bool, ram: u64) -> Result<(Vec<u8>, bool), source::Error> {
-    // The copy kept while the picture is open (`open_copy`), else read from its source.
-    let bytes = match crate::open_copy::kept(op, path) {
-        Some(bytes) => bytes,
+    // The copy kept while the picture is open (`open_copy`), else read from its source; the
+    // memory minded for both (audit E.6).
+    let bytes = match crate::open_copy::kept(op, path).await {
+        Some(bytes) if anyway => bytes,
+        Some(bytes) => match too_large_to_turn(&bytes, bytes.len() as u64, source::name(path), turn, ram) {
+            Some(need) => return Err((TOO_LARGE, need.to_string())),
+            None => bytes,
+        },
         None if anyway => op.read(path).await?,
         None => to_turn(op, path, turn, ram).await?,
     };
     rewritten(bytes, path, move |bytes, name| crate::save_back::turned_file(bytes, name, turn)).await
 }
 
+/// The memory the turn of the file `bytes` (`size` bytes, `bytes` its start or all of it)
+/// needs, when more than half of `ram`; `None` for a file that is not turned at all (`SKIPPED`
+/// after, by `rewritten`).
+fn too_large_to_turn(bytes: &[u8], size: u64, name: &str, turn: crate::transform::Turn, ram: u64) -> Option<u64> {
+    let skipped = bytes.len() as u64 >= size && !crate::save_back::can_turn_in_place(bytes, name) && !crate::ultrahdr::turns_whole(bytes);
+    if skipped { None } else { crate::save_back::turn_too_large(bytes, size, name, turn, ram) }
+}
+
 /// The bytes of `path` to turn, unless the turn decodes them and they need more than half of
 /// `ram` (`TOO_LARGE`); not for a file that is not turned at all (`SKIPPED` after, by `rewritten`).
 async fn to_turn(op: &Store, path: &str, turn: crate::transform::Turn, ram: u64) -> Result<Vec<u8>, source::Error> {
     let name = source::name(path);
-    let too_large = |bytes: &[u8], size| {
-        let skipped = bytes.len() as u64 >= size && !crate::save_back::can_turn_in_place(bytes, name) && !crate::ultrahdr::turns_whole(bytes);
-        if skipped { None } else { crate::save_back::turn_too_large(bytes, size, name, turn, ram) }
-    };
+    let too_large = |bytes: &[u8], size| too_large_to_turn(bytes, size, name, turn, ram);
     crate::view_memory::read_unless_too_large(op, path, None, too_large).await.map_err(|e| match e {
         crate::view_memory::NotRead::TooLarge(need) => (TOO_LARGE, need.to_string()),
         crate::view_memory::NotRead::Failed(e) => e,

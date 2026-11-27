@@ -6,9 +6,12 @@
 //! servers and gvfs mounts, never this computer's disks; in the cache folder, readable only by
 //! the user, under names that say nothing; checked with SHA-256 when read back; dropped when
 //! EyeCanSee writes to that file, when newer pictures push it out, at exit and at the next start.
+//! Not used once the file's size is another (it changed on the phone or the server, by another
+//! program) or the phone or server it came from is gone (audit E.6).
 
+use std::any::Any;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, Weak};
 
 use crate::source::{Error, Store};
 
@@ -20,6 +23,11 @@ struct Copy {
     key: String,
     file: PathBuf,
     sha: [u8; 32],
+    /// The size of the file it was read from.
+    len: u64,
+    /// The phone or server of the file: while it is held, no other one takes its address (the
+    /// key), and once it is gone the copy is not used.
+    owner: Option<Weak<dyn Any + Send + Sync>>,
 }
 
 static COPIES: Mutex<Vec<Copy>> = Mutex::new(Vec::new());
@@ -36,6 +44,17 @@ fn key(op: &Store, path: &str) -> Option<String> {
         Store::Ftp(server) => format!("ftp:{:p}", std::sync::Arc::as_ptr(server)),
     };
     Some(format!("{who}\0{path}"))
+}
+
+/// The phone or server of `op`, held weakly.
+fn owner(op: &Store) -> Option<Weak<dyn Any + Send + Sync>> {
+    let held: Arc<dyn Any + Send + Sync> = match op {
+        Store::Dal(_) => return None,
+        Store::Mtp(phone) => phone.clone(),
+        Store::Sftp(server) => server.clone(),
+        Store::Ftp(server) => server.clone(),
+    };
+    Some(Arc::downgrade(&held))
 }
 
 fn sha256(data: &[u8]) -> [u8; 32] {
@@ -73,7 +92,7 @@ pub(crate) fn keep(op: &Store, path: &str, bytes: &[u8]) {
     match made {
         Ok(file) => {
             let mut copies = COPIES.lock().unwrap();
-            copies.push(Copy { key, file, sha: sha256(bytes) });
+            copies.push(Copy { key, file, sha: sha256(bytes), len: bytes.len() as u64, owner: owner(op) });
             while copies.len() > KEPT {
                 let _ = std::fs::remove_file(copies.remove(0).file);
             }
@@ -85,24 +104,30 @@ pub(crate) fn keep(op: &Store, path: &str, bytes: &[u8]) {
 /// The bytes of `path`: from the copy kept on this computer when it is there and whole, else from
 /// its source.
 pub(crate) async fn read(op: &Store, path: &str) -> Result<Vec<u8>, Error> {
-    if let Some(bytes) = kept(op, path) {
+    if let Some(bytes) = kept(op, path).await {
         return Ok(bytes);
     }
     op.read(path).await
 }
 
-/// The copy of `path`, if kept and still what was written (else dropped).
-pub(crate) fn kept(op: &Store, path: &str) -> Option<Vec<u8>> {
+/// The copy of `path`, if kept, still what was written, and of the size the file has now on its
+/// phone or server, which is asked (else dropped).
+pub(crate) async fn kept(op: &Store, path: &str) -> Option<Vec<u8>> {
     let key = key(op, path)?;
-    let mut copies = COPIES.lock().unwrap();
-    let i = copies.iter().position(|c| c.key == key)?;
-    match std::fs::read(&copies[i].file) {
-        Ok(bytes) if sha256(&bytes) == copies[i].sha => {
+    let (file, sha, len, gone) = {
+        let copies = COPIES.lock().unwrap();
+        let c = copies.iter().find(|c| c.key == key)?;
+        (c.file.clone(), c.sha, c.len, c.owner.as_ref().is_some_and(|o| o.strong_count() == 0))
+    };
+    let now = if gone { None } else { op.size(path).await.ok() };
+    match std::fs::read(&file) {
+        Ok(bytes) if now == Some(len) && sha256(&bytes) == sha => {
             log!("{path:?} read from its open copy on this computer");
             Some(bytes)
         }
         _ => {
-            let _ = std::fs::remove_file(copies.remove(i).file);
+            log!("open copy of {path:?} not used: the file is not the one read (size {now:?}, was {len})");
+            forget_key(&key);
             None
         }
     }
