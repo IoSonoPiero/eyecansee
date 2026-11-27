@@ -613,16 +613,18 @@ impl Store {
 
 /// The chunks of a file of `size` bytes passed on as they come, counted: more bytes than `size`,
 /// or fewer when they end, is an error at the end of them, so the writer deletes what it wrote
-/// (audit 2.23). The second value moves them and must run beside the writer.
+/// (audit 2.23). The second value moves them and must run beside the writer. A size of
+/// `NO_TRUE_SIZE` is not checked.
 pub(crate) fn sized(name: &str, size: u64, mut chunks: ChunksIn) -> (ChunksIn, impl std::future::Future<Output = ()>) {
     let (tx, rx) = tokio::sync::mpsc::channel(1);
     let name = name.to_string();
+    let known = size != NO_TRUE_SIZE;
     let relay = async move {
         let mut got = 0u64;
         while let Some(chunk) = chunks.recv().await {
             let chunk = chunk.and_then(|c| {
                 got += c.len() as u64;
-                if got > size { Err(std::io::Error::other(format!("{name}: longer than expected ({size} bytes)"))) } else { Ok(c) }
+                if known && got > size { Err(std::io::Error::other(format!("{name}: longer than expected ({size} bytes)"))) } else { Ok(c) }
             });
             let stop = chunk.is_err();
             // A writer that stopped has its own error.
@@ -630,12 +632,18 @@ pub(crate) fn sized(name: &str, size: u64, mut chunks: ChunksIn) -> (ChunksIn, i
                 return;
             }
         }
-        if got != size {
+        if known && got != size {
             let _ = tx.send(Err(std::io::Error::other(format!("{name}: {got} bytes arrived of {size}")))).await;
         }
     };
     (rx, relay)
 }
+
+/// The size a phone gives for a file of 4 GB or more when it does not tell the true one: MTP
+/// has 32 bits for it, mtp-rs asks the true size apart, and a phone that does not answer leaves
+/// the largest (audit 27/11 F.11). It says nothing of the file. A file of exactly this size
+/// is not checked either.
+const NO_TRUE_SIZE: u64 = u32::MAX as u64;
 
 /// What a writer receives: the chunks of `Store::send_chunks`.
 pub(crate) type ChunksIn = tokio::sync::mpsc::Receiver<std::io::Result<Bytes>>;
