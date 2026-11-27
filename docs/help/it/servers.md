@@ -21,7 +21,7 @@ L'ultimo è un alias di `~/.ssh/config`. Senza utente, FTP entra come `anonymous
 ## La prima connessione
 
 - **SFTP**: la prima volta EyeCanSee mostra l'impronta della chiave del server in un riquadro evidenziato. Confrontala lettera per lettera con quella che mostra il server, poi fai clic su **Collegati**; con **Annulla** resti sul server senza collegarti, e **F5** chiede di nuovo. Una volta accettata va in `~/.ssh/known_hosts`, come fa ssh. Un server la cui chiave è cambiata viene rifiutato: qualcuno potrebbe fingersi quel server.
-- **FTPS**: il certificato del server viene controllato come fa un browser. Uno che nessuna autorità conosciuta garantisce (capita spesso con i NAS, che se lo fanno da soli) viene mostrato con la sua impronta la prima volta; una volta confermato, EyeCanSee lo ricorda.
+- **FTPS**: il certificato del server viene controllato come fa un browser. Uno che nessuna autorità conosciuta garantisce (capita spesso con i NAS, che se lo fanno da soli) viene mostrato con la sua impronta la prima volta; una volta confermato, EyeCanSee lo ricorda. Se poi il server mostra un altro certificato, la finestra dice che è cambiato, con l'impronta confermata prima e quella nuova, e **Annulla** è evidenziato: qualcuno potrebbe fingersi il server. Confermato, il certificato nuovo prende il posto di quello vecchio.
 
 ## Accedere con SFTP
 

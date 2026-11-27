@@ -82,6 +82,16 @@ cert-ask =
     `{ $fingerprint }`
 
     If it is the server you expect, EyeCanSee remembers it and connects.
+cert-changed-ask =
+    { "**" }The certificate of { $host } (FTPS) has changed.**
+
+    It is not the one you confirmed before: someone may be pretending to be that server. If the server's certificate was made again (the NAS set up again, a certificate renewed), compare the new fingerprint with the one the server shows in its settings.
+
+    Before: `{ $old }`
+
+    Now: `{ $fingerprint }`
+
+    If it is the server you expect, EyeCanSee remembers the new certificate in place of the old one, and connects.
 host-ok = Connect
 sftp-rsa-key = **{ $host }** opened with an RSA key.
 
@@ -1508,6 +1518,7 @@ delete-title-empty = Empty the trash
 kiod-title = Phone held by KDE
 host-title = New SSH server
 cert-title = New FTPS server
+cert-changed-title = FTPS certificate changed
 sftp-rsa-title = Better change this RSA key
 edit-overwrite-title = Overwrite the original
 dup-ask-title = Find duplicates

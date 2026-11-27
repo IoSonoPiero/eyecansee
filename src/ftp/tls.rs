@@ -64,9 +64,17 @@ pub fn trust(u: &Unknown) {
     log!("ftps: certificate of {} trusted: {r:?}", u.label);
 }
 
-/// `known_certs` as `text`, with the fingerprint `fp` of `key` trusted.
+/// `known_certs` as `text`, with the fingerprint `fp` of `key` trusted in place of the one before:
+/// kept beside it, the old certificate stayed trusted (audit 27/11 S.7).
 fn with_trusted(text: &str, key: &str, fp: &str) -> String {
-    format!("{text}{key} {fp}\n")
+    let others = text.lines().filter(|l| l.split_once(' ').is_none_or(|(k, _)| k != key));
+    others.chain(std::iter::once(format!("{key} {fp}").as_str())).map(|l| format!("{l}\n")).collect()
+}
+
+/// The fingerprint `text` (`known_certs`) holds for `key`, when it is not `fp`: the certificate
+/// confirmed before, changed since.
+fn earlier(text: &str, key: &str, fp: &str) -> Option<String> {
+    text.lines().filter_map(|l| l.split_once(' ')).find(|(k, f)| *k == key && *f != fp).map(|(_, f)| f.to_string())
 }
 
 fn known(key: &str, fp: &str) -> bool {
@@ -105,8 +113,10 @@ impl ServerCertVerifier for Verifier {
         if known(&self.key, &fp) {
             return Ok(ServerCertVerified::assertion());
         }
-        log!("ftps: certificate of {} not trusted ({e}): {fp}", self.label);
-        *UNKNOWN.lock().unwrap() = Some(Unknown { label: self.label.clone(), key: self.key.clone(), fingerprint: fp, old: None });
+        let saved = crate::settings::config_path("known_certs").and_then(|p| std::fs::read_to_string(p).ok()).unwrap_or_default();
+        let old = earlier(&saved, &self.key, &fp);
+        log!("ftps: certificate of {} not trusted ({e}): {fp}{}", self.label, old.as_ref().map_or(String::new(), |o| format!(", confirmed before: {o}")));
+        *UNKNOWN.lock().unwrap() = Some(Unknown { label: self.label.clone(), key: self.key.clone(), fingerprint: fp, old });
         Err(e)
     }
 

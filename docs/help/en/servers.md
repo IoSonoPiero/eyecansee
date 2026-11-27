@@ -21,7 +21,7 @@ The last one is an alias from `~/.ssh/config`. Without a user, FTP logs in as `a
 ## The first connection
 
 - **SFTP**: the first time, EyeCanSee shows the server's key fingerprint in a highlighted box. Compare it letter by letter with the one the server shows, then click **Connect**; with **Cancel** you stay on the server without connecting, and **F5** asks again. Once trusted, the key goes into `~/.ssh/known_hosts`, as ssh does. A server whose key has changed is refused: someone could be pretending to be that server.
-- **FTPS**: the server's certificate is checked the way a browser does. One that no known authority vouches for (common with NAS boxes, which make their own) is shown with its fingerprint the first time; once confirmed, EyeCanSee remembers it.
+- **FTPS**: the server's certificate is checked the way a browser does. One that no known authority vouches for (common with NAS boxes, which make their own) is shown with its fingerprint the first time; once confirmed, EyeCanSee remembers it. If later the server shows another certificate, the window says that it has changed, with the fingerprint confirmed before and the new one, and **Cancel** is highlighted: someone may be pretending to be the server. Confirmed, the new certificate takes the place of the old one.
 
 ## Logging in with SFTP
 

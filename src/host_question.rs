@@ -35,14 +35,22 @@ impl Question {
         }
     }
 
-    /// The window's title, of the Fluent id `id`.
+    /// The window's title, of the Fluent id `id`; for an FTPS certificate that is not the one
+    /// confirmed before, its own (audit 27/11 S.7: it read as a first connection).
     pub(crate) fn title(&self, i18n: &crate::i18n::I18n, id: &str) -> String {
-        i18n.t(id)
+        match self {
+            Question::Cert(crate::ftp::Unknown { old: Some(_), .. }) => i18n.t("cert-changed-title"),
+            _ => i18n.t(id),
+        }
     }
 
-    /// The window's question, of the Fluent id `id` with `args`.
+    /// The window's question, of the Fluent id `id` with `args`; for a changed FTPS certificate,
+    /// its own, with the fingerprint confirmed before (`old`).
     pub(crate) fn ask(&self, i18n: &crate::i18n::I18n, id: &str, args: &[(&str, &str)]) -> String {
-        i18n.t_args(id, args)
+        match self {
+            Question::Cert(crate::ftp::Unknown { old: Some(old), .. }) => i18n.t_args("cert-changed-ask", &[args, &[("old", old.as_str())]].concat()),
+            _ => i18n.t_args(id, args),
+        }
     }
 
     /// Trusted: the certificate or the key shown, and only that one.
