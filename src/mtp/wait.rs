@@ -45,3 +45,59 @@ where
     }
     End::Late
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::*;
+
+    fn run<T>(wait: impl Future<Output = T>) -> T {
+        tokio::runtime::Runtime::new().unwrap().block_on(wait)
+    }
+
+    /// A wait that looks every 5 ms, for `most` ms.
+    fn pace(most: u64) -> Pace {
+        Pace { look: Duration::from_millis(5), most: Duration::from_millis(most) }
+    }
+
+    /// The wait with a destination that always answers `answer`: how it ended, after how many looks.
+    fn ended(most: u64, answer: impl Fn() -> Result<Option<ObjectHandle>, mtp_rs::Error>) -> (End, usize) {
+        let looks = AtomicUsize::new(0);
+        let end = run(until_arrived(pace(most), |_| {
+            looks.fetch_add(1, Ordering::Relaxed);
+            let r = answer();
+            async move { r }
+        }));
+        (end, looks.load(Ordering::Relaxed))
+    }
+
+    /// What WPD answers to every reading once the phone is unplugged (prova W5 on Windows,
+    /// 27/11/2026): mtp-rs leaves it as `Other`.
+    fn wpd_unplugged() -> mtp_rs::Error {
+        mtp_rs::Error::Other { detail: "HRESULT 0x802a0002: Chiamata di arresto già eseguita su questo oggetto o sull'oggetto proprietario.".into() }
+    }
+
+    /// #354 on Windows: the phone unplugged while EyeCanSee waited for its copy. Every reading of
+    /// the destination said so (`0x802a0002`), and the wait went on, reading every 3 s, for up to
+    /// 1 h 47 min for 6 GB. It ends at the first reading that says the phone is gone, also in the
+    /// words of Windows. A reading given up while the phone still copies (`Timeout`) is not that.
+    #[test]
+    fn an_unplugged_phone_ends_the_wait_at_once() {
+        let aborted = || mtp_rs::Error::Other { detail: "HRESULT 0x800703e3: Operazione di I/O terminata".into() };
+        for (what, gone) in [("Disconnected", (|| mtp_rs::Error::Disconnected) as fn() -> mtp_rs::Error), ("0x802a0002", wpd_unplugged), ("0x800703e3", aborted)] {
+            let (end, looks) = ended(300, || Err(gone()));
+            assert!(matches!(end, End::Gone(_)) && looks == 1, "{what}: {end:?} after {looks} looks");
+        }
+        let (end, looks) = ended(60, || Err(mtp_rs::Error::Timeout));
+        assert!(matches!(end, End::Late) && looks > 1, "the phone still copying: {end:?} after {looks} looks");
+    }
+
+    #[test]
+    fn the_wait_ends_when_the_item_is_there() {
+        let seen = AtomicUsize::new(0);
+        let (end, looks) = ended(300, || Ok((seen.fetch_add(1, Ordering::Relaxed) == 2).then_some(ObjectHandle(7))));
+        assert!(matches!(end, End::Arrived(ObjectHandle(7))) && looks == 3, "{end:?} after {looks} looks");
+        assert!(matches!(ended(30, || Ok(None)).0, End::Late));
+    }
+}
