@@ -441,7 +441,7 @@ fn escaped(s: &str) -> String {
 /// A character XML allows: not the control characters but tab, line feed and carriage return
 /// (pasted from Word, a PDF or a terminal), nor U+FFFE and U+FFFF. With one, the whole SVG of the
 /// objects was refused and nothing drawn (audit 5.3).
-fn xml_char(c: char) -> bool {
+pub(crate) fn xml_char(c: char) -> bool {
     !matches!(c, '\u{0}'..='\u{8}' | '\u{b}' | '\u{c}' | '\u{e}'..='\u{1f}' | '\u{fffe}' | '\u{ffff}')
 }
 
