@@ -1407,4 +1407,120 @@ mod tests {
         assert_eq!(names, ["a.jpg", "sub"], "nothing left aside");
         std::fs::remove_dir_all(&dir).unwrap();
     }
+
+    /// Audit F.1 of 27/11 (#195): a folder cut and merged into a link of the same name that leads
+    /// to it (`Desk/album` → `Photos/album`). Each file was written over itself through the link
+    /// and then deleted as the original: the folder went whole, the link was left leading nowhere.
+    #[cfg(unix)]
+    #[test]
+    fn f1_folder_merged_into_a_link_to_itself() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-f1-top-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("Photos/album")).unwrap();
+        std::fs::create_dir_all(dir.join("Desk")).unwrap();
+        std::fs::write(dir.join("Photos/album/x.jpg"), b"the only copy").unwrap();
+        std::os::unix::fs::symlink("../Photos/album", dir.join("Desk/album")).unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let clip = Clip { op: op.clone(), base: "test-f1://".into(), paths: vec!["Photos/album/".into()], cut: true, text: String::new() };
+        let replace = HashMap::from([("Photos/album/".to_string(), Choice::Replace)]);
+        let (gone, r) = rt.block_on(run(&clip, &op, "test-f1://", "Desk/", &replace, &Progress::default()));
+        let x = std::fs::read(dir.join("Photos/album/x.jpg")).ok();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(x.as_deref(), Some(&b"the only copy"[..]), "x.jpg is gone (paste: {r:?}, gone: {gone:?})");
+        assert_eq!(r.map_err(|e| e.0), Err("error-move-same-item"));
+        assert!(gone.is_empty(), "{gone:?}");
+    }
+
+    /// Audit F.1 of 27/11 (#195), a level below: the folder of arrival is a real one, but in it
+    /// `2024` is a link to the `2024` of the folder moved. Its files were written over themselves
+    /// and deleted as the originals.
+    #[cfg(unix)]
+    #[test]
+    fn f1_folder_below_merged_into_a_link_to_itself() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-f1-below-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("Photos/album/2024")).unwrap();
+        std::fs::create_dir_all(dir.join("Desk/album")).unwrap();
+        std::fs::write(dir.join("Photos/album/a.jpg"), b"a").unwrap();
+        std::fs::write(dir.join("Photos/album/2024/y.jpg"), b"the only y").unwrap();
+        std::os::unix::fs::symlink("../../Photos/album/2024", dir.join("Desk/album/2024")).unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let clip = Clip { op: op.clone(), base: "test-f1://".into(), paths: vec!["Photos/album/".into()], cut: true, text: String::new() };
+        let replace = HashMap::from([("Photos/album/".to_string(), Choice::Replace)]);
+        let (gone, r) = rt.block_on(run(&clip, &op, "test-f1://", "Desk/", &replace, &Progress::default()));
+        let y = std::fs::read(dir.join("Photos/album/2024/y.jpg")).ok();
+        let a = std::fs::read(dir.join("Photos/album/a.jpg")).ok();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(y.as_deref(), Some(&b"the only y"[..]), "y.jpg is gone (paste: {r:?}, gone: {gone:?})");
+        assert_eq!(a.as_deref(), Some(&b"a"[..]), "the original of a.jpg went with the move stopped");
+        assert_eq!(r.map_err(|e| e.0), Err("error-move-same-item"));
+        assert!(gone.is_empty(), "{gone:?}");
+    }
+
+    /// Audit F.1 of 27/11 (#195), a file a level below: in the real folder of arrival, `x.jpg` is a
+    /// link to the `x.jpg` of the folder moved. Written over itself through the link, then deleted
+    /// as the original.
+    #[cfg(unix)]
+    #[test]
+    fn f1_file_below_merged_into_a_link_to_itself() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-f1-file-below-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("Photos/album")).unwrap();
+        std::fs::create_dir_all(dir.join("Desk/album")).unwrap();
+        std::fs::write(dir.join("Photos/album/x.jpg"), b"the only copy").unwrap();
+        std::os::unix::fs::symlink("../../Photos/album/x.jpg", dir.join("Desk/album/x.jpg")).unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let clip = Clip { op: op.clone(), base: "test-f1://".into(), paths: vec!["Photos/album/".into()], cut: true, text: String::new() };
+        let replace = HashMap::from([("Photos/album/".to_string(), Choice::Replace)]);
+        let (gone, r) = rt.block_on(run(&clip, &op, "test-f1://", "Desk/", &replace, &Progress::default()));
+        let x = std::fs::read(dir.join("Photos/album/x.jpg")).ok();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(x.as_deref(), Some(&b"the only copy"[..]), "x.jpg is gone (paste: {r:?}, gone: {gone:?})");
+        assert_eq!(r.map_err(|e| e.0), Err("error-move-same-item"));
+        assert!(gone.is_empty(), "{gone:?}");
+    }
+
+    /// Audit F.1 of 27/11 (#195): a file cut on one disk and pasted, Replace, onto a link of the
+    /// same name on another disk that leads to it. The rename fails (two file systems), so the file
+    /// was copied: written over itself through the link, then deleted as the original. Here the
+    /// second disk is `/dev/shm` (Linux), with a store rooted at `/` that holds both.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn f1_file_on_two_disks_replacing_a_link_to_itself() {
+        use std::os::unix::fs::MetadataExt;
+        let shm = std::path::PathBuf::from(format!("/dev/shm/eyecansee-f1-file-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("eyecansee-f1-file-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&shm);
+        if std::fs::create_dir_all(&shm).is_err() {
+            // No /dev/shm here: no second disk to try.
+            return;
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let dev = |p: &std::path::Path| std::fs::metadata(p).unwrap().dev();
+        if dev(&shm) == dev(&dir) {
+            // One disk: the rename itself replaces the link, nothing to try.
+            let _ = std::fs::remove_dir_all(&shm);
+            let _ = std::fs::remove_dir_all(&dir);
+            return;
+        }
+        std::fs::write(shm.join("x.jpg"), b"the only copy").unwrap();
+        std::os::unix::fs::symlink(shm.join("x.jpg"), dir.join("x.jpg")).unwrap();
+        let rel = |p: &std::path::Path| p.to_str().unwrap().trim_start_matches('/').to_string();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root("/")).unwrap());
+        let src = format!("{}/x.jpg", rel(&shm));
+        let clip = Clip { op: op.clone(), base: "test-f1://".into(), paths: vec![src.clone()], cut: true, text: String::new() };
+        let replace = HashMap::from([(src, Choice::Replace)]);
+        let (gone, r) = rt.block_on(run(&clip, &op, "test-f1://", &format!("{}/", rel(&dir)), &replace, &Progress::default()));
+        let x = std::fs::read(shm.join("x.jpg")).ok();
+        let _ = std::fs::remove_dir_all(&shm);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(x.as_deref(), Some(&b"the only copy"[..]), "x.jpg is gone (paste: {r:?}, gone: {gone:?})");
+        assert_eq!(r.map_err(|e| e.0), Err("error-move-same-item"));
+        assert!(gone.is_empty(), "{gone:?}");
+    }
 }
