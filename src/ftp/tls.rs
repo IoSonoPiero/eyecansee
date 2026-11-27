@@ -21,6 +21,14 @@ pub struct Unknown {
     key: String,
     /// SHA-256, as browsers show it.
     pub fingerprint: String,
+    /// The fingerprint confirmed before for this server, when it is another one.
+    pub old: Option<String>,
+}
+
+/// A certificate of `label` waiting, `old` the one confirmed before: for the tests of the question.
+#[cfg(test)]
+pub fn changed(label: &str, fingerprint: &str, old: Option<&str>) -> Unknown {
+    Unknown { label: label.to_string(), key: format!("{label}:990"), fingerprint: fingerprint.to_string(), old: old.map(str::to_string) }
 }
 
 /// The certificate of the last connection refused for it, waiting for the app to ask (`take`).
@@ -98,7 +106,7 @@ impl ServerCertVerifier for Verifier {
             return Ok(ServerCertVerified::assertion());
         }
         log!("ftps: certificate of {} not trusted ({e}): {fp}", self.label);
-        *UNKNOWN.lock().unwrap() = Some(Unknown { label: self.label.clone(), key: self.key.clone(), fingerprint: fp });
+        *UNKNOWN.lock().unwrap() = Some(Unknown { label: self.label.clone(), key: self.key.clone(), fingerprint: fp, old: None });
         Err(e)
     }
 
@@ -133,6 +141,15 @@ pub(super) fn connector(label: &str, key: &str) -> tokio_rustls::TlsConnector {
 
 #[cfg(test)]
 mod tests {
+    /// Audit S.7 (27/11): the certificate of a server confirmed again after it changed was added
+    /// beside the old one, which stayed trusted: whoever presented the old one was still let in.
+    /// The new line takes the place of the old one, for that server only.
+    #[test]
+    fn a_certificate_trusted_again_replaces_the_old_one() {
+        let now = super::with_trusted("nas:990 AA:01\nother:21 BB:02\n", "nas:990", "CC:03");
+        assert_eq!(now.lines().collect::<Vec<_>>(), ["other:21 BB:02", "nas:990 CC:03"]);
+    }
+
     #[test]
     fn fingerprint_as_browsers() {
         let fp = super::fingerprint(b"abc");

@@ -60,3 +60,27 @@ pub(crate) fn forget_all() {
     crate::ftp::forget();
     crate::sftp::forget();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::i18n::I18n;
+
+    /// Audit S.7 (27/11): an FTPS server whose certificate is not the one confirmed before was
+    /// asked about as at the first connection ("New FTPS server", "First connection to…"):
+    /// nothing said that something had changed. Its title and its question say so, with the
+    /// fingerprint confirmed before and the new one. In both languages.
+    #[test]
+    fn a_changed_certificate_is_not_a_first_connection() {
+        for lang in ["en", "it"] {
+            let i18n = I18n::new(lang);
+            let args = [("host", "nas"), ("fingerprint", "CC:03")];
+            let first = Question::Cert(crate::ftp::changed("nas", "CC:03", None));
+            assert_eq!((first.title(&i18n, "cert-title"), first.ask(&i18n, "cert-ask", &args)), (i18n.t("cert-title"), i18n.t_args("cert-ask", &args)), "{lang}: the first time");
+            let changed = Question::Cert(crate::ftp::changed("nas", "CC:03", Some("AA:01")));
+            let (title, ask) = (changed.title(&i18n, "cert-title"), changed.ask(&i18n, "cert-ask", &args));
+            assert_ne!(title, i18n.t("cert-title"), "{lang}: a changed certificate titled as a new server");
+            assert!(ask.contains("AA:01") && ask.contains("CC:03") && ask != i18n.t_args("cert-ask", &args), "{lang}: {ask}");
+        }
+    }
+}

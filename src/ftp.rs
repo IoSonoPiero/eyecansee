@@ -23,6 +23,8 @@ mod listing;
 mod tls;
 use listing::Item;
 pub use tls::{Unknown, forget, pending, trust, unknown};
+#[cfg(test)]
+pub use tls::changed;
 
 /// Connections per server: the thumbnails are read four at a time, as on SFTP.
 pub const POOL: usize = 4;
