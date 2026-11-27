@@ -893,6 +893,48 @@ mod tests {
         }
     }
 
+    /// Audit 27/11 (doubt of `5-3d-cad.md`, #180): the steps of the SHX pens the model of every
+    /// DWG and DXF under `EYECANSEE_CAD` takes, with its fonts next to it, against `MAX_POINTS`:
+    /// when they end, the texts after are not drawn.
+    #[test]
+    #[ignore]
+    fn shx_pen_steps_live() {
+        let Ok(dir) = std::env::var("EYECANSEE_CAD") else { return };
+        let mut stack = vec![std::path::PathBuf::from(dir)];
+        let mut most = 0;
+        while let Some(d) = stack.pop() {
+            for f in std::fs::read_dir(&d).unwrap().flatten() {
+                let path = f.path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                let name = path.to_string_lossy().to_string();
+                let lower = name.to_lowercase();
+                let bytes = std::fs::read(&path).unwrap();
+                let doc = if lower.ends_with(".dwg") {
+                    DwgReader::from_stream(Cursor::new(&bytes[..])).read()
+                } else if lower.ends_with(".dxf") {
+                    DxfReader::from_reader(Cursor::new(bytes.clone())).and_then(|r| r.read())
+                } else {
+                    continue;
+                };
+                let Ok(doc) = doc else { continue };
+                let next = |rel: &str| crate::model::sibling_path(&name, rel).and_then(|p| std::fs::read(p).ok());
+                let fonts = std::rc::Rc::new(crate::cad_text::fonts(&doc, &next));
+                let mut d = Drawing::default();
+                let mut walk = Walk::new(&doc, &mut d);
+                walk.fonts = fonts;
+                let top = Context { t: Affine::IDENTITY, layer: None, color: WHITE, style: CONTINUOUS, depth: 0, set: 0 };
+                let r = doc.model_space_entities().try_for_each(|e| walk.entity(e, &top));
+                let steps = MAX_POINTS - walk.pen_work;
+                most = most.max(steps);
+                println!("PEN {name}: {steps} steps ({:.3}% of the cap), {} SHX fonts{}", steps as f64 * 100.0 / MAX_POINTS as f64, walk.fonts.len(), if r.is_err() { ", error" } else { "" });
+            }
+        }
+        println!("PEN most: {most}");
+    }
+
     /// Audit 6.6: one INSERT that repeats a block of one TEXT in 32767 rows and 32767 columns (the
     /// most a DXF can say; 65535 in a DWG): a thousand million texts, which `MAX_POINTS` does not
     /// count (only the points of the lines). It must be refused before the memory is full.
