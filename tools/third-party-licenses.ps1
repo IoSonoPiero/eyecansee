@@ -40,8 +40,8 @@ foreach ($p in $pkgs) {
     [void]$sb.AppendLine("=" * 78)
     if ($p.authors) { [void]$sb.AppendLine("Copyright: " + ($p.authors -join ", ")) }
     $inside = @($files | Where-Object { $_.DirectoryName -ne $dir })
-    $csrc = (Test-Path -LiteralPath (Join-Path $dir "build.rs")) -and @(Get-ChildItem -LiteralPath $dir -Recurse -File -Include *.c, *.cc, *.cpp, *.cxx -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName.Substring($dir.Length) -notmatch '\\(tests?|examples|benches|target)\\' }).Count -gt 0
+    $csrc = (Test-Path -LiteralPath (Join-Path $dir "build.rs")) -and @(Get-ChildItem -LiteralPath $dir -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -in '.c', '.cc', '.cpp', '.cxx' -and $_.FullName.Substring($dir.Length) -notmatch '\\(tests?|examples|benches|target)\\' }).Count -gt 0
     $notice = "$PSScriptRoot\licenses\c\$($p.name).txt"
     if ($csrc -and -not $inside -and (Test-Path -LiteralPath $notice)) {
         [void]$sb.AppendLine("")
