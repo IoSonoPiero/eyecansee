@@ -634,6 +634,11 @@ mod tests {
         let text = r#"{"thumb_cache_mb": 50}"#;
         std::fs::write(&path, text).unwrap();
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o200)).unwrap();
+        if std::fs::read(&path).is_ok() {
+            // Root reads it all the same: the folder in its place (`unreadable_file_…`) covers it.
+            std::fs::remove_dir_all(&dir).unwrap();
+            return;
+        }
         let s = Settings::load_from(&path);
         s.save_to(&path);
         let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
