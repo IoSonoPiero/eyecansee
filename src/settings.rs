@@ -530,6 +530,26 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
+    /// Audit 27/11 (doubt of area 6, #285): a file that cannot be read for a moment (here without
+    /// read permission; on Windows one held open by another program) is left alone: not set
+    /// aside, and the settings of this start are not saved over it.
+    #[cfg(unix)]
+    #[test]
+    fn file_not_read_for_a_moment_left_alone() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = test_dir("no-read");
+        let path = dir.join("settings.json");
+        let text = r#"{"thumb_cache_mb": 50}"#;
+        std::fs::write(&path, text).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o200)).unwrap();
+        let s = Settings::load_from(&path);
+        s.save_to(&path);
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+        let left = (std::fs::read_to_string(&path).ok(), path.with_extension("json.bad").exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(left, (Some(text.to_string()), false));
+    }
+
     /// A value this version does not know (a file written by a newer one) loses only its key: the
     /// others are kept, and the file is copied aside as `.bad` (audit 1.11).
     #[test]
