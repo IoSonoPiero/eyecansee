@@ -239,7 +239,10 @@ impl Packed<'_> {
         let v = self.views.get(num(&e["bufferView"])).cloned().unwrap_or_default();
         let at = num(&v["byteOffset"]);
         let src = at.checked_add(num(&v["byteLength"])).and_then(|end| self.data.get(at..end)).ok_or("Draco data outside the buffer")?;
-        let mesh = draco_oxide_decoder::decode_mesh(src).map_err(|e| format!("Draco: {e}"))?;
+        // The decoder (an alpha) can panic on data it does not expect, and adds with an overflow
+        // where Draco means to wrap around (its parallelogram prediction): in a build that checks
+        // the arithmetic, a panic. Taken as data that cannot be read (#178, 27/11).
+        let mesh = std::panic::catch_unwind(|| draco_oxide_decoder::decode_mesh(src)).map_err(|_| format!("{}\u{1}", crate::model_gltf::DAMAGED_INSIDE))?.map_err(|e| format!("Draco: {e}"))?;
         let indices: Vec<u32> = mesh.faces.iter().flat_map(|f| f.map(|p| usize::from(p) as u32)).collect();
         let points = mesh.faces.iter().flatten().map(|&p| usize::from(p) + 1).max().unwrap_or(0);
         self.unpacked.spend(indices.len() as u64 * 4)?;
