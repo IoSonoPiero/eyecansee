@@ -70,13 +70,24 @@ pub(crate) fn quiet_copy(i18n: &crate::i18n::I18n, cut: bool, to: &str, r: &Resu
         }
         // How many files and folders, where; how much, in how long; the items skipped (#356).
         Ok(()) => (if cut { "transfer-moved" } else { "transfer-copied" }, ended_lines(i18n, &Done::of(p, cut), &dir)),
-        // What was done before the error, then the error (P7 of 26/11: a phone unplugged).
-        Err((id, detail)) => {
-            let done = if total > 0 { counted(if cut { "transfer-moved-before-error" } else { "transfer-done-before-error" }, files) } else { to_line() };
-            (if cut { "transfer-move-stopped" } else { "transfer-copy-stopped" }, format!("{done}\n{}", md(&i18n.error(id, detail))))
-        }
+        Err(e) => (if cut { "transfer-move-stopped" } else { "transfer-copy-stopped" }, stopped_lines(i18n, cut, &dir, e, p)),
     };
     Part { title: i18n.t(title), copy: plain(&text), text, groups: Vec::new(), warning: false, help: None, folder: None }
+}
+
+/// The top of the message of a copy (`cut`: a move) into `dir` (Markdown already) stopped by the
+/// error `e`: what was done before it, then the error (P7 of 26/11: a phone unplugged; the error
+/// bar that said it, a change of place clears). The same with a list under it (audit F.6 (b) of
+/// 27/11: that one said only where).
+fn stopped_lines(i18n: &crate::i18n::I18n, cut: bool, dir: &str, (id, detail): &source::Error, p: &transfer::Progress) -> String {
+    let (files, total) = (p.files.load(Ordering::Relaxed), p.files_total.load(Ordering::Relaxed));
+    let done = if total > 0 {
+        let id = if cut { "transfer-moved-before-error" } else { "transfer-done-before-error" };
+        i18n.t_args(id, &[("n", &files.to_string()), ("total", &total.to_string()), ("dir", dir)])
+    } else {
+        i18n.t_args("transfer-to", &[("dir", dir)])
+    };
+    format!("{done}\n{}", md(&i18n.error(id, detail)))
 }
 
 /// What the end of a copy (`cut`: a move) into `to` has to say, all in one window
@@ -113,9 +124,12 @@ pub(crate) fn transfer_notice(i18n: &crate::i18n::I18n, cut: bool, to: &str, r: 
         (false, false) => "transfer-copy-stopped",
         (false, true) => "transfer-move-stopped",
     };
-    // On top what a copy that worked says without a list (#356); where it went, after an error.
+    // On top what the copy says without a list: done (#356), or stopped (audit F.6 (b)).
     let dir = md(&crate::address::without_password(to));
-    let to = if r.is_ok() { ended_lines(i18n, &Done::of(p, cut), &dir) } else { i18n.t_args("transfer-to", &[("dir", &dir)]) };
+    let to = match r {
+        Ok(()) => ended_lines(i18n, &Done::of(p, cut), &dir),
+        Err(e) => stopped_lines(i18n, cut, &dir, e, p),
+    };
     let told = told(i18n, i18n.t(title), &to, parts);
     Some(if links.is_empty() { told } else { with_guide(i18n, told, "help:copy-move") })
 }
@@ -485,9 +499,10 @@ mod tests {
         assert!(plain(&n.text).starts_with("2 files copied to /in/.\n2.0 MB in "), "{}", n.text);
         assert!(plain(&n.text).contains("/s on average.\n\n1 file not read:\n"), "{}", n.text);
         assert!(n.text.starts_with(&format!("**2 files** copied to {}", md("/in/"))), "{}", n.text);
-        // Stopped at an error (the error bar says it): where it went, as before.
+        // Stopped at an error: the files done before it, and why (audit F.6 (b) of 27/11).
         let stopped = super::transfer_notice(&crate::i18n::I18n::new("en"), false, "/in/", &Err(("error-detail", "x".into())), &p).unwrap();
-        assert!(plain(&stopped.text).starts_with("To /in/\n\n1 file not read:"), "{}", stopped.text);
+        assert!(plain(&stopped.text).starts_with("2 of 3 files copied to /in/ before it stopped.\n"), "{}", stopped.text);
+        assert!(plain(&stopped.text).contains("\n\n1 file not read:"), "{}", stopped.text);
     }
 
     /// Audit F.6 (b) of 27/11: a copy stopped by an error that also left something out (here a file
