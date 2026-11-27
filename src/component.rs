@@ -83,19 +83,19 @@ pub const FFMPEG: Option<Component> = Some(Component {
     shown: "9.0",
 });
 
-/// The CAD engine (`occt.rs`): Open CASCADE Technology 8.0.1 with our C interface
+/// The CAD engine (`occt.rs`): Open CASCADE Technology 8.0.2 with our C interface
 /// (`tools/occt/ecs_occt.cpp`), for STEP, IGES and BREP, built by `tools/build-occt-linux.sh`
 /// (Ubuntu 22.04, libstdc++ inside: 28 MB, 11 MB compressed). Loaded as soon as it is there.
 #[cfg(not(windows))]
 pub const OCCT: Option<Component> = Some(Component {
     kind: "occt",
-    version: "8.0.1-2",
+    version: "8.0.2-1",
     file: "libecs_occt.so",
-    url: "https://github.com/IoSonoPiero/eyecansee/releases/download/components/occt-linux-x64-8.0.1-2.tar.gz",
+    url: "https://github.com/IoSonoPiero/eyecansee/releases/download/components/occt-linux-x64-8.0.2-1.tar.gz",
     archive: true,
-    sha256: "55559a64aa3e9297ac2f9131d890ab76a0696e065ce2fde4b671f7f4c0e9d0d9",
-    size: 11_197_731,
-    shown: "1.0",
+    sha256: "a8937abe5c9b496eb3bb1d77ac61101d1580b6d870109ed95717ad8968662418",
+    size: 11_205_792,
+    shown: "1.1",
 });
 
 /// The same on Windows, built by `tools/build-occt-windows.ps1` (static C runtime, only system DLLs:
@@ -103,13 +103,13 @@ pub const OCCT: Option<Component> = Some(Component {
 #[cfg(windows)]
 pub const OCCT: Option<Component> = Some(Component {
     kind: "occt",
-    version: "8.0.1-1",
+    version: "8.0.2-1",
     file: "ecs_occt.dll",
-    url: "https://github.com/IoSonoPiero/eyecansee/releases/download/components/occt-windows-x64-8.0.1-1.tar.gz",
+    url: "https://github.com/IoSonoPiero/eyecansee/releases/download/components/occt-windows-x64-8.0.2-1.tar.gz",
     archive: true,
-    sha256: "e61cbecbba1804efe897b171710efe58e9dd48ecd5effa7ca4dc3e74c57db66b",
-    size: 7_822_247,
-    shown: "1.0",
+    sha256: "de20e3a06c6d3a67464d1059b4ceae068ad46ef197dc05fe1112812e4a001722",
+    size: 7_853_672,
+    shown: "1.1",
 });
 
 /// Where components go: the app's data folder (`%LOCALAPPDATA%\eyecansee\components` on Windows,

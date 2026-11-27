@@ -72,7 +72,7 @@ Shown in the grid as a picture and in the viewer in 3D, drawn by the graphics ca
 | 3MF (components, Production extension, colours and pictures) | 3mf | `zip`, `roxmltree` |
 | IFC 2x3, 4 and 4.3 (building models; spaces and nearly invisible parts left out) | ifc | `ifc-lite` |
 | FBX (binary and text, material and vertex colours, pictures) | fbx | `ufbx` |
-| STEP, IGES, BREP (solids of mechanical CAD programs, colours, assemblies) | step, stp, iges, igs, brep, brp | Open CASCADE 8.0.1 |
+| STEP, IGES, BREP (solids of mechanical CAD programs, colours, assemblies) | step, stp, iges, igs, brep, brp | Open CASCADE 8.0.2 |
 | Collada (also zipped; skinned meshes in their rest pose) | dae, zae | `roxmltree` |
 | 3DS (3D Studio, material colours and pictures) | 3ds | EyeCanSee |
 | OFF and COFF | off | EyeCanSee |

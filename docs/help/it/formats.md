@@ -72,7 +72,7 @@ Mostrati nella griglia come immagine e nel visore in 3D, disegnati dalla scheda 
 | 3MF (componenti, estensione Production, colori e immagini) | 3mf | `zip`, `roxmltree` |
 | IFC 2x3, 4 e 4.3 (modelli di edifici; spazi e parti quasi invisibili lasciati fuori) | ifc | `ifc-lite` |
 | FBX (binario e testo, colori dei materiali e dei vertici, immagini) | fbx | `ufbx` |
-| STEP, IGES, BREP (solidi dei programmi CAD meccanici, colori, assiemi) | step, stp, iges, igs, brep, brp | Open CASCADE 8.0.1 |
+| STEP, IGES, BREP (solidi dei programmi CAD meccanici, colori, assiemi) | step, stp, iges, igs, brep, brp | Open CASCADE 8.0.2 |
 | Collada (anche compresso in zip; maglie con scheletro nella posa di riposo) | dae, zae | `roxmltree` |
 | 3DS (3D Studio, colori e immagini dei materiali) | 3ds | EyeCanSee |
 | OFF e COFF | off | EyeCanSee |
