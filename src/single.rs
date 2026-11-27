@@ -623,6 +623,31 @@ mod tests {
         assert!(took >= Duration::from_secs(1) && took < Duration::from_secs(10), "{took:?}");
     }
 
+    /// Audit A.1 (1): a copy that keeps saying `wait` does not make the start wait without end:
+    /// after the first `wait` the start waits `starting` in all, the later ones add nothing.
+    #[test]
+    fn a_copy_that_says_wait_again_and_again() {
+        let socket = test_socket("waits-again");
+        let fake = interprocess::local_socket::ListenerOptions::new().name(super::ns_name(&socket).unwrap()).create_sync().unwrap();
+        std::thread::spawn(move || {
+            let conns: Vec<_> = fake.incoming().take(1).flatten().collect();
+            for conn in &conns {
+                assert!(super::read_address(conn).is_some());
+                for _ in 0..25 {
+                    super::say(conn, super::WAIT);
+                    std::thread::sleep(Duration::from_millis(200));
+                }
+            }
+            // Silent then, the connection still open: closed, it would read as a copy of 0.77.0.
+            std::thread::sleep(Duration::from_secs(30));
+        });
+        let times = super::Times { answer: Duration::from_millis(500), starting: Duration::from_secs(1) };
+        let start = Instant::now();
+        assert!(matches!(super::start_within(&socket, "/w", times), Start::NextTo));
+        let took = start.elapsed();
+        assert!(took >= Duration::from_secs(1) && took < Duration::from_millis(2500), "{took:?}");
+    }
+
     /// A copy of 0.77.0 or before reads the address and closes without a word: handed over, as
     /// then.
     #[test]
