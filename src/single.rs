@@ -167,10 +167,13 @@ fn hand_over_within(socket: &str, address: &str, times: Times) -> Handover {
     let late = Arc::new(AtomicBool::new(false));
     let (socket, address, gave_up) = (socket.to_owned(), address.to_owned(), Arc::clone(&late));
     crate::logging::spawn_named("single-hand-over", move || deliver(&socket, &address, &gave_up, &tx));
-    let mut until = Instant::now() + times.answer;
+    let (mut until, mut waited) = (Instant::now() + times.answer, false);
     loop {
         match rx.recv_timeout(until.saturating_duration_since(Instant::now())) {
-            Ok(Step::Wait) => until = Instant::now() + times.starting,
+            // Only the first `wait` gives the copy `starting`: a copy says it once, and one that
+            // says it again and again must not hold this start for ever (audit A.1).
+            Ok(Step::Wait) if !waited => (until, waited) = (Instant::now() + times.starting, true),
+            Ok(Step::Wait) => {}
             Ok(Step::End(handover)) => return handover,
             Err(_) => {
                 late.store(true, Ordering::SeqCst);
