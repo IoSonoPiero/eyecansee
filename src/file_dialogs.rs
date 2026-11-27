@@ -691,4 +691,28 @@ mod tests {
         assert_eq!(asked, Some(vec![format!("{}a.png", h.app.dir)]), "the name taken in b/ not asked about");
         assert!(h.app.transfer.is_none(), "the paste started");
     }
+
+    /// Audit 27/11 F.2, the belt: a paste that starts with no answer for a name taken in the
+    /// destination (taken after the check, or a check that saw no name) keeps both, as Keep both
+    /// highlighted in the question; it replaced it without a question.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn a_name_taken_without_an_answer_keeps_both() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("file_dialogs::tests::a_name_taken_without_an_answer_keeps_both") {
+            return;
+        }
+        let dir = folder("paste-no-answer", &["a.png"]);
+        std::fs::create_dir_all(dir.join("b")).unwrap();
+        std::fs::write(dir.join("b/a.png"), b"there before").unwrap();
+        let mut h = Harness::new(&dir);
+        let a = h.app.files().iter().find(|f| f.path.ends_with("a.png")).unwrap().path.clone();
+        let ctx = h.ctx.clone();
+        h.app.clip(&ctx, Some(a), false);
+        h.app.paste_ask = Some(crate::PasteAsk { dir: format!("{}b/", h.app.dir), conflicts: Some(Vec::new()), choices: Default::default(), all: false });
+        h.frame(Vec::new());
+        h.until(|app| app.transfer.is_none(), "the paste ended");
+        assert_eq!(std::fs::read(dir.join("b/a.png")).unwrap(), b"there before", "b/a.png replaced without an answer");
+        assert!(dir.join("b/a (2).png").is_file(), "the copy not beside it: {:?}", std::fs::read_dir(dir.join("b")).unwrap().flatten().map(|e| e.file_name()).collect::<Vec<_>>());
+    }
 }
