@@ -970,6 +970,18 @@ fn beyond_the_picture() {
     assert!(p.hdr_lost && p.beyond == none, "the gain map said as HDR lost, not as a picture");
 }
 
+/// Data after the end of a JPEG that is neither a video nor pictures the MPF lists (the trailer
+/// of Samsung's portrait photos, with the second shot and the depth map): the confirmation says
+/// they go, as for a video or a depth map (audit E.7). Zeros after the end are not data.
+#[test]
+fn beyond_unknown_data_after_the_end() {
+    let plain = file(&motif(), Format::Jpeg, false);
+    let tail = [&plain[..], &[0x5A; 100]].concat();
+    assert_ne!(planned(&tail, "a.jpg", true, Keep::All).beyond, Beyond::default(), "100 bytes after the end lost without a line");
+    let zeros = [&plain[..], &[0; 100]].concat();
+    assert_eq!(planned(&zeros, "a.jpg", true, Keep::All).beyond, Beyond::default(), "zeros after the end");
+}
+
 /// The phone photos of the test files (as `phone_samples`): a video found where there is one,
 /// not in the Pixel 8 photo marked as a Motion Photo without one; no picture of its own besides
 /// gain maps; nothing lost when only turned with all the metadata, the video lost without.
