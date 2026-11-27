@@ -1,17 +1,17 @@
 # Getting started
 
-EyeCanSee shows the pictures, videos, 3D models and CAD drawings of a folder as thumbnails, and opens them one at a time. It works in the same way on the folders of this computer, on disks and USB sticks, on Android phones and on servers (FTP and SFTP).
+EyeCanSee shows the pictures, videos, 3D models and CAD drawings of a folder as thumbnails, and opens them one at a time. It works the same way on the folders of this computer, on disks and USB sticks, on Android phones and on servers (FTP and SFTP).
 
 ## The window
 
 ![Getting started](../img/start.webp)
 
-- **Menu bar** at the top: File, Edit, Image, View, Bookmarks, Tools and Help. A greyed-out entry says why it cannot be used now when you point at it.
+- **Menu bar** at the top: File, Edit, Image, View, Bookmarks, Tools and Help. When you point at a greyed-out entry, it says why it cannot be used now.
 - **Toolbar** under it: the buttons for the most common operations, the bookmarks and the address bar. Pointing at a button shows its name and its key; on a greyed-out button it also says why it cannot be used now.
 - **Side panel** on the left: your disks, phones and saved servers, and the folders of this computer. See [Folders and the side panel](folders.md).
 - **Grid** in the middle: the subfolders and the files of the open folder, as thumbnails. See [The thumbnail grid](grid.md).
 - **Metadata panel** under the grid: the information about the selected file. See [Image information](metadata.md).
-- **Status bar** at the bottom: how many folders and files there are, and the name, size and date of the selected file (of a folder, its name).
+- **Status bar** at the bottom: how many folders and files there are, and the name, size and date of the selected file (for a folder, only its name).
 
 ## Opening a folder
 
@@ -21,38 +21,38 @@ EyeCanSee shows the pictures, videos, 3D models and CAD drawings of a folder as 
 
 When EyeCanSee starts, it opens the folder you were looking at when you closed it (you can turn this off in [Options](options.md)), or your home folder. If you open a picture with EyeCanSee from another program, it shows that picture.
 
-Only one EyeCanSee runs at a time: if it is already open, a picture or folder opened again with EyeCanSee appears in the window that is already open. If that window does not answer within a few seconds (it is stuck), the picture or folder opens in a new window.
+Only one copy of EyeCanSee runs at a time: if it is already open, a picture or folder opened again with EyeCanSee appears in the window that is already open. If that window does not respond within a few seconds (because it is stuck), the picture or folder opens in a new window.
 
 ## Looking at a picture
 
-Double-click a thumbnail, or select it and press **Enter**: the picture fills the window. Press **Esc**, double-click the picture (or, as set in the Options, go to full screen with it) or use ![Back to the grid](icon://layout-grid) **Back to the grid** to come back. See [Viewing images](viewer.md).
+Double-click a thumbnail, or select it and press **Enter**: the picture fills the window. To come back, press **Esc**, double-click the picture or use ![Back to the grid](icon://layout-grid) **Back to the grid**. In the Options, a double click can be set to go to full screen instead. See [Viewing images](viewer.md).
 
 ## Menus, buttons and keys
 
-- A **right click** on anything (a thumbnail, a folder, an empty space of the grid, the picture in the viewer) opens a menu with what you can do with it.
+- A **right click** on anything (a thumbnail, a folder, an empty space in the grid, the picture in the viewer) opens a menu with what you can do with it.
 - Every action has a menu item, with its key written next to it. The list of all the keys is in [Keyboard shortcuts](keyboard.md).
-- When the window is narrow, the toolbar buttons that do not fit move into the ![More operations](icon://ellipsis) **More operations** menu: first those of the image and the tools, then the file operations, the metadata button, the star of the bookmarks and Refresh. The address bar always stays in sight, and the menus and the status bar go on more rows rather than being cut.
-- Every slider has marks under it, one for each step it stops on, or on round values, and its measure is written next to it or before it.
-- **F11**, or **View > Full screen**, shows the window at full screen, and back.
+- When the window is narrow, the toolbar buttons that do not fit move into the ![More operations](icon://ellipsis) **More operations** menu: first those of the image and the tools, then the file operations, the metadata button, the bookmark star and Refresh. The address bar always stays in sight, and the menus and the status bar wrap onto more rows rather than being cut off.
+- Every slider has marks under it: one for each step it stops on, or one at each round value. Its value is written next to it or before it.
+- **F11**, or **View > Full screen**, switches the window to full screen and back.
 
 ## Help
 
-Press **F1** at any time: this guide opens on the page about what you are doing. Press **F1** again to close it, or press **Esc** twice quickly with the pointer on the guide; when the guide is over a window, a message for instance, two **Esc** close it wherever the pointer is, and the window stays open. **Help > Guide** opens the list of all the pages.
+Press **F1** at any time: this guide opens on the page about what you are doing. Press **F1** again to close it, or press **Esc** twice quickly with the pointer on the guide. When the guide is over another window, such as a message, pressing **Esc** twice closes the guide wherever the pointer is, and the other window stays open. **Help > Guide** opens the list of all the pages.
 
-The field at the top left searches every page, ready for typing as soon as the guide opens: a result opens its page with the words found highlighted. The highlight follows the field, and ![Clear the search](icon://x) empties it.
+The field at the top left searches every page, and you can type in it as soon as the guide opens. Each result opens its page, with the words found highlighted. The highlighting follows what is in the field, and ![Clear the search](icon://x) empties it.
 
 ## Tips at startup
 
-At the first start of the day a window shows a tip: one thing EyeCanSee can do, with a picture or the steps to follow. The very first time, the first tip comes as soon as the first-start window is closed with **Done**; closed with **Skip** or **Esc**, the tips start the next day.
+The first time EyeCanSee starts each day, a window shows a tip: one thing EyeCanSee can do, with a picture or the steps to follow. The very first time, the first tip appears as soon as you close the first-start window with **Done**. If you close it with **Skip** or **Esc**, the tips start the next day.
 
 ![Tips at startup](../img/tips.webp)
 
-- **Next** and **Back** (or the → and ← keys) show the other tips; the next start shows the one after the last you saw.
+- **Next** and **Back** (or the → and ← keys) show the other tips; at the next start you get the one after the last you saw.
 - **Read more in the guide** opens the page about that tip.
 - **Close** (or **Enter** or **Esc**) closes the window. While it is open, the other keys do not reach the grid behind it (**F1** still opens this guide).
 - **Don't show at startup** stops the tips. To have them back, tick **Show a tip at startup** in **Tools > Options… > General** (see [Options](options.md)).
 
-The tips do not appear when EyeCanSee starts to open a picture or a folder from another program.
+The tips do not appear when another program starts EyeCanSee to open a picture or a folder.
 
 ## A copy of your photos
 
