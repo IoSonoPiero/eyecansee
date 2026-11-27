@@ -20,6 +20,9 @@ pub(super) const CODESTREAM_START: usize = 64 << 10;
 /// Boxes walked at most at the top of a file.
 const MOST: usize = 4096;
 
+/// Extents of `iloc` walked at most: a picture of tiles has hundreds.
+const EXTENTS: usize = 1 << 20;
+
 /// A box: its type, where its content starts, where it ends.
 pub(crate) struct Boxed {
     pub kind: [u8; 4],
@@ -113,12 +116,18 @@ fn locations(s: &Sparse, iloc: &Boxed) -> Result<Vec<(u32, Range<usize>)>, Stop>
         Ok(b.iter().fold(0u64, |acc, &x| acc << 8 | u64::from(x)) as usize)
     };
     let mut out = Vec::new();
+    let mut walked = 0;
     for _ in 0..count {
         let id = number(&mut at, if v < 2 { 2 } else { 4 })? as u32;
         let method = if v >= 1 { number(&mut at, 2)? & 15 } else { 0 };
         number(&mut at, 2)?;
         let base = number(&mut at, base_size)?;
         let extents = number(&mut at, 2)?;
+        // Extents written in no bytes at all would be walked without end (audit E.4).
+        walked += extents;
+        if extents > 0 && index_size + offset_size + length_size == 0 || walked > EXTENTS {
+            return Err(Stop::Whole);
+        }
         for _ in 0..extents {
             number(&mut at, index_size)?;
             let (offset, length) = (number(&mut at, offset_size)?, number(&mut at, length_size)?);

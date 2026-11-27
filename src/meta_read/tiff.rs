@@ -58,6 +58,10 @@ pub(crate) const FUJI: Dialect = Dialect {
 /// entry may point at, and the most waiting to be read (real files: a few, audit E.1).
 const MOST: usize = 256;
 
+/// Strips or tiles noted at most, of all the pictures of a file: a large tiled TIFF has hundreds
+/// of thousands, a file made to point many directories at the same table many more (audit E.4).
+const STRIPS: usize = 1 << 20;
+
 /// TIFF compressions coded as JPEG: old and new JPEG, a lossy DNG's.
 const JPEG_CODED: [usize; 3] = [6, 7, 34892];
 
@@ -174,6 +178,9 @@ fn directory(s: &Sparse, (base, at, main): (usize, usize, bool), little: bool, d
     };
     for &(offsets, counts) in d.pictures {
         let (Some(o), Some(c)) = (get(offsets), get(counts)) else { continue };
+        if o.count.max(c.count) > STRIPS {
+            return Err(Stop::Whole);
+        }
         let (Some(o), Some(c)) = (noted(values(s, o, little), needs)?, noted(values(s, c, little), needs)?) else { continue };
         // A thumbnail or preview JPEG, whatever the compression of the directory says.
         let start = if offsets == 0x0201 { Start::Jpeg } else { start };
@@ -217,6 +224,9 @@ fn pixels(s: &Sparse, mut parts: Vec<Range<usize>>, start: Start, found: &mut Fo
     };
     // Until its start is read, none of it is skipped.
     if let Some(kept) = kept {
+        if found.pixels.len() + parts.len() > STRIPS {
+            return Err(Stop::Whole);
+        }
         found.kept.push(kept);
         found.pixels.append(&mut parts);
     }
@@ -253,14 +263,15 @@ fn unit(kind: u16) -> Option<usize> {
     }
 }
 
-/// `from` without what is in `out`.
+/// `from` without what is in `out`. `out` is joined first, so each range of `from` looks only at
+/// the parts it meets (one against each took hours, audit E.4).
 pub(crate) fn subtract(from: &[Range<usize>], out: &[Range<usize>]) -> Vec<Range<usize>> {
-    let mut cut: Vec<Range<usize>> = out.to_vec();
-    cut.sort_by_key(|r| r.start);
+    let cut = merged(out.iter().filter(|r| r.start < r.end).cloned().collect(), 0);
     let mut result = Vec::new();
     for r in from {
         let mut start = r.start;
-        for c in cut.iter().filter(|c| c.end > r.start && c.start < r.end) {
+        let first = cut.partition_point(|c| c.end <= r.start);
+        for c in cut[first..].iter().take_while(|c| c.start < r.end) {
             if c.start > start {
                 result.push(start..c.start);
             }

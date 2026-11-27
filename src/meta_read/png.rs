@@ -12,6 +12,9 @@ const SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
 /// The end of the file read at first, after the pixels: doubled until the last IDAT is in it.
 const TAIL: usize = 256 << 10;
 
+/// Last pixel chunks tried at most in the end of a file.
+const TRIES: usize = 64;
+
 /// An IDAT without data, with its checksum.
 const EMPTY_IDAT: [u8; 12] = [0, 0, 0, 0, b'I', b'D', b'A', b'T', 0x35, 0xAF, 0x06, 0x1E];
 
@@ -68,10 +71,18 @@ fn rebuilt(s: &Sparse) -> Result<Vec<u8>, Stop> {
 fn after_pixels(s: &Sparse, at: usize, mut out: Vec<u8>) -> Result<Vec<u8>, Stop> {
     let len = s.len();
     let Some(tail) = s.read_to_end().filter(|&t| t < len) else { return Err(Stop::Need(at.max(len.saturating_sub(TAIL))..len)) };
-    let found = (tail..len.saturating_sub(12)).rev().filter(|&p| s.bytes[p + 4..p + 8] == *b"IDAT").find_map(|p| {
-        let (_, end) = chunk(s, p).ok()?;
-        (end >= tail).then(|| chained(s, end)).flatten()
-    });
+    // The last IDAT is the first tried in a real file; each try checks the chunks after it, so a
+    // tail of false ones made each check them again (audit E.4).
+    let mut tries = 0;
+    let found = (tail..len.saturating_sub(12))
+        .rev()
+        .filter(|&p| s.bytes[p + 4..p + 8] == *b"IDAT")
+        .filter_map(|p| chunk(s, p).ok().filter(|&(_, end)| end >= tail))
+        .take_while(|_| {
+            tries += 1;
+            tries <= TRIES
+        })
+        .find_map(|(_, end)| chained(s, end));
     match found {
         Some(chunks) => {
             out.extend(chunks);
