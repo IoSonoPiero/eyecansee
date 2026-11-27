@@ -182,7 +182,8 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | **Ctrl + Z** | Undo |
 | **Ctrl + Y**, **Ctrl + Shift + Z** | Redo |
 | **Ctrl + C** | Copy the result (with Selection, the part chosen) |
-| **Ctrl + X**, **Ctrl + V** | With Selection: cut the part, paste it as an object |
+| **Ctrl + X** | With Selection: cut the part |
+| **Ctrl + V** | Paste as an object the part cut or copied with Selection, or an image copied in another program |
 | **Ctrl + R**, **Ctrl + Shift + R** | Turn right, left |
 | **Ctrl + Alt + I** | Resize the image (see [Editing an image](editor.md)) |
 | **Shift + wheel** | With Crop and rotate: turn by 0.1° |

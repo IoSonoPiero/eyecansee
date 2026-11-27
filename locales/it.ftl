@@ -405,7 +405,7 @@ opt-double-full = Va a schermo intero
 opt-double-hint = A schermo intero un altro doppio clic torna alla finestra; Esc fa lo stesso.
 opt-max-zoom = Ingrandimento massimo nel visore:
 opt-max-zoom-hint = Fin dove la rotellina e il tasto + possono ingrandire un'immagine, in percentuale dei suoi pixel (100% = un pixel dell'immagine per pixel dello schermo).
-opt-remember-location-hint = Quando EyeCanSee parte senza una cartella (per esempio dal menù delle applicazioni), apre quella che stavi guardando alla chiusura. Gli indirizzi remoti si riaprono senza password, che va riscritta.
+opt-remember-location-hint = Quando EyeCanSee parte senza una cartella (per esempio dal menu delle applicazioni), apre quella che stavi guardando alla chiusura. Un server salvato si riapre con la sua password salvata; negli altri server può servire riscrivere la password.
 opt-cache-maintenance = Pulizia della cache miniature
 opt-cache-maintenance-hint = Una volta per sessione, per ogni indirizzo aperto: elimina le miniature delle immagini cancellate, rifà quelle delle immagini modificate e tiene la cache entro il limite. Le cartelle che non si trovano o non si raggiungono vengono saltate.
 opt-cache-limit = Limite della cache

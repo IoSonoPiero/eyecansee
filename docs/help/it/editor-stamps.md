@@ -17,7 +17,8 @@ Le prime sette sono nella barra: ![Spunta](icon://check) Spunta, ![Croce](icon:/
 ## Opzioni
 
 - **Colore** (all'inizio verde), **Dimensione** e **Opacità**.
-- La dimensione si cambia nella barra, o trascinando un angolo del timbro selezionato. Resta quadrato.
+- La dimensione si cambia nella barra, o trascinando un angolo del timbro selezionato: resta quadrato.
+- Trascina la maniglia tonda sopra il timbro selezionato per ruotarlo; tieni premuto **Maiusc** per girarlo a scatti di 15°.
 
 ## Da sapere
 

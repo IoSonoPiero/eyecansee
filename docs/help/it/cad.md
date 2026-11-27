@@ -39,8 +39,8 @@ Un blocco su un livello nascosto si nasconde tutto, anche le sue parti su altri 
 
 **M**, o **Visualizza > Misura**, accende lo strumento Misura. Niente copre il disegno: mentre fai clic il valore è scritto accanto al puntatore, e i risultati vanno nella barra di stato, che dice anche come andare avanti. Premi **D** (distanza), **A** (area) o **G** (angolo), poi fai clic sul disegno:
 
-- **Distanza**: due punti. Il riquadro mostra la distanza e quanto distano i punti lungo X e Y.
-- **Area**: gli angoli di una forma, uno dopo l'altro; **Invio** o un doppio clic la chiudono. Il riquadro mostra l'area e il perimetro, anche mentre fai clic.
+- **Distanza**: due punti. La barra di stato mostra la distanza e quanto distano i punti lungo X e Y.
+- **Area**: gli angoli di una forma, uno dopo l'altro; **Invio** o un doppio clic la chiudono. La barra di stato mostra l'area e il perimetro, anche mentre fai clic.
 - **Angolo**: un punto, il vertice, poi un punto dell'altro lato.
 
 Un clic si aggancia a ciò che c'è sotto il puntatore, come nei programmi CAD: l'estremo di una linea (un quadrato), il suo punto medio (un triangolo), il centro di un cerchio o di un arco (un cerchio), dove due linee si incrociano (una croce); senza niente vicino, il punto cliccato (una crocetta). I livelli nascosti non contano. I risultati sono nell'unità del disegno (come la sua misura nella barra di stato; quando il disegno non dice la sua unità, la barra di stato lo dice). Su un layout si misura sul foglio. **Copia** nella barra di stato, o **Ctrl + C**, li mette negli appunti. **Backspace** toglie l'ultimo punto, **Esc** cancella i punti, e **Esc** di nuovo o **M** chiudono lo strumento. Trascinare sposta ancora il disegno.

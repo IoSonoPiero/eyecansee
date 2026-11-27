@@ -39,8 +39,8 @@ A block on a hidden layer is hidden entirely, including its parts on other layer
 
 **M**, or **View > Measure**, turns on the Measure tool. Nothing covers the drawing: while you click, the value is written next to the pointer, and the results go to the status bar, which also says how to go on. Press **D** (distance), **A** (area) or **G** (angle), then click on the drawing:
 
-- **Distance**: two points. The box shows the distance and how far apart the points are along X and Y.
-- **Area**: the corners of a shape, one after the other; **Enter** or a double click closes it. The box shows the area and the perimeter, also while you click.
+- **Distance**: two points. The status bar shows the distance and how far apart the points are along X and Y.
+- **Area**: the corners of a shape, one after the other; **Enter** or a double click closes it. The status bar shows the area and the perimeter, also while you click.
 - **Angle**: a point, the corner, then a point on the other side.
 
 A click snaps to what is under the pointer, as in CAD programs: the end of a line (a square), its middle (a triangle), the centre of a circle or arc (a circle), where two lines cross (a cross); with nothing nearby, the point you clicked (a small cross). Hidden layers are left out. Results are in the drawing's unit (the same as its size in the status bar; when the drawing does not say its unit, the status bar says so). On a layout they are measured on the sheet. **Copy** in the status bar, or **Ctrl + C**, puts them on the clipboard. **Backspace** takes back the last point, **Esc** clears the points, and **Esc** again or **M** closes the tool. Dragging still moves the drawing.

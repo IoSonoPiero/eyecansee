@@ -33,10 +33,10 @@ A file of 32 MB or more copied or moved between the internal storage and the mem
 
 - While the phone copies a file by itself, it does not respond until it is done and cannot say how far it has got: there is no real progress bar, **Cancel** waits for the end of the file, and its folders wait.
 - Through the computer the bar, the speed and the time left are real. **Cancel** stops the reading at once; the writing stops at the end of the file, because a phone that receives half a file stops answering.
-- It takes longer: 2 GB to the memory card in about 3 and a half minutes instead of 2.
+- It takes longer, because the file goes over the cable twice. On a phone we tested, writing 2 GB to its memory card took about 2 minutes and 15 seconds, and reading 2 GB from the card about 1 minute.
 - It needs free space on this computer, as much as the file and a little more: if there is not enough, the copy stops before it starts and says so. The file is kept in EyeCanSee's cache folder and removed as soon as it has been written, even after an error or **Cancel**.
 - **On Windows** a big file copied inside one storage goes through the computer too: more than 1 GB inside the internal storage, more than 128 MB inside a memory card. Windows waits only half a minute for the phone; when the copy takes longer it loses track of it, and the file would only show up after the phone is unplugged and plugged in again. If a phone or a card slower than expected still takes more than half a minute, EyeCanSee waits for the phone to finish and then says to unplug it and plug it in again to see the copy. On Linux the phone copies files of any size by itself.
-- Files under 32 MB and everything that stays inside one storage are done by the phone: a move there only changes the folder, instantly, and a copy is fast (2 GB in about 20 seconds, six times less than through the computer). For that short time its folders wait, with **Please wait** in the status bar; a copy inside one storage makes the whole of EyeCanSee wait instead (see the next section).
+- Files under 32 MB, and everything that stays inside one storage, are done by the phone (on Windows, a copy inside one storage only up to the sizes above): a move there only changes the folder, instantly, and a copy is fast (2 GB inside the internal storage in about 20 seconds, on the same phone). For that short time its folders wait, with **Please wait** in the status bar; a copy inside one storage makes the whole of EyeCanSee wait instead (see the next section).
 
 ## Copies inside one storage: the phone works alone
 

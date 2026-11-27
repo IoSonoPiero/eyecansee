@@ -64,7 +64,7 @@ Close, the window's ✕ or Esc first ask what to do:
 
 ![Copy](icon://copy) **Copy** (**Ctrl + C**) puts the whole result, at full size, on the clipboard, to paste it into another program. Nothing is written to disk.
 
-On Linux with Plasma or Cinnamon (X11), keep the EyeCanSee window open until you have pasted: once it is closed, the image is no longer on the clipboard.
+On Linux with Plasma 5 on X11, keep the EyeCanSee window open until you have pasted: once it is closed, the image is no longer on the clipboard. On GNOME the image stays.
 
 Other programs do not get a copy larger than about 16 MB on X11, nor on GNOME, where the clipboard goes through Xwayland; the status bar says so. On Windows there is no such limit.
 

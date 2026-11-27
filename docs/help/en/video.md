@@ -18,7 +18,7 @@ Double-click a video, or select it and press **Enter**: it opens in the viewer, 
 
 **Ctrl + Shift + S**, ![Save frame as…](icon://file-output) **Save frame as…** in the toolbar, or the same item in the File menu and in the right-click menu, pause the video and open [Save as](save-as.md) with the frame shown, at the video's own size and turned as you see it. Choose the format, the options and the name there; the name proposed is the video's with the time of the frame (for example `clip 1m02s345.jpg`). Once saved, the viewer stays on the video, paused.
 
-With **Keep the metadata**, the picture keeps what the video says about itself: the camera, the date and time of that frame, and the place (a dashcam's track at that moment, the video's own position, or a drone's starting point).
+With **Metadata** on **All**, the picture keeps what the video says about itself: the camera, the date and time of that frame, and the place (a dashcam's track at that moment, the video's own position, or a drone's starting point). **All but the place** leaves the place out.
 
 ## Audio
 

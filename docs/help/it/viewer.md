@@ -45,7 +45,7 @@ Un panorama a 360° (da un drone, da un telefono o da una fotocamera a 360°) è
 - Trascina per guardarti intorno. La **rotellina**, **+** e **−** ingrandiscono e rimpiccioliscono (la rotellina come impostato nelle [Opzioni](options.md), e sempre con **Ctrl**); **0** torna alla vista di partenza, **1** mostra il centro al 100%. La percentuale nella barra di stato è quella del centro della vista.
 - Un panorama parziale (che non fa tutto il giro, o non arriva in alto e in basso) mostra solo ciò che copre, e la vista si ferma ai suoi bordi.
 - **P**, o **Foto piatta** in basso a sinistra, mostra la foto piatta, come ogni altra; **P** o **Vista a 360°** la mostra di nuovo come una sfera. La scelta vale per i panorami che apri dopo, finché EyeCanSee resta aperto.
-- Ruotato (**Ruota**), o mentre misuri, un panorama si vede piatto. Le miniature, il carosello, il salvataggio, la copia e l'editor usano sempre la foto piatta.
+- Ruotato o riflesso e non ancora salvato (vedi [Ruotare e riflettere](rotate.md)), o mentre misuri, un panorama si vede piatto. Le miniature, il carosello, il salvataggio, la copia e l'editor usano sempre la foto piatta.
 - Salvato capovolto o girato di lato, ribaltato dall'alto in basso, o ritagliato, un panorama non lo è più: EyeCanSee toglie i suoi tag Photo Sphere, e il resto dei metadati resta. Rimpicciolito o ingrandito, o ribaltato da sinistra a destra, resta un panorama.
 
 Un panorama più grande di 8192 pixel si vede ridotto a 8192 (vedi Immagini molto grandi qui sopra): ingrandendo molto non si vedono altri dettagli.

@@ -182,7 +182,8 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | **Ctrl + Z** | Annulla |
 | **Ctrl + Y**, **Ctrl + Maiusc + Z** | Ripeti |
 | **Ctrl + C** | Copia il risultato (con Selezione, la parte scelta) |
-| **Ctrl + X**, **Ctrl + V** | Con Selezione: taglia la parte, la incolla come oggetto |
+| **Ctrl + X** | Con Selezione: taglia la parte |
+| **Ctrl + V** | Incolla come oggetto la parte tagliata o copiata con Selezione, o un'immagine copiata in un altro programma |
 | **Ctrl + R**, **Ctrl + Maiusc + R** | Ruota a destra, a sinistra |
 | **Ctrl + Alt + I** | Ridimensiona l'immagine (vedi [Modificare un'immagine](editor.md)) |
 | **Maiusc + rotellina** | Con Ritaglia e ruota: ruota di 0,1° |

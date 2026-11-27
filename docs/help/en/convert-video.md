@@ -4,7 +4,7 @@ Converts videos into another format or size, rotates them, makes them smaller or
 
 ## Starting
 
-Select the videos in the grid (pictures can be selected too) and choose ![Convert…](icon://scaling) **Convert…** from the toolbar, the **Tools** menu (**Ctrl + B**) or the right-click menu. When there are videos among the files, the window has a **Videos** section. Rotate and flip, size and destination work as they do for pictures: see [Converting and resizing images](convert.md).
+Select the videos in the grid (pictures can be selected too) and choose ![Convert…](icon://scaling) **Convert…** from the toolbar, the **Tools** menu (**Ctrl + B**) or the right-click menu. When there are videos among the files, the window has a **Videos** section. Rotate and flip and the destination work as they do for pictures; of the sizes only **Unchanged**, **Percent of the original** and **Inside** can be chosen: see [Converting and resizing images](convert.md).
 
 ## FFmpeg
 
@@ -34,7 +34,7 @@ Some dashcams keep the GPS track in a `gps.sqlite` file on the card, and DJI dro
 
 ## While it works
 
-The box at the bottom right shows the progress; the bar moves during a long video too. **Cancel** stops at once and deletes the half-made video. Videos on a phone or a server are first copied into a temporary file on this computer, and the result is written back at the end.
+The box at the bottom right shows the progress; the bar moves during a long video too. **Cancel** stops at once and deletes the half-made video. Videos on a phone or a server are first copied into a temporary file on this computer. When the destination is on a phone or a server, the new video is made in a temporary file on this computer and sent there at the end.
 
 ## Copy with the metadata
 

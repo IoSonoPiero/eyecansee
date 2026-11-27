@@ -64,7 +64,7 @@ Chiudi, la ✕ della finestra o Esc chiedono prima cosa fare:
 
 ![Copia](icon://copy) **Copia** (**Ctrl + C**) mette negli appunti tutto il risultato, a piena grandezza, da incollare in un altro programma. Sul disco non viene scritto niente.
 
-Su Linux con Plasma o Cinnamon (X11), tieni aperta la finestra di EyeCanSee finché non hai incollato: chiusa la finestra, l'immagine sparisce dagli appunti.
+Su Linux con Plasma 5 su X11, tieni aperta la finestra di EyeCanSee finché non hai incollato: chiusa la finestra, l'immagine sparisce dagli appunti. Su GNOME l'immagine resta.
 
 Su X11 gli altri programmi non ricevono una copia oltre circa 16 MB, e nemmeno su GNOME, dove gli appunti passano da Xwayland; la barra di stato lo dice. Su Windows questo limite non c'è.
 

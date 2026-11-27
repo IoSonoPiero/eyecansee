@@ -407,7 +407,7 @@ opt-double-full = Goes to full screen
 opt-double-hint = At full screen another double click goes back to the window; Esc does the same.
 opt-max-zoom = Largest zoom in the viewer:
 opt-max-zoom-hint = How far the wheel and the + key can enlarge an image, in percent of its pixels (100% = one image pixel per screen pixel).
-opt-remember-location-hint = When EyeCanSee starts without a folder (for example from the applications menu), it opens the folder you were viewing when you closed it. Remote locations open without the password, which you must type again.
+opt-remember-location-hint = When EyeCanSee starts without a folder (for example from the applications menu), it opens the folder you were viewing when you closed it. A saved server opens with its saved password; on other servers you may have to type the password again.
 opt-cache-maintenance = Clean up the thumbnail cache
 opt-cache-maintenance-hint = Once per session, for each opened location: removes thumbnails of deleted images, recreates those of changed images and keeps the cache within the limit. Folders that cannot be found or reached are skipped.
 opt-cache-limit = Cache limit

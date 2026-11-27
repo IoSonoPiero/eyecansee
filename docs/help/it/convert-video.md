@@ -4,7 +4,7 @@ Converte i video in un altro formato o in un'altra misura, li ruota, li fa più 
 
 ## Avviare la conversione
 
-Seleziona i video nella griglia (si possono selezionare anche immagini) e scegli ![Converti…](icon://scaling) **Converti…** dalla barra strumenti, dal menù **Strumenti** (**Ctrl + B**) o dal clic destro. Se tra i file ci sono video, la finestra ha una parte **Video**. Rotazione e ribaltamenti, dimensioni e destinazione funzionano come per le immagini: vedi [Convertire e ridimensionare le immagini](convert.md).
+Seleziona i video nella griglia (si possono selezionare anche immagini) e scegli ![Converti…](icon://scaling) **Converti…** dalla barra strumenti, dal menù **Strumenti** (**Ctrl + B**) o dal clic destro. Se tra i file ci sono video, la finestra ha una parte **Video**. Rotazione e ribaltamenti e destinazione funzionano come per le immagini; tra le dimensioni si possono scegliere solo **Invariate**, **Percentuale dell'originale** ed **Entro**: vedi [Convertire e ridimensionare le immagini](convert.md).
 
 ## FFmpeg
 
@@ -34,7 +34,7 @@ Alcune dashcam tengono la traccia GPS in un file `gps.sqlite` sulla scheda, e i 
 
 ## Mentre lavora
 
-Il riquadro in basso a destra mostra a che punto è; la barra avanza anche durante un video lungo. **Annulla** si ferma subito ed elimina il video fatto a metà. I video su un telefono o su un server vengono prima copiati in un file temporaneo su questo computer, e alla fine il risultato viene scritto sul telefono o sul server.
+Il riquadro in basso a destra mostra a che punto è; la barra avanza anche durante un video lungo. **Annulla** si ferma subito ed elimina il video fatto a metà. I video su un telefono o su un server vengono prima copiati in un file temporaneo su questo computer. Quando la destinazione è su un telefono o su un server, il video nuovo viene fatto in un file temporaneo su questo computer e mandato lì alla fine.
 
 ## Copia con i metadati
 
