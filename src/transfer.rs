@@ -259,6 +259,11 @@ async fn renames(clip: &Clip, (to, to_dir, same): (&Store, &str, bool), plan: Ve
     }
     for ((src, dest, exists, sides), size) in plan.into_iter().zip(sizes) {
         if let Some(size) = size {
+            // Cancel stops before the next one (audit T.1 of 27/11: between the storages of a phone
+            // each file takes the phone a while, and all of them went); those moved stay moved.
+            if p.cancel.load(Ordering::Relaxed) {
+                return Err(("error-cancelled", String::new()));
+            }
             *p.current.lock().unwrap() = name(&src).to_string();
             let made = (!src.is_empty()).then(|| dest.clone());
             let folder = src.ends_with('/');
