@@ -260,12 +260,21 @@ pub fn on_network(path: &Path) -> bool {
     std::fs::read_to_string("/proc/self/mounts").is_ok_and(|m| network_in(&m, &path.to_string_lossy()))
 }
 
-/// Windows: not told yet.
+/// Windows: a network drive, mapped to a letter or a path `\\server\share` (`GetDriveTypeW`, as
+/// `has_recycle_bin`).
 #[cfg(windows)]
-pub fn on_network(_: &Path) -> bool {
-    false
+pub fn on_network(path: &Path) -> bool {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::GetDriveTypeW;
+    const DRIVE_REMOTE: u32 = 4;
+    let Some(root) = path.ancestors().last() else { return false };
+    let wide: Vec<u16> = root.as_os_str().encode_wide().chain([0]).collect();
+    // SAFETY: a NUL-terminated wide string that outlives the call.
+    unsafe { GetDriveTypeW(wide.as_ptr()) == DRIVE_REMOTE }
 }
 
+// On Windows only its test uses it.
+#[cfg_attr(windows, allow(dead_code))]
 fn network_in(mounts: &str, path: &str) -> bool {
     let network = |kind: &str| {
         matches!(kind, "nfs" | "nfs4" | "cifs" | "smb3" | "smbfs" | "ncpfs" | "afs" | "ceph" | "glusterfs" | "9p" | "davfs")
