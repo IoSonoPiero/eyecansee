@@ -440,11 +440,13 @@ fn thumbnails_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n, confirm: &mu
     answer == Some(0)
 }
 
-/// Where the keyboard was at the end of a window's frame before, which of its controls take it
-/// (in the order Tab goes), and whether an arrow came then (`in_ring`).
+/// Where the keyboard was at the end of a window's pass before, which of its controls take it
+/// (in the order Tab goes), and whether an arrow came then (`in_ring`). The pass, not the frame: a
+/// frame egui runs in two passes (`request_discard`) has one number, and its second pass, which
+/// gets no keys, forgot the arrow of the first (#360).
 #[derive(Clone, Default)]
 struct Ring {
-    frame: u64,
+    pass: u64,
     was: Option<egui::Id>,
     ids: Vec<egui::Id>,
     arrow: bool,
@@ -456,8 +458,8 @@ struct Ring {
 /// inside the window instead, as in a modal one, which would keep the mouse from what is under it.
 pub(crate) fn in_ring<R>(ctx: &egui::Context, layer: egui::LayerId, show: impl FnOnce() -> R) -> R {
     use egui::Key::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Tab};
-    let (key, frame) = (layer.id.with("focus-ring"), ctx.cumulative_frame_nr());
-    let ring = ctx.data(|d| d.get_temp::<Ring>(key)).filter(|r| r.frame + 1 == frame).unwrap_or_default();
+    let (key, pass) = (layer.id.with("focus-ring"), ctx.cumulative_pass_nr());
+    let ring = ctx.data(|d| d.get_temp::<Ring>(key)).filter(|r| r.pass + 1 == pass).unwrap_or_default();
     // From the events: the harness of the tests gives Shift with the key only.
     let tab = |back: bool| ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Key { key: Tab, pressed: true, modifiers, .. } if modifiers.shift == back)));
     let (next, back) = (tab(false), tab(true));
@@ -467,7 +469,7 @@ pub(crate) fn in_ring<R>(ctx: &egui::Context, layer: egui::LayerId, show: impl F
     if back && now.is_some() && now == ring.ids.first().copied() && let Some(&last) = ring.ids.last() {
         ctx.memory_mut(|m| m.interested_in_focus(last, layer));
     }
-    // An arrow took the keyboard under the window at the end of the frame before: back.
+    // An arrow took the keyboard under the window at the end of the pass before: back.
     if let Some(was) = ring.was.filter(|w| ring.arrow && ring.ids.contains(w) && now.is_some_and(|n| under(ctx, n))) {
         ctx.memory_mut(|m| m.request_focus(was));
     }
@@ -487,10 +489,10 @@ pub(crate) fn in_ring<R>(ctx: &egui::Context, layer: egui::LayerId, show: impl F
     let now = ctx.memory(|m| m.focused());
     let arrow = arrow && now.is_some_and(|n| ids.contains(&n));
     if arrow {
-        // egui moves it at the end of the frame: the next one, right away, brings it back.
+        // egui moves it at the end of the pass: the next one, right away, brings it back.
         ctx.request_repaint();
     }
-    ctx.data_mut(|d| d.insert_temp(key, Ring { frame, was: now, ids, arrow }));
+    ctx.data_mut(|d| d.insert_temp(key, Ring { pass, was: now, ids, arrow }));
     shown
 }
 
