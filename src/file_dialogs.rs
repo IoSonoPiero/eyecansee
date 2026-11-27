@@ -648,4 +648,36 @@ mod tests {
             assert!(h.app.rename.is_some() && h.app.help.open, "Enter under the guide answered Rename");
         }
     }
+
+    /// Audit 27/11 F.2 (#197): the answer of the check of an older paste (into a slow phone or
+    /// server, left meanwhile: `leave_source`) came to the paste asked now, which then started at
+    /// once, and the file of the same name in the new folder was replaced without a question.
+    /// Here the old answer ("no name taken", true for the folder of the first paste) is in the
+    /// channel before the check of the new one.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn an_old_paste_check_does_not_answer_the_new_paste() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("file_dialogs::tests::an_old_paste_check_does_not_answer_the_new_paste") {
+            return;
+        }
+        let dir = folder("paste-old-check", &["a.png"]);
+        std::fs::create_dir_all(dir.join("b")).unwrap();
+        std::fs::write(dir.join("b/a.png"), b"there before").unwrap();
+        let mut h = Harness::new(&dir);
+        let a = h.app.files().iter().find(|f| f.path.ends_with("a.png")).unwrap().path.clone();
+        let ctx = h.ctx.clone();
+        h.app.clip(&ctx, Some(a), false);
+        let into = format!("{}b/", h.app.dir);
+        h.app.tx.send(crate::loader::Msg::PasteCheck(Ok(Vec::new()))).unwrap();
+        h.app.paste(Some(into.clone()));
+        for _ in 0..30 {
+            h.frame(Vec::new());
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        assert_eq!(std::fs::read(dir.join("b/a.png")).unwrap(), b"there before", "b/a.png replaced without a question");
+        let asked = h.app.paste_ask.as_ref().and_then(|p| p.conflicts.clone());
+        assert_eq!(asked, Some(vec![format!("{}a.png", h.app.dir)]), "the name taken in b/ not asked about");
+        assert!(h.app.transfer.is_none(), "the paste started");
+    }
 }
