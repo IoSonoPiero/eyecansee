@@ -202,3 +202,30 @@ fn audit_5_11_overwrite_drops_the_video_without_a_word() {
     eprintln!("confirmation lines on what is lost: {losses:?}; the video still in a.jpg: {video_kept} ({} bytes, before {})", now.len(), bytes.len());
     assert!(video_kept || said, "the video went without a word in the confirmation");
 }
+
+/// #200 (doubt of the audit of 27/11): the confirmation of a save prepared for a page closed
+/// before it came (Don't save, while on a phone or a server it takes seconds) goes to no page
+/// opened after it on the same picture: the new page has nothing of the old one to confirm.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn late_confirmation_goes_to_no_other_page() {
+    if crate::audit_family_1::own_folder("edit_page::save::audit::late_confirmation_goes_to_no_other_page") {
+        return;
+    }
+    let dir = folder("late-confirmation", &["a.png"]);
+    let mut h = Harness::new(&dir);
+    editor(&mut h, "a.png");
+    h.app.editor.as_mut().unwrap().doc.objects.push(cover(-2.0, [255, 0, 0]));
+    h.key_with(egui::Key::S, egui::Modifiers::COMMAND);
+    h.until(|app| app.editor.as_ref().is_some_and(|w| w.ready.is_some()), "the confirmation");
+    let w = h.app.editor.as_mut().unwrap();
+    let (path, prepared) = (w.path.clone(), w.ready.take().unwrap().0);
+    // Closed without saving, opened again on the same picture; the answer of the first comes now.
+    h.app.editor = None;
+    editor(&mut h, "a.png");
+    h.app.tx.send(crate::loader::Msg::EditPrepared(path, Ok(prepared))).unwrap();
+    for _ in 0..5 {
+        h.frame(Vec::new());
+    }
+    assert!(h.app.editor.as_ref().unwrap().ready.is_none(), "the confirmation of the page closed shown on the new one");
+}
