@@ -622,6 +622,26 @@ mod tests {
         assert!(both < 4 * one, "{both} bytes held against {one} for one part file ({r:?})");
     }
 
+    /// Audit 27/11, D.4: the limit the model files of a 3MF share is taken once by each file, not
+    /// at every parse: a part file placed by many components (one for each of its objects, as some
+    /// programs write them) was charged again at each one, and a file that opened was refused.
+    /// Here 100 components into one part file whose text has 1.5 million `=` (counted as
+    /// attributes before it is parsed): 150 million charged against 140.
+    #[test]
+    fn audit_d4_each_file_charged_once() {
+        let triangle = r#"<mesh><vertices><vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/></vertices><triangles><triangle v1="0" v2="1" v3="2"/></triangles></mesh>"#;
+        let part = format!(r#"<model><resources><object id="1">{triangle}</object></resources><build/><!--{}--></model>"#, "=".repeat(1_500_000));
+        let components: String = (0..100).map(|_| r#"<component objectid="1" p:path="/3D/part.model"/>"#).collect();
+        let main = format!(r#"<model xmlns:p="p"><resources><object id="9"><components>{components}</components></object></resources><build><item objectid="9"/></build></model>"#);
+        let mut w = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        for (name, text) in [("3D/3dmodel.model", main.as_str()), ("3D/part.model", part.as_str())] {
+            w.start_file(name, zip::write::SimpleFileOptions::default()).unwrap();
+            w.write_all(text.as_bytes()).unwrap();
+        }
+        let bytes = w.finish().unwrap().into_inner();
+        assert_eq!(read(&bytes, &Unpacked::default()).map(|m| m.tris.len()), Ok(100));
+    }
+
     /// Audit 27/11, D.4: the nodes and attributes roxmltree builds for the XML of every 3MF, AMF,
     /// Collada and X3D under `EYECANSEE_MODELS` (and its folders), against the triangles read.
     #[test]
