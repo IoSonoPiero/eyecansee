@@ -102,24 +102,22 @@ impl App {
         self.show_or_wait(Waiting::Notice(n));
     }
 
+    /// In the queue, behind those waiting already: a new one does not pass them (audit 27/11 F.5).
     fn show_or_wait(&mut self, w: Waiting) {
-        if self.reporting() {
-            self.waiting.push_back(w);
-            return;
-        }
-        match w {
-            Waiting::Notice(n) => self.notice = Some(n),
-            Waiting::Summary(s) => self.batch_summary = Some(s),
-            Waiting::Report(r) => self.jobs_report = Some(r),
-        }
+        self.waiting.push_back(w);
+        self.next_waiting();
     }
 
     /// The window closed: the next one waiting comes.
     pub(crate) fn next_waiting(&mut self) {
-        if !self.reporting()
-            && let Some(w) = self.waiting.pop_front()
-        {
-            self.show_or_wait(w);
+        if self.reporting() {
+            return;
+        }
+        match self.waiting.pop_front() {
+            Some(Waiting::Notice(n)) => self.notice = Some(n),
+            Some(Waiting::Summary(s)) => self.batch_summary = Some(s),
+            Some(Waiting::Report(r)) => self.jobs_report = Some(r),
+            None => {}
         }
     }
 

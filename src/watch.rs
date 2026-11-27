@@ -181,6 +181,8 @@ impl App {
                     && self.notice.as_ref().is_some_and(|n| n.text == text)
                 {
                     self.notice = None;
+                    // The message that came meanwhile, waiting behind it (audit 27/11 F.5).
+                    self.next_waiting();
                 }
             }
         }
