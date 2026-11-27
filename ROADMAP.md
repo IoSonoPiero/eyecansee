@@ -58,6 +58,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 - Viewer: Esc closes EyeCanSee when the window's ✕ is set to close it ([#320](https://github.com/IoSonoPiero/eyecansee/issues/320)).
 - Viewer: a double click can go to full screen instead of back to the grid, chosen in the Options ([#349](https://github.com/IoSonoPiero/eyecansee/issues/349)).
+- Viewer: a Full screen entry in the View menu and in the viewer's right-click menu ([#358](https://github.com/IoSonoPiero/eyecansee/issues/358)).
 - Grid: type the first letters of a name to jump to that file or folder ([#350](https://github.com/IoSonoPiero/eyecansee/issues/350)).
 - Bookmarks in the left panel, as well as in the menu and the toolbar ([#351](https://github.com/IoSonoPiero/eyecansee/issues/351)).
 - Menus: the menu bar opened from the keyboard (Alt, F10, Alt + letter), as in other desktop apps ([#322](https://github.com/IoSonoPiero/eyecansee/issues/322)).
