@@ -197,10 +197,18 @@ impl App {
                 });
                 // Reached with Tab after the folders of the tree (`box_keys`, #311).
                 ui.horizontal(|ui| {
-                    let cancel = ui.add_enabled(!cancelling, egui::Button::new(self.i18n.t("delete-no")));
+                    // Cancelled while the phone copies or moves a file by itself: the way out of
+                    // the wait for it, in place of a Cancel greyed out that held the app (#354).
+                    let leave = cancelling && !crate::mtp::leaving() && crate::mtp::working_long().is_some();
+                    let cancel = match leave {
+                        true => ui.button(self.i18n.t("phone-copy-leave")).on_hover_text(self.i18n.t("phone-copy-leave-tip")),
+                        false => ui.add_enabled(!cancelling, egui::Button::new(self.i18n.t("delete-no"))),
+                    };
                     crate::box_keys::mark(&cancel);
-                    if cancel.clicked() {
-                        p.cancel.store(true, Ordering::Relaxed);
+                    match (cancel.clicked(), leave) {
+                        (true, true) => crate::mtp::leave(),
+                        (true, false) => p.cancel.store(true, Ordering::Relaxed),
+                        (false, _) => {}
                     }
                     // A link on the row of Cancel, not a line more: the box keeps its height.
                     if staged {

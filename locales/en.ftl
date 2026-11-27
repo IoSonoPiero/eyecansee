@@ -192,7 +192,12 @@ phone-copy-notice = The phone copies by itself and answers nothing meanwhile: th
 phone-copy-keep = Do not unplug the phone.
 phone-copy-long = This file has taken more than 3 minutes. The phone goes on until it is done: all you can do is wait.
 phone-copy-cancel-tip = The phone finishes the file it is copying, then EyeCanSee removes that copy. The files already copied stay.
-phone-copy-cancelled = Cancelled, waiting for the phone
+phone-copy-cancelled = Cancelled
+phone-copy-leave = Stop waiting
+phone-copy-leave-tip = EyeCanSee stops waiting for the phone. The phone may finish this file by itself: the copy may then stay on the phone.
+phone-copy-leaving = Stopping the wait…
+phone-copy-through-pc = This file is big and goes through this computer: the bar is real. Cancel stops the reading at once; the writing stops when the file is whole.
+phone-copy-leaving-note = EyeCanSee stops waiting. If the phone finishes this file by itself, the copy may stay on the phone.
 phone-copy-cancelled-note = The phone finishes this file, then EyeCanSee removes the copy just made.
 phone-copy-others = { $n ->
     [one] The other file is not copied.
@@ -286,9 +291,13 @@ list-more-images = { $n ->
     [one] and 1 more
    *[other] and { $n } more
 }
+error-phone-left = EyeCanSee stopped waiting for the phone, which was still working on { $detail }. If the phone finishes by itself, the copy may stay on the phone. It answers nothing until it is done.
+error-phone-copy-unseen = The phone copied { $detail }, but it took longer than Windows waits, and Windows does not show the copy. Unplug the phone and plug it in again, then check whether the copy is there: if it is missing, copy it again.
+error-phone-copy-lost = The phone took longer to copy { $detail } than Windows waits, and Windows does not show what the phone does. Wait a few minutes, unplug the phone and plug it in again, then check whether the copy is there: if it is missing, copy it again.
 error-copy-not-made = The phone did not make the copy of { $detail }: the original was left as it was.
 error-copy-not-whole = The copy of { $detail } did not arrive whole: the original was left as it was.
 error-pc-space = Not enough free space on this computer for { $detail }: a big file inside the phone goes through it. Free some space and try again.
+error-phone-full = The phone did not take the file: its storage is full, or the file is too big for it (on a FAT32 memory card a file must stay under 4 GB).
 error-phone-space = Not enough free space on the phone for { $detail }.
 error-cancelled = Cancelled.
 error-too-deep = Too many folders one inside another, so the copy stopped: { $detail }
@@ -338,6 +347,15 @@ delete-phone-busy = The phone is { $what ->
         [move] moving
        *[other] copying
     } { $name } ({ $s } s): **{ $button }** turns on when it is done.
+quit-phone-title = The phone is still working
+quit-phone-ask = The phone is { $what ->
+        [move] moving
+       *[other] copying
+    } { $name } by itself and cannot be stopped. Close EyeCanSee now?
+
+    The phone may finish this file by itself: the copy may then stay on the phone.
+quit-phone-yes = Close EyeCanSee
+quit-phone-no = Keep waiting
 status-phone-working = The phone is { $what ->
         [move] moving
        *[other] copying

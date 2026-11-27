@@ -28,9 +28,16 @@ mod across;
 mod aside;
 mod cache;
 mod events;
+#[cfg(test)]
+mod probe;
 mod storages;
 pub(crate) mod turn;
 mod undo;
+mod unseen;
+mod wait;
+#[cfg(test)]
+pub(crate) use across::alone_limit;
+pub use across::{leave, leaving, stay};
 pub use events::{Change, on_change, take_changes};
 
 /// Device storages with the name shown as a folder.
@@ -128,6 +135,23 @@ impl Drop for Waiting {
     }
 }
 
+/// For the tests of the app without a screen (each in a process of its own, `own_folder`): a
+/// phone copying `path` by itself (`working`) since `secs` seconds, until the guard is dropped.
+#[cfg(test)]
+pub(crate) fn copying_for_tests(path: &str, secs: u64) -> impl Drop {
+    Waiting::start_at("copy", path, std::time::Instant::now().checked_sub(std::time::Duration::from_secs(secs)).expect("a clock that old"))
+}
+
+/// The phone has been copying or moving one file by itself for long enough to be waited for
+/// (`LONG_WORK` seconds): what the user is then offered is a way out of the wait (#354). A file
+/// of a few megabytes is done before that, and Cancel or the ✕ stop at its end as always.
+pub fn working_long() -> Option<(String, String)> {
+    working().filter(|(_, _, secs)| *secs >= LONG_WORK).map(|(what, name, _)| (what, name))
+}
+
+/// See `working_long`.
+pub const LONG_WORK: u64 = 2;
+
 /// Seconds after which a call still waiting on Windows is taken for WPD's stall: ~340 s
 /// unless the cable is unplugged. Calls that are only slow end well before.
 pub const STALL_SECS: u64 = 15;
@@ -149,23 +173,33 @@ pub fn working() -> Option<(String, String, u64)> {
     (what == "copy" || what == "move").then_some((what, name, secs))
 }
 
+/// Whether `e` says the phone is gone: the cable pulled, the phone locked or switched off "File
+/// transfer". Windows (WPD) says it with ERROR_OPERATION_ABORTED when the phone goes away during
+/// a transfer, then with 0x802a0002 (shut down already) at every call on that session; mtp-rs
+/// 0.37.3 leaves both as `Other` (POCO X7 Pro, upload cut off, 2026-11-04; Redmi Note 9 Pro
+/// unplugged while its copy was waited for, #354, 27/11).
+fn gone(e: &mtp_rs::Error) -> bool {
+    match e {
+        mtp_rs::Error::Other { detail } => detail.starts_with("HRESULT 0x800703e3") || detail.starts_with("HRESULT 0x802a0002"),
+        e => e.is_disconnected(),
+    }
+}
+
 fn error(e: mtp_rs::Error) -> Error {
     let id = match e {
         _ if e.is_exclusive_access() => "error-device-busy",
+        _ if gone(&e) => "error-phone-disconnected",
         // Also while the phone reconnects after switching to "File transfer": the UI retries.
         mtp_rs::Error::NoDevice => "error-no-device",
         // mtp-rs 0.36: refused before anything is sent (upload, new folder, rename); MTP names
         // hold 254 UTF-16 units, an emoji counts as two.
         mtp_rs::Error::NameTooLong { units } => return ("error-name-too-long", units.to_string()),
-        // The cable pulled, the phone locked or switched off "File transfer".
-        mtp_rs::Error::Disconnected => "error-phone-disconnected",
         mtp_rs::Error::Timeout => "error-phone-timeout",
         // The phone answered DeviceBusy: Windows Photos importing from it (POCO X7 Pro, 2026-11-08).
         mtp_rs::Error::Busy => "error-phone-busy",
-        // Windows (WPD) when the phone goes away during a transfer: ERROR_OPERATION_ABORTED, then
-        // 0x802a0002 (shut down already) on that session; mtp-rs 0.37.3 leaves both as `Other`
-        // (POCO X7 Pro, upload cut off, 2026-11-04).
-        mtp_rs::Error::Other { ref detail } if detail.starts_with("HRESULT 0x800703e3") || detail.starts_with("HRESULT 0x802a0002") => "error-phone-disconnected",
+        // The storage is full, or the file is too big for it: the phone says the same for both
+        // (`StoreFull`, `ObjectTooLarge`; a 4 GiB file to a FAT32 card, Redmi Note 9 Pro, 27/11).
+        mtp_rs::Error::StorageFull => "error-phone-full",
         // A copy onto a name the folder has (mtp-rs 0.37.3): `copy_inside` avoids it.
         mtp_rs::Error::AlreadyExists => "error-phone-name-taken",
         _ => "error-detail",
@@ -443,7 +477,8 @@ impl Phone {
             }
         };
         let size = self.size_across(path, (&storage, handle), &to).await?;
-        let _quiet = size.map(|_| self.quiet());
+        let quiet = size.map(|_| self.quiet());
+        across::stay();
         self.own.mark(handle);
         if new_name != source::name(path) {
             self.queued("rename", path, storage.rename(handle, new_name)).await.map_err(error)?;
@@ -452,7 +487,7 @@ impl Phone {
         match (self.queued_kept("move", path, storage.move_object(handle, folder, Some(to.id()))).await, size) {
             // To the other storage, past the 30 s mtp-rs waits: the phone is still moving it.
             ((Err(mtp_rs::Error::Timeout), turn), Some(size)) => {
-                self.finished_by_phone(("move", began, turn), path, (&to, folder), (new_name, size), Some((&storage, handle))).await?;
+                self.finished_by_phone(("move", began, turn), path, (&to, folder), (new_name, size, None), Some((&storage, handle))).await.map_err(|e| across::kept_quiet(e, quiet))?;
             }
             ((r, _), _) => r.map_err(error)?,
         }
@@ -662,39 +697,12 @@ impl Phone {
             undo::finish(cancel.load(Ordering::Relaxed), self.remove_copy(&tmp, name, h), self.move_into(&made, &dir, source::name(dest))).await
         }
         .await;
-        let gone = self.delete(&tmp).await;
+        // Not from a phone that answers nothing now: the folder is left for the next copy here.
+        let gone = match &copied {
+            Err(e) if across::unanswering(e) => Ok(()),
+            _ => self.delete(&tmp).await,
+        };
         copied.and(gone)
-    }
-
-    /// `CopyObject` of `path` into the folder `dir`. A handle equal to the original's means a copy
-    /// not made (see `copy_inside`): it is never renamed or moved.
-    async fn copy_object(&self, path: &str, dir: &str) -> Result<ObjectHandle, Error> {
-        let (storage, handle) = self.locate(path).await?;
-        let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
-        // Into the storage of `dir`, which may not be the one of `path` (audit 2.7).
-        let (to, folder) = match self.locate(dir).await? {
-            (to, Some(h)) => (to, h),
-            (to, None) => (to, ObjectHandle::ROOT),
-        };
-        // A copy is made by the phone also inside one storage: a big one takes longer than mtp-rs
-        // waits there too (6 GB, about a minute). The events stop for a file that may (`across`).
-        let size = self.size_of(path, (&storage, handle)).await?;
-        let _quiet = (size >= LONG_COPY).then(|| (self.quiet(), turn::Deaf::start(&self.serial, path)));
-        let began = std::time::Instant::now();
-        let h = match self.queued_kept("copy", path, self.marked(storage.copy_object(handle, folder, Some(to.id())))).await {
-            // Given up while the phone is still copying it (`across::still_at_it`).
-            (Err(e), turn) if across::still_at_it(&e, size, began.elapsed()) => {
-                let h = self.finished_by_phone(("copy", began, turn), path, (&to, folder), (source::name(path), size), None).await?;
-                self.own.mark(h);
-                h
-            }
-            (r, _) => r.map_err(|e| across::copy_error(e, path))?,
-        };
-        log!("phone {}: copy {path} into {dir}: handle {} -> {}", self.serial, handle.0, h.0);
-        if h == handle {
-            return Err((NOT_MADE, path.to_string()));
-        }
-        Ok(h)
     }
 
     async fn storage_of(&self, path: &str) -> Result<Arc<Storage>, Error> {
@@ -789,6 +797,15 @@ mod tests {
         assert_eq!(other("HRESULT 0x800703e3: Operazione di I/O terminata"), "error-phone-disconnected");
         assert_eq!(other("HRESULT 0x802a0002: shut down"), "error-phone-disconnected");
         assert_eq!(other("HRESULT 0x80070057: parameter"), "error-detail");
+    }
+
+    /// Prova W5 on Windows (27/11): a 4 GiB file from the computer to the phone's FAT32 card ended
+    /// with "storage full", mtp-rs's English, as the detail of the error. The phone says the same
+    /// for a storage that is full and for a file too big for it (`StoreFull`, `ObjectTooLarge`):
+    /// both in the user's language.
+    #[test]
+    fn a_file_the_storage_does_not_take_is_said_in_the_users_language() {
+        assert_eq!(super::error(mtp_rs::Error::StorageFull).0, "error-phone-full");
     }
 
     #[test]

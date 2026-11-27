@@ -125,6 +125,7 @@ impl App {
             transfer: None,
             touched_at: 0.0,
             quit_after_transfer: false,
+            quit_phone: Default::default(),
             quit_dropped_turn: false,
             quit_after_editor: None,
             deleting: 0,

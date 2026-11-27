@@ -139,6 +139,20 @@ pub struct Seen {
     pub many: bool,
     /// The files are still being counted, before the copy: items found so far.
     pub counting: Option<usize>,
+    /// The wait for the phone was asked to end (`mtp::leaving`).
+    pub leaving: bool,
+}
+
+/// The way out of the wait for the phone, once Cancel is pressed (#354: the wait could last
+/// very long, and nothing ended it).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Leave {
+    /// Not there: Cancel not pressed, or no file given to the phone yet.
+    No,
+    /// "Stop waiting" is to press.
+    Offered,
+    /// Pressed: the wait ends at its next look.
+    Asked,
 }
 
 /// The bar of the window.
@@ -169,6 +183,11 @@ pub enum Note {
     Long,
     /// Cancel pressed: the phone ends the file, then its copy goes; `others` files never start.
     Cancelled { others: usize },
+    /// "Stop waiting" pressed too: what the phone makes of the file stays.
+    Left,
+    /// The file under way goes through this computer (a big one, `through_pc`): the phone is
+    /// not copying alone, the bar is real, and Cancel stops as in the copy box.
+    ThroughPc,
 }
 
 /// What the window shows for a `Seen`; the UI gives it its words and its place. With one file
@@ -194,6 +213,7 @@ pub struct View {
     pub note: Note,
     /// Cancel is still to press (`false` once pressed: its button gives way to what happens).
     pub cancel: bool,
+    pub leave: Leave,
 }
 
 /// The window for `s`: only what is known, nothing guessed.
@@ -202,7 +222,7 @@ pub fn view(s: &Seen) -> View {
     if s.counting.is_some() {
         // Nothing of the copy is known yet, and Cancel stops before the first file.
         let (file, bar, note) = (None, Bar::Busy, Note::Waiting);
-        return View { counting: s.counting, rows, name: String::new(), nth: None, file, bar, data: None, speed: None, note, cancel: !s.cancelling };
+        return View { counting: s.counting, rows, name: String::new(), nth: None, file, bar, data: None, speed: None, note, cancel: !s.cancelling, leave: Leave::No };
     }
     let several = s.files_total > 1;
     // The file under way among all: the last one once all are done (a sidecar after its photo).
@@ -212,7 +232,17 @@ pub fn view(s: &Seen) -> View {
         let speed = bytes as f64 / secs;
         (speed as u64, (s.total.saturating_sub(s.done) as f64 / speed).round() as u64)
     });
-    let note = if s.cancelling {
+    // Only on a file the phone has had for some seconds: a small one is done before.
+    let leave = match (s.cancelling && phone.is_some_and(|(_, _, secs)| *secs >= SAY_SECS), s.leaving) {
+        (false, _) => Leave::No,
+        (true, false) => Leave::Offered,
+        (true, true) => Leave::Asked,
+    };
+    let note = if s.through_pc {
+        Note::ThroughPc
+    } else if leave == Leave::Asked {
+        Note::Left
+    } else if s.cancelling {
         Note::Cancelled { others: s.files_total.saturating_sub(n) }
     } else if phone.is_some_and(|(_, _, secs)| *secs >= LONG_SECS) {
         Note::Long
@@ -230,6 +260,7 @@ pub fn view(s: &Seen) -> View {
         speed,
         note,
         cancel: !s.cancelling,
+        leave,
     }
 }
 
@@ -277,7 +308,7 @@ mod tests {
     #[test]
     fn one_file_shows_no_counts() {
         let v = view(&Seen { big: Some((GB, 10.0)), ..seen(0, 1, 0, 6 * GB) });
-        assert_eq!(v, View { counting: None, rows: false, name: "big.mp4".into(), nth: None, file: Some((2 * GB, Some(12))), bar: Bar::Busy, data: None, speed: None, note: Note::Waiting, cancel: true });
+        assert_eq!(v, View { counting: None, rows: false, name: "big.mp4".into(), nth: None, file: Some((2 * GB, Some(12))), bar: Bar::Busy, data: None, speed: None, note: Note::Waiting, cancel: true, leave: Leave::No });
     }
 
     /// Several files: "File 2 of 5" while the second is copied, the bar by whole files with the
@@ -342,7 +373,7 @@ mod tests {
     fn after_cancel() {
         let cancelled = |files, total| view(&Seen { cancelling: true, ..seen(files, total, 0, 6 * GB) });
         let v = cancelled(1, 5);
-        assert_eq!((v.note, v.cancel), (Note::Cancelled { others: 3 }, false));
+        assert_eq!((v.note, v.cancel, v.leave), (Note::Cancelled { others: 3 }, false, Leave::Offered));
         assert_eq!(cancelled(3, 5).note, Note::Cancelled { others: 1 });
         assert_eq!(cancelled(4, 5).note, Note::Cancelled { others: 0 }, "the last file");
         assert_eq!(cancelled(5, 5).note, Note::Cancelled { others: 0 }, "all done");
@@ -351,13 +382,30 @@ mod tests {
         assert_eq!(view(&long).note, Note::Cancelled { others: 1 });
     }
 
+    /// #354: once Cancel is pressed the wait for the phone has a way out, "Stop waiting", until
+    /// it is pressed too. Not before Cancel, nor while the files are counted or a file goes
+    /// through the computer (Cancel stops those by itself).
+    #[test]
+    fn the_way_out_of_the_wait() {
+        let s = |cancelling, leaving| Seen { cancelling, leaving, ..seen(0, 1, 0, 6 * GB) };
+        assert_eq!(view(&s(false, false)).leave, Leave::No);
+        assert_eq!(view(&s(false, true)).leave, Leave::No, "asked during another paste");
+        assert_eq!(view(&s(true, false)).leave, Leave::Offered);
+        let asked = view(&s(true, true));
+        assert_eq!((asked.leave, asked.note), (Leave::Asked, Note::Left), "the copy is no longer removed: said");
+        assert_eq!(view(&Seen { counting: Some(3), ..s(true, false) }).leave, Leave::No, "counting");
+        assert_eq!(view(&Seen { file: Some(("a.jpg".into(), 4 * MB, SAY_SECS - 1)), ..s(true, false) }).leave, Leave::No, "a file just given to the phone");
+        assert_eq!(view(&Seen { through_pc: true, ..s(true, false) }).leave, Leave::No, "through the computer");
+    }
+
     /// A big file of the other storage going through this computer in the same paste: its name,
     /// no seconds of the phone's last file, the bar by the bytes that move, no strip.
     #[test]
     fn a_file_through_the_computer() {
         let s = Seen { through_pc: true, current: "other.mkv".into(), file: Some(("big.mp4".into(), 2 * GB, LONG_SECS + 5)), ..seen(1, 2, GB, 4 * GB) };
         let v = view(&s);
-        assert_eq!((v.name.as_str(), v.file, v.bar, v.note), ("other.mkv", None, Bar::Part { part: 0.25, busy: false }, Note::Waiting));
+        assert_eq!((v.name.as_str(), v.file, v.bar, v.note), ("other.mkv", None, Bar::Part { part: 0.25, busy: false }, Note::ThroughPc));
+        assert_eq!(view(&Seen { cancelling: true, ..s }).note, Note::ThroughPc, "Cancel there is the copy box's: said by its line");
     }
 
     /// Before the phone is given its first file (folders made first): the name of the paste's file.
@@ -379,7 +427,7 @@ mod tests {
         assert!(many(&paths(&["Internal storage/DCIM/Camera/"])));
         let counting = |many, cancelling| view(&Seen { counting: Some(7), many, cancelling, current: "Camera".into(), ..Seen::default() });
         let one = counting(false, false);
-        assert_eq!(one, View { counting: Some(7), rows: false, name: String::new(), nth: None, file: None, bar: Bar::Busy, data: None, speed: None, note: Note::Waiting, cancel: true });
+        assert_eq!(one, View { counting: Some(7), rows: false, name: String::new(), nth: None, file: None, bar: Bar::Busy, data: None, speed: None, note: Note::Waiting, cancel: true, leave: Leave::No });
         assert!(counting(true, false).rows);
         let cancelled = counting(true, true);
         assert_eq!((cancelled.note, cancelled.cancel), (Note::Waiting, false));

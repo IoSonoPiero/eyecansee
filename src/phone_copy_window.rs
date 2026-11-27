@@ -6,7 +6,8 @@
 //! Its size never changes while it is open: the width is fixed, every row keeps its place even
 //! when empty, and a long name is cut on one line (Piero, 26/11: "for a second it gets bigger").
 //! Cancel: the phone ends the file all the same, then its copy goes (`mtp::undo`); once pressed
-//! the button gives way to what is happening. Esc does nothing (the window cannot close before the
+//! the button gives way to what is happening and to "Stop waiting", the way out of a wait that
+//! lasts (`mtp::leave`: what the phone makes then stays). Esc does nothing (the window cannot close before the
 //! phone is done); Enter and Space press Cancel only once Tab has reached it.
 
 use std::sync::atomic::Ordering;
@@ -14,7 +15,7 @@ use std::sync::atomic::Ordering;
 use eframe::egui;
 
 use crate::human::{human_time, size_gb};
-use crate::transfer::{Bar, Data, Note};
+use crate::transfer::{Bar, Data, Leave, Note};
 use crate::{App, theme, transfer};
 
 /// The id of its modal.
@@ -42,6 +43,9 @@ struct Shown {
     note: (String, bool),
     /// Cancel and its tooltip, or once pressed what is happening.
     cancel: Result<(String, String), String>,
+    /// Once Cancel is pressed, the way out of the wait for the phone: "Stop waiting" and its
+    /// tooltip, until it is pressed too (`transfer::Leave`).
+    leave: Option<(String, String)>,
     why: String,
 }
 
@@ -70,6 +74,7 @@ impl App {
                 transfer::Phase::Looking(found) => Some(found),
                 _ => None,
             },
+            leaving: crate::mtp::leaving(),
         }
     }
 
@@ -97,6 +102,8 @@ impl App {
             Note::Long => t("phone-copy-long"),
             Note::Cancelled { others: 0 } => t("phone-copy-cancelled-note"),
             Note::Cancelled { others } => format!("{} {}", t("phone-copy-cancelled-note"), self.i18n.t_args("phone-copy-others", &[("n", &others.to_string())])),
+            Note::Left => t("phone-copy-leaving-note"),
+            Note::ThroughPc => t("phone-copy-through-pc"),
         };
         Shown {
             title: t("phone-copy-title"),
@@ -105,7 +112,12 @@ impl App {
             bar: v.bar,
             counts: v.rows.then_some([data, speed]),
             note: (format!("{now} {}", t("phone-copy-keep")), v.note != Note::Waiting),
-            cancel: if v.cancel { Ok((t("delete-no"), t("phone-copy-cancel-tip"))) } else { Err(t("phone-copy-cancelled")) },
+            cancel: match (v.cancel, v.leave) {
+                (true, _) => Ok((t("delete-no"), t("phone-copy-cancel-tip"))),
+                (false, Leave::Asked) => Err(t("phone-copy-leaving")),
+                (false, _) => Err(t("phone-copy-cancelled")),
+            },
+            leave: (v.leave == Leave::Offered).then(|| (t("phone-copy-leave"), t("phone-copy-leave-tip"))),
             why: t("phone-copy-why"),
             name: if v.counting.is_some() { t("phone-copy-counting") } else { v.name },
         }
@@ -118,13 +130,19 @@ impl App {
         let shown = self.phone_copy_shown(&p);
         // Esc closes nothing here: taken, so it answers no window under this one later.
         let _ = crate::confirm::answer(ctx, &mut self.key_answer, ID);
-        let (mut cancel, mut help) = (false, false);
+        let (mut pressed, mut help) = (false, false);
         egui::Modal::new(egui::Id::unique(ID)).show(ctx, |ui| {
             ui.set_width(WIDTH);
-            (cancel, help) = draw(ui, &shown);
+            (pressed, help) = draw(ui, &shown);
         });
-        if cancel {
-            p.cancel.store(true, Ordering::Relaxed);
+        // The button of the window: Cancel, then the way out of the wait.
+        match (pressed, shown.cancel.is_ok()) {
+            (true, true) => p.cancel.store(true, Ordering::Relaxed),
+            (true, false) => {
+                log!("phone copy: the wait for the phone left by the user");
+                crate::mtp::leave();
+            }
+            (false, _) => {}
         }
         if help {
             let title = self.i18n.t("phone-copy-why-section");
@@ -133,7 +151,8 @@ impl App {
     }
 }
 
-/// The window's content; whether Cancel and the link to the guide were pressed.
+/// The window's content; whether its button (Cancel, or once that is pressed "Stop waiting") and
+/// the link to the guide were pressed.
 fn draw(ui: &mut egui::Ui, s: &Shown) -> (bool, bool) {
     let body = egui::TextStyle::Body.resolve(ui.style());
     let bold = |size: f32| egui::FontId::new(size, egui::FontFamily::Name(crate::BOLD.into()));
@@ -173,9 +192,11 @@ fn draw(ui: &mut egui::Ui, s: &Shown) -> (bool, bool) {
     row(ui, ui.spacing().interact_size.y, |ui| {
         let stop = match &s.cancel {
             Ok((label, tip)) => Some(ui.button(label).on_hover_text(tip)),
+            // What is happening, then the way out: after the words, so a second click where
+            // Cancel was presses nothing.
             Err(state) => {
                 ui.add(egui::Label::new(egui::RichText::new(state).font(bold(body.size))).truncate());
-                None
+                s.leave.as_ref().map(|(label, tip)| ui.button(label).on_hover_text(tip))
             }
         };
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -391,6 +412,96 @@ mod tests {
         cancel_with_the_keys(&mut h, &p);
     }
 
+    /// Where the control that has the keyboard is.
+    fn focused_rect(h: &Harness) -> egui::Rect {
+        h.ctx.memory(|m| m.focused()).and_then(|id| h.ctx.read_response(id)).map(|r| r.rect).expect("a control with the keyboard")
+    }
+
+    /// Tab, or Shift+Tab, from nothing focused: where the control it reaches is.
+    fn tab_to(h: &mut Harness, modifiers: Modifiers) -> egui::Rect {
+        h.key_with(Key::Tab, modifiers);
+        h.frame(Vec::new());
+        focused_rect(h)
+    }
+
+    /// #354 (prova W5 on Windows, 27/11): once Cancel was pressed nothing could be done until the
+    /// phone had ended its file, and the wait for it could last for ever. After Cancel the window
+    /// has a way out, "Stop waiting", next to what is happening and not where Cancel was: a double
+    /// click on Cancel, or Enter twice, only cancels. It fits in the row with the link, in both
+    /// languages. Pressed, the wait for the phone is left (`mtp::leave`) and the button goes; the
+    /// window stays until the copy lets go.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn after_cancel_the_wait_has_a_way_out() {
+        if own_folder("phone_copy_window::tests::after_cancel_the_wait_has_a_way_out") {
+            return;
+        }
+        for lang in ["en", "it"] {
+            crate::mtp::stay();
+            let (mut h, p) = copying(&format!("phone-copy-leave-{lang}"), 1);
+            p.by_phone.begin_ago("big.mp4", GB, 40);
+            h.app.i18n = crate::i18n::I18n::new(lang);
+            frames(&mut h);
+            h.blur();
+            let cancel = tab_to(&mut h, Modifiers::NONE);
+            h.blur();
+            double_click(&mut h, cancel.center());
+            frames(&mut h);
+            assert!(p.cancel.load(Ordering::Relaxed) && open(&h.app), "{lang}: Cancel not pressed by the click");
+            assert!(!crate::mtp::leaving(), "{lang}: a double click on Cancel left the wait");
+            assert_eq!(h.ctx.memory(|m| m.focused()), None, "{lang}: the keyboard on a button after the click");
+            h.key(Key::Enter);
+            frames(&mut h);
+            assert!(!crate::mtp::leaving(), "{lang}: Enter with nothing highlighted left the wait");
+            // Tab: Stop waiting, then the link, side by side in the window.
+            let stop = tab_to(&mut h, Modifiers::NONE);
+            let link = tab_to(&mut h, Modifiers::NONE);
+            let window = h.ctx.memory(|m| m.area_rect(egui::Id::unique(super::ID))).expect("the window");
+            assert!(cancel.right() <= stop.left(), "{lang}: Stop waiting {stop:?} where Cancel was {cancel:?}");
+            assert!(stop.right() < link.left() && window.contains_rect(stop) && window.contains_rect(link), "{lang}: Stop waiting {stop:?} and the link {link:?} do not fit in {window:?}");
+            assert_eq!(tab_to(&mut h, Modifiers::SHIFT), stop, "{lang}: Shift+Tab not back on Stop waiting");
+            h.key(Key::Enter);
+            frames(&mut h);
+            assert!(crate::mtp::leaving() && open(&h.app), "{lang}: Stop waiting pressed, the window staying until the copy lets go");
+            assert_eq!(h.ctx.memory(|m| m.focused()), None, "{lang}: the keyboard left on a button that is gone");
+            assert_eq!(tab_to(&mut h, Modifiers::NONE), link, "{lang}: only the link is left");
+            assert_eq!(tab_to(&mut h, Modifiers::NONE), link, "{lang}: only the link is left");
+        }
+        crate::mtp::stay();
+    }
+
+    /// #354 (prova W5 on Windows, 27/11): the phone unplugged, the copy window was the box in the
+    /// corner with Cancel greyed out (the ✕ had cancelled the copy), "The phone is copying…
+    /// (177 s)", and nothing to press. Cancelled while the phone copies alone, the box has the way
+    /// out in place of the greyed Cancel; pressed, the wait is left. With no phone at work the
+    /// greyed Cancel is all there is, as before.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn the_corner_box_has_the_way_out_too() {
+        if own_folder("phone_copy_window::tests::the_corner_box_has_the_way_out_too") {
+            return;
+        }
+        crate::mtp::stay();
+        let (mut h, p) = copying("phone-copy-corner-leave", 1);
+        p.by_phone.unplugged();
+        p.cancel.store(true, Ordering::Relaxed);
+        frames(&mut h);
+        let controls = |h: &Harness| crate::box_keys::controls(&h.ctx);
+        assert_eq!(controls(&h).len(), 0, "cancelled, no phone at work: only the greyed Cancel");
+        let working = crate::mtp::copying_for_tests("Internal storage/DCIM/big.mp4", 40);
+        frames(&mut h);
+        let stop = controls(&h);
+        assert_eq!(stop.len(), 1, "cancelled while the phone copies alone: no way out in the box");
+        crate::box_keys::focus(&h.ctx, stop[0]);
+        h.frame(Vec::new());
+        h.key(Key::Enter);
+        frames(&mut h);
+        assert!(crate::mtp::leaving() && h.app.transfer.is_some(), "Stop waiting pressed in the box");
+        assert_eq!(controls(&h).len(), 0, "pressed: the button is gone");
+        drop(working);
+        crate::mtp::stay();
+    }
+
     /// The size of the window on screen.
     fn size(h: &mut Harness, what: &str) -> egui::Vec2 {
         frames(h);
@@ -430,7 +541,7 @@ mod tests {
     /// long name wrapped. The window has one size from when it opens (its files not counted yet)
     /// to when it closes, whatever it says, in both languages: the items found, the copy started,
     /// a name longer than the window, the bytes done and the speed
-    /// once known, 3 minutes on a file, after Cancel (with files left out, and on the last file),
+    /// once known, 3 minutes on a file, after Cancel (with files left out, and on the last file), after Stop waiting,
     /// a file through the computer. With one file and with several (which has the rows of the
     /// counts: taller, and as wide).
     #[test]
@@ -466,6 +577,9 @@ mod tests {
                 same(&mut h, "after Cancel");
                 p.files.store(files - 1, Ordering::Relaxed);
                 same(&mut h, "after Cancel on the last file");
+                crate::mtp::leave();
+                same(&mut h, "after Stop waiting");
+                crate::mtp::stay();
                 sizes.push(first);
             }
             assert!(sizes[0].x == sizes[1].x && sizes[0].y < sizes[1].y, "{lang}: one file {:?}, several {:?}", sizes[0], sizes[1]);

@@ -1,8 +1,6 @@
 //! What runs at every frame around the drawing: messages, retries, keys, title and window size
 //! (`before_frame`), the panels and the windows. Split from `main.rs` on 2026-11-01.
 
-use std::sync::atomic::Ordering;
-
 use eframe::egui::{self, Color32};
 
 use crate::window_close::Step;
@@ -15,16 +13,8 @@ impl App {
             log!("close requested (the window's ✕ or the system), editor open {}", self.editor.is_some());
         }
         // Closing during a copy: it is cancelled, and the window closes once the file being copied
-        // is finished. Closed in the middle, a phone kept half an operation and the next session
-        // got its leftovers ("Transaction ID mismatch", until it was plugged in again).
-        if let Some((p, ..)) = &self.transfer
-            && ctx.input(|i| i.viewport().close_requested())
-        {
-            log!("close during a copy: cancelling it first");
-            p.cancel.store(true, Ordering::Relaxed);
-            self.quit_after_transfer = true;
-            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-        }
+        // is finished; asked first while a phone copies by itself (`quit_phone`).
+        self.close_during_copy(ctx);
         // The editor closed after the ✕ with the option off: EyeCanSee now.
         self.quit_after_editor(ctx);
         // The ✕ (`window_close`): over the editor the page takes it (`edit_page`); in the viewer
@@ -252,6 +242,7 @@ impl App {
         self.unlock_window(ctx);
         self.paste_window(ctx);
         self.transfer_window(ctx);
+        self.quit_phone_window(ctx);
         self.export_window(ctx);
         self.rename_window(ctx);
         self.new_folder_window(ctx);

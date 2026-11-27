@@ -9,7 +9,9 @@ use super::*;
 const LOOK: std::time::Duration = std::time::Duration::from_secs(3);
 
 /// The most a phone may take for `size` bytes between its storages: a minute, plus 1 MB/s (the
-/// card of the Redmi took 16 MB/s).
+/// card of the Redmi took 16 MB/s). Long for a big file (1 h 47 min for 6 GB), and kept: a slow
+/// card must not be given up while it works, and the wait ends before that when the phone is
+/// unplugged (`gone`) or the user leaves it (`leave`), which it did not on Windows (#354).
 fn deadline(size: u64) -> std::time::Duration {
     std::time::Duration::from_secs(60 + size / (1 << 20))
 }
@@ -43,6 +45,76 @@ pub(super) fn copy_error(e: mtp_rs::Error, path: &str) -> Error {
     }
 }
 
+/// Raised by who no longer wants to wait for the phone (`wait::Pace::leave`).
+static LEAVE: AtomicBool = AtomicBool::new(false);
+
+/// The wait for a phone that goes on copying or moving a file by itself was left (`leave`).
+pub(super) const LEFT: &str = "error-phone-left";
+
+/// EyeCanSee stops waiting for the phone that goes on copying or moving a file by itself
+/// (`finished_by_phone`): asked by the user, after Cancel or to close the program (#354). The wait
+/// under way ends before its next look at the destination, and one that starts when the call
+/// under way is given up ends at once. The phone may still finish the file: what it makes stays.
+pub fn leave() {
+    LEAVE.store(true, Ordering::Relaxed);
+}
+
+/// `leave` was asked, and no copy or move has started since.
+pub fn leaving() -> bool {
+    LEAVE.load(Ordering::Relaxed)
+}
+
+/// A new paste, copy or move: what was asked for the one before (`leave`) is not for it.
+pub fn stay() {
+    LEAVE.store(false, Ordering::Relaxed);
+}
+
+/// Whether `e` is of a phone left at work: the wait for it left (`LEFT`) or over. It answers
+/// nothing until it is done.
+fn left_at_work(e: &Error) -> bool {
+    matches!(e.0, LEFT | "error-phone-timeout" | unseen::LOST)
+}
+
+/// Whether `e` is of a phone that answers nothing now: left at work, or gone. Nothing more is
+/// asked of it to tidy up (each call would wait for it again, 30 s or more).
+pub(super) fn unanswering(e: &Error) -> bool {
+    left_at_work(e) || e.0 == "error-phone-disconnected"
+}
+
+/// The error `e` of a wait for the phone, with the phone's events (`quiet`) left off when the
+/// phone is still at work (`Quiet::stay`).
+pub(super) fn kept_quiet(e: Error, quiet: Option<Quiet<'_>>) -> Error {
+    if let Some(quiet) = quiet.filter(|_| left_at_work(&e)) {
+        quiet.stay();
+    }
+    e
+}
+
+/// The biggest file a phone is left to copy by itself inside its internal storage through
+/// Windows, and inside another one (a memory card): what it copies in about 10 s, a third of the
+/// 30 s Windows waits, at the speeds seen on a Redmi Note 9 Pro (100 MB/s inside the internal
+/// storage: 2 GB in 20 s, 4 GB in 40 s; 16 MB/s to its card, half of it assumed inside the card).
+const WPD_INNER: u64 = 1 << 30;
+const WPD_CARD: u64 = 128 << 20;
+
+/// The biggest file a phone is left to copy by itself inside one storage; `None`: any size.
+/// `wpd`: through Windows (WPD); `first`: inside its first storage, taken for the internal one
+/// (Android lists it first: not checked on other phones). Windows stops waiting for the phone's
+/// copy after about 30 s, and from then on shows nothing of what the phone made until the phone
+/// is plugged in again (#354, prova W5, 27/11: 6 GB whole on the phone, in no listing, File
+/// Explorer's neither, the listing read in 0.0 s). Why, as far as it can be told from outside:
+/// the Windows driver answers the listings from what it knows (Microsoft's WPD blog, 2007:
+/// calls "handled by the MTP driver" that "do not require the driver to talk to the device") and
+/// learns of a new object from the answer it no longer waits for, or from an event, which
+/// Android does not send for a copy it was asked for (AOSP, `MtpStorageManager`: the object is
+/// frozen in `beginCopyObject`, and `generalEndAddObject` notifies nothing when it worked). So
+/// nothing can be done with the copy, not even seeing it. A bigger file goes through the
+/// computer (`transfer::through_pc`). Through USB (Linux) mtp-rs gives the call up at 30 s too,
+/// but the listing is the phone's own: the wait works at any size.
+pub(crate) fn alone_limit(wpd: bool, first: bool) -> Option<u64> {
+    wpd.then_some(if first { WPD_INNER } else { WPD_CARD })
+}
+
 /// Whether the item looked for is where the phone puts it: `name` with `size` bytes among `found`.
 fn arrived(found: &[(String, u64, ObjectHandle)], name: &str, size: u64) -> Option<ObjectHandle> {
     found.iter().find(|(n, s, _)| n == name && *s == size).map(|(_, _, h)| *h)
@@ -53,6 +125,16 @@ fn arrived(found: &[(String, u64, ObjectHandle)], name: &str, size: u64) -> Opti
 /// 30 s, and every next call stayed waiting for ever, Cancel too; without them the destination
 /// answers again once the phone is done (Redmi Note 9 Pro, 2 GB to the SD card, 25/11/2026).
 pub(super) struct Quiet<'a>(&'a Phone);
+
+impl Quiet<'_> {
+    /// The events stay off: the phone was left at work (the wait for it left, or over), and with
+    /// them waited for the calls that come next would never get the session back (see `Quiet`).
+    /// They start again when the phone is opened anew.
+    fn stay(self) {
+        log!("phone {}: left at work, its events stay off", self.0.serial);
+        std::mem::forget(self);
+    }
+}
 
 impl Drop for Quiet<'_> {
     fn drop(&mut self) {
@@ -65,6 +147,12 @@ impl Drop for Quiet<'_> {
 }
 
 impl Phone {
+    /// `alone_limit` for the storage of `path` of this phone.
+    pub fn alone_limit(&self, path: &str) -> Option<u64> {
+        let first = self.open.get().and_then(|(_, storages)| storages.first()).is_some_and(|(name, _)| path.split('/').next() == Some(name));
+        alone_limit(cfg!(windows), first)
+    }
+
     /// Stops the phone's events until the guard is dropped (`Quiet`).
     pub(super) fn quiet(&self) -> Quiet<'_> {
         if let Some(stop) = self._events.lock().unwrap().take() {
@@ -98,39 +186,96 @@ impl Phone {
 
     /// After a copy or a move of `path` (begun at `began`) into `folder` of the storage `to`, given up by mtp-rs at
     /// 30 s: the phone is still at it. Its turn, held since the call (`queued_kept`), is kept, so nothing else is asked meanwhile but the
-    /// destination, read every few seconds (a reading while the phone works is given up at 30 s
+    /// destination, read every few seconds (`wait::until_arrived`; a reading while the phone works is given up at 30 s
     /// too, and mtp-rs goes on), until `name` is there with `size` bytes and, for a move, the item
-    /// `moved` is no longer on its storage. The handle of what arrived.
-    pub(super) async fn finished_by_phone(&self, (what, began, _turn): (&str, std::time::Instant, turn::Turn<'_>), path: &str, (to, folder): (&Storage, ObjectHandle), (name, size): (&str, u64), moved: Option<(&Storage, ObjectHandle)>) -> Result<ObjectHandle, Error> {
+    /// `moved` is no longer on its storage. The handle of what arrived. `free`, after Windows gave
+    /// the copy up: the free bytes of `to` before it; Windows may never show the item, and the
+    /// wait ends once that space is taken (`unseen`).
+    pub(super) async fn finished_by_phone(&self, (what, began, _turn): (&str, std::time::Instant, turn::Turn<'_>), path: &str, (to, folder): (&Storage, ObjectHandle), (name, size, free): (&str, u64, Option<u64>), moved: Option<(&Storage, ObjectHandle)>) -> Result<ObjectHandle, Error> {
         let start = std::time::Instant::now();
         let (_waiting, _deaf) = (Waiting::start_at(what, path, began), turn::Deaf::start(&self.serial, path));
         log!("phone {}: {what} {path}: the phone is still at it ({size} bytes), its result looked for", self.serial);
         let parent = (folder != ObjectHandle::ROOT).then_some(folder);
-        while start.elapsed() < deadline(size) {
-            tokio::time::sleep(LOOK).await;
+        let pace = wait::Pace { look: LOOK, most: deadline(size), leave: &LEAVE };
+        let look = |at: std::time::Duration| async move {
             let t = std::time::Instant::now();
             let found = match to.list_objects(parent).await {
                 Ok(objects) => objects.into_iter().map(|o| (o.filename, o.size, o.handle)).collect::<Vec<_>>(),
-                Err(e) if e.is_disconnected() => return Err(error(e)),
                 // The phone is still copying: this reading was given up too.
                 Err(e) => {
-                    log!("phone {}: {what} {path}: destination not read ({e}) in {:.1} s, at {:.0} s", self.serial, t.elapsed().as_secs_f32(), start.elapsed().as_secs_f32());
-                    continue;
+                    log!("phone {}: {what} {path}: destination not read ({e}) in {:.1} s, at {:.0} s", self.serial, t.elapsed().as_secs_f32(), at.as_secs_f32());
+                    return Err(e);
                 }
             };
             let there = found.iter().find(|(n, _, _)| n == name).map(|(_, s, _)| *s);
-            log!("phone {}: {what} {path}: destination read in {:.1} s, at {:.0} s: {there:?} of {size} bytes", self.serial, t.elapsed().as_secs_f32(), start.elapsed().as_secs_f32());
-            let Some(h) = arrived(&found, name, size) else { continue };
+            log!("phone {}: {what} {path}: destination read in {:.1} s, at {:.0} s: {there:?} of {size} bytes", self.serial, t.elapsed().as_secs_f32(), at.as_secs_f32());
+            let Some(h) = arrived(&found, name, size) else {
+                return Ok(match free {
+                    Some(before) if self.made_unseen(path, to, (before, size)).await => Some(unseen::Found::Unseen),
+                    _ => None,
+                });
+            };
             if let Some((from, old)) = moved
                 && from.get_object_info(old).await.is_ok_and(|i| i.storage_id == from.id())
             {
-                continue;
+                return Ok(None);
             }
-            log!("phone {}: {what} {path}: done by the phone in {:.0} s", self.serial, start.elapsed().as_secs_f32());
-            return Ok(h);
+            Ok(Some(unseen::Found::There(h)))
+        };
+        match wait::until_arrived(pace, look).await {
+            wait::End::Arrived(unseen::Found::There(h)) => {
+                log!("phone {}: {what} {path}: done by the phone in {:.0} s", self.serial, start.elapsed().as_secs_f32());
+                Ok(h)
+            }
+            wait::End::Arrived(unseen::Found::Unseen) => {
+                log!("phone {}: {what} {path}: made by the phone in {:.0} s (its space is taken), in no listing", self.serial, start.elapsed().as_secs_f32());
+                Err((unseen::UNSEEN, path.to_string()))
+            }
+            wait::End::Gone(e) => Err(error(e)),
+            wait::End::Left => {
+                log!("phone {}: {what} {path}: the wait left after {:.0} s, the phone may still be at it", self.serial, start.elapsed().as_secs_f32());
+                Err((LEFT, path.to_string()))
+            }
+            wait::End::Late => {
+                log!("phone {}: {what} {path}: not done by the phone in {:.0} s", self.serial, start.elapsed().as_secs_f32());
+                Err((if free.is_some() { unseen::LOST } else { "error-phone-timeout" }, path.to_string()))
+            }
         }
-        log!("phone {}: {what} {path}: not done by the phone in {:.0} s", self.serial, start.elapsed().as_secs_f32());
-        Err(("error-phone-timeout", path.to_string()))
+    }
+
+    /// `CopyObject` of `path` into the folder `dir`. A handle equal to the original's means a copy
+    /// not made (see `copy_inside`): it is never renamed or moved.
+    pub(super) async fn copy_object(&self, path: &str, dir: &str) -> Result<ObjectHandle, Error> {
+        let (storage, handle) = self.locate(path).await?;
+        let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
+        // Into the storage of `dir`, which may not be the one of `path` (audit 2.7).
+        let (to, folder) = match self.locate(dir).await? {
+            (to, Some(h)) => (to, h),
+            (to, None) => (to, ObjectHandle::ROOT),
+        };
+        // A copy is made by the phone also inside one storage: a big one takes longer than mtp-rs
+        // waits there too (6 GB, about a minute). The events stop for a file that may (`Quiet`).
+        let size = self.size_of(path, (&storage, handle)).await?;
+        let free = self.free_before(path, &to, size).await;
+        let (quiet, _deaf) = (size >= LONG_COPY).then(|| (self.quiet(), turn::Deaf::start(&self.serial, path))).unzip();
+        stay();
+        let began = std::time::Instant::now();
+        let h = match self.queued_kept("copy", path, self.marked(storage.copy_object(handle, folder, Some(to.id())))).await {
+            // Given up while the phone is still copying it (`still_at_it`).
+            (Err(e), turn) if still_at_it(&e, size, began.elapsed()) => {
+                // Given up by Windows: it may never show the copy (`unseen`).
+                let free = free.filter(|_| matches!(e, mtp_rs::Error::InvalidData { .. }));
+                let h = self.finished_by_phone(("copy", began, turn), path, (&to, folder), (source::name(path), size, free), None).await.map_err(|e| kept_quiet(e, quiet))?;
+                self.own.mark(h);
+                h
+            }
+            (r, _) => r.map_err(|e| copy_error(e, path))?,
+        };
+        log!("phone {}: copy {path} into {dir}: handle {} -> {}", self.serial, handle.0, h.0);
+        if h == handle {
+            return Err((NOT_MADE, path.to_string()));
+        }
+        Ok(h)
     }
 }
 
@@ -175,4 +320,21 @@ mod tests {
         assert_eq!(deadline(0).as_secs(), 60);
         assert_eq!(deadline(2 << 30).as_secs(), 60 + 2048);
     }
+
+    /// #354: a phone left at work (the wait for it left by the user, or over) or gone answers
+    /// nothing: nothing more is asked of it to tidy up, and its events stay off only while it may
+    /// still be at work. A copy it refused, or cancelled, is of a phone that answers.
+    #[test]
+    fn a_phone_that_answers_nothing_is_not_asked_more() {
+        let e = |id: &'static str| (id, "Download/a.mp4".to_string());
+        assert!(unanswering(&e(LEFT)) && left_at_work(&e(LEFT)));
+        assert!(unanswering(&e("error-phone-timeout")) && left_at_work(&e("error-phone-timeout")));
+        assert!(unanswering(&e("error-phone-disconnected")) && !left_at_work(&e("error-phone-disconnected")));
+        // Windows never showed the copy: the phone may still be at it. Its space taken: it is done.
+        assert!(unanswering(&e(unseen::LOST)) && left_at_work(&e(unseen::LOST)));
+        assert!(!unanswering(&e(unseen::UNSEEN)), "the phone is done: the hidden folder of the copy is removed");
+        assert!(!unanswering(&e(NOT_MADE)) && !unanswering(&e("error-cancelled")));
+        assert_eq!(kept_quiet(e(NOT_MADE), None), e(NOT_MADE));
+    }
+
 }

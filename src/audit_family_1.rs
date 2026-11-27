@@ -84,6 +84,10 @@ pub(crate) struct Harness {
     pub full_wanted: Option<bool>,
     /// The window is at full screen, as the window tells the app in every frame (#358).
     pub full: bool,
+    /// What the app asked of the window in the last frame.
+    pub commands: Vec<egui::ViewportCommand>,
+    /// The window's ✕ is pressed in the next frame (`close`).
+    closing: bool,
 }
 
 impl Harness {
@@ -104,7 +108,7 @@ impl Harness {
         let ctx = egui::Context::default();
         let settings = Settings { check_updates: false, tips: false, local_permanent: true, servers_plain_warned: true, ..Settings::default() };
         let app = App::new(&ctx, settings, Some(address.to_string()));
-        Harness { ctx, app, frame: eframe::Frame::_new_kittest(), full_asked: false, full_wanted: None, full: false }
+        Harness { ctx, app, frame: eframe::Frame::_new_kittest(), full_asked: false, full_wanted: None, full: false, commands: Vec::new(), closing: false }
     }
 
     /// One frame, with `events` (keys) as the window would give them.
@@ -113,6 +117,9 @@ impl Harness {
         if self.full {
             raw.viewports.entry(egui::ViewportId::ROOT).or_default().fullscreen = Some(true);
         }
+        if std::mem::take(&mut self.closing) {
+            raw.viewports.entry(egui::ViewportId::ROOT).or_default().events.push(egui::ViewportEvent::Close);
+        }
         eframe::App::raw_input_hook(&mut self.app, &self.ctx, &mut raw);
         let (app, frame) = (&mut self.app, &mut self.frame);
         let mut out = self.ctx.run_ui(raw, |ui| eframe::App::ui(app, ui, frame));
@@ -120,8 +127,17 @@ impl Harness {
         self.full_asked |= out.viewport_output.values().any(|v| v.commands.iter().any(full));
         let wanted = out.viewport_output.values().flat_map(|v| &v.commands).filter_map(|c| if let egui::ViewportCommand::Fullscreen(f) = c { Some(*f) } else { None }).next_back();
         self.full_wanted = wanted.or(self.full_wanted);
+        self.commands = out.viewport_output.values().flat_map(|v| v.commands.iter().cloned()).collect();
         // No painter: the textures are dropped as handled.
         out.textures_delta.clear();
+    }
+
+    /// One frame in which the window's ✕ is pressed: whether the app lets the window close (it
+    /// does when it does not answer `CancelClose`).
+    pub fn close(&mut self) -> bool {
+        self.closing = true;
+        self.frame(Vec::new());
+        !self.commands.contains(&egui::ViewportCommand::CancelClose)
     }
 
     /// Frames until `done`, 10 s at most.
