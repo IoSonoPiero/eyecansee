@@ -8,7 +8,7 @@ Il visore mostra una foto alla volta, grande quanto la finestra permette. Da lì
 
 - Fai doppio clic su una foto nella griglia, oppure selezionala e premi **Invio** (anche **Visualizza > Apri**).
 - Per tornare alla griglia: **Esc**, un doppio clic sulla foto (se nelle [Opzioni](options.md) non è impostato per andare a schermo intero), ![Torna alla griglia](icon://layout-grid) **Torna alla griglia** nella barra strumenti, oppure **Visualizza > Torna alla griglia**. Nella griglia resta selezionata la foto che stavi guardando.
-- Anche la X della finestra torna alla griglia invece di chiudere EyeCanSee. Si può cambiare nelle [Opzioni](options.md).
+- Anche la ✕ della finestra torna alla griglia invece di chiudere EyeCanSee. Si può cambiare nelle [Opzioni](options.md).
 
 Con più file selezionati, Invio apre il primo, e il visore si muove solo tra quelli.
 
@@ -24,7 +24,7 @@ Le stesse voci sono nel menù **Visualizza** (Avanti, Indietro, Primo, Ultimo). 
 
 ## Immagini molto grandi
 
-Un'immagine più grande di 8192 pixel sul lato lungo viene mostrata ridotta a 8192 pixel; un JPEG viene letto già ridotto, così occupa meno memoria. Un'immagine che per aprirsi chiederebbe più di metà della memoria del computer (per esempio un HEIC, un TIFF a 16 bit, un file di Photoshop o un JPEG XL di centinaia di megapixel, su un computer da 8 GB) non si apre subito: al suo posto il visore dice quanta memoria le serve e propone **Apri comunque**. Se la apri comunque, il computer può rallentare molto, oppure il sistema può chiudere EyeCanSee. Aperta comunque, quell'immagine si apre senza domande (anche nell'editor, in Salva come, Converti, Ridimensiona e salvando una rotazione) finché EyeCanSee resta aperto; quando EyeCanSee riparte, il visore lo chiede di nuovo. Le frecce passano all'immagine dopo come sempre; un'immagine non aperta resta chiusa, e il visore lo dice di nuovo quando ci torni. Un'immagine così grande non viene mai preparata in anticipo come vicina, nemmeno dopo averla aperta comunque: il suo file si legge tutto in una volta quando arriva a 32 MB, e di uno più grande solo l'inizio, quando lì ci sono le dimensioni dell'immagine (un TIFF le ha spesso in fondo, e viene letto tutto), e non viene aperta; la presentazione non la mostra, a meno che sia stata aperta comunque: allora si apre quando tocca a lei. Nella griglia non ha la miniatura (vedi [La griglia delle miniature](grid.md)).
+Un'immagine più grande di 8192 pixel sul lato lungo viene mostrata ridotta a 8192 pixel; un JPEG viene letto già ridotto, così occupa meno memoria. Un'immagine che per aprirsi chiederebbe più di metà della memoria del computer (per esempio un HEIC, un TIFF a 16 bit, un file di Photoshop o un JPEG XL di centinaia di megapixel, su un computer da 8 GB) non si apre subito: al suo posto il visore dice quanta memoria le serve e propone **Apri comunque**. Se la apri comunque, il computer può rallentare molto, oppure il sistema può chiudere EyeCanSee. Dopo averla aperta comunque, quell'immagine si apre senza domande (anche nell'editor, in Salva come, Converti, Ridimensiona e salvando una rotazione) finché EyeCanSee resta aperto; quando EyeCanSee riparte, il visore lo chiede di nuovo. Le frecce passano all'immagine dopo come sempre; un'immagine non aperta resta chiusa, e il visore lo dice di nuovo quando ci torni. Un'immagine così grande non viene mai preparata in anticipo come vicina, nemmeno dopo averla aperta comunque: il suo file si legge tutto in una volta quando arriva al massimo a 32 MB, e di uno più grande solo l'inizio, quando lì ci sono le dimensioni dell'immagine (un TIFF le ha spesso in fondo, e viene letto tutto), e non viene aperta; il carosello non la mostra, a meno che sia stata aperta comunque: allora si apre quando tocca a lei. Nella griglia non ha la miniatura (vedi [La griglia delle miniature](grid.md)).
 
 ## Animazioni e pagine
 
@@ -42,7 +42,7 @@ Un panorama a 360° (da un drone, da un telefono o da una fotocamera a 360°) è
 
 ![Un panorama a 360° nel visore](../img/viewer-360.webp)
 
-- Trascina per guardarti intorno. La **rotellina**, **+** e **−** ingrandiscono e rimpiccioliscono (la rotellina come dice [Opzioni](options.md), e sempre con **Ctrl**); **0** torna alla vista di partenza, **1** mostra il centro al 100%. La percentuale nella barra di stato è quella del centro della vista.
+- Trascina per guardarti intorno. La **rotellina**, **+** e **−** ingrandiscono e rimpiccioliscono (la rotellina come impostato nelle [Opzioni](options.md), e sempre con **Ctrl**); **0** torna alla vista di partenza, **1** mostra il centro al 100%. La percentuale nella barra di stato è quella del centro della vista.
 - Un panorama parziale (che non fa tutto il giro, o non arriva in alto e in basso) mostra solo ciò che copre, e la vista si ferma ai suoi bordi.
 - **P**, o **Foto piatta** in basso a sinistra, mostra la foto piatta, come ogni altra; **P** o **Vista a 360°** la mostra di nuovo come una sfera. La scelta vale per i panorami che apri dopo, finché EyeCanSee resta aperto.
 - Ruotato (**Ruota**), o mentre misuri, un panorama si vede piatto. Le miniature, il carosello, il salvataggio, la copia e l'editor usano sempre la foto piatta.
@@ -58,7 +58,7 @@ Un panorama più grande di 8192 pixel si vede ridotto a 8192 (vedi Immagini molt
 - Trascina una foto ingrandita per spostarla.
 - Sotto il 100% ogni punto dello schermo mostra la media dei pixel che copre, a ogni zoom: i bordi restano lisci e i dettagli fini (erba, capelli) non diventano granulosi. Si può spegnere nelle [Opzioni](options.md) > Aspetto.
 
-Una foto si apre adattata alla finestra, e una foto piccola alla sua grandezza vera, senza ingrandirla. Puoi rimpicciolirla sotto la misura adattata, fino all'1% (un panorama lungo si ferma quando il lato corto è di 16 pixel sullo schermo): rimpicciolendo, la rotellina e **−** si fermano una volta sulla misura adattata, poi proseguono; più piccola della finestra, la foto resta al centro. Un disegno SVG si ingrandisce fino a riempire la finestra, anche quando è più piccolo. Un disegno CAD non si vede mai più piccolo che adattato alla finestra. L'ingrandimento massimo (2000% all'inizio) si regola nelle [Opzioni](options.md); per un disegno SVG più piccolo di 2048 pixel si conta sui 2048 pixel a cui viene disegnato, quindi la sua percentuale può salire molto di più. Nelle Opzioni puoi anche far cambiare foto alla rotellina invece di ingrandire: allora **Ctrl** e la rotellina ingrandiscono comunque. La foto successiva parte di nuovo adattata.
+Una foto si apre adattata alla finestra, e una foto piccola alla sua grandezza vera, senza ingrandirla. Puoi rimpicciolirla sotto la misura adattata, fino all'1% (un panorama lungo si ferma quando il lato corto è di 16 pixel sullo schermo): rimpicciolendo, la rotellina e **−** si fermano una volta sulla misura adattata, poi proseguono; più piccola della finestra, la foto resta al centro. Un disegno SVG si ingrandisce fino a riempire la finestra, anche quando è più piccolo. Un disegno CAD non si vede mai più piccolo della misura adattata alla finestra. L'ingrandimento massimo (2000% all'inizio) si regola nelle [Opzioni](options.md); per un disegno SVG più piccolo di 2048 pixel si conta sui 2048 pixel a cui viene disegnato, quindi la sua percentuale può salire molto di più. Nelle Opzioni puoi anche far cambiare foto alla rotellina invece di ingrandire: allora **Ctrl** e la rotellina ingrandiscono comunque. La foto successiva parte di nuovo adattata.
 
 ## La barra di stato del visore
 
@@ -74,9 +74,9 @@ La barra strumenti tiene solo ciò che lavora sulla foto mostrata: ![Rinomina…
 
 **F11**, oppure **Visualizza > Schermo intero**, mostra la foto da sola, senza menù né barre, su fondo nero. Il menù del clic destro ha la stessa voce; a schermo intero diventa **Esci dallo schermo intero**. **Esc** prima esce dallo schermo intero, poi torna alla griglia.
 
-Con **Doppio clic nel visore** impostato su **Va a schermo intero** nelle [Opzioni](options.md), un doppio clic su una foto, un video, un modello o un disegno va a schermo intero, e un altro doppio clic torna alla finestra. Mentre misuri, il doppio clic resta della misura.
+Con **Doppio clic nel visore** impostato su **Va a schermo intero** nelle [Opzioni](options.md), un doppio clic su una foto, un video, un modello o un disegno va a schermo intero, e un altro doppio clic torna alla finestra. Mentre misuri, il doppio clic serve alla misura.
 
-Un video a schermo intero riempie lo schermo: la sua barra compare sopra il fondo dell'immagine quando si muove il mouse e sparisce col puntatore dopo 2 secondi di mouse fermo (resta finché il puntatore è sopra).
+Un video a schermo intero riempie lo schermo: la sua barra compare sopra la parte bassa dell'immagine quando si muove il mouse e sparisce col puntatore dopo 2 secondi di mouse fermo (resta finché il puntatore è sopra).
 
 ## Cos'altro puoi fare
 
