@@ -220,6 +220,10 @@ transfer-files-moved = { $n ->
     [one] **1 file** spostato in { $dir }.
    *[other] **{ $n } file** spostati in { $dir }.
 }
+transfer-files-kept = { $n ->
+    [one] **1 file** copiato in { $dir } ma non spostato: l'originale è rimasto dov'era.
+   *[other] **{ $n } file** copiati in { $dir } ma non spostati: gli originali sono rimasti dov'erano.
+}
 transfer-folders-moved = { $n ->
     [one] **1 cartella** spostata in { $dir }.
    *[other] **{ $n } cartelle** spostate in { $dir }.
@@ -255,8 +259,8 @@ name-refused-heading = { $n ->
    *[other] { $n } file non copiati per il nome:
 }
 name-refused-why = { $n ->
-    [one] Il suo nome non va bene su questo computer: è rimasto dove era.
-   *[other] Il loro nome non va bene su questo computer: sono rimasti dove erano.
+    [one] Il suo nome non si può usare nella destinazione: è rimasto dove era.
+   *[other] Il loro nome non si può usare nella destinazione: sono rimasti dove erano.
 }
 move-left-heading = { $n ->
     [one] 1 elemento non spostato:

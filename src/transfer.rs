@@ -359,6 +359,9 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
         // left out because of its name stays whole.
         // A photo not copied (`failed`) stays, with its sidecars.
         let photo_failed = !src.is_empty() && !src.ends_with('/') && !copied.contains(src);
+        if clip.cut && left_below(src, p) {
+            p.kept.fetch_add(copied.iter().filter(|c| !c.ends_with('/')).count(), Ordering::Relaxed);
+        }
         if clip.cut && !left_below(src, p) && !photo_failed {
             for (s, _, _) in sides.iter().filter(|(s, _, _)| !failed(s, p)) {
                 clip.op.delete(s, Deletion::Permanent).await?;

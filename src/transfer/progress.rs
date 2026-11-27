@@ -61,6 +61,9 @@ pub struct Progress {
     /// Folders a move took whole, as a change of place (`renames`): among the files in the copy
     /// box, said as folders at the end (#356: "1 file moved" for a folder).
     pub folders_moved: AtomicUsize,
+    /// Files a move copied without moving them: their folder stays whole, with an item below it
+    /// left out for its name (`left_below`); said as copied at the end (audit F.8 of 27/11).
+    pub kept: AtomicUsize,
     /// A big file of a phone on its way to the same phone through this computer, which half
     /// (`through_pc`): the copy box says it.
     pub staging: Mutex<Option<Staging>>,

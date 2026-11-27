@@ -141,8 +141,10 @@ const LONG_JOB: std::time::Duration = std::time::Duration::from_secs(10);
 #[derive(Clone, Copy, Default)]
 pub(crate) struct Done {
     pub(crate) cut: bool,
-    /// Files copied or moved; not the folders moved whole.
+    /// Files copied or moved; not the folders moved whole, nor those of `kept`.
     pub(crate) files: usize,
+    /// Files a move copied without moving them: their folder stayed whole (`Progress::kept`).
+    pub(crate) kept: usize,
     /// Folders a move took whole, as a change of place (`transfer::renames`).
     pub(crate) folders: usize,
     /// Items answered Skip, their name already there.
@@ -155,10 +157,11 @@ pub(crate) struct Done {
 impl Done {
     pub(crate) fn of(p: &transfer::Progress, cut: bool) -> Self {
         let n = |a: &std::sync::atomic::AtomicUsize| a.load(Ordering::Relaxed);
-        let folders = n(&p.folders_moved);
+        let (folders, kept) = (n(&p.folders_moved), if cut { n(&p.kept) } else { 0 });
         Done {
             cut,
-            files: n(&p.files).saturating_sub(folders),
+            files: n(&p.files).saturating_sub(folders).saturating_sub(kept),
+            kept,
             folders,
             skipped: n(&p.skipped),
             bytes: p.done.load(Ordering::Relaxed),
@@ -168,16 +171,21 @@ impl Done {
 }
 
 /// The end of a copy that worked into `dir` (Markdown already), a line each: how many files and
-/// folders went there ("To" and the folder when none was counted); how much in how long, how fast
-/// on average (Piero, 25/11), from a second and a byte on; the items skipped, when some were.
+/// folders went there ("To" and the folder when none was counted); the files of a move copied
+/// but not moved (audit F.8 of 27/11); how much in how long, how fast on average (Piero, 25/11),
+/// from a second and a byte on; the items skipped, when some were.
 pub(crate) fn ended_lines(i18n: &crate::i18n::I18n, d: &Done, dir: &str) -> String {
     let n = |v: usize| v.to_string();
+    let kept = (d.kept > 0).then(|| i18n.t_args("transfer-files-kept", &[("n", &n(d.kept)), ("dir", dir)]));
     let mut lines = vec![match (d.files, d.folders) {
+        (0, 0) if kept.is_some() => String::new(),
         (0, 0) => i18n.t_args("transfer-to", &[("dir", dir)]),
         (f, 0) => i18n.t_args(if d.cut { "transfer-files-moved" } else { "transfer-files-copied" }, &[("n", &n(f)), ("dir", dir)]),
         (0, g) => i18n.t_args("transfer-folders-moved", &[("n", &n(g)), ("dir", dir)]),
         (f, g) => i18n.t_args("transfer-files-folders-moved", &[("files", &n(f)), ("folders", &n(g)), ("dir", dir)]),
     }];
+    lines.retain(|l| !l.is_empty());
+    lines.extend(kept);
     if d.bytes > 0 && d.secs >= 1.0 {
         lines.push(i18n.t_args("transfer-summary", &[
             ("size", &crate::human::size(i18n, d.bytes)),
@@ -277,7 +285,7 @@ mod tests {
         assert_eq!(blocks.len(), 6, "{}", all.text);
         assert_eq!(blocks[0], "In /arrivo/");
         assert!(blocks[1].starts_with("1 collegamento a una cartella saltato:\n") && blocks[1].ends_with("\n- c/self"), "{}", blocks[1]);
-        assert_eq!(blocks[2], "1 file non copiato per il nome:\nIl suo nome non va bene su questo computer: è rimasto dove era.\n- c/a:b.jpg");
+        assert_eq!(blocks[2], "1 file non copiato per il nome:\nIl suo nome non si può usare nella destinazione: è rimasto dove era.\n- c/a:b.jpg");
         assert_eq!(blocks[3], "1 elemento non spostato:\nÈ arrivato durante lo spostamento, o qui non si vede: è rimasto dove era, con la sua cartella.\n- c/late.jpg");
         assert_eq!(blocks[4], "1 file non letto:\nNon è stato copiato: è rimasto dove era.\n- c/x.jpg");
         assert_eq!(blocks[5], "Altro nella guida (F1).");
@@ -401,23 +409,23 @@ mod tests {
         let refused = |lang: &str, names: &[String]| end(lang, false, "/arrivo/", Ok(()), [&[], &names.iter().map(String::as_str).collect::<Vec<_>>(), &[]], &[]).unwrap();
         let one = refused("it", &["album/../victim.txt".to_string()]);
         assert_eq!(one.title, "Copia finita");
-        assert_eq!(one.text, format!("In {}\n\n**1 file non copiato per il nome{}**\nIl suo nome non va bene su questo computer: è rimasto dove era.\n- {}", md("/arrivo/"), md(":"), md("album/../victim.txt")));
+        assert_eq!(one.text, format!("In {}\n\n**1 file non copiato per il nome{}**\nIl suo nome non si può usare nella destinazione: è rimasto dove era.\n- {}", md("/arrivo/"), md(":"), md("album/../victim.txt")));
         assert!(one.warning && one.save_as.is_none() && one.help.is_none());
         let ten = refused("it", &names(10));
-        assert!(plain(&ten.text).starts_with("In /arrivo/\n\n10 file non copiati per il nome:\nIl loro nome non va bene su questo computer: sono rimasti dove erano.\n- album/1:a.jpg\n- album/2:a.jpg\n"), "{}", ten.text);
+        assert!(plain(&ten.text).starts_with("In /arrivo/\n\n10 file non copiati per il nome:\nIl loro nome non si può usare nella destinazione: sono rimasti dove erano.\n- album/1:a.jpg\n- album/2:a.jpg\n"), "{}", ten.text);
         assert_eq!(ten.text.matches("\n- ").count(), 10);
         assert!(!ten.text.contains("altri") && ten.text.ends_with(&md("album/10:a.jpg")));
         let many = refused("it", &names(15));
         assert!(many.text.ends_with(&format!("- {}\n- e altri 5", md("album/10:a.jpg"))) && many.text.matches("\n- ").count() == 11, "{}", many.text);
         // Copy takes all fifteen names, as they are.
         let copy = many.copy.unwrap();
-        assert!(copy.starts_with("In /arrivo/\n\n15 file non copiati per il nome:\nIl loro nome non va bene su questo computer: sono rimasti dove erano.\n- album/1:a.jpg\n"), "{copy}");
+        assert!(copy.starts_with("In /arrivo/\n\n15 file non copiati per il nome:\nIl loro nome non si può usare nella destinazione: sono rimasti dove erano.\n- album/1:a.jpg\n"), "{copy}");
         assert!(copy.ends_with("\n- album/14:a.jpg\n- album/15:a.jpg") && copy.matches("\n- ").count() == 15 && !copy.contains("altri"), "{copy}");
         let en = refused("en", &names(12));
         assert_eq!(en.title, "Copy finished");
-        assert!(plain(&en.text).starts_with("To /arrivo/\n\n12 files not copied for their names:\nTheir names are not valid on this computer: they stayed where they were.\n- "), "{}", en.text);
+        assert!(plain(&en.text).starts_with("To /arrivo/\n\n12 files not copied for their names:\nTheir names cannot be used at the destination: they stayed where they were.\n- "), "{}", en.text);
         assert!(en.text.ends_with("\n- and 2 more"));
-        assert!(plain(&refused("en", &names(1)).text).contains("\n1 file not copied for its name:\nIts name is not valid on this computer: it stayed where it was.\n"));
+        assert!(plain(&refused("en", &names(1)).text).contains("\n1 file not copied for its name:\nIts name cannot be used at the destination: it stayed where it was.\n"));
         assert!(refused("it", &names(11)).text.ends_with("\n- e un altro"));
         let broken = refused("it", &["a\nb.jpg".to_string()]);
         assert!(broken.text.ends_with(&format!("- a\u{FFFD}b{}", md(".jpg"))), "{}", broken.text);
@@ -432,7 +440,7 @@ mod tests {
         assert_eq!(plain(&one.text), "In /arrivo/\n\n1 elemento non spostato:\nÈ arrivato durante lo spostamento, o qui non si vede: è rimasto dove era, con la sua cartella.\n- DCIM/Camera/late.jpg");
         let en = end("en", true, "/in/", Ok(()), [&[], &["album/a:b.jpg"], &["b.jpg", "a.jpg"]], &[]).unwrap();
         assert_eq!(en.title, "Move finished");
-        assert_eq!(plain(&en.text), "To /in/\n\n1 file not copied for its name:\nIts name is not valid on this computer: it stayed where it was.\n- album/a:b.jpg\n\n2 items not moved:\nThey arrived during the move, or they are not shown here: they stayed where they were, with their folders.\n- a.jpg\n- b.jpg");
+        assert_eq!(plain(&en.text), "To /in/\n\n1 file not copied for its name:\nIts name cannot be used at the destination: it stayed where it was.\n- album/a:b.jpg\n\n2 items not moved:\nThey arrived during the move, or they are not shown here: they stayed where they were, with their folders.\n- a.jpg\n- b.jpg");
         assert_eq!(en.copy.as_deref(), Some(plain(&en.text).as_str()));
     }
 
