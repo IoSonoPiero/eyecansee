@@ -84,6 +84,16 @@ fn not_updated_id(flatpak: bool, rpm: bool, ostree: bool) -> &'static str {
     }
 }
 
+/// The AppImage this copy runs from (`$APPIMAGE`, `$APPDIR` and the executable).
+fn appimage() -> Option<PathBuf> {
+    appimage_of(std::env::current_exe().ok().as_deref(), std::env::var_os("APPIMAGE"), std::env::var_os("APPDIR"))
+}
+
+/// `appimage`, from what it reads: the file the runtime of an AppImage names.
+fn appimage_of(_exe: Option<&Path>, appimage: Option<std::ffi::OsString>, _appdir: Option<std::ffi::OsString>) -> Option<PathBuf> {
+    appimage.map(PathBuf::from)
+}
+
 impl Kind {
     pub fn detect() -> Option<Kind> {
         // The private test copy is replaced by hand, never by a public release (`test_copy`); the
@@ -95,8 +105,8 @@ impl Kind {
         if packaged() {
             return Self::store();
         }
-        if let Some(path) = std::env::var_os("APPIMAGE") {
-            return Some(Kind::AppImage(path.into()));
+        if let Some(path) = appimage() {
+            return Some(Kind::AppImage(path));
         }
         if !cfg!(windows) {
             return None;
@@ -468,7 +478,7 @@ pub fn restart() -> Result<(), String> {
     #[cfg(not(windows))]
     {
         // The AppImage itself, not the binary inside its mount (gone once this process exits).
-        let exe = std::env::var_os("APPIMAGE").map(PathBuf::from).map_or_else(std::env::current_exe, Ok).map_err(|e| e.to_string())?;
+        let exe = appimage().map_or_else(std::env::current_exe, Ok).map_err(|e| e.to_string())?;
         #[cfg(target_os = "linux")]
         // SAFETY: only sets a flag on this process's own descriptors, closes none (see `apply`).
         unsafe {
