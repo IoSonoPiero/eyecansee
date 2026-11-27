@@ -29,7 +29,7 @@ Le foto scattate, eliminate o spostate sul telefono mentre la sua cartella è ap
 
 ## File grandi: passano dal computer
 
-Un file di 32 MB o più copiato o spostato tra la memoria interna e la scheda di memoria dello stesso telefono passa da questo computer: EyeCanSee lo legge dal telefono, poi lo scrive dove va. Il riquadro della copia dice quale delle due cose sta facendo, con **Perché passa dal computer?** che apre questa sezione.
+Un file di 32 MB o più copiato o spostato tra la memoria interna e la scheda di memoria dello stesso telefono passa da questo computer: EyeCanSee lo legge dal telefono, poi lo scrive a destinazione. Il riquadro della copia dice quale delle due cose sta facendo, con **Perché passa dal computer?** che apre questa sezione.
 
 - Mentre il telefono copia un file da solo, non risponde a niente finché non ha finito e non può dire a che punto è: niente barra vera, **Annulla** aspetta la fine del file, e le sue cartelle aspettano.
 - Passando dal computer la barra, la velocità e il tempo che manca sono veri. **Annulla** ferma subito la lettura; la scrittura si ferma alla fine del file, perché un telefono che riceve mezzo file smette di rispondere.
@@ -40,13 +40,13 @@ Un file di 32 MB o più copiato o spostato tra la memoria interna e la scheda di
 
 ## Copie dentro una memoria: il telefono fa da solo
 
-Una copia dentro una memoria del telefono (da una cartella della memoria interna a un'altra, per esempio) la fa il telefono stesso, un file alla volta, molto più in fretta che passando dal computer (su Windows i file più grandi passano dal computer, vedi la sezione prima: la stessa finestra dice allora se sta leggendo o scrivendo, con una barra vera). Mentre copia un file il telefono non risponde a niente, nemmeno a EyeCanSee, e non può dire a che punto è. Per questo, per tutta la copia, una finestra al centro, **Il telefono sta copiando**, fa aspettare il resto di EyeCanSee, anche le cartelle del computer. **Perché devo aspettare?** nella finestra apre questa sezione.
+Una copia dentro una memoria del telefono (da una cartella della memoria interna a un'altra, per esempio) la fa il telefono stesso, un file alla volta, molto più in fretta che passando dal computer (su Windows i file più grandi passano dal computer, vedi la sezione precedente: la stessa finestra dice allora se sta leggendo o scrivendo, con una barra vera). Mentre copia un file il telefono non risponde a niente, nemmeno a EyeCanSee, e non può dire a che punto è. Per questo, per tutta la copia, una finestra al centro, **Il telefono sta copiando**, fa aspettare il resto di EyeCanSee, anche le cartelle del computer. **Perché devo aspettare?** nella finestra apre questa sezione.
 
 - La finestra mostra solo ciò che si sa: il nome del file in copia, la sua dimensione e da quanto tempo è cominciato. Con più file anche quale file è (**File 2 di 5**), quanti dati sono già copiati, contati alla fine di ogni file, e una barra che avanza un file alla volta.
 - Mentre il telefono lavora su un file, nella barra scorre una striscia: non misura niente, dice solo che il telefono sta lavorando. Con un file solo c'è soltanto la striscia.
-- La velocità e il tempo che manca vengono solo dai file grandi (da 32 MB) già copiati in questo Incolla: prima che finisca il primo, non ci sono.
-- **Annulla**: il telefono non si può interrompere a metà file. Finisce il file in copia, poi EyeCanSee toglie quella copia e si ferma. I file copiati prima restano, gli altri non vengono copiati; l'originale non viene toccato. Finché il telefono non ha finito, la finestra resta aperta e dice **Annullata**. **Esc** non chiude la finestra.
-- **Smetti di aspettare**, che compare dopo Annulla: EyeCanSee smette di aspettare il telefono, e la finestra si chiude entro pochi secondi (fino a mezzo minuto se in quel momento stava leggendo il telefono). Il telefono può finire il file da solo, e finché lavora non risponde: in quel caso la copia resta dove il telefono l'ha messa, col nome dell'originale; se doveva prendere un altro nome o sostituire un file, EyeCanSee la toglie la volta dopo che legge quella cartella.
+- La velocità e il tempo che manca vengono solo dai file grandi (da 32 MB in su) già copiati in questo Incolla: prima che finisca il primo, non ci sono.
+- **Annulla**: il telefono non si può interrompere a metà di un file. Finisce il file in copia, poi EyeCanSee toglie quella copia e si ferma. I file copiati prima restano, gli altri non vengono copiati; l'originale non viene toccato. Finché il telefono non ha finito, la finestra resta aperta e dice **Annullata**. **Esc** non chiude la finestra.
+- **Smetti di aspettare**, che compare dopo Annulla: EyeCanSee smette di aspettare il telefono, e la finestra si chiude entro pochi secondi (fino a mezzo minuto se in quel momento stava leggendo il telefono). Il telefono può finire il file da solo, e finché lavora non risponde: in quel caso la copia resta dove il telefono l'ha messa, col nome dell'originale; se doveva prendere un altro nome o sostituire un file, EyeCanSee la toglie la prossima volta che legge quella cartella.
 - La ✕ di EyeCanSee, mentre il telefono copia da solo, prima chiede. **Chiudi EyeCanSee** smette di aspettare e chiude il programma appena la copia lo permette, al più tardi dopo 40 secondi; **Continua ad aspettare** lascia tutto com'è.
 - Dopo 3 minuti sullo stesso file la finestra lo dice. Scollegare il telefono non ferma la sua copia: il telefono la finisce da solo, ed EyeCanSee smette solo di aspettare. Lascialo collegato finché la finestra non si chiude.
 - Uno spostamento dentro una memoria cambia solo la cartella, subito: nessuna finestra.
@@ -55,7 +55,7 @@ Una copia dentro una memoria del telefono (da una cartella della memoria interna
 
 - Su GNOME e KDE, aprire il telefono in EyeCanSee lo toglie al gestore dei file. Per rivederlo lì, chiudi EyeCanSee e fai clic sul telefono nel gestore dei file, oppure scollegalo e ricollegalo.
 - Una foto del telefono aperta dal gestore dei file (doppio clic nell'app File di GNOME) si apre anch'essa con il collegamento diretto, e la barra di stato lo dice.
-- Su KDE EyeCanSee chiede prima: per prendere il telefono deve chiudere il servizio kiod di KDE, che dimentica anche le password delle cartelle di rete aperte in Dolphin. **Annulla** lascia il telefono a KDE; **F5** chiede di nuovo.
+- Su KDE EyeCanSee chiede prima: per prendere il telefono deve chiudere il servizio kiod di KDE, e così si perdono anche le password delle cartelle di rete aperte in Dolphin. **Annulla** lascia il telefono a KDE; **F5** chiede di nuovo.
 - **Flatpak su KDE**: il telefono può restare tenuto da kiod anche dopo aver chiuso Dolphin. EyeCanSee propone **Libera il telefono**: chiudi Dolphin e premilo. Quando EyeCanSee lascia il telefono (alla chiusura, o andando in un'altra cartella), KDE lo rivede.
 
 ## Windows
@@ -67,7 +67,7 @@ Una copia dentro una memoria del telefono (da una cartella della memoria interna
 ## Da sapere
 
 - Scollegando il telefono mentre una sua cartella è aperta si apre la cartella home, e la barra di stato dice quale dispositivo è stato scollegato (vedi [Dischi e chiavette](devices.md)).
-- Eliminare su un telefono sposta il file in una cartella nascosta `.EyeCanSee-trash` accanto a lui, a meno che tu non abbia scelto altro nelle opzioni (vedi [Eliminare e cestino](delete.md)).
+- Eliminare su un telefono sposta il file in una cartella nascosta `.EyeCanSee-trash` accanto al file, a meno che tu non abbia scelto altro nelle opzioni (vedi [Eliminare e cestino](delete.md)).
 - Un telefono accetta nomi di file lunghi al massimo 254 caratteri (un'emoji conta per due): un nome più lungo viene rifiutato, e non viene copiato niente.
 - Su un telefono i video ricevono la miniatura dopo le foto, perché per farla un video spesso va letto tutto.
-- Si apre un solo EyeCanSee alla volta, perché un telefono può essere usato da un solo programma.
+- Si apre una sola copia di EyeCanSee alla volta, perché un telefono può essere usato da un solo programma.
