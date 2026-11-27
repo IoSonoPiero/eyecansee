@@ -31,7 +31,7 @@ Quando cambi cartella, la barra mostra quella nuova. Alla sua fine ![Copia l'ind
 
 **Salva e apri** vale solo per un server: per una cartella di questo computer è grigio. Se un server salvato ha già questo accesso (stesso protocollo, server, porta e utente), prende la password che hai scritto e tiene nome, cartella e chiave; altrimenti si aggiunge un server salvato nuovo, col nome del server. Se i server salvati sono protetti da una password principale, EyeCanSee la chiede prima (vedi [Password salvate](passwords.md)).
 
-I campi restano grigi finché il campo in alto contiene qualcosa. Gli spazi prima o dopo un valore, per esempio incollati insieme, vengono tolti; non nella password, dove possono farne parte.
+I campi restano grigi finché il campo in alto contiene qualcosa. Gli spazi prima o dopo un valore, per esempio incollati insieme, vengono tolti, tranne nella password, dove possono farne parte.
 
 ## Quando un server chiede la password
 
