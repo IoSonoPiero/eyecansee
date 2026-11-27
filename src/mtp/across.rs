@@ -43,6 +43,9 @@ pub(super) fn copy_error(e: mtp_rs::Error, path: &str) -> Error {
     }
 }
 
+/// Raised by who no longer wants to wait for the phone (`wait::Pace::leave`).
+static LEAVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// Whether the item looked for is where the phone puts it: `name` with `size` bytes among `found`.
 fn arrived(found: &[(String, u64, ObjectHandle)], name: &str, size: u64) -> Option<ObjectHandle> {
     found.iter().find(|(n, s, _)| n == name && *s == size).map(|(_, _, h)| *h)
@@ -106,7 +109,7 @@ impl Phone {
         let (_waiting, _deaf) = (Waiting::start_at(what, path, began), turn::Deaf::start(&self.serial, path));
         log!("phone {}: {what} {path}: the phone is still at it ({size} bytes), its result looked for", self.serial);
         let parent = (folder != ObjectHandle::ROOT).then_some(folder);
-        let pace = wait::Pace { look: LOOK, most: deadline(size) };
+        let pace = wait::Pace { look: LOOK, most: deadline(size), leave: &LEAVE };
         let look = |at: std::time::Duration| async move {
             let t = std::time::Instant::now();
             let found = match to.list_objects(parent).await {
@@ -133,7 +136,7 @@ impl Phone {
                 Ok(h)
             }
             wait::End::Gone(e) => Err(error(e)),
-            wait::End::Late => {
+            wait::End::Late | wait::End::Left => {
                 log!("phone {}: {what} {path}: not done by the phone in {:.0} s", self.serial, start.elapsed().as_secs_f32());
                 Err(("error-phone-timeout", path.to_string()))
             }

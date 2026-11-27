@@ -2,16 +2,19 @@
 //! destination is looked at every few seconds until the item is there. Apart from the phone, so
 //! that it runs in the tests with a destination that is not one.
 
+use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
 use mtp_rs::ObjectHandle;
 
 /// How the wait goes.
-pub(super) struct Pace {
+pub(super) struct Pace<'a> {
     /// How often the destination is looked at.
     pub look: Duration,
     /// The longest the wait lasts.
     pub most: Duration,
+    /// Raised by who no longer wants to wait (`across::leave`).
+    pub leave: &'a AtomicBool,
 }
 
 /// How the wait ended.
@@ -21,6 +24,8 @@ pub(super) enum End {
     Arrived(ObjectHandle),
     /// The phone went meanwhile: the error that said so.
     Gone(mtp_rs::Error),
+    /// Left before the item was there (`Pace::leave`): the phone may still be at it.
+    Left,
     /// Not there after `Pace::most`.
     Late,
 }
@@ -29,7 +34,7 @@ pub(super) enum End {
 /// it finds what is waited for. A look that fails is the phone still at work, which answers
 /// nothing (the reading was given up too): the wait goes on, unless the failure says the phone is
 /// gone (`gone`, in the words of Windows too).
-pub(super) async fn until_arrived<F, Fut>(pace: Pace, mut look: F) -> End
+pub(super) async fn until_arrived<F, Fut>(pace: Pace<'_>, mut look: F) -> End
 where
     F: FnMut(Duration) -> Fut,
     Fut: Future<Output = Result<Option<ObjectHandle>, mtp_rs::Error>>,
@@ -53,13 +58,16 @@ mod tests {
 
     use super::*;
 
+    /// Nobody leaves the wait.
+    static STAY: AtomicBool = AtomicBool::new(false);
+
     fn run<T>(wait: impl Future<Output = T>) -> T {
         tokio::runtime::Runtime::new().unwrap().block_on(wait)
     }
 
     /// A wait that looks every 5 ms, for `most` ms.
-    fn pace(most: u64) -> Pace {
-        Pace { look: Duration::from_millis(5), most: Duration::from_millis(most) }
+    fn pace(most: u64) -> Pace<'static> {
+        Pace { look: Duration::from_millis(5), most: Duration::from_millis(most), leave: &STAY }
     }
 
     /// The wait with a destination that always answers `answer`: how it ended, after how many looks.
@@ -100,5 +108,25 @@ mod tests {
         let (end, looks) = ended(300, || Ok((seen.fetch_add(1, Ordering::Relaxed) == 2).then_some(ObjectHandle(7))));
         assert!(matches!(end, End::Arrived(ObjectHandle(7))) && looks == 3, "{end:?} after {looks} looks");
         assert!(matches!(ended(30, || Ok(None)).0, End::Late));
+    }
+
+    /// #354 (prova W5 on Windows, 27/11): the wait for a copy the phone goes on making ended only
+    /// when the item was there or at its deadline (1 h 47 min for 6 GB): Cancel did nothing until
+    /// then, and the ✕ of the window, which waits for the copy to end, never closed EyeCanSee. The
+    /// wait can be left: asked while it runs it ends before the next look, and asked before it
+    /// starts (during the call that was given up) it ends without one.
+    #[test]
+    fn the_wait_can_be_left() {
+        let (leave, looks) = (AtomicBool::new(false), AtomicUsize::new(0));
+        let pace = Pace { look: Duration::from_millis(5), most: Duration::from_millis(400), leave: &leave };
+        let end = run(until_arrived(pace, |_| {
+            leave.store(looks.fetch_add(1, Ordering::Relaxed) == 2, Ordering::Relaxed);
+            async { Ok(None) }
+        }));
+        assert!(matches!(end, End::Left) && looks.load(Ordering::Relaxed) == 3, "{end:?} after {} looks", looks.load(Ordering::Relaxed));
+        let pace = Pace { look: Duration::from_secs(60), most: Duration::from_secs(600), leave: &leave };
+        let start = Instant::now();
+        let end = run(until_arrived(pace, |_| async { Ok(None) }));
+        assert!(matches!(end, End::Left) && start.elapsed() < Duration::from_secs(5), "asked before the wait: {end:?} after {:?}", start.elapsed());
     }
 }
