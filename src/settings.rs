@@ -486,9 +486,26 @@ impl Autosave {
         Autosave { saved, seen: None }
     }
 
-    /// Whether `now` is the time to save `m`; then it counts as saved.
-    pub(crate) fn due(&mut self, _m: &Moving, _now: std::time::Instant) -> bool {
-        false
+    /// Whether `now` is the time to save `m`; then it counts as saved. A new folder at once, the
+    /// rest once it has stayed the same for `QUIET`; a change taken back is nothing to save.
+    pub(crate) fn due(&mut self, m: &Moving, now: std::time::Instant) -> bool {
+        if *m == self.saved {
+            self.seen = None;
+            return false;
+        }
+        let quiet = match &self.seen {
+            Some((seen, since)) if seen == m => now.duration_since(*since) >= QUIET,
+            _ => {
+                self.seen = Some((m.clone(), now));
+                false
+            }
+        };
+        if !quiet && m.location == self.saved.location {
+            return false;
+        }
+        self.saved = m.clone();
+        self.seen = None;
+        true
     }
 
     /// A change waits for `QUIET`: the caller asks for a pass after it.
