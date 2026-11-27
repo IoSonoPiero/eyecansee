@@ -3,8 +3,8 @@
 //! that copies or moves a file by itself cannot be stopped, and the wait for it can last minutes,
 //! or never end when Windows loses the phone: the ✕ closed nothing then, and the program had to
 //! be closed by force (#354, prova W5 on Windows, 27/11). So while the phone works alone the ✕
-//! asks: closing stops the wait (`mtp::leave`) and EyeCanSee closes as soon as the copy lets go,
-//! `AT_MOST` later at the latest, or at once at a second ✕.
+//! asks: "Close EyeCanSee" stops the wait (`mtp::leave`) and closes at once (Piero, 27/11; the
+//! phone finishes its file by itself); `AT_MOST` stays as the last resort.
 
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
@@ -101,6 +101,8 @@ impl App {
                 mtp::leave();
                 self.quit_after_transfer = true;
                 self.quit_phone = Quit { asking: None, confirmed: Some(Instant::now()) };
+                // At once, as the question says (Piero, 27/11: it went on copying up to `AT_MOST`).
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
             Some(false) => self.quit_phone.asking = None,
             None => {}

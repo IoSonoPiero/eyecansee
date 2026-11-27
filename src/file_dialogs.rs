@@ -199,7 +199,9 @@ impl App {
                 ui.horizontal(|ui| {
                     // Cancelled while the phone copies or moves a file by itself: the way out of
                     // the wait for it, in place of a Cancel greyed out that held the app (#354).
-                    let leave = cancelling && !crate::mtp::leaving() && crate::mtp::working_long().is_some();
+                    // No "Stop waiting" after Cancel (Piero, 27/11): Cancel waits for the phone and
+                    // removes the copy; the window's ✕ asks before closing EyeCanSee.
+                    let leave = false;
                     let cancel = match leave {
                         true => ui.button(self.i18n.t("phone-copy-leave")).on_hover_text(self.i18n.t("phone-copy-leave-tip")),
                         false => ui.add_enabled(!cancelling, egui::Button::new(self.i18n.t("delete-no"))),
