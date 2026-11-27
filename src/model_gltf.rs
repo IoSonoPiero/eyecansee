@@ -40,6 +40,8 @@ const ERRORS: [&str; 6] = [MISSING_BIN, OUTSIDE_BIN, DAMAGED_INSIDE, INCOMPLETE,
 /// (`model_3mf::MAX_UNPACKED`, 2 GB), under the 4 GB its 32 bits allow; a cut file whose header
 /// gives more says only that it is incomplete.
 const MAX_DECLARED: u64 = crate::model_3mf::MAX_UNPACKED;
+/// The pictures of the materials decoded at once (audit 27/11, S.10 a).
+const PICTURES_AT_ONCE: usize = 3;
 
 /// Whether `id` is one of the errors of a glTF whose data cannot be read.
 pub fn is_error(id: &str) -> bool {
@@ -166,19 +168,30 @@ fn read_plain(bytes: &[u8], sibling: Sibling, limit: crate::model_limit::Limit) 
             }
         }
     }
-    let bytes: Vec<Option<Vec<u8>>> = wanted
-        .iter()
-        .map(|img| match img.source() {
-            gltf::image::Source::View { view, .. } => data(view.buffer()).and_then(|d| d.get(view.offset()..view.offset() + view.length())).map(<[u8]>::to_vec),
-            gltf::image::Source::Uri { uri, .. } if uri.starts_with("data:") => uri.split_once(";base64,").and_then(|(_, d)| base64::engine::general_purpose::STANDARD.decode(d).ok()),
-            gltf::image::Source::Uri { uri, .. } => sibling(uri),
-        })
-        .collect();
+    let read = |img: &gltf::Image| match img.source() {
+        gltf::image::Source::View { view, .. } => data(view.buffer()).and_then(|d| d.get(view.offset()..view.offset() + view.length())).map(<[u8]>::to_vec),
+        gltf::image::Source::Uri { uri, .. } if uri.starts_with("data:") => uri.split_once(";base64,").and_then(|(_, d)| base64::engine::general_purpose::STANDARD.decode(d).ok()),
+        gltf::image::Source::Uri { uri, .. } => sibling(uri),
+    };
+    // A few at a time (one may take 512 MB decoded), and none read beyond the pictures the model
+    // keeps (`model::MAX_TEXTURES`): those are left out, as `Builder::texture` says (audit 27/11,
+    // S.10 a: all of them were decoded at once, one a core).
     use rayon::prelude::*;
-    let decoded: Vec<Option<image::RgbaImage>> = bytes.into_par_iter().map(|d| d.and_then(|d| image::load_from_memory(&d).ok()).map(|i| i.to_rgba8())).collect();
-    for (img, pic) in wanted.iter().zip(decoded) {
-        let k = pic.map_or(0, |p| b.texture(p));
-        extra.2.insert(img.index(), k);
+    let mut left = wanted.as_slice();
+    while !left.is_empty() {
+        let room = b.pictures_room();
+        if room == 0 {
+            b.texture(image::RgbaImage::new(1, 1));
+            break;
+        }
+        let (now, rest) = left.split_at(left.len().min(room).min(PICTURES_AT_ONCE));
+        let bytes: Vec<Option<Vec<u8>>> = now.iter().map(read).collect();
+        let decoded: Vec<Option<image::RgbaImage>> = bytes.into_par_iter().map(|d| d.and_then(|d| image::load_from_memory(&d).ok()).map(|i| i.to_rgba8())).collect();
+        for (img, pic) in now.iter().zip(decoded) {
+            let k = pic.map_or(0, |p| b.texture(p));
+            extra.2.insert(img.index(), k);
+        }
+        left = rest;
     }
     match g.document.default_scene().or_else(|| g.document.scenes().next()) {
         Some(scene) => {

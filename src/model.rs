@@ -204,6 +204,11 @@ impl Builder {
         self.solids = true;
     }
 
+    /// How many more pictures the model keeps (`MAX_TEXTURES`).
+    pub(crate) fn pictures_room(&self) -> usize {
+        MAX_TEXTURES.saturating_sub(self.textures.len())
+    }
+
     /// A picture for the triangles that follow, made smaller beyond `TEXTURE_SIDE`: its number
     /// for `add_textured`, or 0 when the model has too many already.
     pub(crate) fn texture(&mut self, img: image::RgbaImage) -> u16 {
