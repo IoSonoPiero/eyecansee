@@ -1,6 +1,6 @@
 # CAD drawings
 
-AutoCAD drawings (**DWG** and **DXF**) and plotter files (**HP-GL** and **HP-GL/2**: `.plt`, `.hpgl`) appear in the grid with a picture of the drawing as thumbnail, and open in the viewer like a picture.
+AutoCAD drawings (**DWG** and **DXF**) and plotter files (**HP-GL** and **HP-GL/2**: `.plt`, `.hpgl`) appear in the grid with a picture of the drawing as their thumbnail, and open in the viewer like a picture.
 
 ![CAD drawings](../img/cad.webp)
 
@@ -27,13 +27,13 @@ When the view stops moving, the part on the screen is drawn again from the drawi
 
 ## Layouts
 
-A drawing with layouts (paper space) shows **Model** or the name of the layout in the status bar. **L** goes to the next layout and **Shift + L** to the one before, each with its sheet, title block and viewports onto the model.
+A drawing with layouts (paper space) shows **Model** or the name of the layout in the status bar. **L** goes to the next layout and **Shift + L** to the previous one, each with its sheet, title block and viewports onto the model.
 
 ## Layers
 
-**Ctrl + L**, the **Layers** button in the status bar or **View > Layers of the drawing** open the layers panel on the right of a DWG or DXF drawing. It lists the layers with something drawn on them, each with its colour and a box: untick a layer to hide it, tick it to show it again, also a layer that is off or frozen in the file. **All on** and **All off** act on the layers listed; with many layers, type part of a name in **Search** to list only those. The panel says how many layers are shown.
+**Ctrl + L**, the **Layers** button in the status bar or **View > Layers of the drawing** open the layers panel on the right of a DWG or DXF drawing. It lists the layers with something drawn on them, each with its colour and a box: untick a layer to hide it, tick it to show it again, even a layer that is off or frozen in the file. **All on** and **All off** act on the layers listed; with many layers, type part of a name in **Search** to list only those. The panel says how many layers are shown.
 
-A block on a hidden layer is hidden whole, also its parts on other layers. The choice applies to the model and the layouts (layers frozen in one viewport of a layout stay hidden there), and changes only what is shown: the file is not changed. Each drawing keeps its choice until EyeCanSee is closed, also while moving to other files and back. **Save as…** and **Export drawing…** (pictures and SVG) save the drawings with the layers as they are shown; drawings whose layers were not touched are saved as their file has them.
+A block on a hidden layer is hidden entirely, including its parts on other layers. The choice applies to the model and the layouts (layers frozen in one viewport of a layout stay hidden there), and changes only what is shown: the file is not changed. Each drawing keeps its choice until EyeCanSee is closed, even when you move to other files and back. **Save as…** and **Export drawing…** (pictures and SVG) save the drawings with the layers as they are shown; drawings whose layers were not touched are saved as their file has them.
 
 ## Measuring
 
@@ -43,19 +43,19 @@ A block on a hidden layer is hidden whole, also its parts on other layers. The c
 - **Area**: the corners of a shape, one after the other; **Enter** or a double click closes it. The box shows the area and the perimeter, also while you click.
 - **Angle**: a point, the corner, then a point on the other side.
 
-A click snaps to what is under the pointer, as in CAD programs: the end of a line (a square), its middle (a triangle), the centre of a circle or arc (a circle), where two lines cross (a cross); with nothing near, the point clicked (a small cross). Hidden layers are left out. Results are in the drawing's unit (as its size in the status bar; when the drawing does not say its unit, the status bar says so). On a layout they are measured on the sheet. **Copy** in the status bar, or **Ctrl + C**, puts them on the clipboard. **Backspace** takes back the last point, **Esc** clears the points, and **Esc** again or **M** closes the tool. Dragging still moves the drawing.
+A click snaps to what is under the pointer, as in CAD programs: the end of a line (a square), its middle (a triangle), the centre of a circle or arc (a circle), where two lines cross (a cross); with nothing nearby, the point you clicked (a small cross). Hidden layers are left out. Results are in the drawing's unit (the same as its size in the status bar; when the drawing does not say its unit, the status bar says so). On a layout they are measured on the sheet. **Copy** in the status bar, or **Ctrl + C**, puts them on the clipboard. **Backspace** takes back the last point, **Esc** clears the points, and **Esc** again or **M** closes the tool. Dragging still moves the drawing.
 
 ## Comparing two versions of a drawing
 
-Select two drawings in the grid (**Ctrl + click**), then **Compare drawings** in the right-click menu or in the File menu. The viewer shows them one over the other, aligned by their coordinates: what is in both in grey, what is only in the first in red, what is only in the second in blue. The status bar says what the drawing is compared with and how many places changed; **N** zooms to the next change and **Shift + N** to the one before.
+Select two drawings in the grid (**Ctrl + click**), then choose **Compare drawings** in the right-click menu or in the File menu. The viewer shows them one over the other, aligned by their coordinates: what is in both is grey, what is only in the first is red, what is only in the second is blue. The status bar says what the drawing is compared with and how many places changed; **N** zooms to the next change and **Shift + N** to the previous one.
 
 The layers panel opens with three layers, **In both**, **Only in** the first and **Only in** the second, with their colours: it is the legend, and unticking one shows the first drawing alone, the second alone or only the changes. Zoom, Measure and **Save as…** work as on any drawing, so the comparison can be saved as a picture.
 
-Things match when they are of the same kind at the same place (lines whichever way they go, texts with the same words): a block that moved shows as removed and added, and a change of colour or layer alone is not shown. Layers hidden in the files are left out; the model space is compared, not the layouts. When the two drawings have different units (or one has none), a warning in the status bar names both: they are compared as they are, not converted. Moving to another file or leaving the viewer ends the comparison.
+Things match when they are of the same kind in the same place (lines in either direction, texts with the same words): a block that moved shows as removed and added, and a change of colour or layer alone is not shown. Layers hidden in the files are left out; the model space is compared, not the layouts. When the two drawings have different units (or one has none), a warning in the status bar names both: they are compared as they are, not converted. Moving to another file or leaving the viewer ends the comparison.
 
 ## Drawing number and title block
 
-In the grid, a DWG or DXF drawing shows its number and revision under its thumbnail, before its size ("A-101 rev. C · 350 KB"): from its title block, or else from its title and revision number. Selected, its **Drawing** box in the metadata panel lists the drawing properties and the title block's attributes. See [Image information](metadata.md) and, to leave the number out, [Options](options.md).
+In the grid, a DWG or DXF drawing shows its number and revision under its thumbnail, before its size ("A-101 rev. C · 350 KB"): from its title block, or else from its title and revision number. When it is selected, its **Drawing** box in the metadata panel lists the drawing properties and the title block's attributes. See [Image information](metadata.md) and, to leave the number out, [Options](options.md).
 
 ## The status bar
 
@@ -72,4 +72,4 @@ Texts are written with the drawing's SHX fonts when the font files are next to t
 
 Pictures and SVG show the model space, not the layouts. A drawing saved as DWG or DXF is read back and compared with the original (the model, each layout and the layers with something on them): if anything would be lost, it is not saved, and the summary at the end says so.
 
-Turning and flipping from the Image menu do not apply to drawings.
+Rotating and flipping from the Image menu do not apply to drawings.
