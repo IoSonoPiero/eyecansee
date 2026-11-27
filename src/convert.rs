@@ -300,8 +300,7 @@ impl crate::App {
             self.probe_animated(ctx, &w.path, true);
         }
         self.start_encoding(&mut w, ctx);
-        let dir = w.dest_dir();
-        let final_name = crate::source::free_name(&self.convert_taken(&w, &dir), &crate::batch::typed_name(&w.name, w.options.format));
+        let (dir, final_name) = self.convert_dest(&w);
         let mut open = page_header(ui, &self.i18n.t("convert-title"));
         let shown = crate::navigation::shown(w.dest_base(&self.base), &dir);
         let press = self.convert_body(ui, &mut w, &final_name, &shown);
@@ -309,26 +308,40 @@ impl crate::App {
         if press == Some(Press::Cancel) {
             open = false;
         }
-        if press == Some(Press::Save) && let Some(Ok((bytes, _))) = &w.result {
-            let (path, bytes) = (format!("{dir}{final_name}"), bytes.clone());
-            let sent = match (w.dest_store(), &self.loader) {
-                (Some(store), _) => self.save_in_place(ctx, store.clone(), path, bytes),
-                (None, Some(loader)) => {
-                    loader.save(path, bytes);
-                    true
-                }
-                (None, None) => false,
-            };
-            if sent {
-                w.saving = true;
-                w.error = None;
-            }
+        if press == Some(Press::Save) {
+            self.convert_save(ctx, &mut w, &dir, &final_name);
         }
         self.convert_pick(ctx, &mut w);
         open &= self.big_picture_page(ctx, &mut w.original, (&w.path, w.asked), false);
         // Taken out while drawn (it needs the rest of the app), put back unless closed.
         if open {
             self.convert = Some(w);
+        }
+    }
+
+    /// The folder the new file goes into, and the name it gets there: the one typed, or the first
+    /// free one beside it.
+    fn convert_dest(&self, w: &Window) -> (String, String) {
+        let dir = w.dest_dir();
+        let name = crate::source::free_name(&self.convert_taken(w, &dir), &crate::batch::typed_name(&w.name, w.options.format));
+        (dir, name)
+    }
+
+    /// Save pressed: the new file written as `final_name` in `dir`.
+    fn convert_save(&self, ctx: &egui::Context, w: &mut Window, dir: &str, final_name: &str) {
+        let Some(Ok((bytes, _))) = &w.result else { return };
+        let (path, bytes) = (format!("{dir}{final_name}"), bytes.clone());
+        let sent = match (w.dest_store(), &self.loader) {
+            (Some(store), _) => self.save_in_place(ctx, store.clone(), path, bytes),
+            (None, Some(loader)) => {
+                loader.save(path, bytes);
+                true
+            }
+            (None, None) => false,
+        };
+        if sent {
+            w.saving = true;
+            w.error = None;
         }
     }
 
@@ -839,4 +852,5 @@ mod tests {
         assert_eq!(ratio(42_159, Some(0)), None);
         assert_eq!(ratio(50, Some(200)), Some(25));
     }
+
 }
