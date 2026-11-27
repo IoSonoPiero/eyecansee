@@ -197,20 +197,12 @@ impl App {
                 });
                 // Reached with Tab after the folders of the tree (`box_keys`, #311).
                 ui.horizontal(|ui| {
-                    // Cancelled while the phone copies or moves a file by itself: the way out of
-                    // the wait for it, in place of a Cancel greyed out that held the app (#354).
                     // No "Stop waiting" after Cancel (Piero, 27/11): Cancel waits for the phone and
                     // removes the copy; the window's ✕ asks before closing EyeCanSee.
-                    let leave = false;
-                    let cancel = match leave {
-                        true => ui.button(self.i18n.t("phone-copy-leave")).on_hover_text(self.i18n.t("phone-copy-leave-tip")),
-                        false => ui.add_enabled(!cancelling, egui::Button::new(self.i18n.t("delete-no"))),
-                    };
+                    let cancel = ui.add_enabled(!cancelling, egui::Button::new(self.i18n.t("delete-no")));
                     crate::box_keys::mark(&cancel);
-                    match (cancel.clicked(), leave) {
-                        (true, true) => crate::mtp::leave(),
-                        (true, false) => p.cancel.store(true, Ordering::Relaxed),
-                        (false, _) => {}
+                    if cancel.clicked() {
+                        p.cancel.store(true, Ordering::Relaxed);
                     }
                     // A link on the row of Cancel, not a line more: the box keeps its height.
                     if staged {

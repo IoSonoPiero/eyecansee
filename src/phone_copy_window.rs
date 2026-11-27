@@ -43,9 +43,6 @@ struct Shown {
     note: (String, bool),
     /// Cancel and its tooltip, or once pressed what is happening.
     cancel: Result<(String, String), String>,
-    /// Once Cancel is pressed, the way out of the wait for the phone: "Stop waiting" and its
-    /// tooltip, until it is pressed too (`transfer::Leave`).
-    leave: Option<(String, String)>,
     why: String,
 }
 
@@ -117,9 +114,6 @@ impl App {
                 (false, Leave::Asked) => Err(t("phone-copy-leaving")),
                 (false, _) => Err(t("phone-copy-cancelled")),
             },
-            // No "Stop waiting" after Cancel (Piero, 27/11): it read as cancelling at once, while
-            // the phone ends its file and the copy stayed. Cancel waits for it and removes the copy.
-            leave: None,
             why: t("phone-copy-why"),
             name: if v.counting.is_some() { t("phone-copy-counting") } else { v.name },
         }
@@ -137,14 +131,9 @@ impl App {
             ui.set_width(WIDTH);
             (pressed, help) = draw(ui, &shown);
         });
-        // The button of the window: Cancel, then the way out of the wait.
-        match (pressed, shown.cancel.is_ok()) {
-            (true, true) => p.cancel.store(true, Ordering::Relaxed),
-            (true, false) => {
-                log!("phone copy: the wait for the phone left by the user");
-                crate::mtp::leave();
-            }
-            (false, _) => {}
+        // The button of the window: Cancel.
+        if pressed {
+            p.cancel.store(true, Ordering::Relaxed);
         }
         if help {
             let title = self.i18n.t("phone-copy-why-section");
@@ -194,11 +183,11 @@ fn draw(ui: &mut egui::Ui, s: &Shown) -> (bool, bool) {
     row(ui, ui.spacing().interact_size.y, |ui| {
         let stop = match &s.cancel {
             Ok((label, tip)) => Some(ui.button(label).on_hover_text(tip)),
-            // What is happening, then the way out: after the words, so a second click where
-            // Cancel was presses nothing.
+            // Once pressed, what is happening; no "Stop waiting" (Piero, 27/11): it read as
+            // cancelling at once, while the phone ends its file and the copy stayed.
             Err(state) => {
                 ui.add(egui::Label::new(egui::RichText::new(state).font(bold(body.size))).truncate());
-                s.leave.as_ref().map(|(label, tip)| ui.button(label).on_hover_text(tip))
+                None
             }
         };
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
