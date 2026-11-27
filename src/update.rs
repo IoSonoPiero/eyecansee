@@ -581,6 +581,63 @@ pub(crate) mod tests {
         assert_eq!(copied.as_deref(), Some("2.22"), "{script}");
     }
 
+    /// Audit C.1 (#338): the zip's script takes every path literally (a `[` or `]` in `-Path` is a
+    /// wildcard: nothing copied, and no error), and removes the old exe only once the new one is
+    /// there; otherwise it throws, and the `catch` puts the old one back.
+    #[test]
+    fn zip_script_keeps_an_exe_in_the_folder() {
+        let (zip, unpacked) = (Path::new(r"D:\Temp [x]\EyeCanSee.zip"), Path::new(r"D:\Temp [x]\EyeCanSee.unpacked"));
+        let (dir, exe) = (Path::new(r"C:\Apps\EyeCanSee [1]"), Path::new(r"C:\Apps\EyeCanSee [1]\eyecansee.exe"));
+        let s = zip_script(7, zip, unpacked, dir, exe);
+        assert!(!s.contains(" -Path ") && !s.contains("Join-Path"), "{s}");
+        let (body, catch) = s.split_once("catch").unwrap();
+        let at = |what: &str| body.find(what).unwrap_or_else(|| panic!("not in the try: {what}\n{s}"));
+        let copy = at(&format!("Get-ChildItem -LiteralPath {} -Force | Copy-Item -Destination {} -Recurse -Force;", quote(unpacked), quote(dir)));
+        let check = at(&format!("if (-not (Test-Path -LiteralPath {} -PathType Leaf)) {{ throw", quote(exe)));
+        let old = quote(Path::new(r"C:\Apps\EyeCanSee [1]\eyecansee.exe.old"));
+        let remove = at(&format!("Remove-Item -LiteralPath {old}"));
+        assert!(copy < check && check < remove, "{s}");
+        assert!(catch.contains(&format!("Move-Item -LiteralPath {old} -Destination {}", quote(exe))), "{s}");
+    }
+
+    /// Audit C.1 with PowerShell itself, in folders with `[` and `]`: an update with the exe
+    /// replaces it, one without leaves the old exe in place. Run in winvm: `--ignored
+    /// zip_script_runs_in_powershell_live`.
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "runs PowerShell"]
+    fn zip_script_runs_in_powershell_live() {
+        let base = std::env::temp_dir().join(format!("eyecansee-c-1-{}", std::process::id()));
+        let run = |name: &str, files: &[&str]| -> (Option<String>, bool) {
+            let (temp, dir) = (base.join(name).join("Temp [x]"), base.join(name).join("EyeCanSee [1]"));
+            let new = temp.join("new");
+            std::fs::create_dir_all(&new).unwrap();
+            std::fs::create_dir_all(&dir).unwrap();
+            for f in files {
+                std::fs::write(new.join(f), "new").unwrap();
+            }
+            let exe = dir.join("eyecansee.exe");
+            std::fs::write(&exe, "old").unwrap();
+            let zip = temp.join("EyeCanSee.zip");
+            let sources: Vec<String> = files.iter().map(|f| quote(&new.join(f))).collect();
+            let pack = format!("$ErrorActionPreference = 'Stop'; Compress-Archive -LiteralPath {} -DestinationPath {}", sources.join(","), quote(&zip));
+            let out = std::process::Command::new("powershell").args(["-NoProfile", "-NonInteractive", "-Command", &pack]).output().unwrap();
+            assert!(out.status.success(), "{pack}\n{}", String::from_utf8_lossy(&out.stderr));
+            // An exited process for `Wait-Process`, and the script without its last start.
+            let mut gone = std::process::Command::new("cmd").args(["/c", "exit"]).spawn().unwrap();
+            gone.wait().unwrap();
+            let script = zip_script(gone.id(), &zip, &zip.with_extension("unpacked"), &dir, &exe).replace(&format!("Start-Process -FilePath {}", quote(&exe)), "");
+            let out = std::process::Command::new("powershell").args(["-NoProfile", "-NonInteractive", "-Command", &script]).output().unwrap();
+            assert!(out.status.success(), "{script}\n{}", String::from_utf8_lossy(&out.stderr));
+            (std::fs::read_to_string(&exe).ok(), dir.join("x.dll").is_file())
+        };
+        let with_exe = run("with", &["eyecansee.exe", "x.dll"]);
+        let without = run("without", &["x.dll"]);
+        let _ = std::fs::remove_dir_all(&base);
+        assert_eq!(with_exe, (Some("new".to_string()), true), "the update with its exe");
+        assert_eq!(without.0.as_deref(), Some("old"), "an update without the exe keeps the old one");
+    }
+
     /// Issue #69: the Fedora package says how the system updates it, rpm-ostree on Fedora Atomic.
     #[test]
     fn not_updated_notes() {
