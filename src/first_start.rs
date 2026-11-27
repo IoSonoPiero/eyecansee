@@ -206,6 +206,12 @@ pub(crate) fn ended(downloads: &[Download]) -> Option<bool> {
     }
 }
 
+/// The add-ons whose place `at_start` needs, out of `kinds`: for each, `component::have` reads
+/// the disk and asks the system's copy (for FFmpeg, `ffmpeg -decoders`).
+pub(crate) fn to_read(_s: &Settings, kinds: &[&'static str], _opened_with_address: bool) -> Vec<&'static str> {
+    kinds.to_vec()
+}
+
 fn offered(s: &Settings, kind: &str) -> bool {
     s.addons_offered.iter().any(|k| k == kind)
 }

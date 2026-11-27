@@ -108,7 +108,10 @@ impl Open {
 impl App {
     /// At the start, before the tip of the day: true when the window opens (then no tip today).
     pub(crate) fn first_start_at_start(&mut self, opened_with_address: bool) -> bool {
-        let offers: Vec<_> = crate::addons_ui::list().iter().map(|(a, h)| (a.component.kind, crate::addons_ui::offers(h))).collect();
+        let addons = crate::component::addons();
+        let kinds: Vec<_> = addons.iter().map(|a| a.component.kind).collect();
+        let read = crate::first_start::to_read(&self.settings, &kinds, opened_with_address);
+        let offers: Vec<_> = addons.iter().filter(|a| read.contains(&a.component.kind)).map(|a| (a.component.kind, crate::addons_ui::offers(&crate::component::have(a)))).collect();
         let before = self.settings.clone();
         let plan = crate::first_start::at_start(&mut self.settings, &offers, crate::desktop_icon::ask_at_start, opened_with_address, crate::tips::today());
         if self.settings != before {
