@@ -1099,6 +1099,30 @@ mod tests {
         assert!(!works && took >= std::time::Duration::from_secs(10) && took < std::time::Duration::from_secs(12), "{works} after {took:?}");
     }
 
+    /// Audit V.6 (#274): the probe of the card has the same limit. The fake FFmpeg would end well,
+    /// after 14 s: without the limit the card would work.
+    #[cfg(unix)]
+    #[test]
+    fn card_probe_limit() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("eyecansee-card-limit-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let fake = dir.join("ffmpeg");
+        std::fs::write(&fake, "#!/bin/sh\n[ \"$1\" = ready ] && exit 0\nexec sleep 14\n").unwrap();
+        std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+        for _ in 0..100 {
+            if Command::new(&fake).arg("ready").status().is_ok() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        let t = std::time::Instant::now();
+        let works = try_card(&fake, "h264_vaapi");
+        let took = t.elapsed();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(!works && took >= std::time::Duration::from_secs(10) && took < std::time::Duration::from_secs(12), "{works} after {took:?}");
+    }
+
     /// #275: a length of zero ("Duration: 00:00:00.00") gives no progress that is not a number.
     #[cfg(unix)]
     #[test]
