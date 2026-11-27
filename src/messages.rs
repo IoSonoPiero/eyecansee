@@ -859,6 +859,7 @@ mod tests {
         let a = h.app.files()[0].path.clone();
         let held = tree.lock().unwrap();
         h.app.loader.as_ref().unwrap().delete(vec![a.clone()], crate::source::Deletion::Permanent);
+        h.app.deleting = 1;
         h.app.tx.send(Msg::Open(format!("{abs}/"))).unwrap();
         h.until(|app| app.base == "/" && !app.files().is_empty(), "the computer's folder listed");
         drop(held);
@@ -874,6 +875,8 @@ mod tests {
         }
         assert!(local.join("a.png").is_file(), "the computer's a.png deleted");
         assert!(h.app.files().iter().any(|f| f.path == a), "the computer's a.png taken out of its grid by the server's deletion");
+        // Its end dropped, the deletion does not stay under way: Delete would wait for it.
+        assert_eq!(h.app.deleting, 0, "a deletion of the source left still counted as under way");
     }
 
     /// Audit 27/11 T.3 (#40): photos of a phone copied (Ctrl+C: the clip holds its session), the
