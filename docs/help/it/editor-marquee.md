@@ -1,6 +1,6 @@
 # Selezionare un'area
 
-![Selezione](icon://square-dashed) **Selezione** (M) sceglie una parte dell'immagine, per copiarla, tagliarla, incollarla di nuovo come oggetto o applicarci un filtro.
+![Selezione](icon://square-dashed) **Selezione** (M) sceglie una parte dell'immagine, per copiarla, tagliarla, incollarla di nuovo come oggetto o limitare un filtro a quella parte.
 
 ## Scegliere una zona
 
@@ -8,19 +8,19 @@
 2. Trascina sull'immagine. Tieni premuto Maiusc per un quadrato.
 3. Un contorno tratteggiato mostra la zona scelta. I suoi lati seguono i bordi dei pixel dell'immagine, così una copia ha i pixel come sono.
 
-Un clic sull'immagine, o Esc, lascia la zona. Esc mentre disegni una zona nuova (col tasto ancora premuto) rimette la zona scelta prima. La lascia anche scegliere un altro strumento.
+Un clic sull'immagine, o Esc, deseleziona la zona. Esc mentre disegni una zona nuova (col tasto del mouse ancora premuto) rimette la zona scelta prima. Anche scegliere un altro strumento deseleziona la zona.
 
 ## Copiare, tagliare e incollare
 
 La barra delle proprietà ha tre pulsanti, che hanno anche il loro tasto:
 
 - ![Copia la zona](icon://copy) **Copia la zona** (**Ctrl + C**): copia la zona come la vedi, la foto con ciò che ci hai disegnato sopra. Va anche negli appunti, così puoi incollarla in un altro programma.
-- ![Taglia la zona](icon://scissors) **Taglia la zona** (**Ctrl + X**): copia la zona, poi la copre con un riquadro pieno. Il riquadro prende il colore scelto per gli angoli vuoti in [Ritagliare e ruotare](editor-crop.md), o il bianco se non ce n'è uno. Come per la [Copertura](editor-cover.md), nel file salvato non resta niente di ciò che nasconde.
-- ![Incolla](icon://clipboard-paste) **Incolla** (**Ctrl + V**): rimette la zona come oggetto nuovo, un po' spostata rispetto a dov'era. È selezionata, con Seleziona scelto, così la trascini al suo posto, la ridimensioni e la ruoti: vedi sotto.
+- ![Taglia la zona](icon://scissors) **Taglia la zona** (**Ctrl + X**): copia la zona, poi la copre con un riquadro pieno. Il riquadro prende il colore scelto per gli angoli vuoti in [Ritagliare e ruotare](editor-crop.md), o il bianco se non ce n'è uno. Come con il riquadro di [Copertura](editor-cover.md), nel file salvato non resta niente di ciò che nasconde.
+- ![Incolla](icon://clipboard-paste) **Incolla** (**Ctrl + V**): rimette la zona come oggetto nuovo, un po' spostata rispetto a dov'era. È selezionata, con lo strumento Seleziona scelto, così la trascini al suo posto, la ridimensioni e la ruoti: vedi sotto.
 
 ## Incollare da un altro programma
 
-**Ctrl + V** incolla anche un'immagine copiata in un altro programma. Va al centro del risultato, grande al massimo quattro quinti, come oggetto da spostare, ridimensionare e ruotare. Se dopo aver copiato una zona qui hai copiato qualcosa in un altro programma, viene incollata quell'immagine. Se non c'è un'immagine da incollare, lo dice la barra di stato. Un'immagine con un lato più lungo di 20.000 pixel, o più grande di 200 megapixel in tutto, non si incolla: un messaggio ne dice la misura.
+**Ctrl + V** incolla anche un'immagine copiata in un altro programma. Va al centro del risultato, grande al massimo quattro quinti del risultato, come oggetto da spostare, ridimensionare e ruotare. Se dopo aver copiato una zona qui hai copiato qualcosa in un altro programma, viene incollata quell'immagine. Se non c'è un'immagine da incollare, lo dice la barra di stato. Un'immagine con un lato più lungo di 20.000 pixel, o più grande di 200 megapixel in tutto, non si incolla: un messaggio ne dice la misura.
 
 ## Ruotare, riflettere e misurare un pezzo incollato
 
@@ -35,11 +35,11 @@ Il resto è nella barra delle proprietà:
 - **Rotazione**: il suo angolo sullo schermo, da −180° a 180°.
 - ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) e ![Ruota di 90° in senso orario](icon://rotate-cw-square): un quarto di giro del solo pezzo.
 - ![Rifletti orizzontalmente](icon://square-split-horizontal) e ![Rifletti verticalmente](icon://square-split-vertical): rispecchiano il pezzo da sinistra a destra o dall'alto in basso, come lo vedi.
-- Larghezza e altezza in pixel. Con **Mantieni le proporzioni** acceso (come all'inizio) l'altro lato segue; spento, ogni lato cambia da solo, anche trascinando un angolo (allora Maiusc le mantiene).
+- Larghezza e altezza in pixel. Con **Mantieni le proporzioni** acceso (com'è all'inizio) l'altro lato segue. Spento, ogni lato cambia da solo, anche trascinando un angolo; allora Maiusc mantiene le proporzioni.
 - **Opacità**.
 - ![Porta in primo piano](icon://to-front) **Porta in primo piano** e ![Porta dietro](icon://to-back) **Porta dietro**: sopra tutti gli altri oggetti, o sotto.
 
-Ognuno di questi è un passo di Annulla. Per quante volte tu ruoti, rifletta o ridimensioni il pezzo, viene sempre ridisegnato dai pixel incollati, quindi non perde qualità, e il file salvato è quello che vedi.
+Ognuno di questi è un passo di Annulla. Anche se ruoti, rifletti o ridimensioni il pezzo molte volte, viene sempre ridisegnato dai pixel incollati, quindi non perde qualità, e il file salvato è quello che vedi.
 
 ## Filtri su una zona
 
