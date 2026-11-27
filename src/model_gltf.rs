@@ -829,6 +829,48 @@ mod tests {
         assert!(asked <= crate::model::MAX_TEXTURES, "{asked} pictures read for {} kept", crate::model::MAX_TEXTURES);
     }
 
+    /// Audit 27/11, S.10 a: the time the pictures of every GLB under `EYECANSEE_GLTF` take to
+    /// decode, one by one, and so all at once (one a core, before) and `PICTURES_AT_ONCE` at a time.
+    #[test]
+    #[ignore]
+    fn pictures_time_live() {
+        let Ok(dir) = std::env::var("EYECANSEE_GLTF") else { return };
+        let mut stack = vec![std::path::PathBuf::from(dir)];
+        while let Some(d) = stack.pop() {
+            for f in std::fs::read_dir(&d).unwrap().flatten() {
+                let path = f.path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                if !path.extension().is_some_and(|e| e.eq_ignore_ascii_case("glb")) {
+                    continue;
+                }
+                let Ok(g) = gltf::Gltf::from_slice(&std::fs::read(&path).unwrap()) else { continue };
+                let Some(blob) = g.blob.as_deref() else { continue };
+                let times: Vec<f64> = g
+                    .document
+                    .images()
+                    .filter_map(|img| match img.source() {
+                        gltf::image::Source::View { view, .. } => blob.get(view.offset()..view.offset() + view.length()),
+                        _ => None,
+                    })
+                    .map(|bytes| {
+                        let t = std::time::Instant::now();
+                        let _ = image::load_from_memory(bytes).map(|i| i.to_rgba8());
+                        t.elapsed().as_secs_f64()
+                    })
+                    .collect();
+                if times.len() < 2 {
+                    continue;
+                }
+                let most = |t: &[f64]| t.iter().copied().fold(0.0, f64::max);
+                let at_once: f64 = times.chunks(super::PICTURES_AT_ONCE).map(most).sum();
+                println!("PICTURES {}: {} pictures, all at once {:.2} s, {} at a time {:.2} s, one by one {:.2} s", path.display(), times.len(), most(&times), super::PICTURES_AT_ONCE, at_once, times.iter().sum::<f64>());
+            }
+        }
+    }
+
     /// `counted_as_read_t5` on real files: every .glb and .gltf under `EYECANSEE_GLTF`, the count
     /// never below the triangles read (dropped ones only make it higher) when the file has only
     /// triangles.
