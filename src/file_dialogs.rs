@@ -74,8 +74,14 @@ impl App {
         self.paste_ask = Some(PasteAsk { dir, conflicts: None, choices: HashMap::new(), all: false });
     }
 
-    fn start_paste(&mut self, dir: String, choices: HashMap<String, transfer::Choice>) {
+    fn start_paste(&mut self, dir: String, mut choices: HashMap<String, transfer::Choice>) {
         let (Some(loader), Some(clip)) = (&self.loader, &self.clip) else { return };
+        // An item without an answer, whose name is taken after all (since the check, or a check
+        // that missed it), keeps both instead of replacing; a free name stays its own (audit
+        // 27/11 F.2).
+        for p in &clip.paths {
+            choices.entry(p.clone()).or_insert(transfer::Choice::KeepBoth);
+        }
         let progress = Arc::new(transfer::Progress::default());
         loader.paste(clip.clone(), dir.clone(), choices, progress.clone());
         self.transfer = Some((progress, clip.cut, self.base.clone(), dir));
