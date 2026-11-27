@@ -145,7 +145,7 @@ mod tests {
     /// ✕ only cancelled the copy and waited for its end, which did not come: the program was
     /// closed by force. While the phone works alone the ✕ asks. "Keep waiting" (highlighted) and
     /// Esc change nothing; "Close EyeCanSee" cancels the copy, leaves the wait for the phone and
-    /// closes at the end of the copy, and a second ✕ closes at once. With a copy as any other the
+    /// closes at once, without waiting for the copy (a second ✕ too). With a copy as any other the
     /// ✕ cancels and waits, as before.
     #[test]
     #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
@@ -180,12 +180,18 @@ mod tests {
             assert!(!h.close());
             h.frame(Vec::new());
         }
-        // Close EyeCanSee, the other button.
+        // Close EyeCanSee, the other button: closed at once (Piero, 27/11), in the frame of the
+        // answer or the one after it (`Harness::commands` holds a frame's only; audit voce 34 of
+        // 27/11: the test looked at the frame after and passed proving nothing).
         h.key(Key::ArrowLeft);
         h.key(Key::Enter);
+        let mut sent = h.commands.clone();
         h.frame(Vec::new());
-        assert_eq!(state(&h, &p), (false, true, true, true), "Close EyeCanSee: the copy cancelled, the wait left, closing at its end");
-        assert!(!h.commands.contains(&ViewportCommand::Close), "not closed before the copy lets go");
+        sent.extend(h.commands.iter().cloned());
+        assert_eq!(state(&h, &p), (false, true, true, true), "Close EyeCanSee: the copy cancelled, the wait left, closing");
+        assert!(sent.contains(&ViewportCommand::Close), "Close EyeCanSee did not close at once: {sent:?}");
+        // The close that follows is not held back for the copy.
+        assert!(h.close(), "the window did not close after Close EyeCanSee");
         // The time is up with the copy still there: the window is told to close.
         h.app.quit_phone.confirmed = Instant::now().checked_sub(AT_MOST);
         h.frame(Vec::new());
