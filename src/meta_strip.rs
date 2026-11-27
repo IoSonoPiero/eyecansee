@@ -143,7 +143,25 @@ mod tests {
 
     /// #359: an EXIF records the place with a position in its GPS directory (a phone's photo,
     /// without XMP); a GPS directory with only its version, or no GPS, does not.
+        /// #359: the position of a photo whose EXIF has a part kamadak-exif rejects as a whole (a
+    /// "next" link where none is expected, issue #68, as `Quebec City.jpg` of the test files): the
+    /// yellow line of the editor must still know the photo records its place.
     #[test]
+    fn place_in_an_exif_with_an_invalid_part() {
+        let mut tiff = b"MM\0\x2a\0\0\0\x08".to_vec();
+        // IFD0: GPSInfo at 26, no next directory.
+        tiff.extend(b"\0\x01\x88\x25\0\x04\0\0\0\x01\0\0\0\x1a\0\0\0\0");
+        // GPS directory: GPSLatitude, three rationals at 44, then a next directory where none is expected.
+        tiff.extend(b"\0\x01\0\x02\0\x05\0\0\0\x03\0\0\0\x2c\0\0\0\x01");
+        for (n, d) in [(46u32, 1u32), (48, 1), (4311, 100)] {
+            tiff.extend(n.to_be_bytes());
+            tiff.extend(d.to_be_bytes());
+        }
+        assert!(exif::Reader::new().read_raw(tiff.clone()).is_err(), "rejected as a whole without continue_on_error");
+        assert!(exif_has_position(&tiff));
+    }
+
+#[test]
     fn place_in_the_exif() {
         let img = image::DynamicImage::new_rgb8(8, 8);
         let place = |exif: Vec<u8>| crate::encode::Original::with_exif(img.clone(), Some(exif)).has_place(crate::encode::Format::Jpeg);
