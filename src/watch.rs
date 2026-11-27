@@ -35,6 +35,12 @@ fn shown(path: &std::path::Path) -> bool {
     !crate::batch::writing(path) && (!path.is_file() || path.file_name().is_some_and(|n| crate::decode::is_media(&n.to_string_lossy())))
 }
 
+/// The name of the phone's call that moves a file (`mtp.rs`, `move_into`), as `mtp::waiting` and
+/// `mtp::working` tell it: `across`, to its other storage, where the phone can take minutes.
+pub(crate) fn move_call(_across: bool) -> &'static str {
+    "move"
+}
+
 impl App {
     /// Whether the folder `dir` of the source open is on this computer: not a phone nor a
     /// server, also through gvfs, whose changes do not reach the watcher and cost seconds to read.
@@ -245,4 +251,5 @@ mod tests {
         drop(watcher);
         std::fs::remove_dir_all(&dir).unwrap();
     }
+
 }

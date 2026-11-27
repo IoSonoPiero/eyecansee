@@ -484,7 +484,7 @@ impl Phone {
             *renamed.lock().unwrap() = Some((storage.clone(), handle));
         }
         let began = std::time::Instant::now();
-        match (self.queued_kept("move", path, storage.move_object(handle, folder, Some(to.id()))).await, size) {
+        match (self.queued_kept(crate::watch::move_call(size.is_some()), path, storage.move_object(handle, folder, Some(to.id()))).await, size) {
             // To the other storage, past the 30 s mtp-rs waits: the phone is still moving it.
             ((Err(mtp_rs::Error::Timeout), turn), Some(size)) => {
                 self.finished_by_phone(("move", began, turn), path, (&to, folder), (new_name, size, None), Some((&storage, handle))).await.map_err(|e| across::kept_quiet(e, quiet))?;
