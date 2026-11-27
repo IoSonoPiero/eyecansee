@@ -422,30 +422,34 @@ pub fn apply(ready: &Ready) -> Result<(), String> {
         }
         Kind::Zip => {
             let dir = exe.parent().ok_or("exe without folder")?;
-            let unpacked = ready.file.with_extension("unpacked");
-            // The exe can stay locked for a moment after EyeCanSee has exited ("in use by another
-            // process" when copying over it): renamed first, which Windows allows. On any error the
-            // old one goes back, and EyeCanSee starts again in any case.
-            powershell(&format!(
-                "$ErrorActionPreference = 'Stop'; Wait-Process -Id {pid} -ErrorAction SilentlyContinue; \
-                 try {{ Expand-Archive -LiteralPath {zip} -DestinationPath {unpacked} -Force; \
-                 Move-Item -LiteralPath {exe} -Destination {old} -Force; \
-                 Copy-Item -Path (Join-Path {unpacked} '*') -Destination {dir} -Recurse -Force; \
-                 Remove-Item -LiteralPath {unpacked}, {zip} -Recurse -Force; \
-                 Remove-Item -LiteralPath {old} -ErrorAction SilentlyContinue }} \
-                 catch {{ if (-not (Test-Path -LiteralPath {exe})) {{ Move-Item -LiteralPath {old} -Destination {exe} }} }} \
-                 finally {{ Start-Process -FilePath {exe} }}",
-                zip = quote(&ready.file),
-                unpacked = quote(&unpacked),
-                dir = quote(dir),
-                exe = quote(&exe),
-                old = quote(&exe.with_extension("exe.old")),
-            ))
+            powershell(&zip_script(pid, &ready.file, &ready.file.with_extension("unpacked"), dir, &exe))
         }
         // `Act::Update` opens the Store page instead (`in_store`).
         #[cfg(windows)]
         Kind::Store => Err("the Microsoft Store installs its own updates".into()),
     }
+}
+
+/// The PowerShell script that puts the zip's files in `dir`, once the process `pid` has exited,
+/// and starts `exe` again. The exe can stay locked for a moment after EyeCanSee has exited ("in
+/// use by another process" when copying over it): renamed first, which Windows allows. On any
+/// error the old one goes back, and EyeCanSee starts again in any case.
+fn zip_script(pid: u32, zip: &Path, unpacked: &Path, dir: &Path, exe: &Path) -> String {
+    format!(
+        "$ErrorActionPreference = 'Stop'; Wait-Process -Id {pid} -ErrorAction SilentlyContinue; \
+         try {{ Expand-Archive -LiteralPath {zip} -DestinationPath {unpacked} -Force; \
+         Move-Item -LiteralPath {exe} -Destination {old} -Force; \
+         Copy-Item -Path (Join-Path {unpacked} '*') -Destination {dir} -Recurse -Force; \
+         Remove-Item -LiteralPath {unpacked}, {zip} -Recurse -Force; \
+         Remove-Item -LiteralPath {old} -ErrorAction SilentlyContinue }} \
+         catch {{ if (-not (Test-Path -LiteralPath {exe})) {{ Move-Item -LiteralPath {old} -Destination {exe} }} }} \
+         finally {{ Start-Process -FilePath {exe} }}",
+        zip = quote(zip),
+        unpacked = quote(unpacked),
+        dir = quote(dir),
+        exe = quote(exe),
+        old = quote(&exe.with_extension("exe.old")),
+    )
 }
 
 /// EyeCanSee started again once this process has exited (the caller closes the window): after the
