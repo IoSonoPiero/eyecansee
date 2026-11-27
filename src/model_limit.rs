@@ -506,8 +506,9 @@ mod tests {
         assert_eq!(both(&placed).0, "The model repeats its parts more than 1 million times, too many to open.");
         assert_eq!(both(&placed).1, "Il modello ripete le sue parti più di 1 milione di volte, troppe per aprirlo.");
         assert_eq!(both(&placed).3.as_deref(), Some("parti ripetute più di 1 milione di volte"));
-        // A binary PLY that names more points than it may bring, refused before they are read.
-        let ply = b"ply\nformat binary_little_endian 1.0\nelement vertex 200000001\nproperty float x\nproperty float y\nproperty float z\nend_header\n";
+        // A binary PLY that names more points than it may bring, refused before they are read
+        // (with a face: without, a cloud, refused for its points first).
+        let ply = b"ply\nformat binary_little_endian 1.0\nelement vertex 200000001\nproperty float x\nproperty float y\nproperty float z\nelement face 1\nproperty list uchar int vertex_indices\nend_header\n";
         let offered = refused(crate::model::parse(ply, "a.ply")).unwrap();
         assert_eq!(both(&offered).0, "The model has more than 200 million points and triangles, too many to open.");
         assert_eq!(both(&offered).1, "Il modello ha più di 200 milioni di punti e triangoli, troppi per aprirlo.");

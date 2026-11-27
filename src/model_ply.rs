@@ -3,7 +3,8 @@
 
 use std::io::Cursor;
 
-use ply_rs_bw::{parser::Parser, ply::DefaultElement, ply::Property};
+use ply_rs_bw::parser::{Parser, Reader};
+use ply_rs_bw::ply::{DefaultElement, Encoding, Header, Property, PropertyType, ScalarType};
 
 use crate::model::{Builder, Mesh, TOO_FAR, average};
 use crate::model_limit::{Limit, PLY_BINARY, PLY_BINARY_WHOLE, PLY_TEXT};
@@ -41,8 +42,14 @@ fn parsed(bytes: &[u8], z_up: bool) -> Result<Mesh, String> {
     }
     let cleaned = ply_header_cleaned(bytes);
     let bytes = cleaned.as_deref().unwrap_or(bytes);
-    let ply = Parser::<DefaultElement>::new().read_ply(&mut Cursor::new(bytes)).map_err(|e| e.to_string())?;
-    let vertices = ply.payload.get("vertex").ok_or("no vertices in the file")?;
+    let parser = Parser::<DefaultElement>::new();
+    let mut reader = Reader::new(Cursor::new(bytes));
+    let mut header = parser.read_header(&mut reader).map_err(|e| e.to_string())?;
+    // The header as the parser will follow it, checked before it reads (audit 27/11, S.4).
+    let left = bytes.len().saturating_sub(usize::try_from(reader.get_ref().position()).unwrap_or(usize::MAX));
+    parser_may_read(&mut header, left)?;
+    let payload = parser.read_payload(&mut reader, &header).map_err(|e| e.to_string())?;
+    let vertices = payload.get("vertex").ok_or("no vertices in the file")?;
     let coord = |v: &DefaultElement, k: &str| v.get(k).and_then(scalar).unwrap_or(f64::NAN) as f32;
     let pos = vertices.iter().map(|v| [coord(v, "x"), coord(v, "y"), coord(v, "z")]).collect();
     let rgb: Vec<[f32; 3]> = vertices.iter().filter_map(ply_color).collect();
@@ -50,14 +57,14 @@ fn parsed(bytes: &[u8], z_up: bool) -> Result<Mesh, String> {
     let mut tris = Vec::new();
     // Colours of the faces (MeshLab writes them), one per triangle of the face.
     let mut face_rgb: Vec<Option<[f32; 3]>> = Vec::new();
-    for f in ply.payload.get("face").into_iter().flatten() {
+    for f in payload.get("face").into_iter().flatten() {
         let Some(list) = f.get("vertex_indices").or_else(|| f.get("vertex_index")).and_then(list) else { continue };
         let n = list.len().saturating_sub(2);
         tris.extend((1..list.len().saturating_sub(1)).map(|i| [list[0], list[i], list[i + 1]]));
         face_rgb.extend(std::iter::repeat_n(ply_color(f), n));
     }
     // Triangle strips (Stanford's scans): -1 starts a new strip, every other triangle turns the other way.
-    for s in ply.payload.get("tristrips").into_iter().flatten() {
+    for s in payload.get("tristrips").into_iter().flatten() {
         let Some(list) = s.get("vertex_indices").and_then(list) else { continue };
         for strip in list.split(|&v| v == u32::MAX) {
             tris.extend(strip.windows(3).enumerate().map(|(i, w)| if i % 2 == 0 { [w[0], w[1], w[2]] } else { [w[1], w[0], w[2]] }));
@@ -70,6 +77,50 @@ fn parsed(bytes: &[u8], z_up: bool) -> Result<Mesh, String> {
     let colors = |i: usize| face_rgb.get(i).copied().flatten().or_else(|| average(&rgb, tris[i])).map(|c| c.map(|v| v as u8));
     b.add(pos, tris.clone(), colors)?;
     b.finish(z_up)
+}
+
+/// The most rows, of all its elements together, a file read by the parser of `ply-rs-bw` may
+/// have (audit 27/11, S.4 and S.10 c): the parser keeps each row as a table of named values,
+/// about 340 bytes a row at its peak, binary or in text (`parser_peak_per_row`), so about 7 GB at
+/// the most, near the 8 GB of the caps (D1). A mesh in text at its cap (10 million triangles) has
+/// some 15 million rows, half as many points as triangles: it still opens.
+const PARSER_ROWS: usize = 20_000_000;
+
+/// The header the parser is given, checked before it reads (audit 27/11, S.4 and S.10 c): its
+/// rows together within `PARSER_ROWS` (in text only the faces or the cloud's points were
+/// counted); in a binary file rows that fit in the `left` bytes, and no rows for an element
+/// without properties, which take no byte and hold nothing (left out, as `binary` does: the
+/// parser made every one of them, without end).
+fn parser_may_read(header: &mut Header, left: usize) -> Result<(), String> {
+    let binary = header.encoding != Encoding::Ascii;
+    let (mut rows, mut least) = (0usize, 0usize);
+    for e in header.elements.values_mut() {
+        if binary && e.properties.is_empty() {
+            e.count = 0;
+        }
+        // A value, or a list's length, takes at least its type's bytes.
+        let row: usize = e.properties.values().map(|p| match &p.data_type {
+            PropertyType::Scalar(t) | PropertyType::List(t, _) => scalar_size(t),
+        }).sum();
+        rows = rows.saturating_add(e.count);
+        least = least.saturating_add(e.count.saturating_mul(row));
+    }
+    if binary && least > left {
+        return Err(CUT.into());
+    }
+    if rows > PARSER_ROWS {
+        return Err(crate::model_limit::too_many(crate::model_limit::OFFERED, PARSER_ROWS));
+    }
+    Ok(())
+}
+
+fn scalar_size(t: &ScalarType) -> usize {
+    match t {
+        ScalarType::Char | ScalarType::UChar => 1,
+        ScalarType::Short | ScalarType::UShort => 2,
+        ScalarType::Int | ScalarType::UInt | ScalarType::Float => 4,
+        ScalarType::Double => 8,
+    }
 }
 
 /// The cap of a file read by the parser of `ply-rs-bw`: in text counted first, binary read whole.
@@ -251,6 +302,13 @@ fn rgb_of(props: &[Prop]) -> Option<([usize; 3], f64)> {
     Some(([r, g, b], if props[r].ty.float() { 255.0 } else { 1.0 }))
 }
 
+/// Where the corners of a face (or a strip) are among the properties of `e`: as `list` reads
+/// them, indices that are whole numbers, in a list.
+fn corners(e: &Element, strips: bool) -> Option<usize> {
+    let list = if strips { find(&e.props, "vertex_indices") } else { find(&e.props, "vertex_indices").or_else(|| find(&e.props, "vertex_index")) };
+    list.filter(|&i| e.props[i].list.is_some() && !e.props[i].ty.float())
+}
+
 impl Scan {
     fn vertices(&mut self, d: &mut Data, e: &Element) -> Result<(), String> {
         let at = |k: &str| find(&e.props, k).filter(|&i| e.props[i].list.is_none());
@@ -287,9 +345,7 @@ impl Scan {
 
     /// Faces (a fan of triangles each, with its colour when the faces have one) or strips.
     fn faces(&mut self, d: &mut Data, e: &Element, strips: bool) -> Result<(), String> {
-        let list = if strips { find(&e.props, "vertex_indices") } else { find(&e.props, "vertex_indices").or_else(|| find(&e.props, "vertex_index")) };
-        // As `list` reads them: indices that are whole numbers, in a list.
-        let list = list.filter(|&i| e.props[i].list.is_some() && !e.props[i].ty.float());
+        let list = corners(e, strips);
         let colour = if strips { None } else { rgb_of(&e.props) };
         // A face with a triangle takes at least its count and three indices.
         if let Some(p) = list.map(|i| &e.props[i]).filter(|_| !strips) {
@@ -362,6 +418,9 @@ fn binary(bytes: &[u8], z_up: bool) -> Option<Result<Mesh, String>> {
     if !names.contains(&"vertex") {
         return Some(Err("no vertices in the file".into()));
     }
+    if let Err(e) = cloud_first(&elements) {
+        return Some(Err(e));
+    }
     let mut d = Data { bytes, at: body, big };
     let mut s = Scan::default();
     for e in &elements {
@@ -381,6 +440,16 @@ fn binary(bytes: &[u8], z_up: bool) -> Option<Result<Mesh, String>> {
         }
     }
     Some(s.mesh(z_up))
+}
+
+/// A cloud by its header, without faces nor strips that can make a triangle: its points counted
+/// before they are read, as the message says (audit 27/11, D.5).
+fn cloud_first(elements: &[Element]) -> Result<(), String> {
+    let triangles = elements.iter().any(|e| e.count > 0 && (e.name == "face" && corners(e, false).is_some() || e.name == "tristrips" && corners(e, true).is_some()));
+    match elements.iter().find(|e| e.name == "vertex" && !e.props.is_empty()) {
+        Some(v) if !triangles => PLY_BINARY.check_points(v.count),
+        _ => Ok(()),
+    }
 }
 
 impl Scan {
@@ -406,9 +475,11 @@ impl Scan {
 /// Points without faces (3D scans): each one a small tetrahedron, as large as the space between
 /// points on a surface, so that the cloud looks like a surface of dots.
 fn point_cloud(pos: Vec<[f32; 3]>, rgb: &[[f32; 3]], limit: Limit) -> Result<Mesh, String> {
-    let pos: Vec<([f32; 3], Option<[u8; 3]>)> = pos.into_iter().enumerate().filter(|(_, p)| p.iter().all(|c| c.is_finite())).map(|(i, p)| (p, rgb.get(i).map(|c| c.map(|v| v as u8)))).collect();
-    // Said as points, before the 4 triangles of each are made (Piero, 22/11/2026).
-    limit.check_points(pos.len())?;
+    let finite = |p: &[f32; 3]| p.iter().all(|c| c.is_finite());
+    // Said as points, before the 4 triangles of each are made (Piero, 22/11/2026), and before
+    // they are copied (audit 27/11, D.5).
+    limit.check_points(pos.iter().filter(|p| finite(p)).count())?;
+    let pos: Vec<([f32; 3], Option<[u8; 3]>)> = pos.into_iter().enumerate().filter(|(_, p)| finite(p)).map(|(i, p)| (p, rgb.get(i).map(|c| c.map(|v| v as u8)))).collect();
     let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
     for (p, _) in &pos {
         for k in 0..3 {
@@ -665,6 +736,41 @@ mod tests {
         assert!(failed.is_empty(), "{failed:#?}");
     }
 
+    /// Audit 27/11, S.4 and D.5: the checks of the header before the reading refuse no PLY under
+    /// `EYECANSEE_PLY` (and its folders); only the headers are read, not the models.
+    #[test]
+    #[ignore]
+    fn audit_s4_headers_live() {
+        let Ok(dir) = std::env::var("EYECANSEE_PLY") else { return };
+        let mut stack = vec![std::path::PathBuf::from(dir)];
+        while let Some(d) = stack.pop() {
+            for f in std::fs::read_dir(&d).unwrap().flatten() {
+                let path = f.path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                if !path.extension().is_some_and(|e| e.eq_ignore_ascii_case("ply")) {
+                    continue;
+                }
+                let bytes = std::fs::read(&path).unwrap();
+                let ours = binary_header(&bytes).filter(|(_, e, _)| e.iter().enumerate().all(|(i, x)| e[..i].iter().all(|o| o.name != x.name)));
+                let r = match ours {
+                    Some((_, elements, _)) => cloud_first(&elements).map(|()| "our reader"),
+                    None => {
+                        let cleaned = ply_header_cleaned(&bytes).unwrap();
+                        let mut reader = Reader::new(Cursor::new(&cleaned[..]));
+                        let mut header = Parser::<DefaultElement>::new().read_header(&mut reader).unwrap();
+                        let left = cleaned.len() - reader.get_ref().position() as usize;
+                        parser_may_read(&mut header, left).map(|()| "the parser")
+                    }
+                };
+                println!("{}: {r:?}", path.display());
+                assert!(r.is_ok(), "{}", path.display());
+            }
+        }
+    }
+
     /// Megabytes of `key` in /proc/self/status (VmRSS, VmHWM).
     #[cfg(target_os = "linux")]
     fn status_mb(key: &str) -> u64 {
@@ -781,9 +887,27 @@ mod tests {
     fn audit_d5_binary_cloud_counted_first() {
         let bytes = ply("binary_little_endian", "element vertex 12500001\nproperty float x\nproperty float y\nproperty float z\nproperty uchar red\nproperty uchar green\nproperty uchar blue\n", &[0; 15]);
         assert_eq!(read(&bytes).map(|m| m.tris.len()), Err(PLY_BINARY.check_points(12_500_001).unwrap_err()));
-        // The faces' lists that make no triangle (float indices) leave it a cloud: counted after.
+        // The faces' lists that make no triangle (float indices) leave it a cloud: counted first too.
         let floats = ply("binary_little_endian", "element vertex 12500001\nproperty float x\nproperty float y\nproperty float z\nelement face 1\nproperty list uchar float vertex_indices\n", &[0; 12]);
         assert_eq!(read(&floats).map(|m| m.tris.len()), Err(PLY_BINARY.check_points(12_500_001).unwrap_err()));
+    }
+
+    /// Audit 27/11, S.4: the parser of `ply-rs-bw` at its peak, by row of a grid's points and
+    /// faces, binary and in text, for `PARSER_ROWS`.
+    #[test]
+    fn parser_peak_per_row() {
+        let binary = grid(200, false);
+        let end = binary.windows(11).position(|w| w == b"end_header\n").unwrap() + 11;
+        let m = read(&binary).unwrap();
+        let mut text = String::from_utf8_lossy(&binary[..end]).replace("binary_little_endian", "ascii").into_bytes();
+        m.pos.iter().for_each(|p| text.extend(format!("{} {} {}\n", p[0], p[1], p[2]).bytes()));
+        m.tris.iter().for_each(|t| text.extend(format!("3 {} {} {}\n", t[0], t[1], t[2]).bytes()));
+        let rows = 200 * 200 + 2 * 199 * 199;
+        for (what, bytes, most) in [("binary", binary, 400), ("text", text, 400)] {
+            let (r, peak) = crate::test_alloc::peak(|| Parser::<DefaultElement>::new().read_ply(&mut Cursor::new(&bytes)).map(|p| p.payload.len()));
+            println!("{what}: {} bytes a row", peak / rows);
+            assert!(r.is_ok() && peak / rows < most, "{what}: {} bytes a row", peak / rows);
+        }
     }
 
     /// #191: reading a binary PLY took about 870 bytes per triangle at its peak (Lucy, 28 million
