@@ -451,9 +451,8 @@ impl Phone {
             .collect())
     }
 
-    /// Moves into `to_dir` (created if missing) with the name `new_name`: renamed in place first,
-    /// MTP moves keep the name. The name must be free in both folders (`Store::delete`, `restore`).
-    pub async fn move_into(&self, path: &str, to_dir: &str, new_name: &str) -> Result<(), Error> {
+    /// `move_into`, with the item and its storage kept in `renamed` once renamed in place.
+    async fn move_renamed(&self, path: &str, to_dir: &str, new_name: &str, renamed: &Mutex<Option<(Arc<Storage>, ObjectHandle)>>) -> Result<(), Error> {
         // A folder to the other storage is refused at once: the phone would copy it whole inside
         // one call, longer than the 30 s mtp-rs waits for its answer, and the late answer then
         // leaves every next call waiting, Cancel too (Redmi Note 9 Pro, 152 photos, 690 MB, to its
@@ -482,6 +481,7 @@ impl Phone {
         self.own.mark(handle);
         if new_name != source::name(path) {
             self.queued("rename", path, storage.rename(handle, new_name)).await.map_err(error)?;
+            *renamed.lock().unwrap() = Some((storage.clone(), handle));
         }
         let began = std::time::Instant::now();
         match (self.queued_kept("move", path, storage.move_object(handle, folder, Some(to.id()))).await, size) {

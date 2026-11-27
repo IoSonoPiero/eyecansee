@@ -7,6 +7,10 @@
 
 use mtp_rs::ObjectHandle;
 
+use std::sync::{Arc, Mutex};
+
+use mtp_rs::mtp::Storage;
+
 use super::{Error, Phone, cache, error};
 
 /// The error of a copy cancelled, as everywhere (`transfer`).
@@ -24,12 +28,36 @@ pub(super) async fn finish(cancelled: bool, remove: impl Future<Output = Result<
 }
 
 /// The end of a move with a new name (`Phone::move_into`), renamed in place before the move:
-/// `moved`, what the move came to; `back`, the old name given back.
-pub(super) async fn moved_or_named_back(moved: Result<(), Error>, _renamed: bool, _back: impl Future<Output = Result<(), Error>>) -> Result<(), Error> {
+/// `moved`, what the move came to; `back`, the old name given back. A move that failed left the
+/// item in its folder under the new name: it gets its old name back, unless the phone answers
+/// nothing now (`across::unanswering`: each call would wait for it again). The move's error stays
+/// what it was (audit 27/11 T.5).
+pub(super) async fn moved_or_named_back(moved: Result<(), Error>, renamed: bool, back: impl Future<Output = Result<(), Error>>) -> Result<(), Error> {
+    if let Err(e) = &moved
+        && renamed
+        && !super::across::unanswering(e)
+    {
+        let r = back.await;
+        log!("move failed ({e:?}), the old name given back: {r:?}");
+    }
     moved
 }
 
 impl Phone {
+    /// Moves into `to_dir` (created if missing) with the name `new_name`: renamed in place first,
+    /// MTP moves keep the name; a move that fails gives the old name back (`moved_or_named_back`).
+    /// The name must be free in both folders (`Store::delete`, `restore`).
+    pub async fn move_into(&self, path: &str, to_dir: &str, new_name: &str) -> Result<(), Error> {
+        let renamed = Mutex::new(None::<(Arc<Storage>, mtp_rs::ObjectHandle)>);
+        let moved = self.move_renamed(path, to_dir, new_name, &renamed).await;
+        let item = renamed.lock().unwrap().take();
+        let back = async {
+            let Some((storage, h)) = &item else { return Ok(()) };
+            self.queued("rename", path, storage.rename(*h, crate::source::name(path))).await.map_err(error)
+        };
+        moved_or_named_back(moved, item.is_some(), back).await
+    }
+
     /// The copy `h` the phone just made in the folder `dir`, named `name` there, deleted
     /// (`finish`). By its handle: the original has the same name when `dir` is its folder's
     /// hidden one, and another handle always (`copy_object`).
