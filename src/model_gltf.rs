@@ -131,8 +131,11 @@ pub(crate) fn cut_text(i18n: &crate::i18n::I18n, id: &str, detail: &str) -> Opti
 
 fn read_plain(bytes: &[u8], sibling: Sibling, limit: crate::model_limit::Limit) -> Result<Mesh, String> {
     let g = gltf::Gltf::from_slice(bytes).map_err(|e| gltf_error(e.to_string()))?;
-    // Counted from the accessors before the data is read (T5, Piero 22/11/2026).
+    // Counted from the accessors before the data is read (T5, Piero 22/11/2026): the triangles,
+    // the lines and points, and every accessor a primitive reads (audit 27/11, D.1).
     limit.check(triangles(&g.document))?;
+    crate::model_lines::fits(lines_and_points(&g.document), limit)?;
+    accessors_fit(&g.document, limit)?;
     let inside: Vec<Option<Vec<u8>>> = g
         .document
         .buffers()
@@ -201,32 +204,60 @@ fn read_plain(bytes: &[u8], sibling: Sibling, limit: crate::model_limit::Limit) 
 /// points left out as the reading leaves them. Triangles the reading drops (indices that point
 /// nowhere) still count: never fewer than the reading's.
 fn triangles(doc: &gltf::Document) -> usize {
-    fn mesh(m: &gltf::Mesh) -> usize {
-        use gltf::mesh::Mode;
+    use gltf::mesh::Mode;
+    counted(doc, |p, n| match p.mode() {
+        Mode::Triangles => n / 3,
+        Mode::TriangleStrip | Mode::TriangleFan => n.saturating_sub(2),
+        _ => 0,
+    })
+}
+
+/// The segments and points the reading gathers (`gltf_mesh`, made solid by `model_lines`), counted
+/// the same way, before the data is read (audit 27/11, D.1): never fewer than the reading's.
+fn lines_and_points(doc: &gltf::Document) -> usize {
+    use gltf::mesh::Mode;
+    counted(doc, |p, n| match p.mode() {
+        Mode::Points | Mode::LineLoop => n,
+        Mode::Lines => n / 2,
+        Mode::LineStrip => n.saturating_sub(1),
+        _ => 0,
+    })
+}
+
+/// `count` of each primitive with points (and the number of its corners: its indices, else its
+/// points) added up as the reading meets them: every node of the scene once, each mesh at every
+/// node that places it, without a scene every mesh once.
+fn counted(doc: &gltf::Document, count: impl Fn(&gltf::Primitive, usize) -> usize) -> usize {
+    let mesh = |m: &gltf::Mesh| {
         m.primitives()
             .filter_map(|p| {
                 let pos = p.get(&gltf::Semantic::Positions)?;
-                let n = p.indices().map_or(pos.count(), |i| i.count());
-                match p.mode() {
-                    Mode::Triangles => Some(n / 3),
-                    Mode::TriangleStrip | Mode::TriangleFan => Some(n.saturating_sub(2)),
-                    _ => None,
-                }
+                Some(count(&p, p.indices().map_or(pos.count(), |i| i.count())))
             })
             .fold(0, usize::saturating_add)
-    }
-    fn node(n: &gltf::Node, seen: &mut HashSet<usize>, depth: u32) -> usize {
+    };
+    fn node(n: &gltf::Node, seen: &mut HashSet<usize>, depth: u32, mesh: &dyn Fn(&gltf::Mesh) -> usize) -> usize {
         // As `gltf_node`: too deep is refused by the reading, a node met again placed once.
         if depth > 64 || !seen.insert(n.index()) {
             return 0;
         }
-        n.children().map(|c| node(&c, seen, depth + 1)).fold(n.mesh().map_or(0, |m| mesh(&m)), usize::saturating_add)
+        n.children().map(|c| node(&c, seen, depth + 1, mesh)).fold(n.mesh().map_or(0, |m| mesh(&m)), usize::saturating_add)
     }
     let mut seen = HashSet::new();
     match doc.default_scene().or_else(|| doc.scenes().next()) {
-        Some(scene) => scene.nodes().map(|n| node(&n, &mut seen, 0)).fold(0, usize::saturating_add),
+        Some(scene) => scene.nodes().map(|n| node(&n, &mut seen, 0, &mesh)).fold(0, usize::saturating_add),
         None => doc.meshes().map(|m| mesh(&m)).fold(0, usize::saturating_add),
     }
+}
+
+/// Every accessor a primitive reads (its points, normals, colours, coordinates, indices) within
+/// what a model may bring (`Limit::offered`), before it is read: an accessor "sparse" without
+/// data behind it gives as many zeros as its `count` says, and the reading would reserve them
+/// all at once (a .gltf of 1 KB asked for tens of GB; audit 27/11, D.1 = S.3).
+fn accessors_fit(doc: &gltf::Document, limit: crate::model_limit::Limit) -> Result<(), String> {
+    let most = limit.offered();
+    let too_many = doc.meshes().flat_map(|m| m.primitives().collect::<Vec<_>>()).any(|p| p.attributes().map(|(_, a)| a).chain(p.indices()).any(|a| a.count() > most));
+    if too_many { Err(crate::model_limit::too_many(crate::model_limit::OFFERED, most)) } else { Ok(()) }
 }
 
 /// Line segments and points of a glTF, made solid at the end (`model_lines`), the number of
@@ -787,6 +818,10 @@ mod tests {
                 use gltf::mesh::Mode;
                 let only_triangles = g.document.meshes().flat_map(|m| m.primitives().collect::<Vec<_>>()).all(|p| matches!(p.mode(), Mode::Triangles | Mode::TriangleStrip | Mode::TriangleFan));
                 assert!(counted >= read || !only_triangles, "{}", path.display());
+                // Audit 27/11, D.1: the counts before the reading refuse no real file.
+                let limit = if plain.starts_with(b"glTF") { crate::model_limit::GLB } else { crate::model_limit::GLTF };
+                assert_eq!(crate::model_lines::fits(super::lines_and_points(&g.document), limit), Ok(()), "{}", path.display());
+                assert_eq!(super::accessors_fit(&g.document, limit), Ok(()), "{}", path.display());
             }
         }
     }
