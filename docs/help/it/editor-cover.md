@@ -1,6 +1,6 @@
 # Coprire parti dell'immagine
 
-![Copertura](icon://eye-off) **Copertura** (B) nasconde i dati privati con un riquadro pieno: una targa, un indirizzo, un volto, un nome su un documento.
+![Copertura](icon://eye-off) **Copertura** (B) nasconde i dati sensibili con un riquadro pieno: una targa, un indirizzo, un volto, un nome su un documento.
 
 ## Coprire
 
@@ -20,7 +20,7 @@ Il riquadro copre ciò che hai disegnato prima. Ciò che disegni dopo gli resta 
 
 ## Copertura, sfocatura o pixel grossi?
 
-I [Filtri](editor-filters.md) Sfoca e Pixel grossi sembrano nascondere, ma non bastano per testi o numeri privati: con poca intensità si leggono ancora, o si possono ricostruire. Per quelli usa sempre Copertura.
+I [Filtri](editor-filters.md) Sfoca e Pixel grossi sembrano nascondere, ma non bastano per testi o numeri sensibili: con poca intensità si leggono ancora, o si possono ricostruire. Per quelli usa sempre Copertura.
 
 Una zona tagliata con **Ctrl + X** in [Selezionare un'area](editor-marquee.md) viene coperta allo stesso modo.
 

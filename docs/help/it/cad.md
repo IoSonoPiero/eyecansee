@@ -72,4 +72,4 @@ I testi si scrivono con i font SHX del disegno quando i file dei font sono accan
 
 Immagini e SVG mostrano lo spazio modello, non i layout. Un disegno salvato come DWG o DXF viene riletto e confrontato con l'originale (il modello, ogni layout e i livelli con qualcosa sopra): se qualcosa andasse perso, non viene salvato, e il riepilogo alla fine lo dice.
 
-Le rotazioni e i ribaltamenti del menu Immagine non valgono per i disegni.
+Le rotazioni e le riflessioni del menu Immagine non valgono per i disegni.

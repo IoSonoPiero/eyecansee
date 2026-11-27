@@ -83,7 +83,7 @@ Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositiv
 | Spazio (su una foto in movimento) | Riproduce il suo video |
 | Pag↓, Pag↑ (su un TIFF con più pagine) | Pagina successiva, precedente |
 | P (su un panorama a 360°) | Foto piatta, e di nuovo la vista a 360° |
-| Esc | Torna alla griglia (a schermo intero prima esce dallo schermo intero); chiude EyeCanSee quando **La X della finestra torna alla griglia** è spenta nelle [Opzioni](options.md) |
+| Esc | Torna alla griglia (a schermo intero prima esce dallo schermo intero); chiude EyeCanSee quando **La ✕ della finestra torna alla griglia** è spenta nelle [Opzioni](options.md) |
 | Doppio clic | Torna alla griglia, oppure schermo intero e ritorno, come scelto nelle [Opzioni](options.md) |
 | Invio | Torna alla griglia, anche quando Esc chiude EyeCanSee |
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce |

@@ -70,4 +70,4 @@ Senza una scheda video che EyeCanSee possa usare, il modello lo disegna il proce
 - **Ctrl + Maiusc + S**, o **Salva come…** nel menu File o nel menu del clic destro del visore, salva il modello come si vede, come immagine, di almeno 1920 pixel sul lato lungo. Vedi [Salva come](save-as.md).
 - **Esporta come modello 3D…** lo salva in un altro formato 3D. Vedi [Esportare i modelli 3D](model-export.md).
 
-Le rotazioni e i ribaltamenti del menu Immagine non valgono per i modelli: un modello si gira col mouse e con le frecce.
+Le rotazioni e le riflessioni del menu Immagine non valgono per i modelli: un modello si gira col mouse e con le frecce.

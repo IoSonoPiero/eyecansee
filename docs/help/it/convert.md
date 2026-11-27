@@ -41,7 +41,7 @@ Con una misura e una rotazione, il nome dice solo la misura. Un'immagine lasciat
 - Uno dei formati di [Salva come](save-as.md). Le sue opzioni sono sotto **Opzioni JPEG** (con il nome del formato scelto): fai clic sul titolo per aprirle. Lì c'è anche **Metadati**: tutti, tutti tranne il luogo, o nessuno tranne il profilo colore, come in [Salva come](save-as.md).
 - Le foto **Ultra HDR** dei telefoni restano HDR solo in JPEG. Se tra i file ci sono dei JPEG e scegli un altro formato, la finestra ti avvisa.
 
-## Rotazione e ribaltamenti
+## Rotazione e riflessioni
 
 - **Nessuna rotazione**, **90° in senso orario**, **180°** o **90° in senso antiorario**.
 - **Rifletti orizzontalmente** e **Rifletti verticalmente**. Con anche una rotazione, prima si riflette e poi si ruota.

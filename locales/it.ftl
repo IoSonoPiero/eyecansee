@@ -393,8 +393,8 @@ opt-remember-scroll = Ricorda la posizione di scorrimento di ogni cartella
 opt-remember-scroll-hint = Tornando in una cartella già vista, la griglia riparte dal punto in cui l'avevi lasciata invece che dalla prima anteprima. Vale finché EyeCanSee resta aperto.
 opt-wrap-around = Dopo l'ultima immagine ricomincia dalla prima
 opt-wrap-around-hint = E dalla prima immagine, tornando indietro, mostra l'ultima. Spenta, il visore si ferma alla prima e all'ultima immagine.
-opt-close-to-grid = La X della finestra torna alla griglia
-opt-close-to-grid-hint = Accesa: la X fa come Esc, un passo alla volta: l'editor, poi il visore, poi EyeCanSee. Spenta: dal visore sia la X sia Esc chiudono EyeCanSee (Esc esce prima dallo schermo intero), e la X lo chiude anche dall'editor. Prima chiede delle modifiche non salvate.
+opt-close-to-grid = La ✕ della finestra torna alla griglia
+opt-close-to-grid-hint = Accesa: la ✕ fa come Esc, un passo alla volta: l'editor, poi il visore, poi EyeCanSee. Spenta: dal visore sia la ✕ sia Esc chiudono EyeCanSee (Esc esce prima dallo schermo intero), e la ✕ lo chiude anche dall'editor. Prima chiede delle modifiche non salvate.
 opt-wheel = Rotellina del mouse nel visore:
 opt-wheel-zoom = Ingrandisce e rimpicciolisce
 opt-wheel-next = Mostra l'immagine successiva o precedente
@@ -1931,12 +1931,12 @@ batch-skip-same-size = { $detail }: ha già questa misura, o è più piccola e n
 batch-skip-too-large = { $detail }: chiederebbe più di metà della memoria di questo computer; lasciata fuori.
 batch-skip-inside = { $detail }: animata o con più pagine; il file nuovo avrebbe solo la prima.
 batch-failed = { $detail }
-batch-turn = Rotazione e ribaltamenti
+batch-turn = Rotazione e riflessioni
 batch-turn-none = Nessuna rotazione
 batch-turn-cw = 90° in senso orario
 batch-turn-180 = 180°
 batch-turn-ccw = 90° in senso antiorario
-batch-turn-order = Prima i ribaltamenti, poi la rotazione.
+batch-turn-order = Prima le riflessioni, poi la rotazione.
 batch-format-options = Opzioni { $format }
 batch-other = In un'altra cartella, anche su un altro dispositivo
 batch-browse = Sfoglia…
@@ -1991,7 +1991,7 @@ fade-zoom = Zoom e dissolvenza
 show-hint = Esc, doppio clic: esci | Spazio: pausa | ← →, Pag↑, Pag↓: immagine precedente e successiva
 show-paused = In pausa (Spazio per continuare)
 show-skipped = File saltato: { $name } (non si apre)
-show-none-readable = Presentazione fermata: nessuno dei suoi file si apre.
+show-none-readable = Carosello fermato: nessuno dei suoi file si apre.
 menu-new-folder = Nuova cartella…
 menu-new-folder-in = Nuova cartella qui dentro…
 key-new-folder = Ctrl + Maiusc + N
@@ -2207,7 +2207,7 @@ tip-cover-title = Nascondere una targa o un indirizzo
 tip-cover-text =
     Nell'editor scegli **Copertura** (tasto **B**) e trascina sopra ciò che va nascosto. Nel file salvato non resta niente di quello che c'era sotto il riquadro.
 
-    Sfoca e Pixel grossi non bastano per testi o numeri privati: si possono ancora leggere o ricostruire.
+    Sfoca e Pixel grossi non bastano per testi o numeri sensibili: si possono ancora leggere o ricostruire.
 tip-resize-title = Copie più piccole con un clic
 tip-resize-text =
     Seleziona le foto, fai clic destro e scegli **Ridimensiona**: Piccola, Media, Grande o Metà. Le copie vanno accanto agli originali, con i loro metadati e la misura nel nome.

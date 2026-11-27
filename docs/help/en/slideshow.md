@@ -1,6 +1,6 @@
 # Slideshow
 
-The slideshow shows the pictures one after the other at full screen, on black, with a passage between them.
+The slideshow shows the pictures one after the other at full screen, on black, with a transition between them.
 
 ## Starting the slideshow
 
@@ -18,7 +18,7 @@ The slideshow shows the pictures one after the other at full screen, on black, w
 | →, Page Down | Next picture at once |
 | ←, Page Up | Previous picture at once |
 
-The keys are shown at the bottom for the first seconds; while paused, the screen says **Paused (Space to go on)**.
+The keys are shown at the bottom for the first seconds; while paused, the screen says **Paused (Space to resume)**.
 
 A video plays to the end, with its audio, then the next picture comes; **Space** pauses it too. See [Playing videos](video.md).
 
@@ -29,7 +29,7 @@ When the slideshow ends you are back where you were, on the last picture shown.
 In **Tools > Options… > Slideshow**:
 
 - **Each image stays for**: how many seconds (5 by default).
-- **Passage between images**: **None (straight cut)**, **Crossfade** (the default), **Fade through black**, **Slide** or **Zoom and fade**. With **Slide**, when you go back, the pictures slide the other way.
+- **Transition between images**: **None (straight cut)**, **Crossfade** (the default), **Fade through black**, **Slide** or **Zoom and fade**. With **Slide**, when you go back, the pictures slide the other way.
 - **Start again after the last image** (on by default): when off, the slideshow ends after the last picture.
 
 ## Good to know

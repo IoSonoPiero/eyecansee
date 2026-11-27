@@ -1,6 +1,6 @@
 # Modificare un'immagine
 
-L'editor è una pagina a sé dove disegni su un'immagine, copri i dati privati, aggiungi filtri, la ruoti e la ritagli. Il file originale non cambia mai, a meno che tu non scelga di sovrascriverlo.
+L'editor è una pagina a sé dove disegni su un'immagine, copri i dati sensibili, aggiungi filtri, la ruoti e la ritagli. Il file originale non cambia mai, a meno che tu non scelga di sovrascriverlo.
 
 ![Modificare un'immagine](../img/editor.webp)
 

@@ -554,7 +554,7 @@ mod tests {
         assert_eq!(h.app.error, Some(h.app.i18n.t("show-none-readable")));
         let it = crate::i18n::I18n::new("it");
         assert_eq!(it.t_args("show-skipped", &[("name", "b.mp4")]), "File saltato: b.mp4 (non si apre)");
-        assert_eq!(it.t("show-none-readable"), "Presentazione fermata: nessuno dei suoi file si apre.");
+        assert_eq!(it.t("show-none-readable"), "Carosello fermato: nessuno dei suoi file si apre.");
     }
     use super::*;
 
