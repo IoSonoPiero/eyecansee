@@ -37,9 +37,10 @@ pub fn warn_place(cover: bool, keep: Keep, place: impl FnOnce() -> bool) -> bool
 }
 
 /// The EXIF (a TIFF structure) holds a position: a latitude in its GPS directory. Some cameras
-/// write the directory with its version only, which says nowhere.
+/// write the directory with its version only, which says nowhere. Read leniently, as the panel
+/// reads it (`meta::lenient`, issue #68): a part kamadak-exif rejects does not hide the place.
 pub fn exif_has_position(t: &[u8]) -> bool {
-    exif::Reader::new().read_raw(t.to_vec()).is_ok_and(|e| e.get_field(exif::Tag::GPSLatitude, exif::In::PRIMARY).is_some())
+    crate::meta::lenient(|r| r.read_raw(t.to_vec())).is_some_and(|e| e.get_field(exif::Tag::GPSLatitude, exif::In::PRIMARY).is_some())
 }
 
 /// IPTC-IIM datasets of the place: content location code and name (2:26, 2:27), city (2:90),

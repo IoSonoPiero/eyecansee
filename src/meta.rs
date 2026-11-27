@@ -215,7 +215,7 @@ pub fn exif_fields(bytes: &[u8]) -> Option<(Vec<exif::Field>, bool)> {
 /// The EXIF that `read` gives a reader, with the fields that can be read when a part of it is not valid
 /// (issue #68: a "next" link where none is expected made kamadak-exif reject a whole JPEG's EXIF,
 /// GPS included). `None` if nothing can be read.
-fn lenient(read: impl FnOnce(&Reader) -> Result<Exif, exif::Error>) -> Option<Exif> {
+pub(crate) fn lenient(read: impl FnOnce(&Reader) -> Result<Exif, exif::Error>) -> Option<Exif> {
     let mut reader = Reader::new();
     reader.continue_on_error(true);
     read(&reader).or_else(|e| e.distill_partial_result(|_| {})).ok()
