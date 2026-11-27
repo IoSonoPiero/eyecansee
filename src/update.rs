@@ -655,6 +655,21 @@ pub(crate) mod tests {
         assert_eq!(without.0.as_deref(), Some("old"), "an update without the exe keeps the old one");
     }
 
+    /// Audit C.2: `APPIMAGE` names this copy only when its executable runs from inside the
+    /// AppImage's mount (`APPDIR`): a program started by another AppImage inherits both.
+    #[test]
+    fn appimage_only_from_inside_its_mount() {
+        use std::ffi::OsString;
+        let (file, mount) = (Some(OsString::from("/home/u/Apps/Other.AppImage")), Some(OsString::from("/tmp/.mount_OtherAb12")));
+        let at = |exe: &str, appimage: &Option<OsString>, appdir: &Option<OsString>| appimage_of(Some(Path::new(exe)), appimage.clone(), appdir.clone());
+        assert_eq!(at("/tmp/.mount_OtherAb12/usr/bin/eyecansee", &file, &mount), Some(PathBuf::from("/home/u/Apps/Other.AppImage")), "inside its AppImage");
+        assert_eq!(at("/usr/local/bin/eyecansee", &file, &mount), None, "built from source, started by another AppImage");
+        assert_eq!(at("/tmp/.mount_OtherAb12x/usr/bin/eyecansee", &file, &mount), None, "a mount with a longer name");
+        assert_eq!(at("/tmp/.mount_OtherAb12/usr/bin/eyecansee", &file, &None), None, "no APPDIR");
+        assert_eq!(at("/tmp/.mount_OtherAb12/usr/bin/eyecansee", &None, &mount), None, "no APPIMAGE");
+        assert_eq!(appimage_of(None, file, mount), None, "no executable");
+    }
+
     /// Issue #69: the Fedora package says how the system updates it, rpm-ostree on Fedora Atomic.
     #[test]
     fn not_updated_notes() {
