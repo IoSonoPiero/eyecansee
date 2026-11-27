@@ -616,4 +616,27 @@ mod tests {
         assert_eq!(chosen, 7, "the arrow did not go on from the entry chosen (6), or Enter did not choose");
         assert!(!egui::Popup::is_any_open(&ctx), "Enter chose but left the list open");
     }
+
+    /// Audit 27/11 A.4 (#177): the question of Save in the viewer on a picture too large for the
+    /// memory was not among the windows that ask: Esc did not close it, F11 and the other keys
+    /// reached the viewer under it.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn save_too_large_keeps_its_keys() {
+        use crate::audit_family_1::{keys_stay_over_viewer, own_folder, turned_middle};
+        if own_folder("confirm::tests::save_too_large_keeps_its_keys") {
+            return;
+        }
+        let mut h = turned_middle("save-big-keys");
+        let path = h.app.files()[1].path.clone();
+        h.app.save_big = Some((path, h.app.turn, 1 << 40));
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+        assert!(h.app.save_big.is_some(), "the question did not stay open");
+        keys_stay_over_viewer(&mut h, |a| a.save_big.is_some(), None);
+        h.key(egui::Key::Escape);
+        h.frame(Vec::new());
+        assert!(h.app.save_big.is_none(), "Esc did not close the question");
+        assert!(h.app.viewing.is_some() && h.app.turn_unsaved(), "Esc closed the viewer, or its turn, under the question");
+    }
 }
