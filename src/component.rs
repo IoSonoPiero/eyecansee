@@ -450,6 +450,20 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
+    /// Audit C.6: next to an Update button the line above it says the engine is there but older,
+    /// not "downloaded once"; the same `button_id` picks it (`video.rs`, `cad_engine.rs`).
+    #[test]
+    fn update_has_its_own_line() {
+        for (lang, ftl, once) in [("en", include_str!("../locales/en.ftl"), "once"), ("it", include_str!("../locales/it.ftl"), "una volta")] {
+            let text = |id: &str| ftl.lines().find_map(|l| l.strip_prefix(&format!("{id} = "))).map(str::to_owned);
+            for (download, update) in [("video-component-ask", "video-component-ask-update"), ("cad-engine-ask", "cad-engine-ask-update")] {
+                assert!(text(download).is_some(), "{lang}: {download}");
+                let line = text(update).unwrap_or_else(|| panic!("{lang}: no {update}"));
+                assert!(!line.contains(once) && line.contains("{ $size }"), "{lang}: {update} = {line}");
+            }
+        }
+    }
+
     /// The rows of the first-start window and of Options > Add-ons: every add-on has a name and a
     /// line about it in the languages, and the sizes are those of the components.
     #[test]
