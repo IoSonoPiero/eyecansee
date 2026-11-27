@@ -398,3 +398,35 @@ fn result_failed_without_a_detail_has_no_colon() {
         assert!(!said.trim_end().ends_with(':'), "a colon with nothing after it: {said:?}");
     }
 }
+
+/// #310 (doubt of the audit of 27/11): a text being typed, then Save copy clicked (Ctrl+S does
+/// nothing while the field has the keys): with the confirmation open over the page, the letters
+/// typed do not go into the text under it.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+// Only in debug builds: the button is found by its infos (`Style::debug`), not there in release.
+#[cfg(debug_assertions)]
+fn letters_typed_with_the_confirmation_open_stay_out_of_the_text() {
+    if own_folder("edit_page::defects::letters_typed_with_the_confirmation_open_stay_out_of_the_text") {
+        return;
+    }
+    let mut h = Harness::new(&white("typing-confirm"));
+    h.ctx.global_style_mut(|s| s.debug.show_interactive_widgets = true);
+    editor(&mut h, "a.png", Tool::Draw(Kind::Text));
+    click(&mut h, MIDDLE);
+    typed(&mut h, "xyz");
+    assert_eq!(texts(&h), ["xyz"], "the text typed");
+    let label = h.app.i18n.t("edit-save-copy");
+    let save = h.ctx.viewport(|v| {
+        let w = &v.prev_pass.widgets;
+        w.layers().flat_map(|(_, ws)| ws.iter()).find(|r| w.info(r.id).is_some_and(|i| i.role == egui::Role::Button && i.label.as_deref().is_some_and(|l| l.contains(&label)))).map(|r| r.rect)
+    });
+    click(&mut h, save.expect("the button Save copy").center());
+    h.until(|app| app.editor.as_ref().is_some_and(|w| w.ready.is_some()), "the confirmation");
+    for _ in 0..3 {
+        h.frame(Vec::new());
+    }
+    typed(&mut h, "q");
+    typed(&mut h, "w");
+    assert_eq!(texts(&h), ["xyz"], "letters typed with the confirmation open went into the text");
+}
