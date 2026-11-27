@@ -37,7 +37,7 @@ mod unseen;
 mod wait;
 #[cfg(test)]
 pub(crate) use across::alone_limit;
-pub use across::{leave, leaving, stay};
+pub use across::{leave, leaving, stay, windows_gave_up};
 pub use events::{Change, on_change, take_changes};
 
 /// Device storages with the name shown as a folder.

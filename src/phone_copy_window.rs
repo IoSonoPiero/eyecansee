@@ -72,6 +72,7 @@ impl App {
                 _ => None,
             },
             leaving: crate::mtp::leaving(),
+            windows_gave_up: crate::mtp::windows_gave_up(),
         }
     }
 
@@ -108,7 +109,7 @@ impl App {
             detail,
             bar: v.bar,
             counts: v.rows.then_some([data, speed]),
-            note: (format!("{now} {}", t("phone-copy-keep")), v.note != Note::Waiting),
+            note: (if v.keep { format!("{now} {}", t("phone-copy-keep")) } else { now }, v.note != Note::Waiting),
             cancel: match (v.cancel, v.leave) {
                 (true, _) => Ok((t("delete-no"), t("phone-copy-cancel-tip"))),
                 (false, Leave::Asked) => Err(t("phone-copy-leaving")),

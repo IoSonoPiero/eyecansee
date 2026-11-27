@@ -141,6 +141,8 @@ pub struct Seen {
     pub counting: Option<usize>,
     /// The wait for the phone was asked to end (`mtp::leaving`).
     pub leaving: bool,
+    /// EyeCanSee waits for a copy Windows stopped waiting for (`mtp::windows_gave_up`).
+    pub windows_gave_up: bool,
 }
 
 /// The way out of the wait for the phone, once Cancel is pressed (#354: the wait could last
@@ -214,6 +216,8 @@ pub struct View {
     /// Cancel is still to press (`false` once pressed: its button gives way to what happens).
     pub cancel: bool,
     pub leave: Leave,
+    /// "Do not unplug the phone" is said.
+    pub keep: bool,
 }
 
 /// The window for `s`: only what is known, nothing guessed.
@@ -222,7 +226,7 @@ pub fn view(s: &Seen) -> View {
     if s.counting.is_some() {
         // Nothing of the copy is known yet, and Cancel stops before the first file.
         let (file, bar, note) = (None, Bar::Busy, Note::Waiting);
-        return View { counting: s.counting, rows, name: String::new(), nth: None, file, bar, data: None, speed: None, note, cancel: !s.cancelling, leave: Leave::No };
+        return View { counting: s.counting, rows, name: String::new(), nth: None, file, bar, data: None, speed: None, note, cancel: !s.cancelling, leave: Leave::No, keep: true };
     }
     let several = s.files_total > 1;
     // The file under way among all: the last one once all are done (a sidecar after its photo).
@@ -261,6 +265,7 @@ pub fn view(s: &Seen) -> View {
         note,
         cancel: !s.cancelling,
         leave,
+        keep: true,
     }
 }
 
@@ -308,7 +313,7 @@ mod tests {
     #[test]
     fn one_file_shows_no_counts() {
         let v = view(&Seen { big: Some((GB, 10.0)), ..seen(0, 1, 0, 6 * GB) });
-        assert_eq!(v, View { counting: None, rows: false, name: "big.mp4".into(), nth: None, file: Some((2 * GB, Some(12))), bar: Bar::Busy, data: None, speed: None, note: Note::Waiting, cancel: true, leave: Leave::No });
+        assert_eq!(v, View { counting: None, rows: false, name: "big.mp4".into(), nth: None, file: Some((2 * GB, Some(12))), bar: Bar::Busy, data: None, speed: None, note: Note::Waiting, cancel: true, leave: Leave::No, keep: true });
     }
 
     /// Several files: "File 2 of 5" while the second is copied, the bar by whole files with the
@@ -427,7 +432,7 @@ mod tests {
         assert!(many(&paths(&["Internal storage/DCIM/Camera/"])));
         let counting = |many, cancelling| view(&Seen { counting: Some(7), many, cancelling, current: "Camera".into(), ..Seen::default() });
         let one = counting(false, false);
-        assert_eq!(one, View { counting: Some(7), rows: false, name: String::new(), nth: None, file: None, bar: Bar::Busy, data: None, speed: None, note: Note::Waiting, cancel: true, leave: Leave::No });
+        assert_eq!(one, View { counting: Some(7), rows: false, name: String::new(), nth: None, file: None, bar: Bar::Busy, data: None, speed: None, note: Note::Waiting, cancel: true, leave: Leave::No, keep: true });
         assert!(counting(true, false).rows);
         let cancelled = counting(true, true);
         assert_eq!((cancelled.note, cancelled.cancel), (Note::Waiting, false));
@@ -445,6 +450,15 @@ mod tests {
         b.decide(true, false);
         assert!(b.undone("Internal storage/DCIM/a.mp4", "Internal storage/Download/a.mp4"));
         assert!(!b.undone("SD card/DCIM/a.jpg", "Internal storage/Download/a.jpg"));
+    }
+
+    /// Audit T.2 (27/11, Windows): once Windows stopped waiting for the phone's copy, unplugging
+    /// the phone and plugging it in again is the only way to see it: the window no longer says
+    /// not to. Otherwise it does.
+    #[test]
+    fn no_do_not_unplug_once_windows_gave_up() {
+        assert!(view(&seen(0, 1, 0, GB)).keep);
+        assert!(!view(&Seen { windows_gave_up: true, ..seen(0, 1, 0, GB) }).keep, "said once Windows gave up");
     }
 
     /// The phone gone from the devices: the window is no longer modal.

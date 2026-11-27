@@ -70,6 +70,31 @@ pub fn leaving() -> bool {
     LEAVE.load(Ordering::Relaxed)
 }
 
+/// Raised while EyeCanSee waits for a copy Windows stopped waiting for (`unseen`).
+static GAVE_UP: AtomicBool = AtomicBool::new(false);
+
+/// EyeCanSee waits for a copy Windows stopped waiting for: Windows may never show it, and
+/// unplugging the phone is then the way to see it.
+pub fn windows_gave_up() -> bool {
+    GAVE_UP.load(Ordering::Relaxed)
+}
+
+/// `GAVE_UP` while it lives.
+struct GaveUp;
+
+impl GaveUp {
+    fn start() -> GaveUp {
+        GAVE_UP.store(true, Ordering::Relaxed);
+        GaveUp
+    }
+}
+
+impl Drop for GaveUp {
+    fn drop(&mut self) {
+        GAVE_UP.store(false, Ordering::Relaxed);
+    }
+}
+
 /// A new paste, copy or move: what was asked for the one before (`leave`) is not for it.
 pub fn stay() {
     LEAVE.store(false, Ordering::Relaxed);
@@ -200,6 +225,7 @@ impl Phone {
     pub(super) async fn finished_by_phone(&self, (what, began, _turn): (&str, std::time::Instant, turn::Turn<'_>), path: &str, (to, folder): (&Storage, ObjectHandle), (name, size, free): (&str, u64, Option<u64>), moved: Option<(&Storage, ObjectHandle)>) -> Result<ObjectHandle, Error> {
         let start = std::time::Instant::now();
         let (_waiting, _deaf) = (Waiting::start_at(what, path, began), turn::Deaf::start(&self.serial, path));
+        let _gave_up = free.is_some().then(GaveUp::start);
         log!("phone {}: {what} {path}: the phone is still at it ({size} bytes), its result looked for", self.serial);
         let parent = (folder != ObjectHandle::ROOT).then_some(folder);
         let pace = wait::Pace { look: LOOK, most: longest(size, free.is_some()), leave: &LEAVE };
@@ -341,6 +367,18 @@ mod tests {
         assert!(!unanswering(&e(unseen::UNSEEN)), "the phone is done: the hidden folder of the copy is removed");
         assert!(!unanswering(&e(NOT_MADE)) && !unanswering(&e("error-cancelled")));
         assert_eq!(kept_quiet(e(NOT_MADE), None), e(NOT_MADE));
+    }
+
+    /// Audit T.2 (27/11, Windows): once Windows stopped waiting for a copy inside the phone (at
+    /// 30 s), the wait went on up to 18 minutes for 1 GB (a minute plus a second a MB), for a
+    /// file Windows never shows: it always ended with `error-phone-copy-lost`. Then the wait is
+    /// short, the time to see the free space go down where it does; for a call mtp-rs gave up
+    /// (USB) it is as long as before.
+    #[test]
+    fn a_short_wait_once_windows_gave_up() {
+        let (gb, s) = (1 << 30, std::time::Duration::from_secs);
+        assert!(longest(gb, true) <= s(90), "Windows gave up: {:?}", longest(gb, true));
+        assert_eq!(longest(gb, false), deadline(gb), "mtp-rs gave up");
     }
 
 }
