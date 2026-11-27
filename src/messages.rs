@@ -19,8 +19,18 @@ use crate::listing::Arrival;
 impl App {
     pub(crate) fn receive(&mut self, ctx: &egui::Context) {
         while let Ok(msg) = self.rx.try_recv() {
+            // About paths of a source left meanwhile: there they are other items (audit 27/11 F.9).
+            let msg = match msg {
+                Msg::At(base, _) if base != self.base => {
+                    log!("dropped, of a source left: {}", without_password(&base));
+                    continue;
+                }
+                Msg::At(_, m) => *m,
+                m => m,
+            };
             match msg {
                 Msg::Listed(base, dir, r) => self.on_listed(ctx, &base, dir, r),
+                Msg::At(..) => {}
                 Msg::Loaded { generation, index, thumb, image, halves } if generation == self.generation => self.on_loaded(ctx, index, thumb, image, halves),
                 Msg::Meta { generation, index, meta } if generation == self.generation => self.on_meta(index, meta),
                 Msg::Info { generation, path, info } if generation == self.generation => {

@@ -49,6 +49,10 @@ pub enum Msg {
     Drawing { generation: u64, index: usize, drawing: Arc<crate::cad::Drawing> },
     /// Something changed in the watched local folder (`App::watch`).
     Changed,
+    /// A message about paths of the source `base` (a deletion, a renaming, a restoring, a new
+    /// folder): dropped once another source is open, where the same paths are other items
+    /// (audit 27/11 F.9, as `Listed` since #282).
+    At(String, Box<Msg>),
     /// Outcome of deleting an item (path relative to the source), and how.
     Deleted(String, source::Deletion, Result<(), source::Error>),
     /// Something the grid does not show in the folders about to be deleted (`Loader::check_unseen`):
@@ -322,9 +326,9 @@ impl Loader {
                         thumbcache::delete(&base, &path);
                     }
                     let trash = source::trash_of(&path);
-                    let _ = tx.send(Msg::Deleted(path, how, r));
+                    let _ = tx.send(at(&base, Msg::Deleted(path, how, r)));
                     if !failed && source::is_trash(&trash) {
-                        drop_empty_trash(&op, trash, &tx).await;
+                        drop_empty_trash(&op, &base, trash, &tx).await;
                     }
                     ctx.request_repaint();
                     if failed {
@@ -336,48 +340,45 @@ impl Loader {
     }
 
     pub fn restore(&self, path: String, conflict: source::Conflict) {
-        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        let (op, base, tx, ctx) = (self.op.clone(), self.base.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
             let r = crate::sidecar_follow::restore(&op, &path, conflict).await;
             let ok = r.is_ok();
             let trash = source::trash_of(&path);
-            let _ = tx.send(Msg::Restored(path, r));
+            let _ = tx.send(at(&base, Msg::Restored(path, r)));
             if ok {
-                drop_empty_trash(&op, trash, &tx).await;
+                drop_empty_trash(&op, &base, trash, &tx).await;
             }
             ctx.request_repaint();
         });
     }
 
     pub fn trash_items(&self, trash: String) {
-        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        let (op, base, tx, ctx) = (self.op.clone(), self.base.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            match op.children(&trash).await {
-                Ok(paths) => {
-                    let _ = tx.send(Msg::TrashItems(paths));
-                }
-                Err(e) => {
-                    let _ = tx.send(Msg::Restored(trash, Err(e)));
-                }
-            }
+            let m = match op.children(&trash).await {
+                Ok(paths) => Msg::TrashItems(paths),
+                Err(e) => Msg::Restored(trash, Err(e)),
+            };
+            let _ = tx.send(at(&base, m));
             ctx.request_repaint();
         });
     }
 
     pub fn rename(&self, path: String, new_name: String) {
-        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        let (op, base, tx, ctx) = (self.op.clone(), self.base.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
             let r = crate::sidecar_follow::rename(&op, &path, &new_name).await;
-            let _ = tx.send(Msg::Renamed(path, r));
+            let _ = tx.send(at(&base, Msg::Renamed(path, r)));
             ctx.request_repaint();
         });
     }
 
     pub fn make_folder(&self, path: String) {
-        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        let (op, base, tx, ctx) = (self.op.clone(), self.base.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
             let r = op.create_dir(&path).await;
-            let _ = tx.send(Msg::MadeFolder(path, r));
+            let _ = tx.send(at(&base, Msg::MadeFolder(path, r)));
             ctx.request_repaint();
         });
     }
@@ -752,12 +753,17 @@ pub(crate) fn siblings(op: Store, model: String) -> impl Fn(&str) -> Option<Vec<
 
 /// A trash folder left empty goes, so its strip does not say there is something to restore.
 /// A trash folder left with nothing in it (Android's trashed files of its folder count) goes.
-async fn drop_empty_trash(op: &Store, trash: String, tx: &Sender<Msg>) {
+async fn drop_empty_trash(op: &Store, base: &str, trash: String, tx: &Sender<Msg>) {
     if op.names(&trash).await.is_ok_and(|n| n.is_empty()) && android_trashed_files(op, &trash).await.is_empty() {
         let how = source::Deletion::Permanent;
         let r = op.delete(&trash, how).await;
-        let _ = tx.send(Msg::Deleted(trash, how, r));
+        let _ = tx.send(at(base, Msg::Deleted(trash, how, r)));
     }
+}
+
+/// `m`, about paths of the source `base` (`Msg::At`).
+fn at(base: &str, m: Msg) -> Msg {
+    Msg::At(base.to_string(), Box::new(m))
 }
 
 /// Whether the trash folder exists, and Android's trashed files of its folder.
@@ -908,11 +914,15 @@ mod tests {
         std::fs::create_dir_all(p.join(TRASH_DIR)).unwrap();
         assert!(rt.block_on(trash_contents(&op, &trash)).0);
         let (tx, rx) = std::sync::mpsc::channel();
-        rt.block_on(drop_empty_trash(&op, trash.clone(), &tx));
+        rt.block_on(drop_empty_trash(&op, "test://", trash.clone(), &tx));
         assert!(p.join(TRASH_DIR).is_dir() && rx.try_recv().is_err(), "kept while Android's file is there");
         std::fs::remove_file(p.join(".trashed-1-a.jpg")).unwrap();
-        rt.block_on(drop_empty_trash(&op, trash.clone(), &tx));
-        assert!(!p.join(TRASH_DIR).exists() && matches!(rx.try_recv(), Ok(Msg::Deleted(t, _, Ok(()))) if t == trash));
+        rt.block_on(drop_empty_trash(&op, "test://", trash.clone(), &tx));
+        let deleted = match rx.try_recv() {
+            Ok(Msg::At(_, m)) => *m,
+            m => panic!("not a message of its source: {}", m.is_ok()),
+        };
+        assert!(!p.join(TRASH_DIR).exists() && matches!(deleted, Msg::Deleted(t, _, Ok(())) if t == trash));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
