@@ -30,6 +30,11 @@ pub(crate) fn local_path(op: &Operator, path: &str) -> PathBuf {
     std::iter::once(op.info().root()).chain(path.split('/').filter(|s| !s.is_empty()).map(String::from)).collect()
 }
 
+/// What tells a folder `Store::walk` has walked from another: where it really is, links followed.
+pub(super) fn walked_key(dir: &Path) -> PathBuf {
+    dir.canonicalize().unwrap_or_default()
+}
+
 /// A local name that is not valid UTF-8 on Linux (on Windows, UTF-16 with an unpaired
 /// surrogate) is listed with U+FFFD in place of what cannot be read, so its path leads
 /// nowhere (issue #88): the app keeps paths as text, and carrying the raw bytes everywhere is not

@@ -425,7 +425,7 @@ impl Store {
                 while let Some(dir) = todo.pop() {
                     // Links to folders are followed, but a folder already walked (a link to a
                     // folder above) is not walked again.
-                    if !seen.insert(local_path(op, &dir).canonicalize().unwrap_or_default()) {
+                    if !seen.insert(local::walked_key(&local_path(op, &dir))) {
                         continue;
                     }
                     for (path, _, is_dir, size, _) in local_items(op, &dir).await? {
