@@ -9,13 +9,13 @@
 3. Type. The letters appear on the image itself; Enter starts a new line.
 4. Press Esc, or click elsewhere on the image, when you are done.
 
-While you type you can choose the font, the size or the colour in the properties bar: the typing goes on where it was.
+While you type you can choose the font, the size or the colour in the properties bar, then go on typing where you were.
 
 A text left empty goes away when you are done with it. A click outside the image places no text. While you type, the letters are already in their own font, size and colour.
 
 To change a text already written, double-click it (with Text or Select), or select it and change it in the field of the properties bar. Undo takes back the whole change at once.
 
-When selected, a text shows a frame round its letters, as wide as they are in its font; a click on any of its letters selects it. A text has no corner handles: its size is in the properties bar. It has the round handle above it to rotate it, as the other objects (see [Selecting and changing objects](editor.md)). To move it, use ![Select](icon://mouse-pointer-2) **Select** and drag it. With the Text tool, dragging moves the view instead.
+When selected, a text shows a frame round its letters, as wide as they are in its font; a click on any of its letters selects it. A text has no corner handles: its size is in the properties bar. Like the other objects, it has the round handle above it to rotate it (see [Selecting and changing objects](editor.md)). To move it, use ![Select](icon://mouse-pointer-2) **Select** and drag it. With the Text tool, dragging moves the view instead.
 
 ## Options of a text
 
@@ -26,7 +26,7 @@ When selected, a text shows a frame round its letters, as wide as they are in it
 When the text is selected, the bar also has:
 
 - **The font**: the list shows the fonts installed on the computer. Point at a name to see the text in it at once; click to choose it (the next texts use it too). Closing the list without choosing puts the font back as it was.
-- **On a curve**: the text follows a line with two ends and a middle point. Drag the middle point to bend the line, the ends to stretch or turn it; the letters follow. A text on a curve is typed in the field of the bar only. With a box, the box becomes a band along the whole line.
+- **On a curve**: the text follows a line with two ends and a middle point. Drag the middle point to bend the line, the ends to stretch or turn it; the letters follow. A text on a curve can be typed only in the field of the bar. With a box, the box becomes a band along the whole line.
 - **Rotation**: tilts the text, from -180° to 180°. A text on a curve turns with its line, round the middle of the curve.
 
 ## Speech bubbles
@@ -35,7 +35,7 @@ When the text is selected, the bar also has:
 2. Drag to draw the bubble.
 3. Type its text at once; Enter starts a new line.
 
-The text goes to a new line at the width of the bubble, and the bubble grows taller to hold it. Its tail ends in a fifth handle: drag it to point the tail. Drag a corner to resize the bubble (Shift keeps the proportions); the text fits the new width. The round handle above it rotates the bubble with its text, and the tail turns with it. Double-click a bubble to change its text.
+The text wraps at the width of the bubble, and the bubble grows taller to hold it. Its tail ends in a fifth handle: drag it to point the tail. Drag a corner to resize the bubble (Shift keeps the proportions); the text fits the new width. The round handle above it rotates the bubble with its text, and the tail turns with it. Double-click a bubble to change its text.
 
 Options:
 
@@ -51,7 +51,7 @@ Options:
 
 The disc takes the colour chosen; the number is black or white, whichever reads better on it. When a step is selected, the bar has a **Number** field to change it. Change the size in the bar or by dragging a corner (the disc stays round).
 
-A click on an existing step selects it. Anywhere else on the image, even inside a rectangle, a new step is placed; a click outside the image places none. To move a step, use Select and drag it; with Step numbers, dragging moves the view.
+A click on an existing step selects it. A click anywhere else on the image, even inside a rectangle, places a new step; a click outside the image places none. To move a step, use Select and drag it; with Step numbers, dragging moves the view.
 
 ## Keys
 
