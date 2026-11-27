@@ -715,6 +715,47 @@ mod tests {
         }
     }
 
+    /// Audit 27/11, D.1 = S.3 (#178): a "sparse" accessor without a `bufferView` gives `count`
+    /// zeros with no data behind them, and the reading reserved them all before any cap. Scaled
+    /// down: a cap of 1000 triangles (4000 points offered) and accessors of 5 million: each one
+    /// used by a primitive, as positions, normals, colours, coordinates or indices, and the
+    /// positions of points and of lines without indices, is refused before it is read.
+    #[test]
+    fn audit_d1_sparse_accessor() {
+        let n = 5_000_000;
+        // Sparse index 0 (4 bytes), its value (12 bytes), then the triangle's indices 0 1 2.
+        let bytes: Vec<u8> = [0u32.to_le_bytes(), 0f32.to_le_bytes(), 0f32.to_le_bytes(), 0f32.to_le_bytes(), 0u32.to_le_bytes(), 1u32.to_le_bytes(), 2u32.to_le_bytes()].concat();
+        let data = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        let sparse = |ty: &str, values: usize| format!(r#"{{"componentType":5126,"type":"{ty}","count":{n},"min":[0,0,0],"max":[0,0,0],"sparse":{{"count":1,"indices":{{"bufferView":0,"componentType":5125}},"values":{{"bufferView":1,"byteOffset":{values}}}}}}}"#);
+        let small = r#"{"bufferView":3,"componentType":5126,"type":"VEC3","count":3,"min":[0,0,0],"max":[0,0,0]}"#;
+        let gltf = |attributes: &str, accessors: &[String], more: &str| {
+            format!(
+                r#"{{"asset":{{"version":"2.0"}},"buffers":[{{"uri":"data:application/octet-stream;base64,{data}","byteLength":28}},{{"uri":"data:application/octet-stream;base64,{floats}","byteLength":36}}],"bufferViews":[{{"buffer":0,"byteLength":4}},{{"buffer":0,"byteOffset":4,"byteLength":12}},{{"buffer":0,"byteOffset":16,"byteLength":12}},{{"buffer":1,"byteLength":36}}],"accessors":[{}],"meshes":[{{"primitives":[{{"attributes":{{{attributes}}}{more}}}]}}],"nodes":[{{"mesh":0}}],"scenes":[{{"nodes":[0]}}],"scene":0}}"#,
+                accessors.join(","),
+                floats = base64::engine::general_purpose::STANDARD.encode([0f32, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0].iter().flat_map(|f| f.to_le_bytes()).collect::<Vec<u8>>())
+            )
+        };
+        let indices = r#"{"bufferView":2,"componentType":5125,"type":"SCALAR","count":3}"#.to_string();
+        let sparse_indices = format!(r#"{{"componentType":5125,"type":"SCALAR","count":{n},"sparse":{{"count":1,"indices":{{"bufferView":0,"componentType":5125}},"values":{{"bufferView":2}}}}}}"#);
+        let cases = [
+            ("positions", gltf(r#""POSITION":0"#, &[sparse("VEC3", 0), indices.clone()], r#","indices":1"#)),
+            ("normals", gltf(r#""POSITION":0,"NORMAL":1"#, &[small.to_string(), sparse("VEC3", 0)], "")),
+            ("colours", gltf(r#""POSITION":0,"COLOR_0":1"#, &[small.to_string(), sparse("VEC3", 0)], "")),
+            ("coordinates", gltf(r#""POSITION":0,"TEXCOORD_0":1"#, &[small.to_string(), sparse("VEC2", 4).replace("[0,0,0]", "[0,0]")], "")),
+            ("indices", gltf(r#""POSITION":0"#, &[small.to_string(), sparse_indices], r#","indices":1"#)),
+            ("points", gltf(r#""POSITION":0"#, &[sparse("VEC3", 0)], r#","mode":0"#)),
+            ("lines", gltf(r#""POSITION":0"#, &[sparse("VEC3", 0)], r#","mode":1"#)),
+        ];
+        let limit = crate::model_limit::Limit { max: 1000, format: "gltf" };
+        let none: crate::model::Sibling = &|_| None;
+        for (what, gltf) in cases {
+            assert!(gltf::Gltf::from_slice(gltf.as_bytes()).is_ok(), "{what}: the library takes it");
+            let (r, peak) = crate::test_alloc::peak(|| super::read_plain(gltf.as_bytes(), none, limit).map(|m| m.tris.len()));
+            assert!(r.is_err(), "{what}: {r:?}");
+            assert!(peak < 1 << 20, "{what}: {peak} bytes held for accessors of {n} items ({:?})", r);
+        }
+    }
+
     /// `counted_as_read_t5` on real files: every .glb and .gltf under `EYECANSEE_GLTF`, the count
     /// never below the triangles read (dropped ones only make it higher) when the file has only
     /// triangles.
