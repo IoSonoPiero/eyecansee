@@ -9,11 +9,11 @@ The editor is a page of its own where you draw on one image, cover private detai
 - **Image > Edit image…** (**Ctrl + E**), the ![Edit image](icon://square-pen) button on the toolbar, or **Edit image…** in the right-click menu.
 - **Image > Rotate and crop…** opens the same page with the crop tool already chosen. See [Crop and rotate](editor-crop.md).
 - **File > New image…** (**Ctrl + N**) opens an empty image in the editor. See [New image](new-image.md).
-- **File > Open from clipboard** opens in the editor an image copied in another program. See [New image](new-image.md).
+- **File > Open from clipboard** opens an image copied in another program in the editor. See [New image](new-image.md).
 
-The editor works on one image at a time. With several images selected, these items are off; to turn several images at once use [Rotating and flipping](rotate.md) or [Converting and resizing images](convert.md). They are also off for an animated image or one with several pages, in the grid as in the viewer, because only the first picture would be saved.
+The editor works on one image at a time. With several images selected, these items are off; to rotate several images at once use [Rotating and flipping](rotate.md) or [Converting and resizing images](convert.md). They are also off for an animated image or one with several pages, in the grid as in the viewer, because only the first picture would be saved.
 
-A picture that would need more than half of the computer's memory once read whole (for example a HEIC, a 16-bit TIFF or a JPEG XL of hundreds of megapixels, on a computer with 8 GB) is not opened at once: a window says how much memory it needs and offers **Open anyway**. Opened anyway, the computer may become very slow, or the system may close EyeCanSee. The choice holds for that file until EyeCanSee is closed (see [Viewing images](viewer.md)). **Cancel** is the default (also with **Enter** and **Esc**) and closes the editor.
+A picture that would need more than half of the computer's memory once read whole (for example a HEIC, a 16-bit TIFF or a JPEG XL of hundreds of megapixels, on a computer with 8 GB) is not opened at once: a window says how much memory it needs and offers **Open anyway**. If you open it anyway, the computer may become very slow, or the system may close EyeCanSee. The choice holds for that file until EyeCanSee is closed (see [Viewing images](viewer.md)). **Cancel** is the default (also with **Enter** and **Esc**) and closes the editor.
 
 ## The page
 
@@ -51,18 +51,18 @@ Everything you draw stays a separate object until you save: you can move it, cha
 1. Choose ![Select](icon://mouse-pointer-2) **Select** (V).
 2. Click an object to select it. The properties bar shows its style; change it there.
 3. Drag the object to move it. Drag a corner or an end to resize it; hold Shift to keep the proportions of a box. A pasted piece keeps its proportions without Shift, and Shift frees them (see [Selecting an area](editor-marquee.md)).
-4. Drag the round handle above the selected object to rotate it round its centre; hold **Shift** to turn it 15° at a time. Its angle is also in the properties bar, from -180° to 180°, to type or drag. Rectangles, ellipses, highlights, cover boxes, magnifiers, spotlights, speech bubbles (with their tail), texts, stamps, pasted pieces and the Blur and Pixelate filters rotate; lines and arrows are turned by their ends, and step numbers stay upright.
+4. Drag the round handle above the selected object to rotate it around its centre; hold **Shift** to turn it 15° at a time. Its angle is also in the properties bar, from -180° to 180°, to type or drag. Rectangles, ellipses, highlights, cover boxes, magnifiers, spotlights, speech bubbles (with their tail), texts, stamps, pasted pieces and the Blur and Pixelate filters rotate; lines and arrows are turned by their ends, and step numbers stay upright.
 5. Press **Del**, or click ![Delete](icon://trash) in the properties bar, to remove it.
 
 Good to know:
 
 - With a drawing tool, a click selects only an object of that tool's kind (an arrow with Arrow, a step with Step numbers). Anywhere else the tool does its own work, even on top of other objects.
 - The corners and the round handle of the selected object can be dragged with any tool. On a rotated object the corners turn with it.
-- A shape, line or bubble drawn all on the dark area around the image is not kept: only what reaches the image stays.
+- A shape, line or bubble drawn entirely on the dark area around the image is not kept: only what reaches the image stays.
 - A rectangle or an ellipse with no fill is picked by its border, not by its empty inside.
 - Filters, highlighters and spotlights lie under the other objects: a click picks them only where no other object is.
 - Objects are stacked in the order you draw them. A pasted piece can be brought to the front or sent to the back.
-- Changing tool lets go of the selected object (except when you choose Select).
+- Changing tools deselects the object (except when you choose Select).
 
 ## Undo and redo
 
@@ -75,14 +75,14 @@ Good to know:
 1. Click ![Resize](icon://scaling) **Resize**. The window shows the size of the result now.
 2. Type the new width or height, in **pixels** or in **percent** of the size now. With **Keep the proportions** on (as it starts), the other side follows.
 3. Choose the **Filter**, if you like: Lanczos (the sharpest) to make it smaller, Catmull-Rom to make it larger, unless you choose another one. **Nearest pixel** keeps the hard edges of pixel art.
-4. Click **Resize** (or Enter).
+4. Click **Resize** (or press Enter).
 
 What you drew follows the image: arrows, boxes, texts and the widths of the lines grow or shrink with it, and so does the crop. The tools then work in pixels of the new size.
 
 Good to know:
 
 - **Undo** (**Ctrl + Z**) takes the image back to the size it had, in one step. Resizing again always starts from the original, so the picture never loses quality twice.
-- With the image turned by an angle (see [Crop and rotate](editor-crop.md)) the proportions stay as they are: with others it would come out slanted.
+- With the image turned by an angle (see [Crop and rotate](editor-crop.md)) the proportions stay as they are: with other proportions it would come out slanted.
 - The new size goes into the saved file's metadata; the rest of the metadata is kept. An Ultra HDR photo stays HDR.
 - At most 20000 pixels a side. To resize many images at once use [Converting and resizing images](convert.md).
 
@@ -99,13 +99,13 @@ Good to know:
 The **Keys** button in the status bar lists the keys and mouse moves of the tool in use. Point at it to see the list, or click it to keep the list open.
 
 - **Ctrl + C** (or ![Copy](icon://copy) **Copy**) puts the whole result, at full size, on the clipboard, to paste in another program. With Selection it copies only the chosen part.
-- **Ctrl + R** and **Ctrl + Shift + R** turn the image a quarter to the right or left.
+- **Ctrl + R** and **Ctrl + Shift + R** turn the image a quarter turn to the right or left.
 - **Ctrl + Alt + I** opens Resize.
 - **Esc** does one thing at a time: it stops the eyedropper or a drag (what the drag did goes back: the object where it was, the view as it was; what was done before it stays), ends the text being typed, lets go of the selected area or object. When there is nothing left to stop, it closes the page.
 
 ## Closing
 
-![Close](icon://x) **Close**, the window's ✕ or Esc close the page. With changes not saved, EyeCanSee first asks whether to **Save…** (the main save: a copy, as Save copy does, unless Overwrite is chosen in the Options; the page closes once the file is written), **Save as…** or **Don't save**; **Cancel** goes back to the page. See [Saving an edited image](editor-save.md). With **The window's ✕ goes back to the grid** off in [Options](options.md), the window's ✕ closes EyeCanSee too, after the same question.
+![Close](icon://x) **Close**, the window's ✕ or Esc close the page. If there are unsaved changes, EyeCanSee first asks whether to **Save…** (the main save: a copy, as Save copy does, unless Overwrite is chosen in the Options; the page closes once the file is written), **Save as…** or **Don't save**; **Cancel** goes back to the page. See [Saving an edited image](editor-save.md). With **The window's ✕ goes back to the grid** off in [Options](options.md), the window's ✕ closes EyeCanSee too, after the same question.
 
 ## Phones and servers
 

@@ -27,7 +27,7 @@ Quando la vista si ferma, la parte sullo schermo viene ridisegnata dal disegno, 
 
 ## Layout
 
-Un disegno con layout (spazio carta) mostra nella barra di stato **Modello** o il nome del layout. **L** passa al layout successivo e **Maiusc + L** a quello prima, ciascuno col suo foglio, il cartiglio e le finestre sul modello.
+Un disegno con layout (spazio carta) mostra nella barra di stato **Modello** o il nome del layout. **L** passa al layout successivo e **Maiusc + L** a quello precedente, ciascuno col suo foglio, il cartiglio e le finestre sul modello.
 
 ## Livelli
 
@@ -47,7 +47,7 @@ Un clic si aggancia a ciò che c'è sotto il puntatore, come nei programmi CAD: 
 
 ## Confrontare due versioni di un disegno
 
-Seleziona due disegni nella griglia (**Ctrl + clic**), poi **Confronta disegni** nel menù del clic destro o nel menù File. Il visore li mostra uno sopra l'altro, allineati con le loro coordinate: ciò che c'è in tutti e due in grigio, ciò che c'è solo nel primo in rosso, ciò che c'è solo nel secondo in blu. La barra di stato dice con cosa è confrontato il disegno e in quanti punti è cambiato; **N** ingrandisce sulla modifica successiva e **Maiusc + N** su quella prima.
+Seleziona due disegni nella griglia (**Ctrl + clic**), poi scegli **Confronta disegni** nel menù del clic destro o nel menù File. Il visore li mostra uno sopra l'altro, allineati con le loro coordinate: ciò che c'è in tutti e due in grigio, ciò che c'è solo nel primo in rosso, ciò che c'è solo nel secondo in blu. La barra di stato dice con cosa è confrontato il disegno e in quanti punti è cambiato; **N** ingrandisce sulla modifica successiva e **Maiusc + N** su quella precedente.
 
 Il riquadro dei livelli si apre con tre livelli, **In tutti e due**, **Solo in** il primo e **Solo in** il secondo, coi loro colori: è la legenda, e togliendo una spunta si vede solo il primo disegno, solo il secondo o solo le modifiche. Ingrandimento, Misura e **Salva come…** funzionano come su ogni disegno, così il confronto si può salvare come immagine.
 
@@ -55,7 +55,7 @@ Le cose coincidono quando sono dello stesso tipo nello stesso posto (le linee in
 
 ## Numero del disegno e cartiglio
 
-Nella griglia un disegno DWG o DXF mostra sotto la miniatura il suo numero e la revisione, prima del peso ("A-101 rev. C · 350 KB"): dal cartiglio, o altrimenti dal titolo e dal numero di revisione. Selezionato, il riquadro **Disegno** del pannello dei metadati elenca le proprietà del disegno e gli attributi del cartiglio. Vedi [Informazioni sul file](metadata.md) e, per togliere il numero, [Opzioni](options.md).
+Nella griglia un disegno DWG o DXF mostra sotto la miniatura il suo numero e la revisione, prima del peso ("A-101 rev. C · 350 KB"): dal cartiglio, o altrimenti dal titolo e dal numero di revisione. Quando è selezionato, il riquadro **Disegno** del pannello dei metadati elenca le proprietà del disegno e gli attributi del cartiglio. Vedi [Informazioni sul file](metadata.md) e, per togliere il numero, [Opzioni](options.md).
 
 ## La barra di stato
 
@@ -70,6 +70,6 @@ I testi si scrivono con i font SHX del disegno quando i file dei font sono accan
 - **Ctrl + Maiusc + S** o **Salva come…** (nel menù File o nel menù del clic destro) salva il disegno come immagine: nel visore quello che vedi (il layout mostrato, con i livelli visibili), nella griglia il disegno intero. Vedi [Salva come](save-as.md).
 - **File > Esporta disegno…** (anche nel menù del clic destro, nella griglia e nel visore) salva i disegni selezionati nella griglia, o quello nel visore, tutti insieme. Scegli il **formato**: un formato di immagine, **SVG** (nitido a ogni ingrandimento, senza livelli né blocchi), oppure **DWG** / **DXF** (tutto il disegno nell'altro formato AutoCAD, con livelli, blocchi, layout e stili). Per le immagini scegli il **Lato lungo** in pixel: il disegno viene ridisegnato a quella misura, quindi resta nitido anche grande. Poi scegli dove vanno i file, come in [Convertire e ridimensionare le immagini](convert.md), e premi **Esporta**.
 
-Immagini e SVG mostrano lo spazio modello, non i layout. Un disegno salvato come DWG o DXF viene riletto e confrontato con l'originale (il modello, ogni layout e i livelli con qualcosa sopra): se qualcosa andrebbe perso non viene salvato, e il riepilogo alla fine lo dice.
+Immagini e SVG mostrano lo spazio modello, non i layout. Un disegno salvato come DWG o DXF viene riletto e confrontato con l'originale (il modello, ogni layout e i livelli con qualcosa sopra): se qualcosa andasse perso, non viene salvato, e il riepilogo alla fine lo dice.
 
 Le rotazioni e i ribaltamenti del menù Immagine non valgono per i disegni.

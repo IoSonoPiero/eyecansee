@@ -58,7 +58,7 @@ Da sapere:
 
 - Con uno strumento di disegno, un clic seleziona solo un oggetto del suo tipo (una freccia con Freccia, un numero con Numeri di passaggio). Altrove lo strumento fa il suo lavoro, anche sopra altri oggetti.
 - Gli angoli e la maniglia tonda dell'oggetto selezionato si trascinano con qualsiasi strumento. Su un oggetto ruotato gli angoli girano con lui.
-- Una forma, una linea o un fumetto disegnati tutti sulla zona scura intorno all'immagine non restano: resta solo ciò che arriva sull'immagine.
+- Una forma, una linea o un fumetto disegnati interamente sulla zona scura intorno all'immagine non restano: resta solo ciò che arriva sull'immagine.
 - Un rettangolo o un'ellisse senza riempimento si prende dal bordo, non dall'interno vuoto.
 - Filtri, evidenziatori e riflettori stanno sotto gli altri oggetti: un clic li prende solo dove non c'è nient'altro.
 - Gli oggetti stanno uno sopra l'altro nell'ordine in cui li disegni. Un pezzo incollato si può portare in primo piano o dietro.
@@ -74,15 +74,15 @@ Da sapere:
 
 1. Fai clic su ![Ridimensiona](icon://scaling) **Ridimensiona**. La finestra mostra la dimensione attuale del risultato.
 2. Scrivi la nuova larghezza o altezza, in **pixel** o **per cento** della dimensione attuale. Con **Mantieni le proporzioni** acceso (come all'inizio), l'altro lato segue.
-3. Scegli il **Filtro**, se vuoi: Lanczos (il più nitido) per rimpicciolire, Catmull-Rom per ingrandire, a meno che tu ne scelga un altro. **Pixel più vicino** tiene i bordi netti della pixel art.
+3. Scegli il **Filtro**, se vuoi: Lanczos (il più nitido) per rimpicciolire, Catmull-Rom per ingrandire, a meno che tu non ne scelga un altro. **Pixel più vicino** tiene i bordi netti della pixel art.
 4. Fai clic su **Ridimensiona** (o Invio).
 
 Ciò che hai disegnato segue l'immagine: frecce, riquadri, testi e gli spessori delle linee crescono o calano con lei, e così il ritaglio. Poi gli strumenti lavorano in pixel della nuova dimensione.
 
-Buono a sapersi:
+Da sapere:
 
 - **Annulla** (**Ctrl + Z**) riporta l'immagine alla dimensione che aveva, in un passo. Ridimensionare di nuovo riparte sempre dall'originale, così l'immagine non perde qualità due volte.
-- Con l'immagine ruotata di un angolo (vedi [Ritagliare e ruotare](editor-crop.md)) le proporzioni restano quelle: con altre verrebbe storta.
+- Con l'immagine ruotata di un angolo (vedi [Ritagliare e ruotare](editor-crop.md)) le proporzioni restano quelle: con altre proporzioni verrebbe storta.
 - La nuova dimensione va nei metadati del file salvato; il resto dei metadati resta. Una foto Ultra HDR resta HDR.
 - Al massimo 20000 pixel per lato. Per ridimensionare molte immagini insieme usa [Convertire e ridimensionare le immagini](convert.md).
 
@@ -91,7 +91,7 @@ Buono a sapersi:
 - Rotellina del mouse (o **Ctrl + rotellina**, o il pizzico): ingrandisce intorno al puntatore.
 - **+** e **−**: ingrandiscono intorno al centro. **0** o un doppio clic: tutto in vista.
 - Nella barra di stato, fai clic sulla percentuale e scrivine un'altra (per esempio **37** e **Invio**; **Esc** la lascia com'era), oppure trascina il cursore accanto, con le tacche su zoom tondi (10%, 25%, 50%, 100%, 200%…), come nel [visore](viewer.md).
-- Trascina col tasto destro o centrale per spostare la vista. Con Seleziona sposta la vista anche trascinare su un punto vuoto.
+- Trascina col tasto destro o centrale per spostare la vista. Con Seleziona, anche trascinare su un punto vuoto sposta la vista.
 - I pulsanti ![Ingrandisci](icon://zoom-in) e ![Riduci](icon://zoom-out) sono nella barra di stato.
 
 ## Tasti
@@ -105,7 +105,7 @@ Il pulsante **Tasti** nella barra di stato elenca i tasti e i movimenti del mous
 
 ## Chiudere
 
-![Chiudi](icon://x) **Chiudi**, la ✕ della finestra o Esc chiudono la pagina. Con modifiche non salvate EyeCanSee chiede prima se **Salva…** (il salvataggio principale: una copia, come Salva copia, a meno che nelle Opzioni sia scelto Sovrascrivi; la pagina si chiude appena il file è scritto), **Salva come…** o **Non salvare**; **Annulla** torna alla pagina. Vedi [Salvare un'immagine modificata](editor-save.md). Con **La X della finestra torna alla griglia** spenta nelle [Opzioni](options.md), la ✕ della finestra chiude anche EyeCanSee, dopo la stessa domanda.
+![Chiudi](icon://x) **Chiudi**, la ✕ della finestra o Esc chiudono la pagina. Con modifiche non salvate EyeCanSee chiede prima cosa fare: **Salva…** (il salvataggio principale: una copia, come Salva copia, a meno che nelle Opzioni sia scelto Sovrascrivi; la pagina si chiude appena il file è scritto), **Salva come…** o **Non salvare**; **Annulla** torna alla pagina. Vedi [Salvare un'immagine modificata](editor-save.md). Con **La X della finestra torna alla griglia** spenta nelle [Opzioni](options.md), la ✕ della finestra chiude anche EyeCanSee, dopo la stessa domanda.
 
 ## Telefoni e server
 

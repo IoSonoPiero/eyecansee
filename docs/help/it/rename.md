@@ -5,7 +5,7 @@ Dà un nome nuovo a un file o a una cartella, e crea cartelle nuove: sul compute
 ## Rinominare
 
 1. Seleziona il file o la cartella nella griglia, oppure apri l'immagine nel visore.
-2. Premi **F2**, oppure fai clic su ![Rinomina…](icon://text-cursor-input) nella barra strumenti, oppure scegli **File > Rinomina…**, oppure fai clic destro e scegli **Rinomina…**. Una cartella dell'albero a sinistra si rinomina dal suo clic destro.
+2. Premi **F2**, oppure fai clic su ![Rinomina…](icon://text-cursor-input) nella barra strumenti, oppure scegli **File > Rinomina…**, oppure fai clic destro e scegli **Rinomina…**. Una cartella dell'albero a sinistra si rinomina dal suo menù del clic destro.
 3. Si apre la finestra **Nuovo nome** con il nome vecchio, selezionato senza l'estensione, così puoi scrivere subito quello nuovo.
 4. Premi **Invio** o fai clic su **Rinomina**. **Esc** o **Annulla** lasciano tutto com'era.
 
