@@ -426,11 +426,14 @@ fn peer_cred(conn: &Stream) -> Option<libc::ucred> {
     (read == 0 && len == size).then_some(cred)
 }
 
-/// D3: only the same user, never one whose credentials are unknown. A pid of 0 counts as unknown,
-/// as it did when `interprocess` read the credentials (its `peer_creds` gives an error then).
+/// D3: only the same user, never one whose credentials are unknown. The user alone decides: the
+/// pid is 0 when the other side is in another PID namespace, as between two `flatpak run`, and the
+/// kernel still gives its user (#361; `peer_creds` of `interprocess` gives an error then). With no
+/// credentials at all the user is -1, and 65534 for one this user namespace cannot name: never
+/// this user.
 #[cfg(unix)]
 fn same_user(peer: Option<&libc::ucred>, me: libc::uid_t) -> bool {
-    peer.is_some_and(|c| c.pid != 0 && c.uid == me)
+    peer.is_some_and(|c| c.uid == me)
 }
 
 impl App {
