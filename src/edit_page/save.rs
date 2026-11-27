@@ -104,6 +104,9 @@ pub struct Prepared {
     /// The image has a cover box and the photo records where it was taken, in the file's format:
     /// with **All** the confirmation says so (#359).
     place: bool,
+    /// The number of the page that asked for it (`Window::asked`): a page opened after that one
+    /// was closed does not take it (#200).
+    page: u64,
 }
 
 impl Prepared {
@@ -112,7 +115,7 @@ impl Prepared {
         let mut plan = crate::edit::save::plan_keeping(&self.doc, &self.original, &self.bytes, name, &self.word, &self.taken, keep)?;
         plan.name = self.plan.name.clone();
         let (doc, original, word, taken, target, bytes) = (self.doc.clone(), self.original.clone(), self.word.clone(), self.taken.clone(), self.target.clone(), self.bytes.clone());
-        Ok(Prepared { plan, doc, original, word, taken, target, send: self.send, over: self.over, gone: self.gone, bytes, keep, place: self.place })
+        Ok(Prepared { plan, doc, original, word, taken, target, send: self.send, over: self.over, gone: self.gone, bytes, keep, place: self.place, page: self.page })
     }
 
     /// The choice of the metadata is offered: the original has some, and the file's format holds it.
@@ -149,7 +152,8 @@ pub(crate) async fn prepare(store: &crate::source::Store, path: &str, (doc, orig
         plan.name = source::name(&target).to_string();
     }
     let place = doc.has_cover() && Format::of_file(&plan.name).is_some_and(|f| original.has_place(f));
-    Ok(Prepared { plan, doc: doc.clone(), original, word, taken, target, send, over, gone, bytes, keep, place })
+    // The page is set by the one that asks (`edit_prepare`).
+    Ok(Prepared { plan, doc: doc.clone(), original, word, taken, target, send, over, gone, bytes, keep, place, page: 0 })
 }
 
 /// The file of a confirmed save: made now (the slow part), or already made by `plan`.
@@ -221,9 +225,9 @@ impl App {
             return;
         }
         let Some(job) = w.prepare_save(over, self.i18n.t("edit-copy-word")) else { return };
-        let (path, tx, ctx) = (w.path.clone(), self.tx.clone(), ctx.clone());
+        let (path, tx, ctx, page) = (w.path.clone(), self.tx.clone(), ctx.clone(), w.asked);
         self.rt.spawn(async move {
-            let r = job.await.map(Arc::new);
+            let r = job.await.map(|p| Arc::new(Prepared { page, ..p }));
             let _ = tx.send(crate::loader::Msg::EditPrepared(path, r));
             ctx.request_repaint();
         });
@@ -237,7 +241,10 @@ impl App {
     }
 
     pub(crate) fn on_edit_prepared(&mut self, path: String, r: Result<Arc<Prepared>, source::Error>) {
-        let Some(w) = self.editor.as_mut().filter(|w| w.path == path) else { return };
+        // Only to the page that asked: one opened after it on the same picture was not preparing
+        // (an error), or has another number (#200).
+        let mine = |w: &Window| w.path == path && w.preparing && r.as_ref().map_or(true, |p| p.page == w.asked);
+        let Some(w) = self.editor.as_mut().filter(|w| mine(w)) else { return };
         w.preparing = false;
         match r {
             Ok(p) => {
