@@ -232,6 +232,32 @@ mod tests {
         assert_eq!(gif_comment(&[&b"GIF89a"[..], &[1, 0, 1, 0, 0, 0, 0], &[0x21, 0xFE, 9, b'h']].concat()), None);
     }
 
+    /// A PNG of a few KB with many compressed authors, each a MB once expanded, and many short
+    /// ones (audit E.3, scaled down: 5000 of them asked for 5 GB): what is kept of them stays
+    /// small, the chunks are still copied as they are.
+    #[test]
+    fn many_compressed_texts_bounded() {
+        let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::best());
+        std::io::Write::write_all(&mut z, &vec![b'a'; INFLATED_MAX as usize]).unwrap();
+        let packed = z.finish().unwrap();
+        let mut png = Vec::new();
+        image::DynamicImage::ImageRgb8(image::RgbImage::new(1, 1)).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let mut extra = Vec::new();
+        for _ in 0..32 {
+            crate::meta_write::chunk(&mut extra, b"zTXt", &[&b"Author\0\0"[..], &packed].concat());
+        }
+        for i in 0..1000 {
+            crate::meta_write::chunk(&mut extra, b"tEXt", format!("Author\0someone {i}").as_bytes());
+        }
+        let at = png.windows(4).position(|w| w == b"IDAT").unwrap() - 4;
+        png.splice(at..at, extra);
+        let (t, most) = crate::test_alloc::peak(|| read(&png));
+        let kept: usize = t.fields.iter().map(|(_, v)| v.len()).sum();
+        assert!(kept <= 5 << 20 && most < 16 << 20, "{} MB of text kept, {} MB held, from a file of {} KB", kept >> 20, most >> 20, png.len() >> 10);
+        assert!(t.fields.len() <= 100, "{} authors", t.fields.len());
+        assert_eq!(t.png_text.len(), 1032, "every chunk copied");
+    }
+
     /// Without the metadata, the texts and the comments go, the gamma stays (it is needed to
     /// show the picture right, as the colour profile); with a colour profile no colour chunk is
     /// written, the profile says it all.
