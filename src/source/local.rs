@@ -30,9 +30,11 @@ pub(crate) fn local_path(op: &Operator, path: &str) -> PathBuf {
     std::iter::once(op.info().root()).chain(path.split('/').filter(|s| !s.is_empty()).map(String::from)).collect()
 }
 
-/// What tells a folder `Store::walk` has walked from another: where it really is, links followed.
+/// What tells a folder `Store::walk` has walked from another: where it really is, links followed;
+/// its own path when that cannot be found (as an empty path, a second such folder was skipped,
+/// audit 27/11 F.4).
 pub(super) fn walked_key(dir: &Path) -> PathBuf {
-    dir.canonicalize().unwrap_or_default()
+    dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf())
 }
 
 /// A local name that is not valid UTF-8 on Linux (on Windows, UTF-16 with an unpaired
