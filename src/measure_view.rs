@@ -266,3 +266,70 @@ fn snap_mark(painter: &egui::Painter, at: Pos2, kind: Snap) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use eframe::egui::Key;
+
+    use crate::audit_family_1::{Harness, folder, own_folder};
+
+    /// The viewer on `name` in a folder with a small 3D model (OBJ) and a drawing (DXF), Measure on.
+    fn measuring(dir: &str, name: &str) -> Harness {
+        let dir = folder(dir, &["b.png"]);
+        std::fs::write(dir.join("a.obj"), "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n").unwrap();
+        std::fs::write(dir.join("c.dxf"), "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n30\n0\n11\n100\n21\n50\n31\n0\n0\nENDSEC\n0\nEOF\n").unwrap();
+        let mut h = Harness::new(&dir);
+        open(&mut h, name);
+        h.key(Key::M);
+        h.frame(Vec::new());
+        assert!(h.app.model.measure.on, "M did not start Measure");
+        h
+    }
+
+    fn open(h: &mut Harness, name: &str) {
+        let i = h.app.files().iter().position(|f| f.path.ends_with(name)).unwrap();
+        h.app.activate(i);
+        h.until(|a| a.measure_off().is_none() && (a.viewed_mesh().is_some() || a.zoom_of == a.viewing), "the file shown");
+        h.frame(Vec::new());
+    }
+
+    /// Audit 27/11, D.7 (a): a point taken on a drawing stayed when the viewer went on to a model,
+    /// where it is not seen, so that the first Esc did nothing; and the points of a model stayed
+    /// back on the drawing measured before.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn audit_d7_points_of_another_file() {
+        if own_folder("measure_view::tests::audit_d7_points_of_another_file") {
+            return;
+        }
+        let mut h = measuring("measure-d7a", "c.dxf");
+        h.app.model.measure.pts.push([1.0, 1.0]);
+        open(&mut h, "a.obj");
+        assert!(h.app.model.measure.pts.is_empty(), "the drawing's point stayed on the model");
+        h.key(Key::Escape);
+        h.frame(Vec::new());
+        assert!(!h.app.model.measure.on, "the first Esc on the model did not close Measure");
+        // Back on the drawing measured before, the model's points are gone.
+        h.key(Key::M);
+        h.frame(Vec::new());
+        h.app.model.measure.pts3 = vec![[0.0; 3], [1.0, 0.0, 0.0]];
+        open(&mut h, "c.dxf");
+        assert!(h.app.model.measure.pts3.is_empty(), "the model's points stayed on the drawing");
+    }
+
+    /// Audit 27/11, D.7 (b): on a drawing not read yet Measure went off by itself, and was off
+    /// once it was read.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn audit_d7_stays_on_while_read() {
+        if own_folder("measure_view::tests::audit_d7_stays_on_while_read") {
+            return;
+        }
+        let mut h = measuring("measure-d7b", "c.dxf");
+        // As before the drawing is read: not in memory yet.
+        let path = h.app.files().iter().find(|f| f.path.ends_with("c.dxf")).unwrap().path.clone();
+        h.app.model.cad.drawings.remove(&path);
+        h.frame(Vec::new());
+        assert!(h.app.model.measure.on, "Measure went off while the drawing was read");
+    }
+}
