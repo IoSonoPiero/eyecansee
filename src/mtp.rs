@@ -150,23 +150,30 @@ pub fn working() -> Option<(String, String, u64)> {
     (what == "copy" || what == "move").then_some((what, name, secs))
 }
 
+/// Whether `e` says the phone is gone: the cable pulled, the phone locked or switched off "File
+/// transfer". Windows (WPD) says it with ERROR_OPERATION_ABORTED when the phone goes away during
+/// a transfer, then with 0x802a0002 (shut down already) at every call on that session; mtp-rs
+/// 0.37.3 leaves both as `Other` (POCO X7 Pro, upload cut off, 2026-11-04; Redmi Note 9 Pro
+/// unplugged while its copy was waited for, #354, 27/11).
+fn gone(e: &mtp_rs::Error) -> bool {
+    match e {
+        mtp_rs::Error::Other { detail } => detail.starts_with("HRESULT 0x800703e3") || detail.starts_with("HRESULT 0x802a0002"),
+        e => e.is_disconnected(),
+    }
+}
+
 fn error(e: mtp_rs::Error) -> Error {
     let id = match e {
         _ if e.is_exclusive_access() => "error-device-busy",
+        _ if gone(&e) => "error-phone-disconnected",
         // Also while the phone reconnects after switching to "File transfer": the UI retries.
         mtp_rs::Error::NoDevice => "error-no-device",
         // mtp-rs 0.36: refused before anything is sent (upload, new folder, rename); MTP names
         // hold 254 UTF-16 units, an emoji counts as two.
         mtp_rs::Error::NameTooLong { units } => return ("error-name-too-long", units.to_string()),
-        // The cable pulled, the phone locked or switched off "File transfer".
-        mtp_rs::Error::Disconnected => "error-phone-disconnected",
         mtp_rs::Error::Timeout => "error-phone-timeout",
         // The phone answered DeviceBusy: Windows Photos importing from it (POCO X7 Pro, 2026-11-08).
         mtp_rs::Error::Busy => "error-phone-busy",
-        // Windows (WPD) when the phone goes away during a transfer: ERROR_OPERATION_ABORTED, then
-        // 0x802a0002 (shut down already) on that session; mtp-rs 0.37.3 leaves both as `Other`
-        // (POCO X7 Pro, upload cut off, 2026-11-04).
-        mtp_rs::Error::Other { ref detail } if detail.starts_with("HRESULT 0x800703e3") || detail.starts_with("HRESULT 0x802a0002") => "error-phone-disconnected",
         // A copy onto a name the folder has (mtp-rs 0.37.3): `copy_inside` avoids it.
         mtp_rs::Error::AlreadyExists => "error-phone-name-taken",
         _ => "error-detail",

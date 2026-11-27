@@ -27,7 +27,8 @@ pub(super) enum End {
 
 /// Looks at the destination with `look` (given the time waited so far) every `Pace::look` until
 /// it finds what is waited for. A look that fails is the phone still at work, which answers
-/// nothing (the reading was given up too): the wait goes on.
+/// nothing (the reading was given up too): the wait goes on, unless the failure says the phone is
+/// gone (`gone`, in the words of Windows too).
 pub(super) async fn until_arrived<F, Fut>(pace: Pace, mut look: F) -> End
 where
     F: FnMut(Duration) -> Fut,
@@ -39,7 +40,7 @@ where
         match look(start.elapsed()).await {
             Ok(Some(h)) => return End::Arrived(h),
             Ok(None) => {}
-            Err(e) if e.is_disconnected() => return End::Gone(e),
+            Err(e) if super::gone(&e) => return End::Gone(e),
             Err(_) => {}
         }
     }
