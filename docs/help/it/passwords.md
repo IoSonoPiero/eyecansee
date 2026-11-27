@@ -1,6 +1,6 @@
 # Password salvate
 
-Le password e le passphrase delle chiavi dei server salvati si possono proteggere con una password principale: l'elenco dei server viene cifrato, ed EyeCanSee chiede la password principale una volta per sessione. Senza, sono salvate in chiaro.
+Le password e le passphrase delle chiavi dei server salvati si possono proteggere con una password principale: l'elenco dei server viene cifrato, ed EyeCanSee chiede la password principale una volta per sessione. Senza password principale, sono salvate in chiaro.
 
 ## Senza password principale
 
@@ -25,7 +25,7 @@ EyeCanSee chiede la password principale una volta per sessione, la prima volta c
 - **Cambia la password principale…** ne imposta una nuova, allo stesso modo.
 - **Togli la password principale…** riporta il file in chiaro, dopo un avviso: **Toglila e salva in chiaro** conferma.
 
-Ogni passaggio prima scrive il file nuovo, lo rilegge e lo controlla, e solo dopo sostituisce quello vecchio: il file resta sempre intero.
+Ognuno di questi cambi prima scrive il file nuovo, lo rilegge e lo controlla, e solo dopo sostituisce quello vecchio: il file resta sempre intero.
 
 ## Da sapere
 

@@ -1,6 +1,6 @@
 # Saved passwords
 
-The passwords and key passphrases of the saved servers can be protected with a master password: the list of servers is then encrypted, and EyeCanSee asks for the master password once per session. Without it, they are saved in plain text.
+The passwords and key passphrases of the saved servers can be protected with a master password: the list of servers is then encrypted, and EyeCanSee asks for the master password once per session. Without a master password, they are saved in plain text.
 
 ## Without a master password
 
@@ -23,9 +23,9 @@ EyeCanSee asks for the master password once per session, the first time you open
 ## Changing or removing it
 
 - **Change the master password…** sets a new one, in the same way.
-- **Remove the master password…** brings the file back to plain text, after a warning: **Remove it and save in plain text** confirms.
+- **Remove the master password…** turns the file back into plain text, after a warning: **Remove it and save in plain text** confirms.
 
-Every switch first writes the new file, reads it back and checks it, and only then replaces the old one: the file always stays whole.
+Each of these changes first writes the new file, reads it back and checks it, and only then replaces the old one: the file always stays whole.
 
 ## Things to know
 
