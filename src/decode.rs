@@ -205,8 +205,9 @@ fn run(kind: Kind, bytes: &[u8], name: &str) -> Result<DynamicImage> {
 /// it does not decode to RGB (CMYK) fall back to `image`. Its `source_size` is the picture's own
 /// size, upright: before it was reduced, and for an SVG the size it declares (`own_size`).
 /// A JPEG larger than that is read already reduced, down to the texture limit and not below it
-/// (#177): the viewer showed it at that size anyway, and whole a JPEG of 512 megapixels took 1.5
-/// GB; a lossless one, which cannot be reduced while read, is read whole.
+/// (#177): the viewer showed it at that size anyway, and a JPEG of 96 megapixels took 1.47 GB in
+/// the viewer, 0.37 GB once read reduced (measured on 20/11/2026, with the reduction of
+/// `reduce.rs`); a lossless one, which cannot be reduced while read, is read whole.
 pub fn decode(bytes: &[u8], name: &str) -> std::result::Result<ColorImage, String> {
     let turbo = bytes.starts_with(&[0xFF, 0xD8, 0xFF]).then(|| jpeg_scaled_sized(bytes, MAX_SIDE).or_else(|_| jpeg_scaled_sized(bytes, u32::MAX)).ok()).flatten();
     let (img, own) = match turbo {
