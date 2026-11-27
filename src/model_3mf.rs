@@ -498,4 +498,60 @@ mod tests {
         let real = parts(&paths, &numbers);
         assert_eq!(read(&real, &ratio(&real)).unwrap().tris.len(), 4);
     }
+
+    /// Audit 27/11, D.4 (#181): the cap of what a file unpacks counts the bytes of its text, but
+    /// roxmltree builds on them a tree 10 to 20 times larger (about 80 bytes a node, 72 an
+    /// attribute): the XML of the 3D formats was parsed without a limit on its nodes, so that a
+    /// 3MF of a few MB unpacked to 2 GB of `<vertex/>` asked for tens of GB.
+    #[test]
+    fn audit_d4_xml_tree_limited() {
+        let most = 8 * crate::model_limit::COLLADA.max;
+        assert!(xml_options().nodes_limit as usize <= most, "nodes_limit {}: the tree of the XML without a limit", xml_options().nodes_limit);
+    }
+
+    /// Audit 27/11, D.4: the nodes and attributes roxmltree builds for the XML of every 3MF, AMF,
+    /// Collada and X3D under `EYECANSEE_MODELS` (and its folders), against the triangles read.
+    #[test]
+    #[ignore]
+    fn audit_d4_nodes_live() {
+        let Ok(dir) = std::env::var("EYECANSEE_MODELS") else { return };
+        let mut stack = vec![std::path::PathBuf::from(dir)];
+        while let Some(d) = stack.pop() {
+            for f in std::fs::read_dir(&d).unwrap().flatten() {
+                let path = f.path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                let name = path.file_name().unwrap().to_string_lossy().to_lowercase();
+                let ext = name.rsplit('.').next().unwrap_or("").to_string();
+                if !["3mf", "amf", "dae", "zae", "x3d", "x3dz"].contains(&ext.as_str()) {
+                    continue;
+                }
+                let bytes = std::fs::read(&path).unwrap();
+                let texts: Vec<String> = if bytes.starts_with(b"PK") {
+                    let mut zip = zip::ZipArchive::new(Cursor::new(&bytes[..])).unwrap();
+                    let names: Vec<String> = zip.file_names().filter(|n| [".model", ".amf", ".dae", ".rels"].iter().any(|e| n.to_lowercase().ends_with(e))).map(str::to_string).collect();
+                    names.iter().map(|n| entry(&mut zip, n, &Unpacked::default()).unwrap()).collect()
+                } else if bytes.starts_with(&[0x1f, 0x8b]) {
+                    let mut out = Vec::new();
+                    flate2::read::GzDecoder::new(&bytes[..]).read_to_end(&mut out).unwrap();
+                    vec![text(&out)]
+                } else {
+                    vec![text(&bytes)]
+                };
+                let (mut nodes, mut attributes, mut most) = (0, 0, 0);
+                for t in &texts {
+                    if let Ok(doc) = Document::parse_with_options(t, xml_options()) {
+                        let n = doc.descendants().count();
+                        (nodes, most) = (nodes + n, most.max(n));
+                        attributes += doc.descendants().map(|n| n.attributes().len()).sum::<usize>();
+                    }
+                }
+                let tris = crate::model::parse(&bytes, &name).map_or(0, |m| m.tris.len());
+                let per = |n: usize| n as f64 / tris.max(1) as f64;
+                println!("NODES {name}: {nodes} nodes (most in one file {most}), {attributes} attributes, {tris} triangles: {:.2} nodes and {:.2} attributes a triangle", per(nodes), per(attributes));
+            }
+        }
+    }
 }
