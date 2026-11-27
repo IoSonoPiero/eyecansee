@@ -34,9 +34,16 @@ pub fn crop_most(iw: f32, ih: f32) -> Most {
     Most { w: iw.max(MAX_SIDE as f32), h: ih.max(MAX_SIDE as f32), pixels: (iw * ih).max(crate::new_image::MAX_PIXELS as f32) }
 }
 
-/// `w` × `h` no larger than `most`: both by the same factor when the proportions are kept
-/// (`keep`), else each side alone, and for the pixels the longer one; and whether it was larger.
-pub fn capped((w, h): (f32, f32), most: Most, keep: bool) -> (f32, f32, bool) {
+/// `w` × `h` no larger than `most`: its sides both by the same factor when the proportions are
+/// kept (`keep`), else each alone; its pixels both by the same factor; and whether it was larger.
+pub fn capped(size: (f32, f32), most: Most, keep: bool) -> (f32, f32, bool) {
+    capped_drag(size, most, keep, (1, 1))
+}
+
+/// `capped` for a crop whose sides `sx` and `sy` (-1, 0 or 1 each: left or right, top or bottom)
+/// are dragged: over the pixels only the side dragged gives way, both of a corner, so the others
+/// stay where they are.
+pub fn capped_drag((w, h): (f32, f32), most: Most, keep: bool, (sx, sy): (i8, i8)) -> (f32, f32, bool) {
     let (w, h, sides) = match () {
         _ if w <= most.w && h <= most.h => (w, h, false),
         _ if keep => {
@@ -45,14 +52,14 @@ pub fn capped((w, h): (f32, f32), most: Most, keep: bool) -> (f32, f32, bool) {
         }
         _ => (w.min(most.w), h.min(most.h), true),
     };
-    match () {
+    match (sx != 0, sy != 0) {
         _ if w * h <= most.pixels => (w, h, sides),
-        _ if keep => {
+        (true, false) if !keep => (most.pixels / h, h, true),
+        (false, true) if !keep => (w, most.pixels / w, true),
+        _ => {
             let k = (most.pixels / (w * h)).sqrt();
             (w * k, h * k, true)
         }
-        _ if w >= h => (most.pixels / h, h, true),
-        _ => (w, most.pixels / w, true),
     }
 }
 

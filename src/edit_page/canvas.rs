@@ -714,7 +714,7 @@ fn resized(start: Crop, sx: i8, sy: i8, p: Vec2, ratio: Option<f32>, most: crate
     if let Some(ratio) = ratio {
         if w / h > ratio { h = w / ratio } else { w = h * ratio }
     }
-    let (w, h, capped) = crate::edit::resize::capped((w, h), most, ratio.is_some());
+    let (w, h, capped) = crate::edit::resize::capped_drag((w, h), most, ratio.is_some(), (sx, sy));
     if ratio.is_some() || capped {
         if sx == 1 { r = l + w } else { l = r - w }
         if sy == 1 { b = t + h } else { t = b - h }
