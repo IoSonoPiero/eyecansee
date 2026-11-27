@@ -12,6 +12,7 @@
 //! - `/cut/`: `a.jpg`, `b.jpg`, which the server stops sending before its end, and `c.jpg`.
 //! - `/shared/`: `a.jpg` and `.a.jpg.eyecansee-new`, the new version of it another computer is
 //!   sending (audit 2.29 (h)), dated as LIST dates it: the server's clock, in its own time zone.
+//! - `/slow/a.png`, a file of 1 MiB that the server sends in 4 s (audit 27/11 V.7), read by RETR only;
 //! - `/endless/`, as a hostile server could list it (audit 27/11 S.10): its LIST goes on, a line
 //!   that is no item after another, for `ENDLESS` bytes or until the client stops reading.
 //!
@@ -226,6 +227,18 @@ fn endless(say: &mut impl FnMut(&str) -> std::io::Result<()>, listener: TcpListe
     say("226 sent")
 }
 
+/// The RETR of `/slow/a.png`: 1 MiB, 64 KiB every quarter of a second, or until the client goes.
+fn slowly(say: &mut impl FnMut(&str) -> std::io::Result<()>, listener: TcpListener) -> std::io::Result<()> {
+    say("150 here it comes")?;
+    let (mut to, _) = listener.accept()?;
+    for _ in 0..16 {
+        to.write_all(&[0u8; 64 << 10])?;
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+    drop(to);
+    say("226 sent")
+}
+
 /// Sends `data` on the passive connection, between "150" and "226".
 fn send(say: &mut impl FnMut(&str) -> std::io::Result<()>, listener: TcpListener, data: &[u8]) -> std::io::Result<()> {
     say("150 here it comes")?;
@@ -256,6 +269,10 @@ fn session(control: TcpStream, seen: &Seen) -> std::io::Result<()> {
                 data = Some(listener);
             }
             "CWD" => say(if seen.folder(path).is_some() { "250 fine" } else { "550 no such folder" })?,
+            "RETR" if path.trim_matches('/') == "slow/a.png" => match data.take() {
+                Some(listener) => slowly(&mut say, listener)?,
+                None => say("425 no data connection")?,
+            },
             "LIST" if path.trim_matches('/') == "endless" => match data.take() {
                 Some(listener) => endless(&mut say, listener)?,
                 None => say("425 no data connection")?,

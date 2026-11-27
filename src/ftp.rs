@@ -719,8 +719,8 @@ impl Server {
 }
 
 #[cfg(test)]
-mod tests {
-    mod fake;
+pub(crate) mod tests {
+    pub(crate) mod fake;
 
     #[test]
     fn listed_items() {

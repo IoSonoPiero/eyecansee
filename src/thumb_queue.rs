@@ -580,4 +580,59 @@ pub(super) mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
         assert_eq!(kept, ["d/.trashed-1794410026-a.jpg", "d/b.jpg"]);
     }
+
+    /// Audit V.7 (27/11): the cap on the files read whole at once for the thumbnails (2.18) was
+    /// one for the whole program: a file over 1 GiB on a server, read alone, held back every
+    /// other thumbnail, those of the computer's folders too. Each source has its own. The big
+    /// file here is listed as 2 GiB and held, its reading reserved, before anything of it is read.
+    #[test]
+    fn a_big_file_of_one_source_holds_no_other_back() {
+        use std::time::{Duration, Instant};
+        let dir = std::env::temp_dir().join(format!("thumb-v7-sources-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        image::RgbImage::new(64, 48).save(dir.join("a.png")).unwrap();
+        let size = std::fs::metadata(dir.join("a.png")).unwrap().len();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(4).enable_all().build().unwrap();
+        let (inside, reserved) = std::sync::mpsc::channel();
+        let (go, wait) = std::sync::mpsc::channel::<()>();
+        let big = File { path: "a.png".into(), size: 2 << 30, modified: "v7-big".into() };
+        let server = op.clone();
+        let held = rt.spawn(async move {
+            let wanted = move || {
+                let _ = inside.send(());
+                let _ = wait.recv_timeout(Duration::from_secs(10));
+                true
+            };
+            generate(&server, "test-v7-server://", big, wanted).await
+        });
+        reserved.recv_timeout(Duration::from_secs(10)).expect("the big file's reading reserved");
+        let t = Instant::now();
+        let small = File { path: "a.png".into(), size, modified: "v7-small".into() };
+        let other = rt.block_on(async { tokio::time::timeout(Duration::from_secs(5), generate(&op, "test-v7-disk://", small, || true)).await });
+        let took = t.elapsed();
+        drop(go);
+        let _ = rt.block_on(held);
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(other.as_ref().is_ok_and(Result::is_ok), "the thumbnail of another source waited {took:?}: {other:?}");
+    }
+
+    /// Audit V.7 (27/11): a thumbnail no longer wanted (another folder opened) was read to its
+    /// end: a big file of a server held the thumbnails back for minutes. A disk's or a server's
+    /// read is left as soon as the thumbnail is no longer wanted (a phone's never: a read let go
+    /// half way leaves it answering nothing, V.1). The test server sends this file in 4 s.
+    #[test]
+    fn a_read_no_longer_wanted_is_left() {
+        use std::time::{Duration, Instant};
+        let (target, _) = crate::ftp::tests::fake::start();
+        let op = Store::Ftp(crate::ftp::Server::shared(target));
+        let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
+        let file = File { path: "slow/a.png".into(), size: 1 << 20, modified: "v7-slow".into() };
+        let start = Instant::now();
+        let r = rt.block_on(generate(&op, "test-v7-slow://", file, || start.elapsed() < Duration::from_millis(300)));
+        let took = start.elapsed();
+        assert!(took < Duration::from_secs(2), "read on for {took:?} after the thumbnail was no longer wanted: {r:?}");
+        assert_eq!(r.err().as_deref(), Some(NOT_WANTED));
+    }
 }
