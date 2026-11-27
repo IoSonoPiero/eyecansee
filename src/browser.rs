@@ -109,6 +109,15 @@ impl App {
         items
     }
 
+    /// The right-click menu of the viewer (every kind of file): Full screen second, after Back to
+    /// the grid, also where `item_menu` stops early (in a trash, a file that cannot be changed):
+    /// at full screen it is the way out with the mouse (#358). `full`: the window is at full screen.
+    pub(crate) fn viewer_menu(&self, full: bool) -> Vec<MenuItem> {
+        let mut items = self.item_menu(None, None);
+        items.insert(1, Some((self.i18n.t(crate::viewer::full_label(full)), "F11".into(), Act::FullScreen)));
+        items
+    }
+
     /// After Open, in the order of the menu bar: Edit (cut, copy, paste), Tools, then rename
     /// and the deletions apart at the end, as in file managers.
     fn folder_items(&self, path: Option<String>, target: &str) -> Vec<MenuItem> {

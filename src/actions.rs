@@ -121,6 +121,8 @@ pub(crate) enum Act {
     Measure,
     /// Compare drawings: the two CAD drawings chosen in the grid, one over the other (#143).
     Compare,
+    /// View > Full screen and the viewer's right-click menu (#358): what F11 does.
+    FullScreen,
 }
 
 /// Image > Transform, as GIMP orders it: flips, then turns. Label and keys (Fluent ids).
@@ -230,13 +232,8 @@ impl App {
         }
         // Full screen in and out. Also smoother on a monitor of the other graphics card of a hybrid
         // laptop: the desktop sends the window to it without composing (measured 2026-11-01).
-        if ctx.input(|i| i.key_pressed(Key::F11)) && self.show.is_none() {
-            let full = crate::viewer::full_screen(ctx);
-            if full {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
-            } else {
-                crate::viewer::enter_full(ctx);
-            }
+        if ctx.input(|i| i.key_pressed(Key::F11)) {
+            self.full_screen_act(ctx);
         }
         // In the viewer as F5, where the menu's item is greyed out (#343).
         if refresh && shift && self.viewing.is_none() {
@@ -368,6 +365,14 @@ impl App {
             Act::Layers => self.model.cad.panel = !self.model.cad.panel,
             Act::Measure => self.toggle_measure(),
             Act::Compare => self.start_compare(ctx),
+            Act::FullScreen => self.full_screen_act(ctx),
+        }
+    }
+
+    /// F11 and the Full screen entry (#358): not during the slideshow, which has its own.
+    pub(crate) fn full_screen_act(&self, ctx: &egui::Context) {
+        if self.show.is_none() {
+            crate::viewer::toggle_full(ctx);
         }
     }
 

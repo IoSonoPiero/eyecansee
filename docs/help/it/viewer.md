@@ -72,7 +72,7 @@ La barra strumenti tiene solo ciò che lavora sulla foto mostrata: ![Rinomina…
 
 ## Schermo intero
 
-**F11** mostra la foto da sola, senza menù né barre, su fondo nero. **Esc** prima esce dallo schermo intero, poi torna alla griglia.
+**F11**, oppure **Visualizza > Schermo intero**, mostra la foto da sola, senza menù né barre, su fondo nero. Il menù del clic destro ha la stessa voce; a schermo intero diventa **Esci dallo schermo intero**. **Esc** prima esce dallo schermo intero, poi torna alla griglia.
 
 Con **Doppio clic nel visore** impostato su **Va a schermo intero** nelle [Opzioni](options.md), un doppio clic su una foto, un video, un modello o un disegno va a schermo intero, e un altro doppio clic torna alla finestra. Mentre misuri, il doppio clic resta della misura.
 

@@ -247,7 +247,7 @@ impl App {
             self.viewer_double_click(ui.ctx(), false);
         }
         let mut chosen = None;
-        response.context_menu(|ui| chosen = browser::context_menu(ui, self.item_menu(None, None)));
+        response.context_menu(|ui| chosen = browser::context_menu(ui, self.viewer_menu(crate::viewer::full_screen(ui.ctx()))));
         if chosen.is_some() {
             self.act = chosen;
         }

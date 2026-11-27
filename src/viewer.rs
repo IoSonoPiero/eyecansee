@@ -18,6 +18,20 @@ pub(crate) fn full_screen(ctx: &egui::Context) -> bool {
     ctx.input(|i| i.viewport().fullscreen.unwrap_or(false))
 }
 
+/// F11 and the Full screen entry of the menus (#358): full screen in and out.
+pub(crate) fn toggle_full(ctx: &egui::Context) {
+    if full_screen(ctx) {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
+    } else {
+        enter_full(ctx);
+    }
+}
+
+/// The Fluent id of the Full screen entry: at full screen it is the way out (#358).
+pub(crate) fn full_label(full: bool) -> &'static str {
+    if full { "menu-leave-full-screen" } else { "menu-full-screen" }
+}
+
 /// Asks for full screen (#171). On Windows the window is as large as the monitor a moment before
 /// its first picture of that size is ready (33 ms on a fast card, 50 to 130 on a laptop's), and
 /// until then Windows shows the last picture drawn, stretched over the new size (DirectX 12, chosen
@@ -347,7 +361,7 @@ impl App {
                 self.viewer_double_click(ui.ctx(), self.model.measure.on);
             }
             response.context_menu(|ui| {
-                chosen = browser::context_menu(ui, self.item_menu(None, None));
+                chosen = browser::context_menu(ui, self.viewer_menu(full_screen(ui.ctx())));
             });
             if chosen.is_some() {
                 self.act = chosen;
@@ -370,7 +384,7 @@ impl App {
                 self.viewer_double_click(ui.ctx(), self.model.measure.on);
             }
             response.context_menu(|ui| {
-                chosen = browser::context_menu(ui, self.item_menu(None, None));
+                chosen = browser::context_menu(ui, self.viewer_menu(full_screen(ui.ctx())));
             });
             if chosen.is_some() {
                 self.act = chosen;

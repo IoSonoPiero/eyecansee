@@ -72,7 +72,7 @@ The toolbar keeps only what works on the picture shown: ![Rename…](icon://text
 
 ## Full screen
 
-**F11** shows the picture alone, without menus and bars, on black. **Esc** first leaves full screen, then goes back to the grid.
+**F11**, or **View > Full screen**, shows the picture alone, without menus and bars, on black. The right-click menu has the same entry; at full screen it reads **Leave full screen**. **Esc** first leaves full screen, then goes back to the grid.
 
 With **Double click in the viewer** set to **Goes to full screen** in the [Options](options.md), a double click on a picture, a video, a model or a drawing goes to full screen, and another double click comes back to the window. While measuring, the double click stays Measure's.
 

@@ -166,6 +166,9 @@ impl App {
         let viewing = self.viewing.is_some();
         entry(ui, act, self.open_off(), item(t("menu-open-selected"), t("key-enter")), Act::Open);
         entry(ui, act, self.back_off(), item(t("menu-back-to-grid"), self.back_key()), Act::Back);
+        // As F11, in the grid too (#358).
+        let full = crate::viewer::full_label(crate::viewer::full_screen(ui.ctx()));
+        entry(ui, act, None, item(t(full), "F11".into()), Act::FullScreen);
         // Off without pictures and videos: the rest stays out of the slideshow.
         entry(ui, act, self.slideshow_off(), item(t("menu-slideshow"), String::new()), Act::Slideshow(None));
         ui.separator();

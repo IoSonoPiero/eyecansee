@@ -33,7 +33,7 @@ Fai doppio clic su una miniatura, oppure selezionala e premi **Invio**: la foto 
 - Ogni azione ha una voce di menù, con il tasto scritto accanto. L'elenco di tutti i tasti è in [Scorciatoie da tastiera](keyboard.md).
 - Quando la finestra è stretta, i pulsanti della barra strumenti che non ci stanno passano nel menù ![Altre operazioni](icon://ellipsis) **Altre operazioni**: prima quelli dell'immagine e degli strumenti, poi le operazioni sui file, il pulsante dei metadati, la stella dei segnalibri e Aggiorna. La barra degli indirizzi resta sempre in vista, e i menù e la barra di stato vanno su più righe invece di essere tagliati.
 - Ogni cursore ha delle tacche sotto, una per ogni passo su cui si ferma o su valori tondi, e la sua misura è scritta accanto o prima.
-- **F11** mette la finestra a schermo intero, e la riporta com'era.
+- **F11**, oppure **Visualizza > Schermo intero**, mette la finestra a schermo intero, e la riporta com'era.
 
 ## Aiuto
 
