@@ -193,11 +193,14 @@ phone-copy-notice = The phone copies by itself and answers nothing meanwhile: th
 phone-copy-keep = Do not unplug the phone.
 phone-copy-long = This file has taken more than 3 minutes. The phone goes on until it is done: all you can do is wait.
 phone-copy-cancel-tip = The phone finishes the file it is copying, then EyeCanSee removes that copy. The files already copied stay.
+phone-copy-cancel-tip-kept = The phone finishes the file it is copying, which stays. The files already copied stay.
+phone-copy-cancel-tip-through-pc = Stops reading the file from the phone at once; a file already being written to the phone is finished and stays. The files already copied stay.
 phone-copy-cancelled = Cancelled, waiting for the phone
 phone-copy-leaving = Stopping the wait…
 phone-copy-through-pc = This file is big and goes through this computer: the bar is real. Cancel stops the reading at once; the writing stops when the file is whole.
 phone-copy-leaving-note = EyeCanSee stops waiting. If the phone finishes this file by itself, the copy may stay on the phone.
 phone-copy-cancelled-note = The phone finishes this file, then EyeCanSee removes the copy just made.
+phone-copy-cancelled-kept-note = The phone finishes this file, which stays.
 phone-copy-others = { $n ->
     [one] The other file is not copied.
    *[other] The other { $n } files are not copied.

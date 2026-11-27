@@ -96,11 +96,22 @@ impl App {
             Data::Done { done, total } => self.i18n.t_args("phone-copy-done", &[("done", &size(done)), ("size", &size(total))]),
         });
         let speed = v.speed.map_or_else(String::new, |(speed, left)| self.i18n.t_args("phone-copy-speed", &[("speed", &size(speed)), ("time", &human_time(left))]));
+        // What becomes of the file under way after Cancel: removed only for a copy inside one
+        // storage the phone makes; one of the other storage stays, and one through this computer
+        // stops its reading at once (audit T.6).
+        let cancelled = t(if seen.stays { "phone-copy-cancelled-kept-note" } else { "phone-copy-cancelled-note" });
+        let tip = t(if seen.through_pc {
+            "phone-copy-cancel-tip-through-pc"
+        } else if seen.stays {
+            "phone-copy-cancel-tip-kept"
+        } else {
+            "phone-copy-cancel-tip"
+        });
         let now = match v.note {
             Note::Waiting => t("phone-copy-notice"),
             Note::Long => t("phone-copy-long"),
-            Note::Cancelled { others: 0 } => t("phone-copy-cancelled-note"),
-            Note::Cancelled { others } => format!("{} {}", t("phone-copy-cancelled-note"), self.i18n.t_args("phone-copy-others", &[("n", &others.to_string())])),
+            Note::Cancelled { others: 0 } => cancelled,
+            Note::Cancelled { others } => format!("{cancelled} {}", self.i18n.t_args("phone-copy-others", &[("n", &others.to_string())])),
             Note::Left => t("phone-copy-leaving-note"),
             Note::ThroughPc => t("phone-copy-through-pc"),
         };
@@ -112,7 +123,7 @@ impl App {
             counts: v.rows.then_some([data, speed]),
             note: (if v.keep { format!("{now} {}", t("phone-copy-keep")) } else { now }, v.note != Note::Waiting),
             cancel: match (v.cancel, v.leave) {
-                (true, _) => Ok((t("delete-no"), t("phone-copy-cancel-tip"))),
+                (true, _) => Ok((t("delete-no"), tip)),
                 (false, Leave::Asked) => Err(t("phone-copy-leaving")),
                 (false, _) => Err(t("phone-copy-cancelled")),
             },
