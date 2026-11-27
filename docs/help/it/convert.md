@@ -22,7 +22,7 @@ Per fare solo delle copie più piccole delle foto, senza la finestra: fai clic d
 
 Il lavoro parte subito su tutte le immagini scelte, con lo stesso riquadro e **Annulla** descritti più sotto e il riepilogo finale. Le copie vanno accanto agli originali, nel loro formato e con i loro metadati (una foto **Ultra HDR** resta Ultra HDR), con la misura nel nome: `foto (1920 px).jpg`, `foto (50%).jpg`. Un nome già preso riceve " (2)". Per le immagini che hanno già quella misura, o sono più piccole (non vengono mai ingrandite), non si fa nessuna copia, e il messaggio le elenca: così ridimensionare di nuovo una copia non crea `foto (1920 px) (1920 px).jpg`. Quelle in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) restano fuori, e il messaggio dice perché. Restano fuori anche video, modelli 3D, disegni CAD e file audio, e il messaggio li elenca: se tra i file scelti ce ne sono, **Ridimensiona** è segnata con **\***; se non c'è nessuna immagine, è grigia.
 
-**Ridimensiona > Personalizzata…** apre questa finestra, che si chiama **Ridimensiona** e ha il pulsante **Ridimensiona**, sulle immagini, sulla rotazione e sulle dimensioni, con il formato **Uguale all'originale** e le copie accanto agli originali. Riparte dalla misura e dalla rotazione dell'ultima Personalizzata… (all'inizio **Lato lungo** 1920 px, non ruotata); **Converti…** invece riparte sempre da **Invariate**, senza rotazione né riflessione. Come con le misure qui sopra, le copie delle immagini davvero ridimensionate hanno la misura nel nome (quelle solo ruotate, ciò che è cambiato), in qualunque formato e dovunque vadano:
+**Ridimensiona > Personalizzata…** apre questa finestra sulle immagini, sulla rotazione e sulle dimensioni. Qui la finestra si chiama **Ridimensiona** e il suo pulsante è **Ridimensiona**; il formato è **Uguale all'originale** e le copie vanno accanto agli originali. Riparte dalla misura e dalla rotazione dell'ultima Personalizzata… (all'inizio **Lato lungo** 1920 px, senza rotazione); **Converti…** invece riparte sempre da **Invariate**, senza rotazione né riflessione. Come con le misure qui sopra, le copie delle immagini davvero ridimensionate hanno la misura nel nome (quelle solo ruotate o riflesse dicono cosa è stato fatto), in qualunque formato e dovunque vadano:
 
 | Dimensioni | Nome della copia |
 |---|---|
@@ -38,8 +38,8 @@ Con una misura e una rotazione, il nome dice solo la misura. Un'immagine lasciat
 ## Formato
 
 - **Uguale all'originale**: ogni immagine resta nel suo formato e viene scritta come la scrive Salva (un JPEG tiene la sua qualità). Le immagini in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) restano fuori.
-- Uno dei formati di [Salva come](save-as.md). Le sue opzioni sono sotto **Opzioni JPEG** (o il nome del formato scelto): fai clic sul titolo per aprirle. Lì c'è anche **Metadati**: tutti, tutti tranne il luogo, o nessuno tranne il profilo colore, come in [Salva come](save-as.md).
-- Le foto **Ultra HDR** dei telefoni restano HDR solo in JPEG. Se tra i file ci sono dei JPEG e scegli un altro formato, la finestra te lo ricorda.
+- Uno dei formati di [Salva come](save-as.md). Le sue opzioni sono sotto **Opzioni JPEG** (con il nome del formato scelto): fai clic sul titolo per aprirle. Lì c'è anche **Metadati**: tutti, tutti tranne il luogo, o nessuno tranne il profilo colore, come in [Salva come](save-as.md).
+- Le foto **Ultra HDR** dei telefoni restano HDR solo in JPEG. Se tra i file ci sono dei JPEG e scegli un altro formato, la finestra ti avvisa.
 
 ## Rotazione e ribaltamenti
 
@@ -55,7 +55,7 @@ Con una misura e una rotazione, il nome dice solo la misura. Un'immagine lasciat
 - **Lato lungo**, **Lato corto**, **Larghezza** o **Altezza** di tanti pixel, con le proporzioni: un lato lungo di 1920 porta le foto orizzontali e quelle verticali a 1920 pixel sul loro lato più lungo.
 - **Misura esatta, tagliata al centro**: esattamente la misura scritta; ciò che non entra nelle proporzioni viene tagliato in parti uguali dai due lati.
 - **Misura esatta, deformata**: esattamente la misura scritta, con l'immagine allungata o schiacciata.
-- Se tra i file scelti ci sono dei video si possono scegliere solo **Invariate**, **Percentuale dell'originale** ed **Entro**: le altre misure valgono solo per le immagini.
+- Se tra i file scelti ci sono dei video, si possono scegliere solo **Invariate**, **Percentuale dell'originale** ed **Entro**: le altre misure valgono solo per le immagini.
 - **Ingrandisci anche i file più piccoli**: spenta all'inizio, così le immagini già più piccole della misura chiesta restano come sono (con una misura esatta, nessun lato diventa più grande di quello dell'originale). Con il formato **Uguale all'originale**, per un'immagine che verrebbe uguale all'originale non si fa nessuna copia, e il messaggio la elenca.
 - **Filtro**, cioè come si calcolano i pixel nuovi: **Lanczos** (il più nitido, quello predefinito), **Catmull-Rom**, **Gaussiano** (morbido), **Bilineare** (veloce), **Pixel più vicino** (tiene i bordi netti della pixel art).
 
@@ -77,10 +77,10 @@ Un riquadro in basso a destra mostra quanti file sono pronti, una barra e il fil
 
 Alla fine un riepilogo, con il nome del comando come titolo, dice:
 
-- quanti file sono stati salvati e dove; quanti sono stati salvati in JPEG senza una parte dei loro metadati (EXIF, XMP o IPTC) troppo grande per starci, ciascuno nominato in un gruppo con quella parte tra parentesi; quanti sono rimasti fuori; quanti non sono stati fatti, se hai fermato il lavoro (un numero zero non compare);
+- quanti file sono stati salvati e dove; quanti sono stati salvati in JPEG senza una parte dei loro metadati (EXIF, XMP o IPTC) troppo grande per starci, ciascuno elencato in un gruppo con quella parte tra parentesi; quanti sono rimasti fuori; quanti non sono stati fatti, se hai fermato il lavoro (un numero zero non compare);
 - quanto tempo ci è voluto e, se sono stati salvati dei file, il loro peso su disco prima e dopo, con la percentuale;
 - i file rimasti fuori, divisi per motivo (un altro tipo di file, un formato che EyeCanSee non sa scrivere, già di quella misura, animati o con più pagine, troppo grandi per la memoria di questo computer, FFmpeg mancante, un errore), ogni gruppo con i nomi dei suoi file, in ordine. Un gruppo di più di cinque file è chiuso: fai clic sulla sua riga per aprirlo. Se l'elenco è lungo, scorre. ![Copia il messaggio](icon://copy) a destra dei pulsanti copia il riepilogo con tutti i file rimasti fuori, anche quelli dei gruppi chiusi.
-- dopo di loro, per **Copia senza audio**, le copie salvate senza l'anteprima della videocamera, che non si è potuta scrivere (vedi [Convertire i video](convert-video.md)).
+- dopo questi, per **Copia senza audio**, le copie salvate senza l'anteprima della videocamera, che non si è potuta scrivere (vedi [Convertire i video](convert-video.md)).
 
 **Apri la cartella** mostra le miniature della cartella in cui sono andati i file, su questo computer, su un telefono o su un server; c'è solo se qualcosa è stato salvato in un'altra cartella, non in quella che stai guardando, ed è grigio mentre una pagina (l'editor, Salva come, la presentazione o i duplicati) copre le miniature. **Chiudi**, **Invio** o **Esc** chiudono il riepilogo.
 
@@ -89,7 +89,7 @@ Quando una copia o uno spostamento finisce mentre questo riepilogo è aperto, o 
 ## Da sapere
 
 - Le immagini animate e quelle con più pagine restano fuori: il file nuovo terrebbe solo la prima immagine.
-- Un'immagine che, letta tutta, chiederebbe più di metà della memoria del computer (per esempio un HEIC, un TIFF a 16 bit o un JPEG XL di centinaia di megapixel, su un computer da 8 GB) resta fuori, senza domande: il riepilogo la elenca. Non restano fuori una aperta comunque (nel visore, nell'editor, in Salva come o salvando una rotazione) da quando EyeCanSee è partito, né un JPEG solo ruotato o riflesso senza perdere qualità, che non viene decodificato. Di un file più grande di 32 MB si legge solo l'inizio, quando lì ci sono le dimensioni dell'immagine.
+- Un'immagine che, letta tutta, chiederebbe più di metà della memoria del computer (per esempio un HEIC, un TIFF a 16 bit o un JPEG XL di centinaia di megapixel, su un computer da 8 GB) resta fuori, senza domande: il riepilogo la elenca. Non resta fuori un'immagine che hai scelto di aprire comunque da quando EyeCanSee è partito (nel visore, nell'editor, in Salva come o salvando una rotazione), né un JPEG solo ruotato o riflesso senza perdere qualità, che non viene decodificato. Di un file più grande di 32 MB si legge solo l'inizio, quando lì sono scritte le dimensioni dell'immagine.
 - Una foto in movimento del telefono tiene il suo video solo se viene soltanto ruotata e resta JPEG; altrimenti il file nuovo è solo la foto, e il video resta nell'originale.
 - Funziona su tutte le sorgenti: computer, dischi, telefoni e server.
 - Nella finestra **Invio** avvia la conversione (quando non stai scrivendo in un campo) ed **Esc** annulla.
