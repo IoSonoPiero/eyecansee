@@ -14,7 +14,7 @@ Fai clic su una miniatura o su una cartella, oppure muoviti con le frecce. L'ele
 - **Ctrl + A** (o **Modifica > Seleziona tutto**, anche nel menù del clic destro su uno spazio vuoto) seleziona tutto nella cartella.
 - **Trascina** col mouse sulla griglia: compare un rettangolo che seleziona le celle che tocca. Tenendo premuto **Ctrl** si aggiungono a quelle già selezionate. Vicino al bordo in alto o in basso la griglia scorre da sola.
 
-Un clic senza tasti, o una freccia senza Maiusc, torna a un solo elemento.
+Un clic senza tasti, o una freccia senza Maiusc, seleziona di nuovo un solo elemento.
 
 La barra di stato mostra quanti elementi sono selezionati e quanto pesano i loro file, per esempio "Selezionati: 12 (48 MB)".
 
@@ -23,9 +23,9 @@ La barra di stato mostra quanti elementi sono selezionati e quanto pesano i loro
 - Il **clic destro** su uno degli elementi selezionati apre un menù che agisce su tutti. Il clic destro su un elemento fuori dalla selezione seleziona solo quello.
 - **Copia**, **Taglia**, **Elimina**, **Converti…**, **Ridimensiona** e **Aggiorna miniature** lavorano su tutti gli elementi selezionati.
 - **Invio** (o **Apri**) apre nel visore il primo dei file selezionati, e il visore poi si muove solo tra quelli. Anche il **Carosello** mostra solo quelli (le foto e i video tra quelli), dal primo.
-- **Rinomina** lavora su un elemento alla volta: con più elementi selezionati è grigio.
+- **Rinomina** lavora su un elemento alla volta: con più elementi selezionati è grigia.
 
-Quando la selezione mescola tipi di file diversi (per esempio foto e un modello 3D), nei menù una voce che funziona solo su una parte è segnata con **\***: agisce solo su quelli, e una riga in fondo al menù lo dice. Lo stesso vale per le cartelle selezionate insieme ai file: restano fuori, e il messaggio alla fine del lavoro le nomina.
+Quando la selezione mescola tipi di file diversi (per esempio foto e un modello 3D), nei menù una voce che funziona solo su alcuni di loro è segnata con **\***: agisce solo su quelli, e una riga in fondo al menù lo dice. Lo stesso vale per le cartelle selezionate insieme ai file: restano fuori, e il messaggio alla fine del lavoro le nomina.
 
 ## Le due parti della finestra
 
