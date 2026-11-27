@@ -354,6 +354,21 @@ mod tests {
     /// The most that stays empty under the shortest text, in points ("about 54" in issue #279).
     const EMPTY_AT_MOST: f32 = 57.0; // measured: texts from 52 to 109 points, English and Italian
 
+    /// Audit 27/11 V.4 and A.6 (#320): with "The window's ✕ goes back to the grid" off, Esc in the
+    /// viewer closes EyeCanSee; the tip of the viewer and the note of a video that gets no data
+    /// said Esc goes back to the grid. They name Enter, which goes back in both cases (`back_key`).
+    #[test]
+    fn the_key_back_to_the_grid_is_enter() {
+        for lang in ["en", "it"] {
+            let i18n = crate::i18n::I18n::new(lang);
+            let enter = i18n.t("key-enter");
+            for id in ["tip-viewer-text", "video-stalled"] {
+                let text = i18n.t(id);
+                assert!(text.contains(&enter) && !text.contains("Esc"), "{lang} {id}: {text}");
+            }
+        }
+    }
+
     /// On at the very first start, and for who updates from a settings.json without the key.
     #[test]
     fn shown_at_first_start_and_after_an_update() {
