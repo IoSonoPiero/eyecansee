@@ -433,13 +433,16 @@ pub fn apply(ready: &Ready) -> Result<(), String> {
 /// The PowerShell script that puts the zip's files in `dir`, once the process `pid` has exited,
 /// and starts `exe` again. The exe can stay locked for a moment after EyeCanSee has exited ("in
 /// use by another process" when copying over it): renamed first, which Windows allows. On any
-/// error the old one goes back, and EyeCanSee starts again in any case.
+/// error the old one goes back, and EyeCanSee starts again in any case. Every path is taken
+/// literally (in `-Path` a `[` or `]` is a wildcard: nothing copied, and no error), and the old
+/// exe is removed only once the new one is there: otherwise the `catch` puts it back (audit C.1).
 fn zip_script(pid: u32, zip: &Path, unpacked: &Path, dir: &Path, exe: &Path) -> String {
     format!(
         "$ErrorActionPreference = 'Stop'; Wait-Process -Id {pid} -ErrorAction SilentlyContinue; \
          try {{ Expand-Archive -LiteralPath {zip} -DestinationPath {unpacked} -Force; \
          Move-Item -LiteralPath {exe} -Destination {old} -Force; \
-         Copy-Item -Path (Join-Path {unpacked} '*') -Destination {dir} -Recurse -Force; \
+         Get-ChildItem -LiteralPath {unpacked} -Force | Copy-Item -Destination {dir} -Recurse -Force; \
+         if (-not (Test-Path -LiteralPath {exe} -PathType Leaf)) {{ throw 'eyecansee.exe not in the update' }}; \
          Remove-Item -LiteralPath {unpacked}, {zip} -Recurse -Force; \
          Remove-Item -LiteralPath {old} -ErrorAction SilentlyContinue }} \
          catch {{ if (-not (Test-Path -LiteralPath {exe})) {{ Move-Item -LiteralPath {old} -Destination {exe} }} }} \
@@ -608,18 +611,21 @@ pub(crate) mod tests {
     #[ignore = "runs PowerShell"]
     fn zip_script_runs_in_powershell_live() {
         let base = std::env::temp_dir().join(format!("eyecansee-c-1-{}", std::process::id()));
-        let run = |name: &str, files: &[&str]| -> (Option<String>, bool) {
+        let run = |name: &str, files: &[&str]| -> (Option<String>, bool, bool) {
             let (temp, dir) = (base.join(name).join("Temp [x]"), base.join(name).join("EyeCanSee [1]"));
             let new = temp.join("new");
             std::fs::create_dir_all(&new).unwrap();
-            std::fs::create_dir_all(&dir).unwrap();
+            // A program's folder as installed: `modules\coders` is there already.
+            std::fs::create_dir_all(dir.join(r"modules\coders")).unwrap();
+            std::fs::write(dir.join(r"modules\coders\old.dll"), "old").unwrap();
             for f in files {
+                std::fs::create_dir_all(new.join(f).parent().unwrap()).unwrap();
                 std::fs::write(new.join(f), "new").unwrap();
             }
             let exe = dir.join("eyecansee.exe");
             std::fs::write(&exe, "old").unwrap();
             let zip = temp.join("EyeCanSee.zip");
-            let sources: Vec<String> = files.iter().map(|f| quote(&new.join(f))).collect();
+            let sources: Vec<String> = std::fs::read_dir(&new).unwrap().map(|e| quote(&e.unwrap().path())).collect();
             let pack = format!("$ErrorActionPreference = 'Stop'; Compress-Archive -LiteralPath {} -DestinationPath {}", sources.join(","), quote(&zip));
             let out = std::process::Command::new("powershell").args(["-NoProfile", "-NonInteractive", "-Command", &pack]).output().unwrap();
             assert!(out.status.success(), "{pack}\n{}", String::from_utf8_lossy(&out.stderr));
@@ -629,12 +635,13 @@ pub(crate) mod tests {
             let script = zip_script(gone.id(), &zip, &zip.with_extension("unpacked"), &dir, &exe).replace(&format!("Start-Process -FilePath {}", quote(&exe)), "");
             let out = std::process::Command::new("powershell").args(["-NoProfile", "-NonInteractive", "-Command", &script]).output().unwrap();
             assert!(out.status.success(), "{script}\n{}", String::from_utf8_lossy(&out.stderr));
-            (std::fs::read_to_string(&exe).ok(), dir.join("x.dll").is_file())
+            let modules = dir.join(r"modules\coders\m.dll").is_file() && !dir.join(r"modules\modules").exists();
+            (std::fs::read_to_string(&exe).ok(), dir.join("x.dll").is_file(), modules)
         };
-        let with_exe = run("with", &["eyecansee.exe", "x.dll"]);
+        let with_exe = run("with", &["eyecansee.exe", "x.dll", r"modules\coders\m.dll"]);
         let without = run("without", &["x.dll"]);
         let _ = std::fs::remove_dir_all(&base);
-        assert_eq!(with_exe, (Some("new".to_string()), true), "the update with its exe");
+        assert_eq!(with_exe, (Some("new".to_string()), true, true), "the update with its exe, modules merged");
         assert_eq!(without.0.as_deref(), Some("old"), "an update without the exe keeps the old one");
     }
 
