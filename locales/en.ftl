@@ -440,7 +440,7 @@ vulkan-failed-title = Vulkan did not start
 vulkan-failed-text = The last start with Vulkan did not get as far as showing the window: EyeCanSee now draws with DirectX 12.
     You can change it in Tools > Options… > Look.
 graphics-broken-title = The graphics card's driver does not work
-graphics-broken-text = At the last start the graphics card's driver closed EyeCanSee, and the card cannot draw with DirectX 12.
+graphics-broken-text = A start with Vulkan ended before showing the window, and the graphics card cannot draw with DirectX 12.
     EyeCanSee now draws without the graphics card, more slowly.
     Update the driver from the website of the computer's maker or of the graphics card's maker.
     Then, to try the card again, choose Vulkan in Tools > Options… > Look.

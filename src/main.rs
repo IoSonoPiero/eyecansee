@@ -685,6 +685,7 @@ impl eframe::App for App {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Also with the window hidden: a later start waits for its address to be taken.
         self.answer_handed(ctx);
+        gpu_start::frame_drawn(ctx);
     }
 
     fn on_exit(&mut self) {
@@ -706,7 +707,6 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.pace(frame);
-        gpu_start::frame_drawn(ui.ctx());
         smooth_gpu::new_frame();
         // Options > Look: applied at once, wherever pictures are drawn.
         mipmap::set_smooth(self.settings.smooth);

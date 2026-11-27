@@ -12,7 +12,8 @@
 //! Where no graphics card draws with DirectX 12 and Vulkan never drew, the driver does not work:
 //! that is remembered (`driver-broken`), and every start draws with DirectX 12 alone, which is
 //! then Windows' own software renderer (WARP, "Microsoft Basic Render Driver", in every Windows
-//! 10 and 11), and says to update the driver, in place of the tip of the day. No start goes back
+//! 10 and 11); the start that finds it says to update the driver, in place of the tip of the
+//! day, the starts after say nothing (audit A.2). No start goes back
 //! to Vulkan by itself, so starts never alternate between a crash and a window. Choosing Vulkan in
 //! the Options tries the card again; a card that draws with DirectX 12 (after an update) ends it
 //! by itself. A window that cannot be made at all is told with a message of Windows (`no_window`).
@@ -35,6 +36,13 @@ static MARKED: AtomicBool = AtomicBool::new(false);
 static FELL_BACK: AtomicBool = AtomicBool::new(false);
 /// The driver does not work: this start draws without the graphics card.
 static BROKEN_NOW: AtomicBool = AtomicBool::new(false);
+/// An earlier start found it so: this one says nothing (audit A.2).
+static BROKEN_BEFORE: AtomicBool = AtomicBool::new(false);
+/// When this start began, for the mark of a window hidden from the start (`frame_drawn`).
+static STARTED: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+/// A start alive this long has got past loading the drivers: the mark goes away also without a
+/// frame, as when the window starts minimised (no frame is drawn then).
+const HIDDEN: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// What this start does with the graphics card.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -120,7 +128,9 @@ pub(crate) fn before_window(settings: &mut Settings) -> Option<wgpu::Backends> {
     }
     let path = crate::settings::config_path(MARK)?;
     let dir = path.parent()?;
-    let plan = plan(true, settings.graphics, wgpu::Backends::from_env(), path.exists(), dir.join(BROKEN).exists(), real_dx12);
+    let _ = STARTED.set(std::time::Instant::now());
+    let broken_before = dir.join(BROKEN).exists();
+    let plan = plan(true, settings.graphics, wgpu::Backends::from_env(), path.exists(), broken_before, real_dx12);
     apply(dir, &plan, settings);
     if plan.fell_back {
         settings.save();
@@ -129,18 +139,23 @@ pub(crate) fn before_window(settings: &mut Settings) -> Option<wgpu::Backends> {
     MARKED.store(plan.mark, Ordering::Relaxed);
     FELL_BACK.store(plan.fell_back, Ordering::Relaxed);
     BROKEN_NOW.store(plan.broken, Ordering::Relaxed);
+    BROKEN_BEFORE.store(broken_before, Ordering::Relaxed);
     plan.backends
 }
 
 /// What the user is told at this start in place of the tip of the day, as Fluent ids of the title
-/// and the text (`App::new`): the broken driver, at every start while it lasts, before the fall
-/// back to DirectX 12, which a broken driver also is.
+/// and the text (`App::new`): the broken driver, at the start that finds it, before the fall
+/// back to DirectX 12, which a broken driver also is. The starts after say nothing: they draw
+/// with the processor all the same (Help > About says so), and keep the first-start window and
+/// the tip of the day (audit A.2).
 pub(crate) fn notice() -> Option<(&'static str, &'static str)> {
-    notice_for(BROKEN_NOW.load(Ordering::Relaxed), false, FELL_BACK.load(Ordering::Relaxed))
+    notice_for(BROKEN_NOW.load(Ordering::Relaxed), BROKEN_BEFORE.load(Ordering::Relaxed), FELL_BACK.load(Ordering::Relaxed))
 }
 
-fn notice_for(broken: bool, _broken_before: bool, fell_back: bool) -> Option<(&'static str, &'static str)> {
-    if broken {
+fn notice_for(broken: bool, broken_before: bool, fell_back: bool) -> Option<(&'static str, &'static str)> {
+    if broken && broken_before {
+        None
+    } else if broken {
         Some(("graphics-broken-title", "graphics-broken-text"))
     } else if fell_back {
         Some(("vulkan-failed-title", "vulkan-failed-text"))
@@ -178,25 +193,29 @@ pub(crate) fn no_window(language: Option<&str>, error: &eframe::Error) {
     }
 }
 
-/// At every frame: the mark goes away once the first frame has been drawn and shown (`frames`
-/// counts the frames completed: eframe paints each one right after `App::ui`). Until then a
-/// repaint is asked, so it does not wait for the mouse.
+/// At every pass, also with the window hidden (`App::logic`): the mark goes away once the first
+/// frame has been drawn and shown (`frames` counts the frames completed: eframe paints each one
+/// right after `App::ui`), or once the start has lived `HIDDEN` with no frame (a window hidden
+/// from the start). Until then a repaint is asked, so it does not wait for the mouse.
 pub(crate) fn frame_drawn(ctx: &egui::Context) {
     if !MARKED.load(Ordering::Relaxed) {
         return;
     }
     let Some(path) = crate::settings::config_path(MARK) else { return };
-    if take_after_first(&path, ctx.cumulative_frame_nr(), std::time::Duration::ZERO) {
+    let alive = STARTED.get().map_or(std::time::Duration::ZERO, std::time::Instant::elapsed);
+    if take_after_first(&path, ctx.cumulative_frame_nr(), alive) {
         MARKED.store(false, Ordering::Relaxed);
-        log!("graphics: first frame drawn, mark taken away");
+        log!("graphics: first frame drawn or {alive:?} alive, mark taken away");
     } else {
-        ctx.request_repaint();
+        // Not at every pass with the window hidden, where no frame comes to slow it down.
+        ctx.request_repaint_after(std::time::Duration::from_millis(50));
     }
 }
 
-/// The mark at `path` taken away once `frames` (completed) is at least one; true when done.
-fn take_after_first(path: &Path, frames: u64, _alive: std::time::Duration) -> bool {
-    if frames == 0 {
+/// The mark at `path` taken away once `frames` (completed) is at least one, or the start has
+/// been `alive` for `HIDDEN`; true when done.
+fn take_after_first(path: &Path, frames: u64, alive: std::time::Duration) -> bool {
+    if frames == 0 && alive < HIDDEN {
         return false;
     }
     let _ = std::fs::remove_file(path);
@@ -310,8 +329,8 @@ mod tests {
     }
 
     /// No card draws with DirectX 12 and Vulkan never drew, whatever the Options said: the driver
-    /// does not work. Every start after draws with DirectX 12 alone (the software renderer) and
-    /// says so, and none goes back to Vulkan by itself: no crash, window, crash, window.
+    /// does not work. Every start after draws with DirectX 12 alone (the software renderer), the
+    /// first one says so, and none goes back to Vulkan by itself: no crash, window, crash, window.
     #[test]
     fn no_card_that_works_stays_on_the_software_renderer() {
         for chosen in [Graphics::Vulkan, Graphics::Directx12] {
@@ -333,7 +352,7 @@ mod tests {
                 let again = plan_in(&dir, s.graphics, || false);
                 assert_eq!(again, p(DX12, false, false, true));
                 apply(&dir, &again, &mut s);
-                assert_eq!(notice_for(again.broken, true, again.fell_back), Some(("graphics-broken-title", "graphics-broken-text")), "said at every start");
+                assert_eq!(notice_for(again.broken, true, again.fell_back), None, "said once, at the start that found it (audit A.2)");
             }
             clean(&dir);
         }
