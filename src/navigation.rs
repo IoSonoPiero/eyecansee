@@ -139,6 +139,9 @@ impl App {
         self.delete_confirm = None;
         self.restore_conflict = None;
         self.restore_queue.clear();
+        // Their ends, about the place left, are dropped (`Msg::At`, audit 27/11 F.9): nothing
+        // else would end them here, and Delete and Restore would wait for them.
+        (self.deleting, self.restore_busy) = (0, false);
         self.paste_ask = None;
         self.batch_turn = None;
         self.rename = None;
