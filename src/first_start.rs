@@ -514,6 +514,29 @@ mod tests {
         assert_eq!(closed_with_tip(&mut s, &alone, How::Done, DAY), None);
     }
 
+    /// Audit C.4: reading an add-on's place costs (FFmpeg: `ffmpeg -decoders`, before the window),
+    /// so a start reads only those the window may show: none with an address, all on the first
+    /// start, then only those not offered yet (after the first start, none).
+    #[test]
+    fn only_the_add_ons_not_offered_yet_are_read() {
+        let kinds = ["libmpv", "ffmpeg", "occt"];
+        assert_eq!(to_read(&Settings::default(), &kinds, false), kinds, "the first start shows them all");
+        assert_eq!(to_read(&Settings::default(), &kinds, true), Vec::<&str>::new(), "started with an address: no window");
+        let seen = Settings { welcome_seen: true, addons_offered: vec!["libmpv".into(), "ffmpeg".into(), "occt".into()], ..Settings::default() };
+        assert_eq!(to_read(&seen, &kinds, false), Vec::<&str>::new(), "all offered already");
+        let one_new = Settings { welcome_seen: true, addons_offered: vec!["libmpv".into(), "ffmpeg".into()], ..Settings::default() };
+        assert_eq!(to_read(&one_new, &kinds, false), ["occt"], "only the new one");
+        // What `at_start` makes of the add-ons read is what it made of them all.
+        let all: Offers = &[("libmpv", false), ("ffmpeg", true), ("occt", true)];
+        for s in [Settings::default(), one_new.clone(), seen.clone()] {
+            let read = to_read(&s, &kinds, false);
+            let fewer: Vec<_> = all.iter().filter(|a| read.contains(&a.0)).copied().collect();
+            let (mut a, mut b) = (s.clone(), s.clone());
+            assert_eq!(at_start(&mut a, all, false, DAY), at_start(&mut b, &fewer, false, DAY));
+            assert_eq!(a, b);
+        }
+    }
+
     /// Started with an address: nothing, not even remembered; the next normal start shows it.
     #[test]
     fn started_with_an_address_waits() {
