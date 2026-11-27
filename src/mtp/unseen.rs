@@ -36,7 +36,7 @@ pub(super) fn made(before: u64, (free, capacity): (u64, u64), size: u64) -> bool
 
 impl Phone {
     /// The free bytes and the capacity of `storage`, asked now.
-    async fn space(&self, storage: &Storage) -> Option<(u64, u64)> {
+    pub(super) async fn space(&self, storage: &Storage) -> Option<(u64, u64)> {
         let (device, _) = self.open.get()?;
         let fresh = device.storage(storage.id()).await.ok()?;
         Some((fresh.info().free_space, fresh.info().total_capacity))

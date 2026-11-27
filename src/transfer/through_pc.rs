@@ -437,7 +437,9 @@ mod tests {
 
     /// A big file copied inside its own storage, by the phone itself as a paste does it (fast
     /// there: 6 GB in about a minute on a Redmi Note 9 Pro, past the 30 s mtp-rs waits): the copy
-    /// ends up whole, counted once, and the phone answers after it. `EYECANSEE_MTP_BIG` is a big file, left as it is; the copy is deleted:
+    /// ends up whole, counted once, and the phone answers after it. On Windows a file past
+    /// `mtp::alone_limit` goes through the computer here, as in a paste (#354): the phone's own
+    /// long copy is tried there with `mtp_wpd_copy_inside_live`. `EYECANSEE_MTP_BIG` is a big file, left as it is; the copy is deleted:
     /// `EYECANSEE_MTP=<serial> EYECANSEE_MTP_BIG="<storage>/Download/big.mp4" cargo test --release mtp_big_file_inside_live -- --ignored --nocapture`
     #[test]
     #[ignore]

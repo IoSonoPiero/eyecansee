@@ -28,6 +28,8 @@ mod across;
 mod aside;
 mod cache;
 mod events;
+#[cfg(test)]
+mod probe;
 mod storages;
 pub(crate) mod turn;
 mod undo;
