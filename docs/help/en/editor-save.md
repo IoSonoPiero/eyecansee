@@ -8,8 +8,8 @@ The editor never changes the original unless you ask. The main button, **Save co
 
 - Its name is the original's with "(edited)", for example `beach (edited).jpg`; "(edited 2)" when that name is taken.
 - Its format is the original's when EyeCanSee can write that format (JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI). Otherwise it is a PNG when the image has transparency or comes from an OpenEXR or Radiance HDR file, and a JPEG in the other cases (a HEIC, a RAW or a PSD, for example).
-- Before writing, a window gives the copy's name and what it loses, if anything: encoded again with a little loss, 8 bits per colour instead of more, what is brighter than white, the video of a motion photo, a depth map, the EXIF, XMP or IPTC too large for a JPEG. **Save** writes it; **Cancel** goes back.
-- In the same window, **Metadata** chooses what the copy keeps of the original's metadata: **All** at first, **All but the place** (no GPS position, no city, state or country: for a photo to share) or **None** (only the colour profile), as in [Save as](save-as.md). The page remembers the choice for its next saves, Overwrite included, until it is closed. A copy without all the metadata is always encoded again, also when the image is only turned; an **Ultra HDR** photo stays HDR without the place, not with **None**: the window says so. If the image has a cover box and the photo records the place where it was taken, a yellow line under **All** says so.
+- Before writing, a window shows the copy's name and what it loses, if anything: encoded again with a little loss, 8 bits per colour instead of more, what is brighter than white, the video of a motion photo, a depth map, the EXIF, XMP or IPTC too large for a JPEG. **Save** writes it; **Cancel** goes back.
+- In the same window, **Metadata** chooses what the copy keeps of the original's metadata: **All** at first, **All but the place** (no GPS position, no city, state or country: for a photo to share) or **None** (only the colour profile), as in [Save as](save-as.md). The page remembers the choice for its next saves, Overwrite included, until it is closed. A copy without all the metadata is always encoded again, even when the image is only turned; an **Ultra HDR** photo stays HDR when saved without the place, but not with **None**: the window says so. If the image has a cover box and the photo records the place where it was taken, a yellow line under **All** says so.
 
 The original stays as it is. The page stays open, so you can go on; meanwhile the viewer behind it, and the window's title, stay on the image you are editing. When you close it, the grid selects the file saved last and the viewer shows it: the copy, or the original if you overwrote it after the copy.
 
@@ -29,10 +29,10 @@ The button is off when there is nothing new to save.
 
 The arrow ![More ways to save](icon://chevron-down) next to Save copy has two more (with Overwrite as the main button, see below, it has **Save copy** and **Save as…**):
 
-- ![Save as…](icon://file-output) **Save as…** (**Ctrl + Shift + S**): opens [Save as](save-as.md) with the result, to choose the name, the format and the folder. The editor waits under it: once the file is saved, it closes. Opened from the viewer, the viewer then goes to the new file; if you saved into another folder, it stays on the original, no longer marked as modified, and a message says where the new file is. If you close Save as without saving (Cancel, Esc or the window's ✕), also after a save that failed, you are back in the editor with your changes, still to save.
+- ![Save as…](icon://file-output) **Save as…** (**Ctrl + Shift + S**): opens [Save as](save-as.md) with the result, to choose the name, the format and the folder. The editor waits under it: once the file is saved, it closes. If you opened the editor from the viewer, the viewer then goes to the new file; if you saved into another folder, it stays on the original, no longer marked as modified, and a message says where the new file is. If you close Save as without saving (Cancel, Esc or the window's ✕), even after a save that failed, you are back in the editor with your changes, still to save.
 - ![Overwrite the original…](icon://save) **Overwrite the original…**: writes the edited image over the original, after asking; the question says what the new file loses, as for the copy (the video of a motion photo, for example). The original goes to the trash, even when deleting for good is chosen in the [Options](options.md). If it cannot go to a trash, nothing is overwritten. The page stays open (unless **After saving** in the Options says to go back: then it closes, and the thumbnails keep the image selected, or the viewer shows it, as chosen there); a second Overwrite starts again from the original as it was opened and replaces what was written before, so only the true original is in the trash. See [Deleting and the trash](delete.md).
 
-Overwrite is off, and pointing at it says why, for a new image, for a format EyeCanSee does not write back (HEIC, RAW…), and in places where EyeCanSee never writes over a file (a folder opened through the file manager's gvfs link, a temporary copy made by Windows).
+Overwrite is off for a new image, for a format EyeCanSee does not write back (HEIC, RAW…), and in places where EyeCanSee never writes over a file (a folder opened through the file manager's gvfs link, a temporary copy made by Windows). Pointing at it says why.
 
 ## The main save button
 
@@ -48,7 +48,7 @@ Where the original cannot be overwritten (a format EyeCanSee does not write back
 
 - A JPEG saved as JPEG keeps the quality it was saved with, so it is not compressed harder. A picture of another format saved as JPEG is written at quality 95.
 - The metadata (EXIF, XMP, IPTC, colour profile, resolution) stay, with the new size, without the small previews of the original.
-- An Ultra HDR photo from a phone stays HDR. The video of a motion photo is not kept, unless you only turned or flipped it, nor a depth map or the other pictures a phone photo may carry: the window before saving says so.
+- An Ultra HDR photo from a phone stays HDR. The video of a motion photo is not kept, unless you only turned or flipped the photo. Neither is a depth map, nor the other pictures a phone photo may carry: the window before saving says so.
 - Every object, filter and crop is applied at full size.
 
 ## Closing with changes not saved

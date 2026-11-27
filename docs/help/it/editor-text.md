@@ -9,13 +9,13 @@
 3. Scrivi. Le lettere compaiono sull'immagine stessa; Invio va a capo.
 4. Quando hai finito premi Esc, o fai clic altrove sull'immagine.
 
-Mentre scrivi puoi scegliere il font, la dimensione o il colore nella barra delle proprietà: la scrittura continua da dove era.
+Mentre scrivi puoi scegliere il font, la dimensione o il colore nella barra delle proprietà, poi continuare a scrivere da dove eri.
 
 Un testo lasciato vuoto sparisce quando hai finito. Un clic fuori dall'immagine non mette nessun testo. Mentre scrivi, le lettere sono già nel loro font, nella loro dimensione e nel loro colore.
 
 Per cambiare un testo già scritto fai doppio clic (con Testo o Seleziona), oppure selezionalo e cambialo nel campo della barra delle proprietà. Annulla toglie tutta la modifica in una volta.
 
-Selezionato, un testo mostra un riquadro attorno alle lettere, largo quanto sono nel suo font; un clic su una qualsiasi delle sue lettere lo seleziona. Un testo non ha maniglie agli angoli: la sua dimensione è nella barra delle proprietà. Ha la maniglia tonda sopra di sé per ruotarlo, come gli altri oggetti (vedi [Selezionare e cambiare gli oggetti](editor.md)). Per spostarlo usa ![Seleziona](icon://mouse-pointer-2) **Seleziona** e trascinalo. Con lo strumento Testo, trascinare sposta invece la vista.
+Selezionato, un testo mostra un riquadro attorno alle lettere, largo quanto sono nel suo font; un clic su una qualsiasi delle sue lettere lo seleziona. Un testo non ha maniglie agli angoli: la sua dimensione è nella barra delle proprietà. Come gli altri oggetti, ha sopra di sé la maniglia tonda per ruotarlo (vedi [Selezionare e cambiare gli oggetti](editor.md)). Per spostarlo usa ![Seleziona](icon://mouse-pointer-2) **Seleziona** e trascinalo. Con lo strumento Testo, trascinare sposta invece la vista.
 
 ## Opzioni di un testo
 
@@ -35,7 +35,7 @@ Quando il testo è selezionato, la barra ha anche:
 2. Trascina per disegnare il fumetto.
 3. Scrivi subito il suo testo; Invio va a capo.
 
-Il testo va a capo alla larghezza del fumetto, che si allunga in altezza per contenerlo. La coda finisce in una quinta maniglia: trascinala per orientarla. Trascina un angolo per ridimensionare il fumetto (Maiusc mantiene le proporzioni); il testo si adatta alla nuova larghezza. La maniglia tonda sopra di lui ruota il fumetto con il suo testo, e la coda gira con lui. Fai doppio clic su un fumetto per cambiarne il testo.
+Il testo va a capo alla larghezza del fumetto, che si allunga in altezza per contenerlo. La coda finisce in una quinta maniglia: trascinala per orientarla. Trascina un angolo per ridimensionare il fumetto (Maiusc mantiene le proporzioni); il testo si adatta alla nuova larghezza. La maniglia tonda sopra il fumetto lo ruota insieme al suo testo, e anche la coda gira. Fai doppio clic su un fumetto per cambiarne il testo.
 
 Opzioni:
 
@@ -51,7 +51,7 @@ Opzioni:
 
 Il dischetto prende il colore scelto; il numero è nero o bianco, quello che si legge meglio. Con un numero selezionato la barra ha il campo **Numero** per cambiarlo. La dimensione si cambia nella barra o trascinando un angolo (il dischetto resta rotondo).
 
-Un clic su un numero già messo lo seleziona. Altrove sull'immagine, anche dentro un rettangolo, ne mette uno nuovo; un clic fuori dall'immagine non ne mette nessuno. Per spostare un numero usa Seleziona e trascinalo; con Numeri di passaggio, trascinare sposta la vista.
+Un clic su un numero già messo lo seleziona. Un clic altrove sull'immagine, anche dentro un rettangolo, ne mette uno nuovo; un clic fuori dall'immagine non ne mette nessuno. Per spostare un numero usa Seleziona e trascinalo; con Numeri di passaggio, trascinare sposta la vista.
 
 ## Tasti
 

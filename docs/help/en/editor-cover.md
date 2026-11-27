@@ -20,7 +20,7 @@ The box covers what you drew before it. What you draw after it stays on top.
 
 ## Cover, blur or pixelate?
 
-The [Filters](editor-filters.md) Blur and Pixelate look like hiding, but they are not enough for private text or numbers: at a low amount they can still be read, or worked back. For those, always use Cover.
+The [Filters](editor-filters.md) Blur and Pixelate seem to hide things, but they are not enough for private text or numbers: at a low amount they can still be read, or worked back. For those, always use Cover.
 
 A part cut with **Ctrl + X** in [Selecting an area](editor-marquee.md) is covered the same way.
 

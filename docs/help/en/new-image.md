@@ -18,7 +18,7 @@ In the viewer **New image…** is greyed out and **Ctrl + N** does nothing: go b
 - Ready-made sizes: A3, A4, A5, Letter, Legal (paper), Full HD, 4K UHD, HD (screens), **Square** (1080 × 1080) and **Upright, for stories** (1080 × 1920).
 - **Width × Height**: your own numbers, in px, mm, cm or in. Changing a number or the unit turns the size into **Custom**.
 - ![Swap width and height](icon://arrow-left-right) swaps width and height, for landscape or portrait.
-- **Resolution**: for sizes in millimetres, centimetres or inches, how many dots per inch. The window shows below how many pixels that makes. It starts at A4 at 300 dpi.
+- **Resolution**: for sizes in millimetres, centimetres or inches, how many dots per inch. Below, the window shows how many pixels that makes. It starts at A4 at 300 dpi.
 
 No side can be longer than 20,000 pixels, and an image can have at most 200 megapixels (for example 20,000 × 10,000): above that **Create** is off and the window says why.
 
@@ -36,7 +36,7 @@ To paste a copied picture onto an image you are already editing, use **Ctrl + V*
 
 ## Saving it
 
-The new image has no file yet. In the editor its main button is **Save as…** (also **Ctrl + S**): it opens [Save as](save-as.md), where you choose the name, the format and the folder. It always proposes a PNG named as the editor calls the image (`New image.png`, or `Pasted image.png` from the clipboard), also after a Save as… in another format; closing it without saving goes back to the editor with the drawing. **Overwrite the original…** is off.
+The new image has no file yet. In the editor its main button is **Save as…** (also **Ctrl + S**): it opens [Save as](save-as.md), where you choose the name, the format and the folder. It always proposes a PNG with the name the editor gives the image (`New image.png`, or `Pasted image.png` from the clipboard), even after a Save as… in another format; closing it without saving goes back to the editor with the drawing. **Overwrite the original…** is off.
 
 If you close the editor without drawing anything, nothing is asked and nothing is saved. With a drawing, closing asks first: **Save…** and **Save as…** both open the Save as page, **Don't save** loses the drawing, **Cancel** goes back to it.
 
