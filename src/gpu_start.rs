@@ -173,7 +173,7 @@ pub(crate) fn no_window(language: Option<&str>, error: &eframe::Error) {
     {
         use windows_sys::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MessageBoxW};
         let i18n = crate::i18n::I18n::detect(language);
-        let text = format!("{}\n\n{error}", i18n.t("graphics-no-window"));
+        let text = format!("{}\n\n{error}", i18n.t(no_window_id(true)));
         let wide = |s: &str| s.encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>();
         let (text, title) = (wide(&text), wide("EyeCanSee"));
         // SAFETY: two strings ending with a zero, alive for the call; no owner window.
@@ -184,13 +184,18 @@ pub(crate) fn no_window(language: Option<&str>, error: &eframe::Error) {
     #[cfg(not(windows))]
     {
         let i18n = crate::i18n::I18n::detect(language);
-        let text = format!("{}\n\n{error}", i18n.t("graphics-no-window"));
+        let text = format!("{}\n\n{error}", i18n.t(no_window_id(false)));
         eprintln!("EyeCanSee: {text}");
         let shown = |cmd: &str, args: &[&str]| std::process::Command::new(cmd).args(args).status().is_ok_and(|s| s.success());
         // ponytail: two common programs, no D-Bus portal; a desktop without either gets the terminal.
         let _ = shown("zenity", &["--error", "--title=EyeCanSee", "--no-markup", &format!("--text={text}")])
             || shown("kdialog", &["--title", "EyeCanSee", "--error", &text]);
     }
+}
+
+/// The text of `no_window` on Windows (`windows`) or on Linux.
+fn no_window_id(_windows: bool) -> &'static str {
+    "graphics-no-window"
 }
 
 /// At every pass, also with the window hidden (`App::logic`): the mark goes away once the first
