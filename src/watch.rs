@@ -36,9 +36,11 @@ fn shown(path: &std::path::Path) -> bool {
 }
 
 /// The name of the phone's call that moves a file (`mtp.rs`, `move_into`), as `mtp::waiting` and
-/// `mtp::working` tell it: `across`, to its other storage, where the phone can take minutes.
-pub(crate) fn move_call(_across: bool) -> &'static str {
-    "move"
+/// `mtp::working` tell it: `across`, to its other storage, where the phone can take minutes,
+/// "move", busy and not stalled (`working`, `phone_stall_on`); inside one storage (into its
+/// trash, back from it) it is done at once, and a call that waits is WPD's stall (audit 27/11 T.4).
+pub(crate) fn move_call(across: bool) -> &'static str {
+    if across { "move" } else { "move-inside" }
 }
 
 impl App {
