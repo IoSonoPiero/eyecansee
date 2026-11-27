@@ -159,8 +159,8 @@ impl App {
         let (path, mesh) = self.viewed_mesh()?;
         if self.model.of.as_ref() != Some(&path) {
             (self.model.of, self.model.view) = (Some(path.clone()), View::default());
-            self.model.measure.pts3.clear();
         }
+        self.model.measure.measuring((path.clone(), crate::measure_view::MODEL_SHEET));
         let rect = ui.available_rect_before_wrap();
         let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
         self.model_mouse(ui, &response);

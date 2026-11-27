@@ -52,11 +52,23 @@ impl Shown {
     }
 }
 
+/// The sheet of a 3D model in `State::of`: models and drawings share it.
+pub(crate) const MODEL_SHEET: usize = usize::MAX;
+
 impl State {
     fn clear(&mut self) {
         self.pts.clear();
         self.pts3.clear();
         self.done = false;
+    }
+
+    /// The points are of `of`, a file and its sheet (`MODEL_SHEET` for a model): when it changes
+    /// they all go, those of a drawing and those of a model (audit 27/11, D.7).
+    pub(crate) fn measuring(&mut self, of: (String, usize)) {
+        if self.of.as_ref() != Some(&of) {
+            self.of = Some(of);
+            self.clear();
+        }
     }
 }
 
@@ -100,7 +112,11 @@ impl App {
     /// measures. Taken from the input: Esc does not close the viewer, Backspace does not go back.
     pub(crate) fn measure_keys(&mut self, ctx: &egui::Context) {
         if self.measure_off().is_some() {
-            self.model.measure.on = false;
+            // A drawing or a model still being read keeps Measure on (audit 27/11, D.7).
+            let path = self.viewing.and_then(|i| self.files().get(i)).map(|f| f.path.as_str());
+            if !path.is_some_and(|p| crate::cad::is_cad(p) || crate::model::is_model(p)) {
+                self.model.measure.on = false;
+            }
             return;
         }
         if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::M)) {
@@ -149,10 +165,7 @@ impl App {
         let Some(d) = self.cad_drawn(&path) else { return };
         let Some(place) = d.placement(crate::decode::CAD_SIDE) else { return };
         let m = &mut self.model.measure;
-        if m.of.as_ref() != Some(&(path.clone(), sheet)) {
-            m.of = Some((path, sheet));
-            m.clear();
-        }
+        m.measuring((path, sheet));
         let to_drawing = |p: Pos2| place.point([f64::from(uv.min.x + (p.x - dest.min.x) / dest.width() * uv.width()), f64::from(uv.min.y + (p.y - dest.min.y) / dest.height() * uv.height())]);
         let to_screen = |p: P| {
             let [u, v] = place.uv(p);
