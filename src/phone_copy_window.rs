@@ -117,7 +117,9 @@ impl App {
                 (false, Leave::Asked) => Err(t("phone-copy-leaving")),
                 (false, _) => Err(t("phone-copy-cancelled")),
             },
-            leave: (v.leave == Leave::Offered).then(|| (t("phone-copy-leave"), t("phone-copy-leave-tip"))),
+            // No "Stop waiting" after Cancel (Piero, 27/11): it read as cancelling at once, while
+            // the phone ends its file and the copy stayed. Cancel waits for it and removes the copy.
+            leave: None,
             why: t("phone-copy-why"),
             name: if v.counting.is_some() { t("phone-copy-counting") } else { v.name },
         }
@@ -432,8 +434,8 @@ mod tests {
     /// window stays until the copy lets go.
     #[test]
     #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
-    fn after_cancel_the_wait_has_a_way_out() {
-        if own_folder("phone_copy_window::tests::after_cancel_the_wait_has_a_way_out") {
+    fn after_cancel_the_window_waits_for_the_phone() {
+        if own_folder("phone_copy_window::tests::after_cancel_the_window_waits_for_the_phone") {
             return;
         }
         for lang in ["en", "it"] {
@@ -453,19 +455,10 @@ mod tests {
             h.key(Key::Enter);
             frames(&mut h);
             assert!(!crate::mtp::leaving(), "{lang}: Enter with nothing highlighted left the wait");
-            // Tab: Stop waiting, then the link, side by side in the window.
-            let stop = tab_to(&mut h, Modifiers::NONE);
+            // No "Stop waiting" (Piero, 27/11): Cancel waits for the phone; only the link is left.
             let link = tab_to(&mut h, Modifiers::NONE);
-            let window = h.ctx.memory(|m| m.area_rect(egui::Id::unique(super::ID))).expect("the window");
-            assert!(cancel.right() <= stop.left(), "{lang}: Stop waiting {stop:?} where Cancel was {cancel:?}");
-            assert!(stop.right() < link.left() && window.contains_rect(stop) && window.contains_rect(link), "{lang}: Stop waiting {stop:?} and the link {link:?} do not fit in {window:?}");
-            assert_eq!(tab_to(&mut h, Modifiers::SHIFT), stop, "{lang}: Shift+Tab not back on Stop waiting");
-            h.key(Key::Enter);
-            frames(&mut h);
-            assert!(crate::mtp::leaving() && open(&h.app), "{lang}: Stop waiting pressed, the window staying until the copy lets go");
-            assert_eq!(h.ctx.memory(|m| m.focused()), None, "{lang}: the keyboard left on a button that is gone");
-            assert_eq!(tab_to(&mut h, Modifiers::NONE), link, "{lang}: only the link is left");
-            assert_eq!(tab_to(&mut h, Modifiers::NONE), link, "{lang}: only the link is left");
+            assert_eq!(tab_to(&mut h, Modifiers::NONE), link, "{lang}: a button besides the link after Cancel");
+            assert!(!crate::mtp::leaving() && open(&h.app), "{lang}: the wait left without asking");
         }
         crate::mtp::stay();
     }
@@ -477,8 +470,8 @@ mod tests {
     /// greyed Cancel is all there is, as before.
     #[test]
     #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
-    fn the_corner_box_has_the_way_out_too() {
-        if own_folder("phone_copy_window::tests::the_corner_box_has_the_way_out_too") {
+    fn the_corner_box_has_no_stop_waiting() {
+        if own_folder("phone_copy_window::tests::the_corner_box_has_no_stop_waiting") {
             return;
         }
         crate::mtp::stay();
@@ -490,14 +483,8 @@ mod tests {
         assert_eq!(controls(&h).len(), 0, "cancelled, no phone at work: only the greyed Cancel");
         let working = crate::mtp::copying_for_tests("Internal storage/DCIM/big.mp4", 40);
         frames(&mut h);
-        let stop = controls(&h);
-        assert_eq!(stop.len(), 1, "cancelled while the phone copies alone: no way out in the box");
-        crate::box_keys::focus(&h.ctx, stop[0]);
-        h.frame(Vec::new());
-        h.key(Key::Enter);
-        frames(&mut h);
-        assert!(crate::mtp::leaving() && h.app.transfer.is_some(), "Stop waiting pressed in the box");
-        assert_eq!(controls(&h).len(), 0, "pressed: the button is gone");
+        assert_eq!(controls(&h).len(), 0, "cancelled while the phone copies alone: no \"Stop waiting\" (Piero, 27/11)");
+        assert!(!crate::mtp::leaving(), "the wait left without asking");
         drop(working);
         crate::mtp::stay();
     }
