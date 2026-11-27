@@ -20,8 +20,9 @@ type Fonts = std::rc::Rc<std::collections::HashMap<String, crate::cad_text::Font
 pub(crate) type Layers<'a> = (&'a [crate::cad_layers::Layer], &'a std::rc::Rc<std::collections::HashMap<String, u32>>);
 
 /// Every layout with something on it, in tab order; a layout that cannot be drawn is left out.
-/// `spent`: what the model spent of the file's caps, which the layouts share (`cad::Spent`).
-pub(crate) fn sheets(doc: &CadDocument, sibling: crate::model::Sibling, fonts: &Fonts, layers: Layers, mut spent: Spent) -> Vec<(String, std::sync::Arc<Drawing>)> {
+/// `spent`: what the model spent of the file's caps, which the layouts share (`cad::Spent`), and
+/// then what the file spent in all.
+pub(crate) fn sheets(doc: &CadDocument, sibling: crate::model::Sibling, fonts: &Fonts, layers: Layers, spent: &mut Spent) -> Vec<(String, std::sync::Arc<Drawing>)> {
     let mut layouts: Vec<&Layout> = doc
         .objects
         .values()
@@ -31,7 +32,7 @@ pub(crate) fn sheets(doc: &CadDocument, sibling: crate::model::Sibling, fonts: &
         })
         .collect();
     layouts.sort_by_key(|l| l.tab_order);
-    layouts.into_iter().filter_map(|l| Some((l.name.clone(), std::sync::Arc::new(sheet(doc, l, sibling, fonts, layers, &mut spent)?)))).collect()
+    layouts.into_iter().filter_map(|l| Some((l.name.clone(), std::sync::Arc::new(sheet(doc, l, sibling, fonts, layers, spent)?)))).collect()
 }
 
 fn viewport(e: &EntityType) -> Option<&Viewport> {

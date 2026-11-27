@@ -158,11 +158,11 @@ pub fn read_with(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> Re
         walk.entity(e, &top)?;
     }
     walk.finish()?;
-    let spent = walk.spent();
+    let mut spent = walk.spent();
     if d.items.is_empty() {
         return Err("nothing to draw in the model space".into());
     }
-    d.sheets = crate::cad_layout::sheets(&doc, sibling, &fonts, (&layers[..], &index), spent);
+    d.sheets = crate::cad_layout::sheets(&doc, sibling, &fonts, (&layers[..], &index), &mut spent);
     Ok(d)
 }
 
@@ -890,6 +890,27 @@ mod tests {
                 Err(e) => format!("error {e}"),
             };
             println!("SHEETS {}: {said}", path.display());
+            // What the file spent of its caps (twice those of a sheet): the largest share.
+            let bytes = std::fs::read(&path).unwrap();
+            let lower = path.to_string_lossy().to_lowercase();
+            let doc = if lower.ends_with(".dwg") { DwgReader::from_stream(Cursor::new(&bytes[..])).read() } else { DxfReader::from_reader(Cursor::new(bytes.clone())).and_then(|r| r.read()) };
+            let Ok(doc) = doc else { continue };
+            let (layers, index) = crate::cad_layers::table(&doc);
+            let index = std::rc::Rc::new(index);
+            let fonts = std::rc::Rc::new(crate::cad_text::fonts(&doc, &crate::cad_image::none));
+            let mut d = Drawing::default();
+            let mut walk = Walk::new(&doc, &mut d);
+            (walk.fonts, walk.index) = (fonts.clone(), index.clone());
+            let top = Context { t: Affine::IDENTITY, layer: None, color: WHITE, style: CONTINUOUS, depth: 0, set: 0 };
+            if doc.model_space_entities().try_for_each(|e| walk.entity(e, &top)).and_then(|()| walk.finish()).is_err() {
+                continue;
+            }
+            let mut spent = walk.spent();
+            crate::cad_layout::sheets(&doc, &crate::cad_image::none, &fonts, (&layers[..], &index), &mut spent);
+            let share = |used: usize, max: usize| used as f64 / (FILE_TIMES * max) as f64 * 100.0;
+            let shares = [("points", share(spent.points, MAX_POINTS)), ("elements", share(spent.met, MAX_POINTS)), ("placed", share(spent.placed, crate::model::MAX_VISITS)), ("hatches", share(spent.hatch, MAX_HATCH_WORK)), ("pens", share(spent.pen, MAX_POINTS))];
+            let (what, most) = shares.iter().copied().fold(("", 0.0), |a, b| if b.1 > a.1 { b } else { a });
+            println!("SPENT {}: {most:.3}% of the file's caps ({what}), {spent:?}", path.display());
         }
     }
 
