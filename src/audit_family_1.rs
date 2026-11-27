@@ -77,6 +77,10 @@ pub(crate) struct Harness {
     frame: eframe::Frame,
     /// Full screen was asked of the window (F11), in some frame since the start.
     pub full_asked: bool,
+    /// The last full screen asked of the window: in (`true`) or out (`false`) (#358).
+    pub full_wanted: Option<bool>,
+    /// The window is at full screen, as the window tells the app in every frame (#358).
+    pub full: bool,
 }
 
 impl Harness {
@@ -97,17 +101,22 @@ impl Harness {
         let ctx = egui::Context::default();
         let settings = Settings { check_updates: false, tips: false, local_permanent: true, servers_plain_warned: true, ..Settings::default() };
         let app = App::new(&ctx, settings, Some(address.to_string()));
-        Harness { ctx, app, frame: eframe::Frame::_new_kittest(), full_asked: false }
+        Harness { ctx, app, frame: eframe::Frame::_new_kittest(), full_asked: false, full_wanted: None, full: false }
     }
 
     /// One frame, with `events` (keys) as the window would give them.
     pub fn frame(&mut self, events: Vec<egui::Event>) {
         let mut raw = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, max_texture_side: Some(16384), ..Default::default() };
+        if self.full {
+            raw.viewports.entry(egui::ViewportId::ROOT).or_default().fullscreen = Some(true);
+        }
         eframe::App::raw_input_hook(&mut self.app, &self.ctx, &mut raw);
         let (app, frame) = (&mut self.app, &mut self.frame);
         let mut out = self.ctx.run_ui(raw, |ui| eframe::App::ui(app, ui, frame));
         let full = |c: &egui::ViewportCommand| matches!(c, egui::ViewportCommand::Fullscreen(_));
         self.full_asked |= out.viewport_output.values().any(|v| v.commands.iter().any(full));
+        let wanted = out.viewport_output.values().flat_map(|v| &v.commands).filter_map(|c| if let egui::ViewportCommand::Fullscreen(f) = c { Some(*f) } else { None }).next_back();
+        self.full_wanted = wanted.or(self.full_wanted);
         // No painter: the textures are dropped as handled.
         out.textures_delta.clear();
     }

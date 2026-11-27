@@ -425,3 +425,51 @@ impl App {
         self.notice = Some(crate::save_dialogs::Notice { warning, help: Some("help:options"), ..notice });
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Act;
+    use crate::audit_family_1::{Harness, folder, own_folder};
+    use eframe::egui;
+
+    /// What `ask` wants of the window, at full screen or not (`full`): in, out, or nothing.
+    /// Some frames after it, for those drawn ahead with DirectX 12 (`viewer::enter_full`).
+    fn asked(h: &mut Harness, full: bool, ask: fn(&mut Harness)) -> Option<bool> {
+        h.full = full;
+        h.frame(Vec::new());
+        h.full_wanted = None;
+        ask(h);
+        for _ in 0..3 {
+            h.frame(Vec::new());
+        }
+        h.full_wanted
+    }
+
+    /// #358: View > Full screen and the viewer's right-click menu (`Act::FullScreen`, run by
+    /// `App::run`) ask for full screen as F11 does, from the grid and from the viewer; at full
+    /// screen they ask to leave it.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn full_screen_entry_asks_what_f11_asks() {
+        if own_folder("actions::tests::full_screen_entry_asks_what_f11_asks") {
+            return;
+        }
+        let mut h = Harness::new(&folder("full-entry", &["a.png", "b.png"]));
+        let entry: fn(&mut Harness) = |h| {
+            h.app.act = Some(Act::FullScreen);
+            h.frame(Vec::new());
+        };
+        let f11: fn(&mut Harness) = |h| h.key(egui::Key::F11);
+        for place in ["grid", "viewer"] {
+            if place == "viewer" {
+                h.app.activate(0);
+                h.until(|app| app.zoom_of == Some(0), "a.png shown");
+            }
+            for (full, wanted) in [(false, Some(true)), (true, Some(false))] {
+                assert_eq!(asked(&mut h, full, f11), wanted, "F11 in the {place}, at full screen: {full}");
+                assert_eq!(asked(&mut h, full, entry), wanted, "the entry in the {place}, at full screen: {full}");
+            }
+            assert!(h.app.viewing.is_some() == (place == "viewer"), "still in the {place}");
+        }
+    }
+}
