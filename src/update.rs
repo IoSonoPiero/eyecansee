@@ -558,6 +558,25 @@ pub(crate) mod tests {
         }
     }
 
+    /// Audit 2.22 (#338) with PowerShell itself: a script made as the update's (`quote`, `-Command`)
+    /// copies a file in a folder with ’ and ‘ in its name. Run in winvm: `--ignored
+    /// quoted_paths_run_in_powershell_live`.
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "runs PowerShell"]
+    fn quoted_paths_run_in_powershell_live() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-2-22-{}", std::process::id())).join("D’Angelo ‘foto’");
+        std::fs::create_dir_all(&dir).unwrap();
+        let (from, to) = (dir.join("a.txt"), dir.join("b.txt"));
+        std::fs::write(&from, "2.22").unwrap();
+        let script = format!("$ErrorActionPreference = 'Stop'; Copy-Item -LiteralPath {} -Destination {}", quote(&from), quote(&to));
+        let out = std::process::Command::new("powershell").args(["-NoProfile", "-NonInteractive", "-Command", &script]).output().unwrap();
+        let copied = std::fs::read_to_string(&to).ok();
+        let _ = std::fs::remove_dir_all(dir.parent().unwrap());
+        assert!(out.status.success(), "{script}\n{}", String::from_utf8_lossy(&out.stderr));
+        assert_eq!(copied.as_deref(), Some("2.22"), "{script}");
+    }
+
     /// Issue #69: the Fedora package says how the system updates it, rpm-ostree on Fedora Atomic.
     #[test]
     fn not_updated_notes() {
