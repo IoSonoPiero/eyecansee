@@ -89,7 +89,7 @@ Quando una copia o uno spostamento finisce mentre questo riepilogo è aperto, o 
 ## Da sapere
 
 - Le immagini animate e quelle con più pagine restano fuori: il file nuovo terrebbe solo la prima immagine.
-- Un'immagine che, letta tutta, chiederebbe più di metà della memoria del computer (per esempio un HEIC, un TIFF a 16 bit o un JPEG XL di centinaia di megapixel, su un computer da 8 GB) resta fuori, senza domande: il riepilogo la elenca. Non resta fuori un'immagine già aperta da quando EyeCanSee è partito (nel visore, nell'editor, in Salva come o salvando una rotazione), né un JPEG solo ruotato o riflesso senza perdere qualità, che non viene decodificato. Di un file più grande di 32 MB si legge solo l'inizio, quando lì sono scritte le dimensioni dell'immagine.
+- Un'immagine che, letta tutta, chiederebbe più di metà della memoria del computer (per esempio un HEIC, un TIFF a 16 bit o un JPEG XL di centinaia di megapixel, su un computer da 8 GB) resta fuori, senza domande: il riepilogo la elenca. Non resta fuori un'immagine che hai scelto di aprire comunque da quando EyeCanSee è partito (nel visore, nell'editor, in Salva come o salvando una rotazione), né un JPEG solo ruotato o riflesso senza perdere qualità, che non viene decodificato. Di un file più grande di 32 MB si legge solo l'inizio, quando lì sono scritte le dimensioni dell'immagine.
 - Una foto in movimento del telefono tiene il suo video solo se viene soltanto ruotata e resta JPEG; altrimenti il file nuovo è solo la foto, e il video resta nell'originale.
 - Funziona su tutte le sorgenti: computer, dischi, telefoni e server.
 - Nella finestra **Invio** avvia la conversione (quando non stai scrivendo in un campo) ed **Esc** annulla.
