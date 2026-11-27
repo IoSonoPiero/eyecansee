@@ -739,6 +739,53 @@ mod tests {
         zip.finish().unwrap();
     }
 
+    /// A binary PLY left to the parser of `ply-rs-bw` (two elements named `extra`) with a point,
+    /// then `tail` (more header lines) and `body` after the point.
+    fn left_to_the_parser(tail: &str, body: &[u8]) -> Vec<u8> {
+        let head = format!("element vertex 1\nproperty float x\nproperty float y\nproperty float z\nelement extra 1\nproperty uchar a\n{tail}");
+        let bytes = ply("binary_little_endian", &head, &[le(&[(0.0, "f"); 3]), vec![0], body.to_vec()].concat());
+        assert!(binary(&bytes, false).is_none() && !in_text(&bytes), "left to the parser");
+        bytes
+    }
+
+    /// Audit 27/11, S.4 (#191): an element without properties, left to the parser, takes no byte
+    /// a row and the parser made every row; 300 000 of them (the audit's had thousands of millions).
+    #[test]
+    fn audit_s4_empty_element() {
+        let bytes = left_to_the_parser("element extra 300000\n", &[]);
+        let (r, peak) = crate::test_alloc::peak(|| read(&bytes).map(|m| m.tris.len()));
+        assert!(peak < 1 << 20, "{peak} bytes held for rows of nothing ({r:?})");
+    }
+
+    /// Audit 27/11, S.4: rows of a binary PLY left to the parser declared beyond the bytes of the
+    /// file are refused before the parser reserves them.
+    #[test]
+    fn audit_s4_rows_beyond_the_bytes() {
+        let bytes = left_to_the_parser("element extra 300000\nproperty float a\nproperty float b\nproperty float c\n", &[0; 12]);
+        let (r, peak) = crate::test_alloc::peak(|| read(&bytes).map(|m| m.tris.len()));
+        assert!(r.is_err() && peak < 1 << 20, "{peak} bytes held for 300 000 rows in 12 bytes ({r:?})");
+    }
+
+    /// Audit 27/11, S.10 c: a PLY in text with a face and 50 million points was let through, as
+    /// only the faces were counted: refused before the parser reads them (header alone here).
+    #[test]
+    fn audit_s10c_text_points_with_a_face() {
+        let bytes = ply("ascii", "element vertex 50000000\nproperty float x\nproperty float y\nproperty float z\nelement face 1\nproperty list uchar int vertex_indices\n", b"0 0 0\n1 0 0\n0 1 0\n");
+        let e = read(&bytes).unwrap_err();
+        assert!(e.starts_with(crate::model_limit::OFFERED), "{e}");
+    }
+
+    /// Audit 27/11, D.5: a binary cloud beyond 12.5 million points is refused from its header,
+    /// before its points are read (header alone here: it said "cut short" after reading).
+    #[test]
+    fn audit_d5_binary_cloud_counted_first() {
+        let bytes = ply("binary_little_endian", "element vertex 12500001\nproperty float x\nproperty float y\nproperty float z\nproperty uchar red\nproperty uchar green\nproperty uchar blue\n", &[0; 15]);
+        assert_eq!(read(&bytes).map(|m| m.tris.len()), Err(PLY_BINARY.check_points(12_500_001).unwrap_err()));
+        // The faces' lists that make no triangle (float indices) leave it a cloud: counted after.
+        let floats = ply("binary_little_endian", "element vertex 12500001\nproperty float x\nproperty float y\nproperty float z\nelement face 1\nproperty list uchar float vertex_indices\n", &[0; 12]);
+        assert_eq!(read(&floats).map(|m| m.tris.len()), Err(PLY_BINARY.check_points(12_500_001).unwrap_err()));
+    }
+
     /// #191: reading a binary PLY took about 870 bytes per triangle at its peak (Lucy, 28 million
     /// triangles: 21.9 GB), four times what the model keeps once open. A grid of 200 000
     /// triangles, read on this thread: the peak per triangle.
