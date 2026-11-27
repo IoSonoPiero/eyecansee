@@ -605,6 +605,11 @@ fn try_encoder(program: &Path, encoder: &str) -> bool {
     }
     // With the options of a real conversion: vp9_qsv encoded the probe and refused them.
     c.args(["-c:v", encoder]).args(quality_args(encoder, Quality::Medium)).args(["-f", "null", "-"]);
+    probe_ran(&mut c)
+}
+
+/// A probe run to its end within `PROBE_LIMIT`, successfully; killed when it takes longer.
+fn probe_ran(c: &mut Command) -> bool {
     let Ok(mut child) = c.stdout(Stdio::null()).stderr(Stdio::null()).spawn() else { return false };
     let start = Instant::now();
     wait_or_stop(&mut child, || start.elapsed() > PROBE_LIMIT).is_ok_and(|s| s.success())
@@ -615,7 +620,8 @@ fn try_encoder(program: &Path, encoder: &str) -> bool {
 /// falls back on the processor (`batch::video`).
 fn try_card(program: &Path, encoder: &str) -> bool {
     let Some(card) = Card::of(encoder) else { return false };
-    let ok = |c: &mut Command| c.stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success());
+    // Each FFmpeg within `PROBE_LIMIT`, as the encoder's probe (audit V.6).
+    let ok = probe_ran;
     let filters = card_filters(card, encoder, Size::Percent(50), false, Turn::default().then(crate::transform::Op::Cw)).join(",");
     // Not smaller: turned and halved it must stay 160 px wide or more, the least NVENC takes.
     let black = ["-f", "lavfi", "-i", "color=c=black:s=640x360:r=25:d=0.4"];
