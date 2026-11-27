@@ -252,4 +252,21 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
+    /// Audit 27/11 T.4 (Windows, #353): a call stalled while the phone moves a file inside one
+    /// storage (into its trash, the way it deletes) is WPD's stall, and its message comes; only
+    /// the move to the other storage, which the phone takes minutes over, is busy, not stalled.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn a_stalled_move_inside_a_storage_is_told() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("watch::tests::a_stalled_move_inside_a_storage_is_told") {
+            return;
+        }
+        let mut h = Harness::new(&folder("stall-move", &["a.png"]));
+        let stalled = |across| Some(("a.jpg".to_string(), 20, super::move_call(across).to_string()));
+        h.app.phone_stall_on(stalled(true));
+        assert!(h.app.notice.is_none(), "a move to the other storage taken for a stall");
+        h.app.phone_stall_on(stalled(false));
+        assert!(h.app.stall_notice.is_some() && h.app.notice.is_some(), "a move inside a storage stalled: no message");
+    }
 }
