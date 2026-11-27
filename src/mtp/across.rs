@@ -17,10 +17,15 @@ fn deadline(size: u64) -> std::time::Duration {
 }
 
 /// The longest wait for what the phone goes on making (`finished_by_phone`) of `size` bytes;
-/// `windows_gave_up`: Windows stopped waiting for the copy (`unseen`).
-fn longest(size: u64, _windows_gave_up: bool) -> std::time::Duration {
-    deadline(size)
+/// `windows_gave_up`: Windows stopped waiting for the copy (`unseen`). Then Windows shows neither
+/// the copy nor, on the Redmi, its space taken (probes of 27/11): the wait is `UNSEEN_WAIT`,
+/// the time to see the free space go down on a phone where it does (audit 27/11 T.2).
+fn longest(size: u64, windows_gave_up: bool) -> std::time::Duration {
+    if windows_gave_up { UNSEEN_WAIT.min(deadline(size)) } else { deadline(size) }
 }
+
+/// The wait for a copy Windows stopped waiting for (`longest`).
+const UNSEEN_WAIT: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// How long Windows (WPD) waits for a copy before it answers: `Copy` came back after 30.4 s with
 /// the phone still copying 6 GB (Redmi Note 9 Pro, prova W5, 27/11/2026). An answer before this is

@@ -265,7 +265,8 @@ pub fn view(s: &Seen) -> View {
         note,
         cancel: !s.cancelling,
         leave,
-        keep: true,
+        // Unplugging the phone is the way to see a copy Windows stopped waiting for (audit T.2).
+        keep: !s.windows_gave_up,
     }
 }
 
