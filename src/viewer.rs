@@ -657,4 +657,66 @@ mod tests {
         assert_eq!(take(Modifiers::COMMAND | Modifiers::SHIFT).as_deref(), Some("Convert(None)"));
         assert_eq!(take(Modifiers::NONE), None);
     }
+
+    /// Audit 27/11 V.3 (#188): a panorama turned upside down and saved loses its Photo Sphere tags
+    /// (the sky would be below), but the viewer kept the panorama read before for that path, of
+    /// the same shape, and showed the file saved as a sphere upside down, also opened again.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn a_panorama_saved_upside_down_is_shown_flat() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("viewer::tests::a_panorama_saved_upside_down_is_shown_flat") {
+            return;
+        }
+        let dir = folder("pano-upside-down", &["b.png"]);
+        let file = dir.join("a.jpg");
+        std::fs::write(&file, panorama_jpeg()).unwrap();
+        assert!(crate::pano::detect(&std::fs::read(&file).unwrap()).is_some(), "the test file is no panorama");
+        let mut h = Harness::new(&dir);
+        h.app.activate(0);
+        h.until(|app| app.sphere_shown(), "a.jpg shown as a sphere");
+        for _ in 0..2 {
+            h.app.act = Some(crate::actions::Act::Transform(crate::transform::Op::Cw, None));
+            h.frame(Vec::new());
+        }
+        h.app.act = Some(crate::actions::Act::Save);
+        h.until(|app| app.save_ready.is_some(), "the confirmation of Save");
+        let path = h.app.save_ready.as_ref().map(|s| s.0.clone()).unwrap();
+        if h.app.loader.as_ref().unwrap().deletion(&path, h.app.settings.local_permanent, h.app.settings.remote_delete) == crate::source::Deletion::Permanent {
+            h.key(egui::Key::Tab);
+        }
+        h.key(crate::audit_family_1::enter());
+        h.until(|app| app.saving.is_empty() && !app.turn_unsaved(), "saved");
+        assert!(crate::pano::detect(&std::fs::read(&file).unwrap()).is_none(), "the panorama saved upside down kept its tags");
+        h.until(|app| app.zoom_of == Some(0) && app.full.contains_key(&0), "a.jpg shown again");
+        for _ in 0..10 {
+            h.frame(Vec::new());
+            std::thread::sleep(std::time::Duration::from_millis(30));
+        }
+        assert!(!h.app.sphere_shown(), "the panorama saved upside down shown as a sphere");
+        h.app.close_viewer();
+        h.app.activate(0);
+        h.until(|app| app.zoom_of == Some(0) && app.full.contains_key(&0), "a.jpg opened again");
+        for _ in 0..10 {
+            h.frame(Vec::new());
+            std::thread::sleep(std::time::Duration::from_millis(30));
+        }
+        assert!(!h.app.sphere_shown(), "opened again, shown as a sphere");
+    }
+
+    /// A JPEG of 64 × 32 whose XMP says it is a whole equirectangular panorama.
+    fn panorama_jpeg() -> Vec<u8> {
+        let mut plain = Vec::new();
+        image::DynamicImage::ImageRgb8(image::RgbImage::from_fn(64, 32, |_, y| image::Rgb([if y < 16 { 200 } else { 40 }, 120, 60]))).write_to(&mut std::io::Cursor::new(&mut plain), image::ImageFormat::Jpeg).unwrap();
+        let packet = format!(
+            r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:GPano="{}" GPano:ProjectionType="equirectangular"/></rdf:RDF></x:xmpmeta>"#,
+            crate::pano::GPANO
+        );
+        let body = [b"http://ns.adobe.com/xap/1.0/\0".as_slice(), packet.as_bytes()].concat();
+        let mut jpeg = vec![0xFF, 0xD8, 0xFF, 0xE1];
+        jpeg.extend_from_slice(&((body.len() + 2) as u16).to_be_bytes());
+        jpeg.extend_from_slice(&body);
+        jpeg.extend_from_slice(&plain[2..]);
+        jpeg
+    }
 }
