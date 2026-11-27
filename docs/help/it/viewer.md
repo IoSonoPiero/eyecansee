@@ -7,7 +7,7 @@ Il visore mostra una foto alla volta, grande quanto la finestra permette. Da lì
 ## Aprire e chiudere il visore
 
 - Fai doppio clic su una foto nella griglia, oppure selezionala e premi **Invio** (anche **Visualizza > Apri**).
-- Per tornare alla griglia: **Esc**, un doppio clic sulla foto (se nelle [Opzioni](options.md) non è impostato per andare a schermo intero), ![Torna alla griglia](icon://layout-grid) **Torna alla griglia** nella barra strumenti, oppure **Visualizza > Torna alla griglia**. Nella griglia resta selezionata la foto che stavi guardando.
+- Per tornare alla griglia: **Invio**, **Esc** (a meno che nelle [Opzioni](options.md) **La ✕ della finestra torna alla griglia** sia spenta: allora Esc chiude EyeCanSee, vedi [Scorciatoie da tastiera](keyboard.md)), un doppio clic sulla foto (se nelle [Opzioni](options.md) non è impostato per andare a schermo intero), ![Torna alla griglia](icon://layout-grid) **Torna alla griglia** nella barra strumenti, oppure **Visualizza > Torna alla griglia**. Nella griglia resta selezionata la foto che stavi guardando.
 - Anche la ✕ della finestra torna alla griglia invece di chiudere EyeCanSee. Si può cambiare nelle [Opzioni](options.md).
 
 Con più file selezionati, Invio apre il primo, e il visore si muove solo tra quelli.
@@ -72,7 +72,7 @@ La barra strumenti tiene solo ciò che lavora sulla foto mostrata: ![Rinomina…
 
 ## Schermo intero
 
-**F11**, oppure **Visualizza > Schermo intero**, mostra la foto da sola, senza menu né barre, su fondo nero. Il menu del clic destro ha la stessa voce; a schermo intero diventa **Esci dallo schermo intero**. **Esc** prima esce dallo schermo intero, poi torna alla griglia.
+**F11**, oppure **Visualizza > Schermo intero**, mostra la foto da sola, senza menu né barre, su fondo nero. Il menu del clic destro ha la stessa voce; a schermo intero diventa **Esci dallo schermo intero**. **Esc** prima esce dallo schermo intero, poi torna alla griglia (o chiude EyeCanSee, come sopra).
 
 Con **Doppio clic nel visore** impostato su **Va a schermo intero** nelle [Opzioni](options.md), un doppio clic su una foto, un video, un modello o un disegno va a schermo intero, e un altro doppio clic torna alla finestra. Mentre misuri, il doppio clic serve alla misura.
 

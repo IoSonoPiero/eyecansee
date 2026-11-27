@@ -38,7 +38,7 @@ video-no-decoder = Il video usa un formato che il motore video non sa leggere.
 video-frame-back-busy = Preparo il fotogramma precedente…
 video-stalled =
     Da 20 secondi non arrivano dati: il telefono o il server non risponde.
-    Il video parte appena risponde. Premi Esc per tornare alle miniature.
+    Il video parte appena risponde. Premi Invio per tornare alle miniature.
 error-unsupported = Protocollo non supportato: { $detail }
 error-no-host = L'indirizzo non contiene l'host: { $detail }
 error-path = Impossibile aprire { $detail }
@@ -2212,7 +2212,7 @@ tip-viewer-text =
     Doppio clic su una miniatura, oppure **Invio**: la foto riempie la finestra.
     - **→** e **←** passano alla successiva e alla precedente.
     - La rotella del mouse ingrandisce e rimpicciolisce.
-    - **Esc** o un doppio clic tornano alla griglia.
+    - **Invio** o un doppio clic tornano alla griglia.
     - **F11** mostra solo la foto, a tutto schermo.
 tip-video-title = Video e audio
 tip-video-text =

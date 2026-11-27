@@ -7,7 +7,7 @@ The viewer shows one picture at a time, as large as the window allows. From ther
 ## Opening and closing the viewer
 
 - Double-click a picture in the grid, or select it and press **Enter** (also **View > Open**).
-- To go back to the grid: **Esc**, a double click on the picture (unless it is set to go to full screen in the [Options](options.md)), ![Back to the grid](icon://layout-grid) **Back to the grid** in the toolbar, or **View > Back to the grid**. The picture you were looking at is then selected in the grid.
+- To go back to the grid: **Enter**, **Esc** (unless **The window's ✕ goes back to the grid** is off in the [Options](options.md): then Esc closes EyeCanSee, see [Keyboard shortcuts](keyboard.md)), a double click on the picture (unless it is set to go to full screen in the [Options](options.md)), ![Back to the grid](icon://layout-grid) **Back to the grid** in the toolbar, or **View > Back to the grid**. The picture you were looking at is then selected in the grid.
 - The window's ✕ also goes back to the grid instead of closing EyeCanSee. You can change this in [Options](options.md).
 
 With several files selected, Enter opens the first of them, and the viewer moves only among them.
@@ -72,7 +72,7 @@ The toolbar keeps only what works on the picture shown: ![Rename…](icon://text
 
 ## Full screen
 
-**F11**, or **View > Full screen**, shows the picture alone, without menus and bars, on black. The right-click menu has the same entry; at full screen it reads **Leave full screen**. **Esc** first leaves full screen, then goes back to the grid.
+**F11**, or **View > Full screen**, shows the picture alone, without menus and bars, on black. The right-click menu has the same entry; at full screen it reads **Leave full screen**. **Esc** first leaves full screen, then goes back to the grid (or closes EyeCanSee, as above).
 
 With **Double click in the viewer** set to **Goes to full screen** in the [Options](options.md), a double click on a picture, a video, a model or a drawing goes to full screen, and another double click comes back to the window. While measuring, the double click is used by Measure.
 

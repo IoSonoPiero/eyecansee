@@ -36,7 +36,8 @@ The volume, and whether the audio is off, are kept for the next videos and the n
 | →, Page Down | Next file |
 | ←, Backspace, Page Up | Previous file |
 | Home, End | First, last file |
-| Esc | Back to the grid |
+| Esc | Back to the grid; closes EyeCanSee when **The window's ✕ goes back to the grid** is off in the [Options](options.md) |
+| Enter | Back to the grid, even when Esc closes EyeCanSee |
 | Double click | Back to the grid, or full screen and back, as set in the [Options](options.md) |
 | F11 | Full screen: the video alone, its bar over the picture while the mouse moves |
 
@@ -55,7 +56,7 @@ Until then the thumbnail of a video is the preview stored by the camera, when th
 ## Good to know
 
 - Videos on a phone or a server are read a piece at a time while they play, even from a phone on Windows. Only a phone that cannot jump into the middle of a file (Windows notices on the first slow read) has its videos copied whole first, with a bar that shows how much has been read.
-- A file that cannot be played says why in the middle of the viewer, with the whole message in the bar at the bottom, as for a picture that cannot be opened: **The file is not a video, or it is damaged**, **No frame can be shown: the video is damaged**, or, for a file with audio only, when no audio output can be opened (no audio device, the audio server off), **The audio cannot be played: no audio output could be opened**, or, for a video whose picture is in a format the video engine has no decoder for, **The video uses a format the video engine cannot read**. When a phone or a server stops sending the video (unplugged, gone), its own message is shown. While a phone or a server is only slow, the video waits for it, however long it takes; when no data comes for 20 seconds, a message in the middle of the viewer says so. It goes as soon as data comes again, and the video starts; **Esc** goes back to the thumbnails at once.
+- A file that cannot be played says why in the middle of the viewer, with the whole message in the bar at the bottom, as for a picture that cannot be opened: **The file is not a video, or it is damaged**, **No frame can be shown: the video is damaged**, or, for a file with audio only, when no audio output can be opened (no audio device, the audio server off), **The audio cannot be played: no audio output could be opened**, or, for a video whose picture is in a format the video engine has no decoder for, **The video uses a format the video engine cannot read**. When a phone or a server stops sending the video (unplugged, gone), its own message is shown. While a phone or a server is only slow, the video waits for it, however long it takes; when no data comes for 20 seconds, a message in the middle of the viewer says so. It goes as soon as data comes again, and the video starts; **Enter** goes back to the thumbnails at once.
 - Editing in the viewer is for pictures; for a video, Save as… saves the frame shown. To turn, shrink or convert a video use [Converting videos](convert-video.md).
 - The metadata panel shows the details of a selected video: see [Image information](metadata.md).
 - Which formats play: see [Supported formats](formats.md).

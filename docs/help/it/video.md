@@ -36,7 +36,8 @@ Il volume e l'audio spento restano per i video successivi e alla prossima apertu
 | →, Pag↓ | File successivo |
 | ←, Backspace, Pag↑ | File precedente |
 | Inizio, Fine | Primo, ultimo file |
-| Esc | Torna alla griglia |
+| Esc | Torna alla griglia; chiude EyeCanSee quando **La ✕ della finestra torna alla griglia** è spenta nelle [Opzioni](options.md) |
+| Invio | Torna alla griglia, anche quando Esc chiude EyeCanSee |
 | Doppio clic | Torna alla griglia, oppure schermo intero e ritorno, come scelto nelle [Opzioni](options.md) |
 | F11 | Schermo intero: solo il video, con la sua barra sopra l'immagine finché si muove il mouse |
 
@@ -55,7 +56,7 @@ Fino ad allora la miniatura di un video è l'anteprima salvata dalla videocamera
 ## Da sapere
 
 - I video su un telefono o su un server si leggono un pezzo alla volta mentre scorrono, anche da un telefono su Windows. Solo un telefono che non permette di saltare in mezzo a un file (Windows se ne accorge alla prima lettura lenta) ha i video copiati tutti prima, con una barra che mostra quanto ne è stato letto.
-- Un file che non si riproduce dice perché in mezzo al visore, con il messaggio intero nella barra in fondo, come per una foto che non si apre: **Il file non è un video, o è rovinato**, **Nessun fotogramma si può mostrare: il video è rovinato**, oppure, per un file di solo audio, quando non si può aprire nessuna uscita audio (nessuna scheda audio, il server dell'audio spento), **L'audio non si può riprodurre: non si è potuta aprire nessuna uscita audio**, oppure, per un video la cui immagine è in un formato che il motore video non sa decodificare, **Il video usa un formato che il motore video non sa leggere**. Quando un telefono o un server smette di mandare il video (staccato, sparito), si vede il suo messaggio. Finché un telefono o un server è solo lento, il video lo aspetta, per tutto il tempo che serve; quando per 20 secondi non arrivano dati, un messaggio in mezzo al visore lo dice. Sparisce appena i dati tornano ad arrivare, e il video parte; **Esc** torna subito alle miniature.
+- Un file che non si riproduce dice perché in mezzo al visore, con il messaggio intero nella barra in fondo, come per una foto che non si apre: **Il file non è un video, o è rovinato**, **Nessun fotogramma si può mostrare: il video è rovinato**, oppure, per un file di solo audio, quando non si può aprire nessuna uscita audio (nessuna scheda audio, il server dell'audio spento), **L'audio non si può riprodurre: non si è potuta aprire nessuna uscita audio**, oppure, per un video la cui immagine è in un formato che il motore video non sa decodificare, **Il video usa un formato che il motore video non sa leggere**. Quando un telefono o un server smette di mandare il video (staccato, sparito), si vede il suo messaggio. Finché un telefono o un server è solo lento, il video lo aspetta, per tutto il tempo che serve; quando per 20 secondi non arrivano dati, un messaggio in mezzo al visore lo dice. Sparisce appena i dati tornano ad arrivare, e il video parte; **Invio** torna subito alle miniature.
 - Modificare nel visore vale per le foto; per un video, Salva come… salva il fotogramma mostrato. Per ruotare, rimpicciolire o convertire un video usa [Convertire i video](convert-video.md).
 - Il pannello dei metadati mostra i dati di un video selezionato: vedi [Informazioni sul file](metadata.md).
 - Quali formati si riproducono: vedi [Formati supportati](formats.md).

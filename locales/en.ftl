@@ -39,7 +39,7 @@ video-no-decoder = The video uses a format the video engine cannot read.
 video-frame-back-busy = Preparing the previous frame…
 video-stalled =
     No data for 20 seconds: the phone or the server is not answering.
-    The video will start as soon as it answers. Press Esc to go back to the thumbnails.
+    The video will start as soon as it answers. Press Enter to go back to the thumbnails.
 error-unsupported = Unsupported protocol: { $detail }
 error-no-host = The address has no host: { $detail }
 error-path = Cannot open { $detail }
@@ -2199,7 +2199,7 @@ tip-viewer-text =
     Double-click a thumbnail, or press **Enter**: the picture fills the window.
     - **→** and **←** go to the next and the previous one.
     - The mouse wheel zooms in and out.
-    - **Esc** or a double click goes back to the grid.
+    - **Enter** or a double click goes back to the grid.
     - **F11** shows only the picture, at full screen.
 tip-video-title = Videos and audio
 tip-video-text =
