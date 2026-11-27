@@ -166,7 +166,8 @@ fn notice_for(broken: bool, broken_before: bool, fell_back: bool) -> Option<(&'s
 
 /// The window could not be made at all (`eframe::run_native` gave an error, which would otherwise
 /// close the program without a word): on Windows a message of the system says to update the
-/// graphics card's driver, with the error under it. `language`: the one in the Options.
+/// graphics card's driver, on Linux where the guide says what to try, with the error under it.
+/// `language`: the one in the Options.
 pub(crate) fn no_window(language: Option<&str>, error: &eframe::Error) {
     log!("graphics: no window: {error}");
     #[cfg(windows)]
@@ -193,9 +194,11 @@ pub(crate) fn no_window(language: Option<&str>, error: &eframe::Error) {
     }
 }
 
-/// The text of `no_window` on Windows (`windows`) or on Linux.
-fn no_window_id(_windows: bool) -> &'static str {
-    "graphics-no-window"
+/// The text of `no_window` on Windows (`windows`) or on Linux. On Linux the driver is not always
+/// the cause (the OpenGL of NVIDIA's own driver, #321; a session with no screen) and drivers come
+/// from the distribution, not from the maker's website: a text of its own (audit A.5).
+fn no_window_id(windows: bool) -> &'static str {
+    if windows { "graphics-no-window" } else { "graphics-no-window-linux" }
 }
 
 /// At every pass, also with the window hidden (`App::logic`): the mark goes away once the first

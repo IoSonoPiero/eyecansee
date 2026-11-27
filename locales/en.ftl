@@ -446,6 +446,8 @@ graphics-broken-text = A start with Vulkan ended before showing the window, and 
     Then, to try the card again, choose Vulkan in Tools > Options… > Look.
 graphics-no-window = EyeCanSee could not open its window: the graphics card's driver does not work.
     Update it from the website of the computer's maker or of the graphics card's maker, then start EyeCanSee again.
+graphics-no-window-linux = EyeCanSee could not open its window with this graphics card.
+    What to try is in the guide, Known limits, Graphics card: https://github.com/IoSonoPiero/eyecansee/blob/main/docs/help/en/limits.md
 
 devices = Devices
 servers = Servers

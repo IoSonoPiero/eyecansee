@@ -444,6 +444,8 @@ graphics-broken-text = Un avvio con Vulkan si è chiuso prima di mostrare la fin
     Poi, per riprovare la scheda, scegli Vulkan in Strumenti > Opzioni… > Aspetto.
 graphics-no-window = EyeCanSee non è riuscito ad aprire la sua finestra: il driver della scheda video non funziona.
     Aggiornalo dal sito del produttore del PC o della scheda video, poi avvia di nuovo EyeCanSee.
+graphics-no-window-linux = EyeCanSee non è riuscito ad aprire la sua finestra con questa scheda video.
+    Cosa provare è nella guida, Limiti noti, Scheda video: https://github.com/IoSonoPiero/eyecansee/blob/main/docs/help/it/limits.md
 
 devices = Dispositivi
 servers = Server
