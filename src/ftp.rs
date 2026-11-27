@@ -775,6 +775,17 @@ mod tests {
         assert_eq!(memo.load(Ordering::Relaxed), UNKNOWN);
     }
 
+    /// Audit S.10 (b) (27/11): the listing of a folder was read whole, whatever its size: a
+    /// hostile server that never ends it takes all the memory. Past `LISTING_MAX` the reading
+    /// stops, with an error of its own. The server here sends 80 MiB of lines that are no item.
+    #[test]
+    fn an_endless_listing_is_stopped() {
+        let (target, _) = fake::start();
+        let r = tokio::runtime::Runtime::new().unwrap().block_on(super::Server::shared(target).names("endless/"));
+        let said = r.as_ref().map(|names| names.len()).map_err(|e| e.0);
+        assert_eq!(said, Err("error-ftp-listing-too-big"), "the listing read whole");
+    }
+
     /// Audit 2.16 (FTP): a folder with a link to itself (`loop/again` → `loop/`) must be walked
     /// once. `walk` took a link the server lets it enter (CWD) for a folder and had no memory of
     /// the folders seen, so it went down `again/again/…` until the server refused the path (Linux:

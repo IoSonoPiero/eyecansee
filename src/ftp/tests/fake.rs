@@ -12,6 +12,8 @@
 //! - `/cut/`: `a.jpg`, `b.jpg`, which the server stops sending before its end, and `c.jpg`.
 //! - `/shared/`: `a.jpg` and `.a.jpg.eyecansee-new`, the new version of it another computer is
 //!   sending (audit 2.29 (h)), dated as LIST dates it: the server's clock, in its own time zone.
+//! - `/endless/`, as a hostile server could list it (audit 27/11 S.10): its LIST goes on, a line
+//!   that is no item after another, for `ENDLESS` bytes or until the client stops reading.
 //!
 //! Files are measured (SIZE), read (RETR) and deleted (DELE), folders deleted only when empty
 //! (RMD), as a real server does. A file sent (STOR) is kept apart, by its path (`Seen::stored`),
@@ -208,6 +210,22 @@ fn link_size(kind: &Kind) -> usize {
     }
 }
 
+/// What the LIST of `/endless/` sends: more than any listing a client should keep.
+const ENDLESS: usize = 80 << 20;
+
+/// The LIST of `/endless/`: lines of nothing, a MiB at a time, until `ENDLESS` or the client goes.
+fn endless(say: &mut impl FnMut(&str) -> std::io::Result<()>, listener: TcpListener) -> std::io::Result<()> {
+    say("150 here it comes")?;
+    let (mut to, _) = listener.accept()?;
+    let line = format!("{}\r\n", "x".repeat(1022));
+    let mib = line.repeat(1024);
+    for _ in 0..ENDLESS / mib.len() {
+        to.write_all(mib.as_bytes())?;
+    }
+    drop(to);
+    say("226 sent")
+}
+
 /// Sends `data` on the passive connection, between "150" and "226".
 fn send(say: &mut impl FnMut(&str) -> std::io::Result<()>, listener: TcpListener, data: &[u8]) -> std::io::Result<()> {
     say("150 here it comes")?;
@@ -238,6 +256,10 @@ fn session(control: TcpStream, seen: &Seen) -> std::io::Result<()> {
                 data = Some(listener);
             }
             "CWD" => say(if seen.folder(path).is_some() { "250 fine" } else { "550 no such folder" })?,
+            "LIST" if path.trim_matches('/') == "endless" => match data.take() {
+                Some(listener) => endless(&mut say, listener)?,
+                None => say("425 no data connection")?,
+            },
             "LIST" => match (seen.listing(path), data.take()) {
                 (Some(lines), Some(listener)) => {
                     seen.listed.lock().unwrap().push(path.to_string());
