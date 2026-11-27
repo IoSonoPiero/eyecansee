@@ -162,10 +162,12 @@ impl App {
         });
     }
 
-    /// The sheet shown of a drawing: 0 the model, then the layouts.
+    /// The sheet shown of a drawing: 0 the model, then the layouts. A layout the drawing read
+    /// again no longer has (saved meanwhile with fewer) is its model (audit 27/11, D.2).
     pub(crate) fn cad_sheet(&self, path: &str) -> usize {
         let (p, i) = &self.model.cad.sheet;
-        if p == path { *i } else { 0 }
+        let has = self.model.cad.drawings.get(path).is_none_or(|d| *i <= d.sheets.len());
+        if p == path && has { *i } else { 0 }
     }
 
     /// The drawing of the sheet shown, with the layers of the file.
@@ -215,7 +217,10 @@ impl App {
             return None;
         }
         let i = self.cad_sheet(path);
-        let name = if i == 0 { self.i18n.t("cad-model") } else { d.sheets[i - 1].0.clone() };
+        let name = match i.checked_sub(1).and_then(|k| d.sheets.get(k)) {
+            Some((name, _)) => name.clone(),
+            None => self.i18n.t("cad-model"),
+        };
         Some(format!("{name} ({}/{})", i + 1, d.sheets.len() + 1))
     }
 
