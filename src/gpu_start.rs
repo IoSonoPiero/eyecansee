@@ -38,7 +38,8 @@ static FELL_BACK: AtomicBool = AtomicBool::new(false);
 static BROKEN_NOW: AtomicBool = AtomicBool::new(false);
 /// An earlier start found it so: this one says nothing (audit A.2).
 static BROKEN_BEFORE: AtomicBool = AtomicBool::new(false);
-/// When this start began, for the mark of a window hidden from the start (`frame_drawn`).
+/// The first pass of the window (`frame_drawn`), for the mark of a window hidden from the start:
+/// from there, not from before the window, so a slow start keeps its mark until it draws.
 static STARTED: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
 /// A start alive this long has got past loading the drivers: the mark goes away also without a
 /// frame, as when the window starts minimised (no frame is drawn then).
@@ -128,7 +129,6 @@ pub(crate) fn before_window(settings: &mut Settings) -> Option<wgpu::Backends> {
     }
     let path = crate::settings::config_path(MARK)?;
     let dir = path.parent()?;
-    let _ = STARTED.set(std::time::Instant::now());
     let broken_before = dir.join(BROKEN).exists();
     let plan = plan(true, settings.graphics, wgpu::Backends::from_env(), path.exists(), broken_before, real_dx12);
     apply(dir, &plan, settings);
@@ -203,14 +203,14 @@ fn no_window_id(windows: bool) -> &'static str {
 
 /// At every pass, also with the window hidden (`App::logic`): the mark goes away once the first
 /// frame has been drawn and shown (`frames` counts the frames completed: eframe paints each one
-/// right after `App::ui`), or once the start has lived `HIDDEN` with no frame (a window hidden
-/// from the start). Until then a repaint is asked, so it does not wait for the mouse.
+/// right after `App::ui`), or `HIDDEN` after the first pass with no frame (a window hidden from
+/// the start). Until then a repaint is asked, so it does not wait for the mouse.
 pub(crate) fn frame_drawn(ctx: &egui::Context) {
     if !MARKED.load(Ordering::Relaxed) {
         return;
     }
     let Some(path) = crate::settings::config_path(MARK) else { return };
-    let alive = STARTED.get().map_or(std::time::Duration::ZERO, std::time::Instant::elapsed);
+    let alive = STARTED.get_or_init(std::time::Instant::now).elapsed();
     if take_after_first(&path, ctx.cumulative_frame_nr(), alive) {
         MARKED.store(false, Ordering::Relaxed);
         log!("graphics: first frame drawn or {alive:?} alive, mark taken away");
