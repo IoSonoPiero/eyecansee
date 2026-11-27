@@ -1,6 +1,6 @@
 # Magnifier and spotlight
 
-![Magnifier](icon://search) **Magnifier** (Z) shows a part of the photo larger, in a round or square lens. ![Spotlight](icon://spotlight) **Spotlight** (S) darkens everything except what must stand out.
+![Magnifier](icon://search) **Magnifier** (Z) shows part of the photo enlarged, in a round or square lens. ![Spotlight](icon://spotlight) **Spotlight** (S) darkens everything except what must stand out.
 
 ## Magnifier
 
@@ -29,7 +29,7 @@ Options:
 - ![Round](icon://circle) **Round** or ![Square](icon://square) **Square**.
 - **Intensity**: how dark the rest gets.
 
-With several spotlights, all their parts stay bright, and the rest is as dark as the darkest of them. The spotlight works on the photo: the objects you draw stay bright over it. It has no colour.
+With several spotlights, all their areas stay bright, and the rest is as dark as the darkest of them. The spotlight works on the photo: the objects you draw stay bright over it. It has no colour.
 
 ## Resizing
 

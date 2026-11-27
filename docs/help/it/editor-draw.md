@@ -18,15 +18,15 @@ Opzioni:
 - **Riempimento:** nessuno (il quadratino bianco barrato di rosso) o un colore.
 - **Opacità**, per tutta la forma.
 
-Senza riempimento la forma si prende solo dal bordo: un clic al suo interno va a ciò che c'è sotto.
+Senza riempimento la forma si seleziona solo dal bordo: un clic al suo interno va a ciò che c'è sotto.
 
 ## Evidenziatore
 
 ![Evidenziatore](icon://highlighter) **Evidenziatore** (H): trascina un riquadro sopra ciò che vuoi segnare. Tieni premuto Maiusc per un quadrato.
 
-Colora la foto come un evidenziatore vero: il bianco prende il colore, le lettere scure restano scure e leggibili. Parte giallo. Con meno **Opacità** il colore è più leggero. Non ha spessore: il riquadro è grande quanto lo trascini.
+Colora la foto come un evidenziatore vero: il bianco prende il colore, le lettere scure restano scure e leggibili. All'inizio è giallo. Con meno **Opacità** il colore è più leggero. Non ha spessore: il riquadro è grande quanto lo trascini.
 
-L'evidenziatore lavora sulla foto stessa, sotto gli oggetti che disegni: una freccia sopra di lui mantiene il suo colore.
+L'evidenziatore lavora sulla foto stessa, sotto gli oggetti che disegni: una freccia disegnata sopra mantiene il proprio colore.
 
 ## Ridimensionare
 
