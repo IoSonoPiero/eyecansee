@@ -327,16 +327,11 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
         }
         lists.push(list);
     }
-    // A move between sources that would replace an item, or merge a folder into one, first tells
-    // whether that item is the original itself, reached in another way (#195): nothing is written
-    // over it, not even once (L8 of 2026-11-21: told only after the copy, the file was written
-    // over itself). All of them before anything is copied; not a folder that stays anyway, with
-    // an item left out for its name.
-    if clip.cut && !same {
-        for (src, dest, _, _) in copies.iter().filter(|c| c.2 && !c.0.is_empty() && !left_below(&c.0, p)) {
-            originals::not_the_same(&clip.op, src, to, dest).await?;
-        }
-    }
+    // A move that would replace an item, or merge a folder into one, first tells whether it writes
+    // into the original itself, reached in another way (#195, audit F.1): nothing is written over
+    // it, not even once (L8 of 2026-11-21: told only after the copy, the file was written over
+    // itself). All of them before anything is copied.
+    originals::not_onto_itself(clip, (to, to_base, same), &copies, &lists, p).await?;
     // Counted as the files chosen: a photo with its sidecars is one.
     let files = || lists.iter().zip(&copies).flat_map(|(l, c)| &l[..l.len() - c.3.len()]).filter(|(s, _, _)| !s.ends_with('/'));
     // Added to the renames counted above, if any.

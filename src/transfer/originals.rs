@@ -6,8 +6,52 @@
 use std::collections::HashSet;
 use std::sync::atomic::Ordering;
 
-use super::Progress;
+use super::{Clip, Planned, Progress};
 use crate::source::{Deletion, Error, NOT_FOUND, Store, name, parent};
+
+/// Before a move writes over an item there or into a folder there (`paste`, once everything to
+/// copy is known, before anything is written), for each such item of `copies` (with its `lists`):
+/// whether it would write into itself, reached in another way (#195). Where the real places can
+/// be compared, by them (`within`); between two sources, also as `not_the_same` tells. Not an item
+/// that stays anyway, with something below it left out for its name.
+pub(super) async fn not_onto_itself(clip: &Clip, (to, to_base, same): (&Store, &str, bool), copies: &[Planned], lists: &[Vec<(String, String, u64)>], p: &Progress) -> Result<(), Error> {
+    if !clip.cut {
+        return Ok(());
+    }
+    for (item, list) in copies.iter().zip(lists).filter(|(c, _)| c.2 && !c.0.is_empty() && !super::left_below(&c.0, p)) {
+        if !same {
+            not_the_same(&clip.op, &item.0, to, &item.1).await?;
+        }
+        within(clip, (to, to_base), &item.0, list).await?;
+    }
+    Ok(())
+}
+
+/// Whether a place the move of `src` writes into (`list`: its destination and what goes below
+/// it) is `src` itself, or lies inside it, through a link (audit F.1 of 27/11): a folder merged into
+/// a link that leads to it, or into a real folder holding such a link, a file replacing a link to
+/// itself on another disk (the rename fails, so it is copied). Each file was written over itself
+/// through the link, then deleted as the original. By the real places where they can be compared
+/// (`dest_place`); below the item, files only on this computer, where it costs no request (not
+/// under gvfs, where each look is slow): on a server a folder each.
+async fn within(clip: &Clip, (to, to_base): (&Store, &str), src: &str, list: &[(String, String, u64)]) -> Result<(), Error> {
+    let mut top = None;
+    for (i, (from, dest, _)) in list.iter().enumerate() {
+        let cheap = to.local_file(dest).is_some() && !to.gvfs(dest);
+        if !(i == 0 || from.ends_with('/') || cheap) {
+            continue;
+        }
+        let Some(there) = super::dest_place(clip, to, to_base, dest).await else { continue };
+        if top.is_none() {
+            top = Some(super::real_place(&clip.op, src).await);
+        }
+        if top.as_ref().and_then(Option::as_ref).is_some_and(|t| there.starts_with(t)) {
+            log!("move: {src:?} would write into itself through {dest:?} ({there:?})");
+            return Err(("error-move-same-item", name(src).to_string()));
+        }
+    }
+    Ok(())
+}
 
 /// Before the original `src` of a move is copied over `dest` of another source, replacing it or
 /// merging into it (`paste`, before anything is written): whether the two are one and the same,
