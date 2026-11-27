@@ -636,6 +636,30 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
+    /// Audit F.7 of 27/11: a move stopped between the two renames of `originals::not_the_same` (a
+    /// phone unplugged, the program closed) left the original under its hidden name, which nothing
+    /// put back: the photo was not seen any more. The folder's listing gives it its name back when
+    /// that is free; next to an item of that name it stays.
+    #[test]
+    fn recover_put_aside_by_a_move() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-recover-moving-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let p = dir.join("moving");
+        std::fs::create_dir_all(&p).unwrap();
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        for (f, data) in [(".a.jpg.eyecansee-moving", "a"), ("b.jpg", "b there"), (".b.jpg.eyecansee-moving", "b")] {
+            std::fs::write(p.join(f), data).unwrap();
+        }
+        let l = tokio::runtime::Runtime::new().unwrap().block_on(op.list("moving/")).unwrap();
+        let files: Vec<String> = l.files.iter().map(|f| f.path.clone()).collect();
+        let a = std::fs::read_to_string(p.join("a.jpg")).ok();
+        let b_aside = p.join(".b.jpg.eyecansee-moving").exists();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(files, ["moving/a.jpg", "moving/b.jpg"], "the original put aside by a move is not seen");
+        assert_eq!(a.as_deref(), Some("a"));
+        assert!(b_aside, "the original put aside went, its name taken");
+    }
+
     /// A copy in place of a file with two names (hard links) cut short: the new file, whole, is
     /// copied into the cut image again and both names see it; one whose copy had finished goes;
     /// one whose image is gone takes its name. Nothing hidden is left.
