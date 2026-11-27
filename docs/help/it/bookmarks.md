@@ -10,13 +10,13 @@ Puoi anche usare **Segnalibri > + Aggiungi la cartella corrente** nella barra de
 
 Per aggiungere una cartella senza aprirla, fai clic destro sulla cartella, nella griglia o nell'albero delle cartelle a sinistra, e scegli **Aggiungi questa cartella ai segnalibri**. Funziona su una cartella alla volta: con più elementi selezionati la voce è grigia.
 
-Un segnalibro nuovo prende il nome della cartella o della foto; per la cima di un disco o di un telefono, il nome del dispositivo. Un posto che è già un segnalibro non viene aggiunto due volte: la stella è accesa, e la voce del menù è grigia.
+Un segnalibro nuovo prende il nome della cartella o della foto; per la cima di un disco o di un telefono, il nome del dispositivo. Un posto che è già un segnalibro non viene aggiunto due volte: la stella è accesa e la voce del menù è grigia.
 
 ## Aprire un segnalibro
 
 ![Segnalibri](../img/bookmarks-menu.webp)
 
-- Fai clic su ![Segnalibri](icon://bookmark) **Segnalibri**, la tendina subito dopo la stella, e scegli un segnalibro. Passando col mouse su un segnalibro compare il suo indirizzo.
+- Fai clic su ![Segnalibri](icon://bookmark) **Segnalibri**, la tendina subito dopo la stella, e scegli un segnalibro. Se passi col mouse su un segnalibro, compare il suo indirizzo.
 - Oppure usa il menù **Segnalibri** nella barra dei menù.
 - Oppure premi **Ctrl + Maiusc + D**: si apre la tendina; la freccia **Giù** entra nell'elenco e **Invio** apre il segnalibro scelto.
 
@@ -32,7 +32,7 @@ Su una cartella che è già un segnalibro, il menù del clic destro offre ![Togl
 
 **Configura…**, in fondo alla tendina e al menù Segnalibri, apre l'elenco dei tuoi segnalibri, un riquadro per ciascuno, con il nome e sotto l'indirizzo:
 
-- ![Cambia nome e indirizzo](icon://pencil) cambia il nome e l'indirizzo. **Fatto** o **Invio** per finire. Una password scritta nell'indirizzo non viene conservata.
+- ![Cambia nome e indirizzo](icon://pencil) cambia il nome e l'indirizzo. **Fatto** o **Invio** chiudono la modifica. Una password scritta nell'indirizzo non viene conservata.
 - ![Sposta su](icon://chevron-up) e ![Sposta giù](icon://chevron-down) spostano il segnalibro più in alto o più in basso nell'elenco.
 - ![Togli dai segnalibri](icon://trash) lo toglie.
 
@@ -41,5 +41,5 @@ Le modifiche si salvano quando chiudi la finestra con **Chiudi** o **Esc**.
 ## Da sapere
 
 - Un segnalibro il cui posto non esiste più, o il cui disco o telefono non è collegato, non viene mai tolto da solo: sceglierlo spiega perché non si apre, e resta nell'elenco per quando il dispositivo sarà di nuovo collegato.
-- Un segnalibro a una cartella di un server che non esiste più apre invece la cartella del server salvato, o quella da cui parte il server.
+- Un segnalibro di una cartella di un server che non esiste più apre invece la cartella del server salvato, o altrimenti quella da cui parte il server.
 - I segnalibri sono salvati con le altre impostazioni, in `settings.json`; l'indirizzo di un server viene conservato senza la password.
