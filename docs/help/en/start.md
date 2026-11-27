@@ -54,6 +54,10 @@ At the first start of the day a window shows a tip: one thing EyeCanSee can do, 
 
 The tips do not appear when EyeCanSee starts to open a picture or a folder from another program.
 
+## A copy of your photos
+
+Before moving, converting or editing many files at once, keep a copy of your photos somewhere else, such as another disk or a backup: a copy protects them from a mistake, a fault or a disk that fails.
+
 ## Where to go next
 
 - [The thumbnail grid](grid.md) and [Selecting files](selection.md), to move around and choose files.

@@ -22,4 +22,4 @@ EyeCanSee can keep itself up to date. How depends on how you installed it.
 
 ## Turning the check off
 
-Untick **Check for updates at startup** in **Tools > Options… > General**. EyeCanSee then contacts GitHub (or, in the copy from the Microsoft Store, the Store) only when you choose **Check for updates**. Nothing about you or your images is ever sent: only the request for the latest version.
+Untick **Check for updates at startup** in **Tools > Options… > General**. EyeCanSee then contacts GitHub (or, in the copy from the Microsoft Store, the Store) only when you choose **Check for updates**. Only the request for the latest version is sent, with what any download carries (your IP address, the app's name and version): nothing about your images.

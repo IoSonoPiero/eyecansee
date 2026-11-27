@@ -22,4 +22,4 @@ EyeCanSee può tenersi aggiornato da solo. Come, dipende da come l'hai installat
 
 ## Spegnere il controllo
 
-Togli la spunta a **Controlla gli aggiornamenti all'avvio** in **Strumenti > Opzioni… > Generale**. EyeCanSee contatta allora GitHub (o, nella copia del Microsoft Store, lo Store) solo quando scegli **Verifica aggiornamenti**. Non viene mai inviato niente su di te o sulle tue immagini: solo la richiesta dell'ultima versione.
+Togli la spunta a **Controlla gli aggiornamenti all'avvio** in **Strumenti > Opzioni… > Generale**. EyeCanSee contatta allora GitHub (o, nella copia del Microsoft Store, lo Store) solo quando scegli **Verifica aggiornamenti**. Viene inviata solo la richiesta dell'ultima versione, con ciò che porta ogni scaricamento (il tuo indirizzo IP, nome e versione dell'app): niente sulle tue immagini.

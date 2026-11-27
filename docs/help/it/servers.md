@@ -41,6 +41,7 @@ L'ultimo è un alias di `~/.ssh/config`. Senza utente, FTP entra come `anonymous
 
 ## Da sapere
 
+- L'FTP semplice non è cifrato: la password e i file viaggiano in chiaro. Usa FTPS o SFTP quando il server li offre, soprattutto fuori dalla rete di casa.
 - Una cartella del server che non esiste più (spostata, eliminata, o riaperta all'avvio) lascia il posto alla cartella del server salvato, o a quella da cui parte il server.
 - Se un server SFTP smette di rispondere, EyeCanSee lascia quella connessione, di solito dopo circa 20 secondi di silenzio, e ripete la richiesta su una nuova.
 - EyeCanSee tiene una connessione per ogni server SFTP, e fino a quattro per ogni server FTP.

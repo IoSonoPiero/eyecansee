@@ -1,6 +1,6 @@
 # Converting videos
 
-Converts videos into another format or size, turns them, makes them smaller or turns a short clip into a GIF; audio files too, into another audio format. Three more tools work on videos without converting them: **Copy with the metadata**, **Copy without audio** and **Save the audio to a file**. The originals are never touched.
+Converts videos into another format or size, turns them, makes them smaller or turns a short clip into a GIF; audio files too, into another audio format. Three more tools work on videos without converting them: **Copy with the metadata**, **Copy without audio** and **Save the audio to a file**. The originals are not changed: the new files are written beside them or where you choose.
 
 ## Starting
 

@@ -54,6 +54,10 @@ Al primo avvio del giorno una finestra mostra un suggerimento: una cosa che EyeC
 
 I suggerimenti non compaiono quando EyeCanSee parte per aprire un'immagine o una cartella da un altro programma.
 
+## Una copia delle tue foto
+
+Prima di spostare, convertire o modificare molti file insieme, tieni una copia delle tue foto altrove, per esempio su un altro disco o in un backup: una copia le protegge da un errore, da un guasto o da un disco che si rompe.
+
 ## Da dove continuare
 
 - [La griglia delle miniature](grid.md) e [Selezionare i file](selection.md), per muoverti e scegliere i file.

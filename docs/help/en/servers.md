@@ -41,6 +41,7 @@ The last one is an alias of `~/.ssh/config`. Without a user, FTP logs in as `ano
 
 ## Things to know
 
+- Plain FTP is not encrypted: the password and the files travel in clear. Use FTPS or SFTP when the server offers them, above all outside your home network.
 - A server folder that no longer exists (moved, deleted, or reopened at startup) gives way to the saved server's folder, or to the folder where the server starts.
 - If an SFTP server stops answering, EyeCanSee leaves that connection, usually after about 20 seconds of silence, and repeats the request on a new one.
 - EyeCanSee keeps one connection per SFTP server, and up to four per FTP server.

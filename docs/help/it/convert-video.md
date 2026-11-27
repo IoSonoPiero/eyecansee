@@ -1,6 +1,6 @@
 # Convertire i video
 
-Converte i video in un altro formato o in un'altra misura, li ruota, li fa più leggeri o trasforma una clip breve in GIF; anche i file audio, in un altro formato audio. Altri tre strumenti lavorano sui video senza convertirli: **Copia con i metadati**, **Copia senza audio** e **Salva l'audio in un file**. Gli originali non vengono mai toccati.
+Converte i video in un altro formato o in un'altra misura, li ruota, li fa più leggeri o trasforma una clip breve in GIF; anche i file audio, in un altro formato audio. Altri tre strumenti lavorano sui video senza convertirli: **Copia con i metadati**, **Copia senza audio** e **Salva l'audio in un file**. Gli originali non cambiano: i file nuovi vanno accanto a loro o dove scegli tu.
 
 ## Avviare la conversione
 
