@@ -4,7 +4,7 @@ Il menù ![Filtri](icon://wand-sparkles) **Filtri** nella barra degli strumenti 
 
 ## Aggiungere un filtro
 
-1. Per filtrare solo una parte, prima sceglila con ![Selezione](icon://square-dashed) **Selezione** (M). Vedi [Selezionare un'area](editor-marquee.md). Senza una zona, il filtro va su tutta l'immagine.
+1. Per filtrare solo una parte, prima sceglila con ![Selezione](icon://square-dashed) **Selezione** (M). Vedi [Selezionare un'area](editor-marquee.md). Senza una zona scelta, il filtro va su tutta l'immagine.
 2. Fai clic su ![Filtri](icon://wand-sparkles) **Filtri** e scegline uno. La prima riga del menù dice dove andrà.
 3. Il filtro si applica subito ed è selezionato. Regola l'**Intensità** nella barra delle proprietà.
 4. Fai clic su **Fatto** (o premi Esc, o fai clic altrove) per lasciarlo così.
@@ -12,7 +12,7 @@ Il menù ![Filtri](icon://wand-sparkles) **Filtri** nella barra degli strumenti 
 ## I filtri
 
 - ![Sfoca](icon://droplets) **Sfoca**
-- ![Pixel grossi](icon://grid-3x3) **Pixel grossi**
+- ![Pixel grossi](icon://grid-3x3) **Pixel grossi**: grandi pixel quadrati.
 - ![Nitidezza](icon://focus) **Nitidezza**
 - ![Bianco e nero](icon://eclipse) **Bianco e nero** (senza intensità)
 - ![Seppia](icon://coffee) **Seppia** (senza intensità)
@@ -21,15 +21,15 @@ Il menù ![Filtri](icon://wand-sparkles) **Filtri** nella barra degli strumenti 
 
 ## Cambiare un filtro
 
-Un filtro è un oggetto come gli altri. Fai clic su di lui per riaprirlo: cambia l'intensità, spostalo, ridimensionalo dagli angoli, o eliminalo con ![Elimina](icon://trash) o Canc. Resta modificabile fino al salvataggio.
+Un filtro è un oggetto come gli altri. Fai clic sul filtro per riaprirlo: cambia l'intensità, spostalo, ridimensionalo trascinando gli angoli, oppure eliminalo con ![Elimina](icon://trash) o Canc. Resta modificabile fino al salvataggio.
 
-Sfoca e Pixel grossi hanno anche la maniglia tonda sopra di sé, e il loro angolo nella barra delle proprietà, per ruotarli: i pixel grossi girano con il riquadro.
+Sfoca e Pixel grossi si possono anche ruotare, con la maniglia tonda sopra di loro o con **Rotazione** nella barra delle proprietà. I pixel grossi girano con il riquadro.
 
-Un filtro sta sotto gli oggetti che disegni, quindi un clic lo prende solo dove non c'è nient'altro.
+Un filtro sta sotto gli oggetti che disegni, quindi un clic lo prende solo dove non c'è nessun altro oggetto.
 
 ## Da sapere
 
 - Sullo schermo vedi un'anteprima. Nel file salvato il filtro è applicato a piena grandezza.
-- Dove i filtri si sovrappongono, ognuno lavora sul risultato di quelli aggiunti prima. Un evidenziatore lavora sul risultato di tutti i filtri. Lo schermo lo mostra come nel file salvato.
-- Sfoca e Pixel grossi non bastano per nascondere testi o numeri privati: con poca intensità si leggono, o si possono ricostruire. La barra lo ricorda. Per quelli usa [Copertura](editor-cover.md).
+- Dove i filtri si sovrappongono, ognuno lavora sul risultato di quelli aggiunti prima. Un evidenziatore lavora sul risultato di tutti i filtri. Lo schermo lo mostra proprio come sarà nel file salvato.
+- Sfoca e Pixel grossi non bastano per nascondere testi o numeri privati: con poca intensità si leggono ancora, o si possono ricostruire. La barra delle proprietà lo ricorda. Per quelli usa [Copertura](editor-cover.md).
 - In una foto Ultra HDR, Sfoca e Pixel grossi nascondono anche la parte HDR che hanno sotto.

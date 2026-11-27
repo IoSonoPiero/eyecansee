@@ -4,8 +4,8 @@ The ![Filters](icon://wand-sparkles) **Filters** menu in the toolbar changes the
 
 ## Adding a filter
 
-1. To filter only a part, first choose it with ![Selection](icon://square-dashed) **Selection** (M). See [Selecting an area](editor-marquee.md). Without a part, the filter goes on the whole image.
-2. Click ![Filters](icon://wand-sparkles) **Filters** and choose one. The top line of the menu says where it will go.
+1. To filter only a part, first choose it with ![Selection](icon://square-dashed) **Selection** (M). See [Selecting an area](editor-marquee.md). Without a part chosen, the filter applies to the whole image.
+2. Click ![Filters](icon://wand-sparkles) **Filters** and choose one. The top line of the menu says where it will be applied.
 3. The filter is applied at once and selected. Set its **Amount** in the properties bar.
 4. Click **Done** (or press Esc, or click elsewhere) to leave it as it is.
 
@@ -21,15 +21,15 @@ The ![Filters](icon://wand-sparkles) **Filters** menu in the toolbar changes the
 
 ## Changing a filter
 
-A filter is an object like the others. Click it to open it again: change its amount, move it, resize it by its corners, or delete it with ![Delete](icon://trash) or Del. It stays changeable until you save.
+A filter is an object like the others. Click it to open it again: change its amount, move it, resize it by dragging its corners, or delete it with ![Delete](icon://trash) or Del. It stays changeable until you save.
 
-Blur and Pixelate also have the round handle above them, and their angle in the properties bar, to rotate them: Pixelate's big pixels turn with the box.
+Blur and Pixelate can also be rotated, with the round handle above them or with **Rotation** in the properties bar. Pixelate's big pixels turn with the box.
 
-A filter lies under the objects you draw, so a click picks it only where no other object is.
+A filter lies under the objects you draw, so a click picks it only where there is no other object.
 
 ## Good to know
 
 - On the screen you see a preview. In the saved file the filter is applied at full size.
-- Where filters overlap, each works on the result of those added before it. A highlighter works on the result of all the filters. The screen shows it as the saved file has it.
-- Blur and Pixelate are not enough to hide private text or numbers: at a low amount they can be read, or worked back. The bar reminds you. For those use [Cover](editor-cover.md).
+- Where filters overlap, each works on the result of those added before it. A highlighter works on the result of all the filters. The screen shows this just as it will be in the saved file.
+- Blur and Pixelate are not enough to hide private text or numbers: at a low amount they can still be read, or reconstructed. The properties bar reminds you of this. For those use [Cover](editor-cover.md).
 - On an Ultra HDR photo, Blur and Pixelate also hide the HDR part under them.
