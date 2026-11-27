@@ -16,12 +16,12 @@ Le prime sette sono nella barra: ![Spunta](icon://check) Spunta, ![Croce](icon:/
 
 ## Opzioni
 
-- **Colore** (parte verde), **Dimensione** e **Opacità**.
+- **Colore** (all'inizio verde), **Dimensione** e **Opacità**.
 - La dimensione si cambia nella barra, o trascinando un angolo del timbro selezionato. Resta quadrato.
 
 ## Da sapere
 
-- Un clic su un timbro già messo lo seleziona. Altrove sull'immagine ne mette uno nuovo; un clic fuori dall'immagine non ne mette nessuno.
+- Un clic su un timbro già messo lo seleziona. Un clic altrove sull'immagine ne mette uno nuovo; un clic fuori dall'immagine non ne mette nessuno.
 - Per spostare un timbro usa ![Seleziona](icon://mouse-pointer-2) **Seleziona** e trascinalo. Con Timbri, trascinare sposta la vista.
 - **I**: contagocce. **Alt + clic**: prende un colore e lo strumento resta. **Canc**: elimina il timbro selezionato.
 
