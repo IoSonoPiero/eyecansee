@@ -10,9 +10,9 @@ Choose **File > Server manager…** (![Server manager…](icon://server)). If th
 
 ## The window
 
-- At the top, the box of the master password: whether the list of servers is encrypted (see [Saved passwords](passwords.md)).
+- At the top, the master password box, which says whether the list of servers is encrypted (see [Saved passwords](passwords.md)).
 - On the left, the saved servers; **New server** below them empties the fields for a new one.
-- On the right, the fields of the server chosen: **Name** (empty: the server's name is used), **Protocol** (FTP, FTPS or SFTP), **Server**, **Port**, **User**, **Password** and **Folder**. For SFTP also **Key file** (**Browse…** opens the system window in the `~/.ssh` folder, or in your home folder without it) and **Key passphrase**.
+- On the right, the fields of the chosen server: **Name** (if left empty, the server's name is used), **Protocol** (FTP, FTPS or SFTP), **Server**, **Port**, **User**, **Password** and **Folder**. For SFTP also **Key file** (**Browse…** opens the system window in the `~/.ssh` folder, or in your home folder if there is none) and **Key passphrase**.
 - At the bottom, the file where the servers are saved.
 
 ## The buttons
@@ -24,7 +24,7 @@ Choose **File > Server manager…** (![Server manager…](icon://server)). If th
 
 ## How a saved server logs in
 
-A saved server logs in **only** with the password and key saved here, never with the SSH agent or the system's keys in `~/.ssh`. If the key does not open (wrong passphrase, missing file), there is no login, and the server manager opens on that server so you can fix it: the message is inside the window, above the fields of that server, until you save it, and not in the bar at the bottom too. If the server manager was already open, the message asks you to fix the key in **File > Server manager**.
+A saved server logs in **only** with the password and key saved here, never with the SSH agent or the system's keys in `~/.ssh`. If the key cannot be opened (wrong passphrase, missing file), the login fails and the server manager opens on that server so you can fix it. The message is shown inside the window, above the fields of that server, until you save it; it does not also appear in the bar at the bottom. If the server manager was already open, the message asks you to fix the key in **File > Server manager**.
 
 An address that matches a saved server (same protocol, server, port and user), typed in the address bar or reopened at startup, uses its password and key too.
 
@@ -32,8 +32,8 @@ An address that matches a saved server (same protocol, server, port and user), t
 
 Every saved server appears in the panel on the left, in the **Servers** section below the devices, with the ![Server](icon://color-server) icon.
 
-- One click opens it in its saved **Folder**, every time; with no folder, in the folder where the server starts (usually your home on it).
-- Right click: **Close connection** (if it is open you go back to your home folder; not during a copy) and **Edit…**, which opens the server manager on that server.
+- One click opens it in its saved **Folder**, every time; with no folder, in the folder where the server starts (usually your home folder on the server).
+- Right-click: **Close connection** (if it is open, you go back to your home folder; not during a copy) and **Edit…**, which opens the server manager on that server.
 - With a server or a phone open, the panel also shows **This computer**, with your home folder and the last folder of the computer you were in.
 
 ## Things to know
@@ -41,5 +41,5 @@ Every saved server appears in the panel on the left, in the **Servers** section 
 - A server can also be saved from **File > Open location…** with **Save and open**, for example when a server refuses the login and asks for the password: a saved server with the same login gets the new password and keeps the rest (see [Address bar and Open location](address.md)).
 - Without a master password, passwords and passphrases are saved in plain text: the first time you save a server, here or with **Save and open**, EyeCanSee warns you once. See [Saved passwords](passwords.md).
 - The port can be left empty: FTP uses 21, SFTP 22.
-- Spaces before or after a value, for example pasted with it, are left out when the server is saved; not in passwords and passphrases, where they can be part of them.
-- From the panel you copy and paste between servers, the computer, disks and phones as between two folders (see [Copying and moving](copy-move.md)).
+- Spaces before or after a value (for example, pasted along with it) are removed when the server is saved, except in passwords and passphrases, where they can be part of them.
+- From the panel you can copy and paste between servers, the computer, disks and phones as between two folders (see [Copying and moving](copy-move.md)).
