@@ -259,11 +259,13 @@ async fn generate(op: &Store, base: &str, file: File, wanted: impl Fn() -> bool)
     }
     let picture = !crate::model::is_model(&file.path) && !crate::cad::is_cad(&file.path);
     // Given back once the thumbnail is made and its bytes are gone.
-    let _reading = reading().reserve(file.size).await;
+    let budget = reading(base);
+    let _reading = budget.reserve(file.size).await;
     if !wanted() {
         return Err(NOT_WANTED.into());
     }
-    let bytes = if picture { read_picture(op, &file, thumb_memory::budget()).await? } else { op.read(&file.path).await.map_err(|(_, detail)| not_tried(detail))? };
+    let read = async { if picture { read_picture(op, &file, thumb_memory::budget()).await } else { op.read(&file.path).await.map_err(|(_, detail)| not_tried(detail)) } };
+    let bytes = unless_unwanted(op, read, &wanted).await?;
     #[cfg(test)]
     let _held = tests::Held::new(base, file.size);
     let (bytes, memory) = if picture { reserved(op, &file.path, bytes, thumb_memory::budget(), wanted).await? } else { (bytes, None) };
@@ -296,10 +298,36 @@ async fn generate(op: &Store, base: &str, file: File, wanted: impl Fn() -> bool)
 /// The files read whole by the thumbnails at the same time, by the size listed: at most 1 GiB, a
 /// larger one alone (audit 2.18). Before, every worker (one per logical processor on a disk) read
 /// its whole file at once: a folder of scans or models of 1-2 GB each put up to 32 of them in
-/// memory together. #177's budget, for the decoding, comes after it and never before.
-fn reading() -> &'static Budget {
-    static READING: std::sync::LazyLock<Budget> = std::sync::LazyLock::new(|| Budget::shared_by_reads(1 << 30));
-    &READING
+/// memory together. #177's budget, for the decoding, comes after it and never before. One for
+/// each source (`base`): a big file of a server, read alone, held back the thumbnails of the
+/// computer's folders too (audit 27/11 V.7).
+fn reading(base: &str) -> Arc<Budget> {
+    static READING: Mutex<Vec<(String, Arc<Budget>)>> = Mutex::new(Vec::new());
+    let mut all = READING.lock().unwrap();
+    if let Some((_, b)) = all.iter().find(|(b, _)| b == base) {
+        return b.clone();
+    }
+    let budget = Arc::new(Budget::shared_by_reads(1 << 30));
+    all.push((base.to_string(), budget.clone()));
+    budget
+}
+
+/// `read`, left as soon as the thumbnail is no longer wanted (`wanted`, looked at every 100 ms):
+/// a big file of a disk or a server is not read to its end for nothing (audit 27/11 V.7). Never
+/// on a phone: a read let go half way left it answering nothing (26/11; V.1).
+async fn unless_unwanted<T>(op: &Store, read: impl Future<Output = Result<T, String>>, wanted: &impl Fn() -> bool) -> Result<T, String> {
+    if matches!(op, Store::Mtp(_)) {
+        return read.await;
+    }
+    tokio::pin!(read);
+    loop {
+        tokio::select! {
+            r = &mut read => return r,
+            () = tokio::time::sleep(std::time::Duration::from_millis(100)) => if !wanted() {
+                return Err(NOT_WANTED.into());
+            },
+        }
+    }
 }
 
 /// A picture's bytes, unless it is too large for the memory (`thumb_memory::TOO_LARGE`): told
@@ -534,7 +562,7 @@ pub(super) mod tests {
         let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
         let base = "test-audit-2-18://";
         let listed = |i: u64| File { path: format!("{i}.png"), size: if i == 7 { 2 << 30 } else { 400 << 20 }, modified: i.to_string() };
-        let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(8).build().unwrap();
+        let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(8).enable_time().build().unwrap();
         let made = rt.block_on(futures_util::future::join_all((0..8).map(|i| generate(&op, base, listed(i), || true))));
         std::fs::remove_dir_all(&dir).unwrap();
         assert!(made.iter().all(Result::is_ok), "{:?}", made.iter().filter_map(|r| r.as_ref().err()).collect::<Vec<_>>());
@@ -600,9 +628,10 @@ pub(super) mod tests {
         let big = File { path: "a.png".into(), size: 2 << 30, modified: "v7-big".into() };
         let server = op.clone();
         let held = rt.spawn(async move {
+            let wait = Mutex::new(wait);
             let wanted = move || {
                 let _ = inside.send(());
-                let _ = wait.recv_timeout(Duration::from_secs(10));
+                let _ = wait.lock().unwrap().recv_timeout(Duration::from_secs(10));
                 true
             };
             generate(&server, "test-v7-server://", big, wanted).await
