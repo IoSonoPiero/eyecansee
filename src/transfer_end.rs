@@ -525,6 +525,38 @@ mod tests {
         }
     }
 
+    /// Audit F.8 of 27/11: a folder moved from a server with a name below it left out (`\` in it):
+    /// the folder stays whole by choice, so its files were copied, not moved; the message said
+    /// "2 files moved". And "not valid on this computer" also for a phone or a server as the
+    /// destination: the name cannot be used where it goes.
+    #[test]
+    fn a_folder_kept_by_a_name_left_out_is_copied_not_moved() {
+        use std::collections::HashMap;
+        use crate::audit_family_1::fake_ftp;
+        use crate::source::Store;
+        let dir = std::env::temp_dir().join(format!("eyecansee-kept-whole-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("pc")).unwrap();
+        let mut tree = fake_ftp::Tree::default();
+        tree.folder("/album", &[("a.jpg", b"a"), ("b.jpg", b"b"), ("x\\y.jpg", b"x")]);
+        let (target, tree) = fake_ftp::start(tree);
+        let from = Store::Ftp(crate::ftp::Server::shared(target));
+        let to = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let clip = crate::transfer::Clip { op: from, base: "ftp://tester@127.0.0.1/".into(), paths: vec!["album/".into()], cut: true, text: String::new() };
+        let p = crate::transfer::Progress::default();
+        let (gone, r) = tokio::runtime::Runtime::new().unwrap().block_on(crate::transfer::run(&clip, &to, "/", "pc/", &HashMap::new(), &p));
+        let copied = dir.join("pc/album/a.jpg").exists() && dir.join("pc/album/b.jpg").exists();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(r.is_ok() && gone.is_empty() && copied, "{r:?} {gone:?} copied: {copied}");
+        assert!(tree.lock().unwrap().files.contains_key("/album/a.jpg"), "the original went");
+        let en = plain(&super::transfer_notice(&crate::i18n::I18n::new("en"), true, "/pc/", &r, &p).unwrap().text);
+        assert!(!en.contains("moved to"), "said moved, its folder stayed whole: {en}");
+        assert!(en.starts_with("2 files copied to /pc/ but not moved: the originals stayed where they were.\n\n1 file not copied for its name:\n"), "{en}");
+        assert!(!en.contains("this computer"), "{en}");
+        let it = plain(&super::transfer_notice(&crate::i18n::I18n::new("it"), true, "/pc/", &r, &p).unwrap().text);
+        assert!(it.starts_with("2 file copiati in /pc/ ma non spostati: gli originali sono rimasti dov'erano.\n\n1 file non copiato per il nome:\nIl suo nome non si può usare nella destinazione: è rimasto dove era.\n"), "{it}");
+    }
+
     /// The part of a quiet copy, in English and Italian: finished, moved, cancelled, stopped.
     #[test]
     fn quiet_copy_says_what_happened() {
