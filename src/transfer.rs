@@ -250,7 +250,7 @@ async fn renames(clip: &Clip, (to, to_dir, same): (&Store, &str, bool), plan: Ve
     let mut sizes = Vec::new();
     for e in &plan {
         let size = if phone && renamed(e) && !e.0.is_empty() && !e.0.ends_with('/') { clip.op.size(&e.0).await.unwrap_or(0) } else { 0 };
-        sizes.push((renamed(e) && !(phone && through_pc::by_computer(size, &e.0, &e.1))).then_some(size));
+        sizes.push((renamed(e) && !(phone && through_pc::by_computer(size, &e.0, &e.1, None))).then_some(size));
     }
     if sizes.iter().any(Option::is_some) {
         p.files_total.store(sizes.iter().flatten().count(), Ordering::Relaxed);
@@ -645,7 +645,7 @@ async fn copy_file(from: &Store, src: &str, (to, dest, existed): (&Store, &str, 
         && std::sync::Arc::ptr_eq(a, b)
     {
         // A big one through the computer, with a bar and Cancel (`through_pc`).
-        if through_pc::by_computer(size, src, dest) {
+        if through_pc::by_computer(size, src, dest, a.alone_limit(dest)) {
             return through_pc::copy(from, src, (to, dest, existed), size, p).await;
         }
         p.by_phone.begin(name(src), size);

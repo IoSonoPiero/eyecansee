@@ -39,7 +39,10 @@ pub enum Staging {
 /// size: a move is a change of folder, done at once, and a copy is fast there (2 GB in about
 /// 20 s on a Redmi Note 9 Pro, 6 times slower through the computer; Piero, 26/11: the short wait
 /// with the phone's folders closed is better). Paths start with their storage (`"SD card/DCIM/…"`).
-pub(super) fn by_computer(size: u64, src: &str, dest: &str) -> bool {
+/// `alone`: the biggest file the phone is left to copy by itself inside the storage of `dest`
+/// (`mtp::Phone::alone_limit`), `None` for any size.
+pub(super) fn by_computer(size: u64, src: &str, dest: &str, alone: Option<u64>) -> bool {
+    let _ = alone;
     size >= BIG && storage(src) != storage(dest)
 }
 
@@ -244,12 +247,38 @@ mod tests {
     #[test]
     fn the_way_of_a_file() {
         let (card, inner) = ("SD card/DCIM/a.mp4", "Internal shared storage/Movies/a.mp4");
-        assert!(by_computer(BIG, inner, card), "big copy or move across");
-        assert!(by_computer(BIG, card, inner), "big copy or move back");
-        assert!(!by_computer(2 << 30, inner, "Internal shared storage/Download/a.mp4"), "big copy or move inside: the phone's");
-        assert!(!by_computer(BIG - 1, inner, card), "small across");
+        assert!(by_computer(BIG, inner, card, None), "big copy or move across");
+        assert!(by_computer(BIG, card, inner, None), "big copy or move back");
+        assert!(!by_computer(2 << 30, inner, "Internal shared storage/Download/a.mp4", None), "big copy or move inside: the phone's");
+        assert!(!by_computer(BIG - 1, inner, card, None), "small across");
         // A storage whose name another one starts with is another storage.
-        assert!(by_computer(BIG, "SD/a.mp4", "SD card/a.mp4"));
+        assert!(by_computer(BIG, "SD/a.mp4", "SD card/a.mp4", None));
+    }
+
+    /// #354 on Windows (prova W5, 27/11): Windows (WPD) waits about 30 s for the phone to copy a
+    /// file inside one storage, then loses track of the copy: the phone finished 6 GB by itself
+    /// and neither EyeCanSee nor File Explorer saw the file until the phone was plugged in again.
+    /// There a file the phone cannot be sure to copy in that time goes through the computer: more
+    /// than 1 GB inside the internal storage (the Redmi copies 100 MB/s there: 4 GB took 40 s),
+    /// more than 128 MB inside a memory card (16 MB/s to it). Smaller ones stay the phone's, and
+    /// on Linux, where the wait for the phone works, every size.
+    #[test]
+    fn on_windows_a_copy_the_phone_cannot_end_in_time_goes_through_the_computer() {
+        use crate::mtp::alone_limit;
+        let (inner, card) = ("Internal shared storage/Download/a.mp4", "SD card/Download/a.mp4");
+        let way = |size, src, dest: &str, wpd| by_computer(size, src, dest, alone_limit(wpd, dest.starts_with("Internal")));
+        for size in [4 << 30, 6 << 30, (1 << 30) + 1] {
+            assert!(way(size, "Internal shared storage/DCIM/a.mp4", inner, true), "Windows, {size} bytes inside the internal storage");
+            assert!(!way(size, "Internal shared storage/DCIM/a.mp4", inner, false), "Linux, {size} bytes inside the internal storage");
+        }
+        for size in [1 << 30, 512 << 20, BIG] {
+            assert!(!way(size, "Internal shared storage/DCIM/a.mp4", inner, true), "Windows, {size} bytes inside the internal storage: the phone's");
+        }
+        assert!(way(512 << 20, "SD card/DCIM/a.mp4", card, true), "Windows, 512 MB inside the card");
+        assert!(!way(128 << 20, "SD card/DCIM/a.mp4", card, true), "Windows, 128 MB inside the card: the phone's");
+        assert!(!way(512 << 20, "SD card/DCIM/a.mp4", card, false), "Linux, inside the card");
+        // Between the storages nothing changes: big ones through the computer everywhere.
+        assert!(way(BIG, inner, card, true) && way(BIG, inner, card, false) && !way(BIG - 1, inner, card, true));
     }
 
     #[test]
@@ -382,7 +411,7 @@ mod tests {
             let run = async {
                 live_copy(&phone, "copy to the card", &big, &copied, size).await?;
                 live_copy(&phone, "copy inside the first storage", &big, &here, size).await?;
-                assert!(by_computer(size, &here, &moved), "a move across goes through the computer");
+                assert!(by_computer(size, &here, &moved, None), "a move across goes through the computer");
                 live_copy(&phone, "move to the card", &here, &moved, size).await?;
                 step("delete the original of the move", phone.delete(&here, crate::source::Deletion::Permanent)).await?;
                 let left = phone.exists(&here).await;
@@ -415,7 +444,7 @@ mod tests {
             phone.list("").await.unwrap();
             let size = phone.size(&big).await.unwrap();
             let copy = format!("{}EyeCanSee-big-inside.mp4", crate::source::parent(&big));
-            assert!(!by_computer(size, &big, &copy), "inside one storage: the phone's");
+            assert!(!by_computer(size, &big, &copy, None), "inside one storage: the phone's");
             let p = Progress::default();
             let r = async {
                 step("copy inside, by the phone", async { super::super::copy_file(&phone, &big, (&phone, &copy, Some(false)), size, &p).await.map_err(|(Fail::Stop(e) | Fail::Source(e))| e) }).await?;

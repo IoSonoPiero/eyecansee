@@ -33,6 +33,7 @@ pub(crate) mod turn;
 mod undo;
 mod wait;
 pub use across::{leave, leaving, stay};
+pub(crate) use across::alone_limit;
 pub use events::{Change, on_change, take_changes};
 
 /// Device storages with the name shown as a folder.

@@ -89,6 +89,13 @@ pub(super) fn kept_quiet(e: Error, quiet: Option<Quiet<'_>>) -> Error {
     e
 }
 
+/// The biggest file a phone is left to copy by itself inside one storage; `None`: any size.
+/// `wpd`: through Windows (WPD); `first`: inside its first storage, the internal one.
+pub(crate) fn alone_limit(wpd: bool, first: bool) -> Option<u64> {
+    let _ = (wpd, first);
+    None
+}
+
 /// Whether the item looked for is where the phone puts it: `name` with `size` bytes among `found`.
 fn arrived(found: &[(String, u64, ObjectHandle)], name: &str, size: u64) -> Option<ObjectHandle> {
     found.iter().find(|(n, s, _)| n == name && *s == size).map(|(_, _, h)| *h)
@@ -121,6 +128,12 @@ impl Drop for Quiet<'_> {
 }
 
 impl Phone {
+    /// `alone_limit` for the storage of `path` of this phone.
+    pub fn alone_limit(&self, path: &str) -> Option<u64> {
+        let first = self.open.get().and_then(|(_, storages)| storages.first()).is_some_and(|(name, _)| path.split('/').next() == Some(name));
+        alone_limit(cfg!(windows), first)
+    }
+
     /// Stops the phone's events until the guard is dropped (`Quiet`).
     pub(super) fn quiet(&self) -> Quiet<'_> {
         if let Some(stop) = self._events.lock().unwrap().take() {
