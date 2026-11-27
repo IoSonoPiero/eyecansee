@@ -103,6 +103,7 @@ impl App {
             Note::Cancelled { others: 0 } => t("phone-copy-cancelled-note"),
             Note::Cancelled { others } => format!("{} {}", t("phone-copy-cancelled-note"), self.i18n.t_args("phone-copy-others", &[("n", &others.to_string())])),
             Note::Left => t("phone-copy-leaving-note"),
+            Note::ThroughPc => t("phone-copy-through-pc"),
         };
         Shown {
             title: t("phone-copy-title"),

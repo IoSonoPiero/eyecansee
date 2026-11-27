@@ -89,11 +89,24 @@ pub(super) fn kept_quiet(e: Error, quiet: Option<Quiet<'_>>) -> Error {
     e
 }
 
+/// The biggest file a phone is left to copy by itself inside its internal storage through
+/// Windows, and inside another one (a memory card): what it copies in about 10 s, a third of the
+/// 30 s Windows waits, at the speeds seen on a Redmi Note 9 Pro (100 MB/s inside the internal
+/// storage: 2 GB in 20 s, 4 GB in 40 s; 16 MB/s to its card, half of it assumed inside the card).
+const WPD_INNER: u64 = 1 << 30;
+const WPD_CARD: u64 = 128 << 20;
+
 /// The biggest file a phone is left to copy by itself inside one storage; `None`: any size.
-/// `wpd`: through Windows (WPD); `first`: inside its first storage, the internal one.
+/// `wpd`: through Windows (WPD); `first`: inside its first storage, the internal one. Windows
+/// stops waiting for the phone's copy after about 30 s, and from then on shows nothing of what
+/// the phone made until the phone is plugged in again: its driver answers the listings from what
+/// it knows, and learns of an object only from the answer it no longer waits for (the phone sends
+/// no event for a copy it was asked for). So nothing can be done with the copy, not even seeing
+/// it (#354, prova W5, 27/11: 6 GB whole on the phone, in no listing, File Explorer's neither). A
+/// bigger file goes through the computer (`transfer::through_pc`). Through USB (Linux) mtp-rs
+/// gives the call up at 30 s too, but the listing is the phone's own: the wait works at any size.
 pub(crate) fn alone_limit(wpd: bool, first: bool) -> Option<u64> {
-    let _ = (wpd, first);
-    None
+    wpd.then_some(if first { WPD_INNER } else { WPD_CARD })
 }
 
 /// Whether the item looked for is where the phone puts it: `name` with `size` bytes among `found`.

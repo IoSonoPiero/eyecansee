@@ -185,6 +185,9 @@ pub enum Note {
     Cancelled { others: usize },
     /// "Stop waiting" pressed too: what the phone makes of the file stays.
     Left,
+    /// The file under way goes through this computer (a big one, `through_pc`): the phone is
+    /// not copying alone, the bar is real, and Cancel stops as in the copy box.
+    ThroughPc,
 }
 
 /// What the window shows for a `Seen`; the UI gives it its words and its place. With one file
@@ -234,7 +237,9 @@ pub fn view(s: &Seen) -> View {
         (true, false) => Leave::Offered,
         (true, true) => Leave::Asked,
     };
-    let note = if leave == Leave::Asked {
+    let note = if s.through_pc {
+        Note::ThroughPc
+    } else if leave == Leave::Asked {
         Note::Left
     } else if s.cancelling {
         Note::Cancelled { others: s.files_total.saturating_sub(n) }
@@ -397,7 +402,8 @@ mod tests {
     fn a_file_through_the_computer() {
         let s = Seen { through_pc: true, current: "other.mkv".into(), file: Some(("big.mp4".into(), 2 * GB, LONG_SECS + 5)), ..seen(1, 2, GB, 4 * GB) };
         let v = view(&s);
-        assert_eq!((v.name.as_str(), v.file, v.bar, v.note), ("other.mkv", None, Bar::Part { part: 0.25, busy: false }, Note::Waiting));
+        assert_eq!((v.name.as_str(), v.file, v.bar, v.note), ("other.mkv", None, Bar::Part { part: 0.25, busy: false }, Note::ThroughPc));
+        assert_eq!(view(&Seen { cancelling: true, ..s }).note, Note::ThroughPc, "Cancel there is the copy box's: said by its line");
     }
 
     /// Before the phone is given its first file (folders made first): the name of the paste's file.

@@ -195,6 +195,7 @@ phone-copy-cancelled = Annullata
 phone-copy-leave = Smetti di aspettare
 phone-copy-leave-tip = EyeCanSee smette di aspettare il telefono. Il telefono può finire questo file da solo: in quel caso la copia resta sul telefono.
 phone-copy-leaving = Smetto di aspettare…
+phone-copy-through-pc = Questo file è grande e passa da questo computer: la barra è vera. Annulla ferma subito la lettura; la scrittura si ferma a file finito.
 phone-copy-leaving-note = EyeCanSee smette di aspettare. Se il telefono finisce questo file da solo, la copia resta sul telefono.
 phone-copy-cancelled-note = Il telefono finisce questo file, poi EyeCanSee toglie la copia appena fatta.
 phone-copy-others = { $n ->

@@ -5,7 +5,8 @@
 //! 26/11). This way every byte is counted, both ways, and Cancel stops the reading at once.
 //! Slower: 512 MB to the SD card of a Redmi Note 9 Pro 47 s instead of about 28. Inside one
 //! storage it was 6 times slower (32 s instead of about 5), so there the phone keeps it
-//! (`by_computer`; measured 26/11).
+//! (`by_computer`; measured 26/11), except on Windows the files it cannot be sure to copy before
+//! Windows stops waiting for it (`mtp::alone_limit`, #354).
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -40,10 +41,14 @@ pub enum Staging {
 /// 20 s on a Redmi Note 9 Pro, 6 times slower through the computer; Piero, 26/11: the short wait
 /// with the phone's folders closed is better). Paths start with their storage (`"SD card/DCIM/…"`).
 /// `alone`: the biggest file the phone is left to copy by itself inside the storage of `dest`
-/// (`mtp::Phone::alone_limit`), `None` for any size.
+/// (`mtp::Phone::alone_limit`), `None` for any size. On Windows there is one: a copy longer than
+/// Windows waits is lost to it (#354), so a bigger file goes through the computer there too.
+/// A move inside one storage is asked with `None`: it copies nothing.
 pub(super) fn by_computer(size: u64, src: &str, dest: &str, alone: Option<u64>) -> bool {
-    let _ = alone;
-    size >= BIG && storage(src) != storage(dest)
+    match storage(src) == storage(dest) {
+        true => alone.is_some_and(|most| size > most),
+        false => size >= BIG,
+    }
 }
 
 /// The storage a path of a phone is on: its first name (`"SD card"` of `"SD card/DCIM/a.jpg"`).
