@@ -9,7 +9,7 @@ I modelli 3D compaiono nella griglia insieme alle foto, con un'immagine del mode
 - **STL**, **3MF** e **AMF** (stampa 3D), **OBJ** (con i colori dei suoi materiali, dal file `.mtl` accanto), **PLY** (anche scansioni 3D; le nuvole di punti si vedono a puntini).
 - **glTF** (`.glb`, e `.gltf` con i suoi file), **FBX**, **Collada** (`.dae`, `.zae`), **3DS**, **OFF**, **VRML** e **X3D**.
 - **IFC**: modelli di edifici (muri, solai, finestre, strutture) nei loro colori.
-- **STEP**, **IGES** e **BREP**, i modelli solidi dei programmi CAD meccanici. Hanno bisogno del motore CAD, da scaricare una volta sola: lo propone il primo che apri, e anche il pulsante rosso **Scarica il motore CAD** nella barra dei menù. Fino ad allora la loro miniatura è un cubo ![Modello CAD](icon://color-model) con una freccia di scaricamento. Vedi [Componenti aggiuntivi](components.md).
+- **STEP**, **IGES** e **BREP**, i modelli solidi dei programmi CAD meccanici. Hanno bisogno del motore CAD, da scaricare una volta sola: lo propone il primo che apri, e anche il pulsante rosso **Scarica il motore CAD** nella barra dei menu. Fino ad allora la loro miniatura è un cubo ![Modello CAD](icon://color-model) con una freccia di scaricamento. Vedi [Componenti aggiuntivi](components.md).
 
 Un `.gltf` senza accanto il suo file dei dati (di solito `.bin`) non si apre: il visore dice quale file manca. EyeCanSee legge quel file solo dalla cartella del modello o da una cartella al suo interno: quando il modello lo cerca in una cartella sopra, in un percorso completo o su internet, il visore lo dice e nomina il file. Non si apre nemmeno un modello con i dati interni al file rovinati, o un `.glb` senza il suo blocco di dati, e il visore dice quale dei due casi è. Un `.glb` tagliato, come dopo uno scaricamento o una copia interrotti, non si apre: il visore dice che il file è incompleto e, quando il file dice quanto dovrebbe essere grande, indica quella dimensione e quella che ha davvero.
 
@@ -67,7 +67,7 @@ Senza una scheda video che EyeCanSee possa usare, il modello lo disegna il proce
 
 ## Salvare
 
-- **Ctrl + Maiusc + S**, o **Salva come…** nel menù File o nel menù del clic destro del visore, salva il modello come si vede, come immagine, di almeno 1920 pixel sul lato lungo. Vedi [Salva come](save-as.md).
+- **Ctrl + Maiusc + S**, o **Salva come…** nel menu File o nel menu del clic destro del visore, salva il modello come si vede, come immagine, di almeno 1920 pixel sul lato lungo. Vedi [Salva come](save-as.md).
 - **Esporta come modello 3D…** lo salva in un altro formato 3D. Vedi [Esportare i modelli 3D](model-export.md).
 
-Le rotazioni e i ribaltamenti del menù Immagine non valgono per i modelli: un modello si gira col mouse e con le frecce.
+Le rotazioni e i ribaltamenti del menu Immagine non valgono per i modelli: un modello si gira col mouse e con le frecce.

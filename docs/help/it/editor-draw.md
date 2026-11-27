@@ -35,6 +35,6 @@ Trascina un angolo della forma selezionata per ridimensionarla; l'angolo opposto
 ## Tasti
 
 - **I**: contagocce. **Alt + clic**: prende un colore e lo strumento resta.
-- **Canc**: elimina la forma selezionata. **Esc**: la lascia.
+- **Canc**: elimina la forma selezionata. **Esc**: toglie la selezione.
 
 Vedi anche [Colori, linee e contagocce](editor-colors.md).

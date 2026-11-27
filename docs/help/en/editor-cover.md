@@ -27,4 +27,4 @@ A part cut with **Ctrl + X** in [Selecting an area](editor-marquee.md) is covere
 ## Keys
 
 - **I**: eyedropper. **Alt + click**: take a colour and keep the tool.
-- **Del**: delete the selected box. **Esc**: let go of it.
+- **Del**: delete the selected box. **Esc**: deselect it.

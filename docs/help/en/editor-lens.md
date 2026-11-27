@@ -37,4 +37,4 @@ Drag a corner of the selected lens or spotlight to resize it. Hold Shift to keep
 
 ## Keys
 
-- **Del**: delete the selected object. **Esc**: let go of it.
+- **Del**: delete the selected object. **Esc**: deselect it.

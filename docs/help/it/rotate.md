@@ -4,7 +4,7 @@ Una foto scattata di traverso si può raddrizzare, e un'immagine si può riflett
 
 ## I comandi
 
-Sono nel menù **Immagine**, e nel menù del clic destro sotto **Trasforma**:
+Sono nel menu **Immagine**, e nel menu del clic destro sotto **Trasforma**:
 
 - ![Rifletti orizzontalmente](icon://square-split-horizontal) **Rifletti orizzontalmente** e ![Rifletti verticalmente](icon://square-split-vertical) **Rifletti verticalmente**;
 - **Ruota di 90° in senso orario** (**Ctrl + R**), ![Ruota di 90° in senso orario](icon://rotate-cw-square) nella barra strumenti;
@@ -24,13 +24,13 @@ Se lasci la foto senza salvare (un'altra foto, ritorno alla griglia, un segnalib
 
 ## Nella griglia
 
-Seleziona una o più foto e scegli una rotazione o una riflessione dal menù **Immagine**, dalla barra strumenti o dal menù del clic destro, oppure premi **Ctrl + R** o **Ctrl + Maiusc + R**. Una finestra dice quante foto verranno salvate sopra gli originali e dove vanno gli originali; **Salva** lo fa, **Annulla** (o **Esc**) non fa niente. Qui **Invio** non conferma, così non si sovrascrivono tante foto per sbaglio. Poi le miniature vengono rifatte, e un messaggio con il titolo di ciò che è stato fatto (per esempio **Immagini ruotate**) dice quante foto sono state salvate. Se alcune sono state saltate, le nomina: le prime dieci, poi quante altre; ![Copia il messaggio](icon://copy) copia il messaggio con tutti i nomi.
+Seleziona una o più foto e scegli una rotazione o una riflessione dal menu **Immagine**, dalla barra strumenti o dal menu del clic destro, oppure premi **Ctrl + R** o **Ctrl + Maiusc + R**. Una finestra dice quante foto verranno salvate sopra gli originali e dove vanno gli originali; **Salva** lo fa, **Annulla** (o **Esc**) non fa niente. Qui **Invio** non conferma, così non si sovrascrivono tante foto per sbaglio. Poi le miniature vengono rifatte, e un messaggio con il titolo di ciò che è stato fatto (per esempio **Immagini ruotate**) dice quante foto sono state salvate. Se alcune sono state saltate, le nomina: le prime dieci, poi quante altre; ![Copia il messaggio](icon://copy) copia il messaggio con tutti i nomi.
 
 Le foto in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) vengono escluse, e la finestra dice quante sono. Vengono saltati anche i file animati, quelli con più pagine e le foto con una mappa di profondità (i ritratti di alcuni telefoni), perché salvandoci sopra quelle parti andrebbero perse; le foto in movimento dei telefoni vengono ruotate insieme al loro video, e le foto Ultra HDR insieme al loro HDR. Quando l'unica foto scelta non si può salvare sopra sé stessa, la finestra spiega perché e propone **Salva come…**, già ruotata.
 
 ## Video
 
-Un video si ruota come una foto, nel visore o nella griglia, e si salva sopra l'originale allo stesso modo, con l'originale nel cestino. Nel visore gira subito, e **Ctrl + Z** e **Ctrl + Y** annullano e rifanno una rotazione non ancora salvata, come per una foto. Una volta salvato, resta dov'era: allo stesso tempo, in pausa o in riproduzione come prima. Non viene ricodificato: cambia solo la rotazione che leggono i lettori, quindi bastano pochi secondi, non si perde niente e i metadati restano. Funziona su MP4, MOV, MKV e WebM, e richiede FFmpeg (vedi [Convertire i video](convert-video.md)): se EyeCanSee non ne ha uno da usare, propone di scaricarlo quando salvi. Un video non si può riflettere così: per rifletterlo usa **Converti…**. Sugli altri video (AVI, MPEG…) rotazioni e riflessioni sono grigie (nel menù del clic destro, tutto il sottomenù **Trasforma**): per rifletterli o ruotarli usa **Converti…**. **Ruota e ritaglia…** e **Modifica immagine…** lavorano solo sulle immagini: su un video anche queste due voci sono grigie, e passandoci sopra col mouse si legge perché.
+Un video si ruota come una foto, nel visore o nella griglia, e si salva sopra l'originale allo stesso modo, con l'originale nel cestino. Nel visore gira subito, e **Ctrl + Z** e **Ctrl + Y** annullano e rifanno una rotazione non ancora salvata, come per una foto. Una volta salvato, resta dov'era: allo stesso tempo, in pausa o in riproduzione come prima. Non viene ricodificato: cambia solo la rotazione che leggono i lettori, quindi bastano pochi secondi, non si perde niente e i metadati restano. Funziona su MP4, MOV, MKV e WebM, e richiede FFmpeg (vedi [Convertire i video](convert-video.md)): se EyeCanSee non ne ha uno da usare, propone di scaricarlo quando salvi. Un video non si può riflettere così: per rifletterlo usa **Converti…**. Sugli altri video (AVI, MPEG…) rotazioni e riflessioni sono grigie (nel menu del clic destro, tutto il sottomenu **Trasforma**): per rifletterli o ruotarli usa **Converti…**. **Ruota e ritaglia…** e **Modifica immagine…** lavorano solo sulle immagini: su un video anche queste due voci sono grigie, e passandoci sopra col mouse si legge perché.
 
 ## Salvare sopra l'originale
 

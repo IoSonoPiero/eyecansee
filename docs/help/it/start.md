@@ -6,7 +6,7 @@ EyeCanSee mostra le foto, i video, i modelli 3D e i disegni CAD di una cartella 
 
 ![Per cominciare](../img/start.webp)
 
-- **Barra dei menù** in alto: File, Modifica, Immagine, Visualizza, Segnalibri, Strumenti e Aiuto. Passando col mouse su una voce grigia compare il motivo per cui ora non si può usare.
+- **Barra dei menu** in alto: File, Modifica, Immagine, Visualizza, Segnalibri, Strumenti e Aiuto. Passando col mouse su una voce grigia compare il motivo per cui ora non si può usare.
 - **Barra strumenti** subito sotto: i pulsanti delle operazioni più comuni, i segnalibri e la barra degli indirizzi. Passando col mouse su un pulsante compaiono il suo nome e il suo tasto; su un pulsante grigio, anche il motivo per cui ora non si può usare.
 - **Pannello laterale** a sinistra: i tuoi dischi, i telefoni, i server salvati e le cartelle di questo computer. Vedi [Cartelle e pannello laterale](folders.md).
 - **Griglia** al centro: le sottocartelle e i file della cartella aperta, come miniature. Vedi [La griglia delle miniature](grid.md).
@@ -29,9 +29,9 @@ Fai doppio clic su una miniatura, oppure selezionala e premi **Invio**: la foto 
 
 ## Menù, pulsanti e tasti
 
-- Il **clic destro** su qualunque cosa (una miniatura, una cartella, uno spazio vuoto della griglia, la foto nel visore) apre un menù con quello che puoi farci.
-- Ogni azione ha una voce di menù, con il tasto scritto accanto. L'elenco di tutti i tasti è in [Scorciatoie da tastiera](keyboard.md).
-- Quando la finestra è stretta, i pulsanti della barra strumenti che non ci stanno passano nel menù ![Altre operazioni](icon://ellipsis) **Altre operazioni**: prima quelli dell'immagine e degli strumenti, poi le operazioni sui file, il pulsante dei metadati, la stella dei segnalibri e Aggiorna. La barra degli indirizzi resta sempre in vista, e i menù e la barra di stato vanno a capo su più righe invece di essere tagliati.
+- Il **clic destro** su qualunque cosa (una miniatura, una cartella, uno spazio vuoto della griglia, la foto nel visore) apre un menu con quello che puoi farci.
+- Ogni azione ha una voce di menu, con il tasto scritto accanto. L'elenco di tutti i tasti è in [Scorciatoie da tastiera](keyboard.md).
+- Quando la finestra è stretta, i pulsanti della barra strumenti che non ci stanno passano nel menu ![Altre operazioni](icon://ellipsis) **Altre operazioni**: prima quelli dell'immagine e degli strumenti, poi le operazioni sui file, il pulsante dei metadati, la stella dei segnalibri e Aggiorna. La barra degli indirizzi resta sempre in vista, e i menu e la barra di stato vanno a capo su più righe invece di essere tagliati.
 - Ogni cursore ha delle tacche sotto: una per ogni passo su cui si ferma, oppure una per ogni valore tondo. Il suo valore è scritto accanto o prima.
 - **F11**, oppure **Visualizza > Schermo intero**, mette la finestra a schermo intero e la riporta com'era.
 

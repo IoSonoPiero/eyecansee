@@ -35,7 +35,7 @@ Folders always come first, by name. Names are sorted ignoring upper and lower ca
 
 **View > Show** (also in the right-click menu on an empty space in the grid) chooses what the grid shows:
 
-- **Images, videos and audio** (at first): everything.
+- **Images, videos and audio** (the default): everything.
 - **Images only**: pictures, 3D models and CAD drawings, without videos and audio.
 - **Videos only** or **Audio only**.
 

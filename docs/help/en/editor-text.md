@@ -57,6 +57,6 @@ A click on an existing step selects it. A click anywhere else on the image, even
 
 - **I**: eyedropper. **Alt + click**: take a colour and keep the tool.
 - **Del**: delete the selected object (outside the text field).
-- **Esc**: end the text being typed, or let go of the object.
+- **Esc**: end the text being typed, or deselect the object.
 
 See also [Colours, lines and the eyedropper](editor-colors.md).

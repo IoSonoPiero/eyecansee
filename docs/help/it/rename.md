@@ -5,7 +5,7 @@ Dà un nome nuovo a un file o a una cartella, e crea cartelle nuove: sul compute
 ## Rinominare
 
 1. Seleziona il file o la cartella nella griglia, oppure apri l'immagine nel visore.
-2. Premi **F2**, oppure fai clic su ![Rinomina…](icon://text-cursor-input) nella barra strumenti, oppure scegli **File > Rinomina…**, oppure fai clic destro e scegli **Rinomina…**. Una cartella dell'albero a sinistra si rinomina dal suo menù del clic destro.
+2. Premi **F2**, oppure fai clic su ![Rinomina…](icon://text-cursor-input) nella barra strumenti, oppure scegli **File > Rinomina…**, oppure fai clic destro e scegli **Rinomina…**. Una cartella dell'albero a sinistra si rinomina dal suo menu del clic destro.
 3. Si apre la finestra **Nuovo nome** con il nome vecchio, selezionato senza l'estensione, così puoi scrivere subito quello nuovo.
 4. Premi **Invio** o fai clic su **Rinomina**. **Esc** o **Annulla** lasciano tutto com'era.
 
@@ -14,7 +14,7 @@ EyeCanSee controlla il nome mentre scrivi: non può essere vuoto, contenere `/` 
 ## Da sapere per rinominare
 
 - Rinomina lavora su un elemento alla volta: con più elementi selezionati è spento, e passando sopra il pulsante si legge il perché.
-- Il file `.xmp` di una foto (vedi [Informazioni sul file](metadata.md)) si rinomina con lei, con lo stesso schema: "IMG_0001.CR2.xmp" o "IMG_0001.xmp" diventano "Mare.CR2.xmp" o "Mare.xmp". Se un altro file ha già il nome che prenderebbe il file `.xmp`, non si rinomina niente e il messaggio dice quale file.
+- Il file `.xmp` di una foto (vedi [Informazioni sul file](metadata.md)) si rinomina insieme alla foto, con lo stesso schema: "IMG_0001.CR2.xmp" o "IMG_0001.xmp" diventano "Mare.CR2.xmp" o "Mare.xmp". Se un altro file ha già il nome che prenderebbe il file `.xmp`, non si rinomina niente e il messaggio dice quale file.
 - Non si possono rinominare la cartella principale di un disco, di un telefono o di un server, le memorie di un telefono e gli elementi dentro un cestino.
 - Su un server l'elemento lo rinomina il server stesso, anche una cartella, quindi è veloce.
 

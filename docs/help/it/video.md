@@ -16,7 +16,7 @@ Fai doppio clic su un video, oppure selezionalo e premi **Invio**: si apre nel v
 
 ## Salvare un fotogramma come immagine
 
-**Ctrl + Maiusc + S**, ![Salva il fotogramma come…](icon://file-output) **Salva il fotogramma come…** nella barra strumenti, o la stessa voce nel menù File e nel menù del clic destro, mettono in pausa il video e aprono [Salva come](save-as.md) con il fotogramma mostrato, alle dimensioni del video e ruotato come lo vedi. Lì scegli formato, opzioni e nome; il nome proposto è quello del video con il tempo del fotogramma (per esempio `clip 1m02s345.jpg`). Dopo il salvataggio il visore resta sul video, in pausa.
+**Ctrl + Maiusc + S**, ![Salva il fotogramma come…](icon://file-output) **Salva il fotogramma come…** nella barra strumenti, o la stessa voce nel menu File e nel menu del clic destro, mettono in pausa il video e aprono [Salva come](save-as.md) con il fotogramma mostrato, alle dimensioni del video e ruotato come lo vedi. Lì scegli formato, opzioni e nome; il nome proposto è quello del video con il tempo del fotogramma (per esempio `clip 1m02s345.jpg`). Dopo il salvataggio il visore resta sul video, in pausa.
 
 Con **Metadati** su **Tutti** l'immagine tiene ciò che il video dice di sé: la fotocamera, la data e l'ora di quel fotogramma e il luogo (la traccia della dashcam in quel momento, la posizione scritta nel video o il punto di partenza di un drone). **Tutti tranne il luogo** lascia fuori il luogo.
 
@@ -48,7 +48,7 @@ I file audio (per esempio MP3, M4A, FLAC, Opus) compaiono nella griglia con la l
 
 ## Il motore video
 
-I video li riproduce mpv. Quando EyeCanSee ha bisogno di una copia sua (di solito su Windows; su Linux quando il sistema non ce l'ha, ne ha una troppo vecchia o una che non sa riprodurre H.264 e HEVC, i formati in cui registrano i telefoni), il visore propone di scaricarla la prima volta che apri un video, e in alto a destra nella barra dei menù compare il pulsante rosso **Scarica il motore video** appena la cartella aperta contiene un video o un file audio. Si scarica una volta sola. Vedi [Componenti aggiuntivi](components.md).
+I video li riproduce mpv. Quando EyeCanSee ha bisogno di una copia sua (di solito su Windows; su Linux quando il sistema non ce l'ha, ne ha una troppo vecchia o una che non sa riprodurre H.264 e HEVC, i formati in cui registrano i telefoni), il visore propone di scaricarla la prima volta che apri un video, e in alto a destra nella barra dei menu compare il pulsante rosso **Scarica il motore video** appena la cartella aperta contiene un video o un file audio. Si scarica una volta sola. Vedi [Componenti aggiuntivi](components.md).
 
 Fino ad allora la miniatura di un video è l'anteprima salvata dalla videocamera, quando c'è, oppure il simbolo del video con ![Download](icon://color-download).
 

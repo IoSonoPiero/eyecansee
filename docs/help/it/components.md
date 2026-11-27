@@ -14,9 +14,9 @@ Su Linux EyeCanSee usa libmpv e FFmpeg del sistema quando sono abbastanza recent
 
 ## Scaricarne uno
 
-- **Motore video**: in alto a destra nella barra dei menù compare il pulsante rosso **Scarica il motore video**, con il suo peso; lo propone anche il visore, la prima volta che apri un video. Fino ad allora, nella griglia, i video e i file audio mostrano il loro simbolo (il pulsante play, una nota) con una freccia di scaricamento. Dopo lo scaricamento, di solito i video partono subito; se il motore non riesce ad avviarsi, il pulsante diventa **Riavvia EyeCanSee**.
+- **Motore video**: in alto a destra nella barra dei menu compare il pulsante rosso **Scarica il motore video**, con il suo peso; lo propone anche il visore, la prima volta che apri un video. Fino ad allora, nella griglia, i video e i file audio mostrano il loro simbolo (il pulsante play, una nota) con una freccia di scaricamento. Dopo lo scaricamento, di solito i video partono subito; se il motore non riesce ad avviarsi, il pulsante diventa **Riavvia EyeCanSee**.
 - **FFmpeg**: la finestra Converti mostra **Scarica FFmpeg**, con il suo peso, e una barra mentre scarica (vedi [Convertire i video](convert-video.md)).
-- **Motore CAD**: in alto a destra nella barra dei menù compare il pulsante rosso **Scarica il motore CAD**, con il suo peso. Fino ad allora quei modelli mostrano un cubo con una freccia di scaricamento, e da un telefono o da un server non viene letto niente per fare la loro miniatura. Appena è scaricato, le miniature e il modello aperto nel visore compaiono da soli.
+- **Motore CAD**: in alto a destra nella barra dei menu compare il pulsante rosso **Scarica il motore CAD**, con il suo peso. Fino ad allora quei modelli mostrano un cubo con una freccia di scaricamento, e da un telefono o da un server non viene letto niente per fare la loro miniatura. Appena è scaricato, le miniature e il modello aperto nel visore compaiono da soli.
 
 Passando sopra un pulsante rosso si legge che cos'è il componente e quanto pesa.
 

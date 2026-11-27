@@ -73,7 +73,7 @@ Good to know:
 ![Resize](icon://scaling) **Resize** (**Ctrl + Alt + I**) changes the size of the image, for example to make a marked-up screenshot smaller for a document.
 
 1. Click ![Resize](icon://scaling) **Resize**. The window shows the size of the result now.
-2. Type the new width or height, in **pixels** or in **percent** of the size now. With **Keep the proportions** on (as it starts), the other side follows.
+2. Type the new width or height, in **pixels** or in **percent** of the size now. With **Keep the proportions** on (the default), the other side follows.
 3. Choose the **Filter**, if you like: Lanczos (the sharpest) to make it smaller, Catmull-Rom to make it larger, unless you choose another one. **Nearest pixel** keeps the hard edges of pixel art.
 4. Click **Resize** (or press Enter).
 
@@ -101,7 +101,7 @@ The **Keys** button in the status bar lists the keys and mouse moves of the tool
 - **Ctrl + C** (or ![Copy](icon://copy) **Copy**) puts the whole result, at full size, on the clipboard, to paste in another program. With Selection it copies only the chosen part.
 - **Ctrl + R** and **Ctrl + Shift + R** turn the image a quarter turn to the right or left.
 - **Ctrl + Alt + I** opens Resize.
-- **Esc** does one thing at a time: it stops the eyedropper or a drag (what the drag did goes back: the object where it was, the view as it was; what was done before it stays), ends the text being typed, lets go of the selected area or object. When there is nothing left to stop, it closes the page.
+- **Esc** does one thing at a time: it stops the eyedropper or a drag (what the drag did goes back: the object where it was, the view as it was; what was done before it stays), ends the text being typed, deselects the area or the object. When there is nothing left to stop, it closes the page.
 
 ## Closing
 

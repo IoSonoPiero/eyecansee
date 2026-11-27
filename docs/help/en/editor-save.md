@@ -1,6 +1,6 @@
 # Saving an edited image
 
-The editor never changes the original unless you ask. The main button, **Save copy**, writes a new file next to it. In the [Options](options.md), **Editor** tab, you can make **Overwrite the original…** the main button instead, and have the editor close after saving.
+The editor never changes the original unless you ask. The main button, **Save copy**, writes a new file next to it. In **Tools > Options… > Editor** (see [Options](options.md)) you can make **Overwrite the original…** the main button instead, and have the editor close after saving.
 
 ## Save copy
 
@@ -9,11 +9,11 @@ The editor never changes the original unless you ask. The main button, **Save co
 - Its name is the original's with "(edited)", for example `beach (edited).jpg`; "(edited 2)" when that name is taken.
 - Its format is the original's when EyeCanSee can write that format (JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI). Otherwise it is a PNG when the image has transparency or comes from an OpenEXR or Radiance HDR file, and a JPEG in the other cases (a HEIC, a RAW or a PSD, for example).
 - Before writing, a window shows the copy's name and what it loses, if anything: encoded again with a little loss, 8 bits per colour instead of more, what is brighter than white, the video of a motion photo, a depth map, the EXIF, XMP or IPTC too large for a JPEG. **Save** writes it; **Cancel** goes back.
-- In the same window, **Metadata** chooses what the copy keeps of the original's metadata: **All** at first, **All but the place** (no GPS position, no city, state or country: for a photo to share) or **None** (only the colour profile), as in [Save as](save-as.md). The page remembers the choice for its next saves, Overwrite included, until it is closed. A copy without all the metadata is always encoded again, even when the image is only turned; an **Ultra HDR** photo stays HDR when saved without the place, but not with **None**: the window says so. If the image has a cover box and the photo records the place where it was taken, a yellow line under **All** says so.
+- In the same window, **Metadata** chooses what the copy keeps of the original's metadata: **All** (the default), **All but the place** (no GPS position, no city, state or country: for a photo to share) or **None** (only the colour profile), as in [Save as](save-as.md). The page remembers the choice for its next saves, Overwrite included, until it is closed. A copy without all the metadata is always encoded again, even when the image is only turned; an **Ultra HDR** photo stays HDR when saved without the place, but not with **None**: the window says so. If the image has a cover box and the photo records the place where it was taken, a yellow line under **All** says so.
 
 The original stays as it is. The page stays open, so you can go on; meanwhile the viewer behind it, and the window's title, stay on the image you are editing. When you close it, the grid selects the file saved last and the viewer shows it: the copy, or the original if you overwrote it after the copy.
 
-In the Options, **After saving** can close the page as soon as the file is written (at first **Stay in the editor**). With **Go back to where you were** the grid selects the copy if you opened the editor from the grid, the viewer shows it if you opened it from the viewer; with **Go back to the thumbnails** you are always back in the thumbnails with the copy selected. This goes for **Update copy** and **Overwrite the original…** too. A save that fails leaves the page open, as below.
+In the Options, **After saving** can close the page as soon as the file is written (**Stay in the editor** by default). With **Go back to where you were** the grid selects the copy if you opened the editor from the grid, the viewer shows it if you opened it from the viewer; with **Go back to the thumbnails** you are always back in the thumbnails with the copy selected. This goes for **Update copy** and **Overwrite the original…** too. A save that fails leaves the page open, as below.
 
 If a save fails, a message with a warning triangle at the bottom of the window says why in plain words (for example that the folder is read-only or the disk is full), and the page stays open with your changes. Nothing half-written is left in the folder: a new copy that does not fit is removed, and a copy being updated stays as it was. The message goes away when you close the page, or earlier with its ✕.
 
@@ -36,7 +36,7 @@ Overwrite is off for a new image, for a format EyeCanSee does not write back (HE
 
 ## The main save button
 
-In **Tools > Options…**, **Editor** tab, **Main save button (also Ctrl + S)** is **Save copy** (the default) or **Overwrite the original**. With Overwrite the original:
+In **Tools > Options… > Editor**, **Main save button (also Ctrl + S)** is **Save copy** (the default) or **Overwrite the original**. With Overwrite the original:
 
 - the main button is **Overwrite…** (pointing at it shows the whole name, Overwrite the original…), and **Ctrl + S** overwrites, after the same question;
 - **Save copy** (or **Update copy**) is in the arrow's menu, with Save as…;

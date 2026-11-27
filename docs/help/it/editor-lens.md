@@ -37,4 +37,4 @@ Trascina un angolo della lente o del riflettore selezionati per ridimensionarli.
 
 ## Tasti
 
-- **Canc**: elimina l'oggetto selezionato. **Esc**: lo lascia.
+- **Canc**: elimina l'oggetto selezionato. **Esc**: toglie la selezione.

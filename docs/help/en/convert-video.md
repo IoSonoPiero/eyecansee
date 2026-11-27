@@ -11,9 +11,9 @@ Select the videos in the grid (pictures can be selected too) and choose ![Conver
 Videos are converted by FFmpeg.
 
 - If the computer has FFmpeg 4.3 or later, EyeCanSee uses it. Otherwise the window offers **Download FFmpeg** and shows its size: it is downloaded once into the app's data folder and checked before use (see [Add-on components](components.md)).
-- If the computer's FFmpeg is too old, the window says which version it found. It does the same when that FFmpeg cannot read H.264 and HEVC, the formats phones record in (Fedora's own FFmpeg, for example), if the choice in **Options > Video** is Automatic. That FFmpeg is still used for the operations that copy the streams as they are, without reading them: **Same as the original**, **Copy with the metadata**, **Copy without audio** and **Save the audio to a file**; the download is offered only when you choose a codec that converts.
+- If the computer's FFmpeg is too old, the window says which version it found. It does the same when that FFmpeg cannot read H.264 and HEVC, the formats phones record in (Fedora's own FFmpeg, for example), if the choice in **Tools > Options… > Video** is Automatic. That FFmpeg is still used for the operations that copy the streams as they are, without reading them: **Same as the original**, **Copy with the metadata**, **Copy without audio** and **Save the audio to a file**; the download is offered only when you choose a codec that converts.
 - The first time, EyeCanSee checks which encoders work on this computer ("Checking which encoders work on this computer…") and then shows only those.
-- When the computer's FFmpeg leaves part of the graphics card's work to the processor, and the choice in **Options > Video** is Automatic, the window says so and offers to download EyeCanSee's own, which is used from the next start.
+- When the computer's FFmpeg leaves part of the graphics card's work to the processor, and the choice in **Tools > Options… > Video** is Automatic, the window says so and offers to download EyeCanSee's own, which is used from the next start.
 
 ![Converting videos](../img/convert-video.webp)
 
@@ -24,7 +24,7 @@ Videos are converted by FFmpeg.
 - **Same as the original (no re-encoding)**: video and audio are copied as they are, in seconds and without any loss, with the metadata. The rotation and the size do not apply. At first the container is the originals' own (a WebM stays WebM), and the list shows only the containers that can hold their streams. Videos of different formats chosen together are copied as MKV, which holds them all. If the chosen container cannot take a video's streams after all, that video is copied as MKV, so the copy does not fail because of that.
 - **Encoder**: first those of the graphics card, in green (NVIDIA, Intel Quick Sync, AMD, VA-API on Linux), then Windows' own and those of the processor. The graphics card is much faster and leaves the computer free; the processor makes slightly smaller files at the same quality. A line says what the chosen encoder is good for.
 - **Quality**: **High**, **Medium** (the default) or **Small file**.
-- **Keep the audio** and **Keep the metadata (date, place, camera)**, both on at first.
+- **Keep the audio** and **Keep the metadata (date, place, camera)**, both on by default.
 
 With an NVIDIA, Intel Quick Sync or VA-API encoder the graphics card also reads, rotates and resizes the video where it can. If the card cannot read a video, the video is converted again on the processor, automatically.
 

@@ -18,11 +18,11 @@ The window works on pictures, videos and audio files (see [Converting videos](co
 
 ## Resizing in one click
 
-To only make smaller copies of photos, without the window: right-click the selected files, or open **Tools**, and choose **Resize** and one of its sizes: **Small (long side 1280 px)**, **Medium (long side 1920 px)**, **Large (long side 2560 px)** or **Half (50%)**. You can change the sizes in [Options](options.md), on the **Resize** tab.
+To only make smaller copies of photos, without the window: right-click the selected files, or open **Tools**, and choose **Resize** and one of its sizes: **Small (long side 1280 px)**, **Medium (long side 1920 px)**, **Large (long side 2560 px)** or **Half (50%)**. You can change the sizes in **Tools > Options… > Resize** (see [Options](options.md)).
 
 The work starts at once on every picture chosen, with the same box and **Cancel** as below and the summary at the end. The copies go next to the originals, in their format and with their metadata (an **Ultra HDR** photo stays Ultra HDR), with the size in their names: `photo (1920 px).jpg`, `photo (50%).jpg`. A name already taken gets " (2)". Pictures already of that size, or smaller (they are never enlarged), get no copy, and the message names them: so resizing a copy again does not make `photo (1920 px) (1920 px).jpg`. Pictures in a format EyeCanSee cannot write (HEIC, RAW…) are left out, and the message says why. Videos, 3D models, CAD drawings and audio files are left out too, and the message names them. If some of them are among the files chosen, **Resize** is marked with **\***; if no picture is chosen, it is greyed out.
 
-**Resize > Custom…** opens this window on the pictures, at the rotation and size choices. Here the window is called **Resize** and its button is **Resize**; the format is **Same as the original** and the copies go next to the originals. It starts from the size and the rotation of the last Custom… (at first **Long side** 1920 px, no rotation); **Convert…** instead always starts from **Unchanged**, with no rotation or flip. As with the sizes above, the copies of the pictures that are really resized have the size in their names (those only rotated or flipped say what was done), in whatever format and wherever they go:
+**Resize > Custom…** opens this window on the pictures, at the rotation and size choices. Here the window is called **Resize** and its button is **Resize**; the format is **Same as the original** and the copies go next to the originals. It starts from the size and the rotation of the last Custom… (by default **Long side** 1920 px, no rotation); **Convert…** instead always starts from **Unchanged**, with no rotation or flip. As with the sizes above, the copies of the pictures that are really resized have the size in their names (those only rotated or flipped say what was done), in whatever format and wherever they go:
 
 | Size | Name of the copy |
 |---|---|
@@ -50,13 +50,13 @@ With a size and a rotation, the name says only the size. A picture left at its s
 ## Size
 
 - **Unchanged**.
-- **Percent of the original** (50% at first).
-- **Inside** a box of pixels (1920 × 1080 at first): each image is made as large as will fit in the box, keeping its proportions, after the rotation.
+- **Percent of the original** (50% by default).
+- **Inside** a box of pixels (1920 × 1080 by default): each image is made as large as will fit in the box, keeping its proportions, after the rotation.
 - **Long side**, **Short side**, **Width** or **Height** of a given number of pixels, keeping the proportions: a long side of 1920 makes landscape and portrait photos alike 1920 pixels on their longer side.
 - **Exactly, cropped in the middle**: exactly the size written; what does not fit the proportions is cut off equally on both sides.
 - **Exactly, stretched**: exactly the size written, with the picture stretched or squeezed to fit.
 - With videos among the files chosen, only **Unchanged**, **Percent of the original** and **Inside** can be chosen: the other sizes are for pictures only.
-- **Enlarge smaller files too**: off at first, so images already smaller than the size asked stay as they are (with an exact size, no side grows larger than the original's). In the format **Same as the original**, a picture that would come out the same as the original gets no copy, and the message names it.
+- **Enlarge smaller files too**: off by default, so images already smaller than the size asked stay as they are (with an exact size, no side grows larger than the original's). In the format **Same as the original**, a picture that would come out the same as the original gets no copy, and the message names it.
 - **Filter**, how the new pixels are worked out: **Lanczos** (sharpest, the default), **Catmull-Rom**, **Gaussian** (soft), **Bilinear** (fast), **Nearest pixel** (keeps the hard edges of pixel art).
 
 If nothing would change (same format, same size, no rotation), **Convert** (or **Resize**) stays off and a red line says so: the images would only lose quality.
@@ -64,7 +64,7 @@ If nothing would change (same format, same size, no rotation), **Convert** (or *
 ## Where
 
 - **Next to the originals**.
-- **In the subfolder**, with the name you write ("converted" at first). It is created if it does not exist.
+- **In the subfolder**, with the name you write ("converted" by default). It is created if it does not exist.
 - **In another folder, also on another device**: type a folder or an address as in the address bar (`mtp://…` for a phone, `sftp://…` for a server), or click **Browse…**. The chooser shows your home folder, the disks, the connected phones and the saved servers on the left: click a folder to go into it, then **Use this folder**. A saved server opens in the folder it starts in, as in the grid. ![New folder](icon://folder-plus) next to the address makes a new folder there: a small window asks for its name, as **New folder** does in the grid ("New folder" already written and selected); type the one you want, then **Enter** or **Create**. The chooser then goes into it.
 
 A name already taken gets " (2)": nothing is ever written over a file. So you can, for example, convert the photos of a phone straight into a folder of the computer.

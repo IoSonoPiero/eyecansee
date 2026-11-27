@@ -33,9 +33,9 @@ Le cartelle vengono sempre prima, in ordine di nome. I nomi sono ordinati senza 
 
 ## Quali file mostrare
 
-**Visualizza > Mostra** (anche nel menù del clic destro su uno spazio vuoto della griglia) sceglie cosa mostra la griglia:
+**Visualizza > Mostra** (anche nel menu del clic destro su uno spazio vuoto della griglia) sceglie cosa mostra la griglia:
 
-- **Immagini, video e audio** (all'inizio): tutto.
+- **Immagini, video e audio** (predefinito): tutto.
 - **Solo immagini**: foto, modelli 3D e disegni CAD, senza video e audio.
 - **Solo video** o **Solo audio**.
 
@@ -45,7 +45,7 @@ La scelta vale per tutte le cartelle finché non la cambi. La barra di stato con
 
 Il cursore in fondo a destra nella barra strumenti, accanto a ![Dimensione miniature](icon://image), ingrandisce o rimpicciolisce le miniature, in sette misure da 64 a 256 pixel: si ferma su ciascuna, segnata da una tacca sotto, e la misura è scritta accanto. Le celle si allargano su tutta la larghezza della griglia.
 
-Sotto ogni miniatura ci sono il nome, le dimensioni in pixel e il peso, e la data, con la durata di video e file audio; in **Strumenti > Opzioni… > Miniature > Sotto le miniature** scegli quali vedere, tutte spuntate all'inizio (vedi [Opzioni](options.md)). Con le miniature piccole resta solo il nome.
+Sotto ogni miniatura ci sono il nome, le dimensioni in pixel e il peso, e la data, con la durata di video e file audio; in **Strumenti > Opzioni… > Miniature > Sotto le miniature** scegli quali vedere, tutte spuntate in modo predefinito (vedi [Opzioni](options.md)). Con le miniature piccole resta solo il nome.
 
 ## Miniature
 
@@ -57,13 +57,13 @@ Se una miniatura sembra sbagliata, fai clic destro sul file (o su più file sele
 
 **F5**, oppure ![Aggiorna](icon://refresh-cw) **Aggiorna** nella barra strumenti, rilegge la cartella. Una cartella di questo computer si aggiorna da sola quando un altro programma vi aggiunge, elimina o rinomina dei file; su un server premi **F5**.
 
-## Il menù del clic destro
+## Il menu del clic destro
 
-- Su un **file**: le azioni che funzionano su quel file, come Apri, Carosello, Modifica immagine…, Converti…, Ridimensiona, Taglia, Copia, Rinomina… ed Elimina…. Con più file selezionati, il menù agisce su tutti (vedi [Selezionare i file](selection.md)).
+- Su un **file**: le azioni che funzionano su quel file, come Apri, Carosello, Modifica immagine…, Converti…, Ridimensiona, Taglia, Copia, Rinomina… ed Elimina…. Con più file selezionati, il menu agisce su tutti (vedi [Selezionare i file](selection.md)).
 - Su una **cartella**: Apri, Nuova cartella qui dentro…, Taglia, Copia, Incolla in questa cartella, Aggiungi questa cartella ai segnalibri (vedi [Segnalibri](bookmarks.md)), Trova duplicati…, Rinomina…, Elimina…, Elimina definitivamente….
 - Su uno **spazio vuoto**: Incolla (quando hai copiato qualcosa), Seleziona tutto, Nuova cartella…, Cartella superiore, Aggiorna, Mostra e Trova duplicati….
 
-Una voce segnata con **\*** funziona solo su una parte dei file scelti (per esempio Converti… sulle foto e sui video tra quelli scelti, Ridimensiona sulle foto; anche le cartelle selezionate insieme ai file restano fuori); una riga in fondo al menù lo dice. Una voce che non funziona su nessuno resta al suo posto, grigia: tieni il mouse sopra per leggere il perché (per esempio "Nessuna immagine tra i file scelti").
+Una voce segnata con **\*** funziona solo su una parte dei file scelti (per esempio Converti… sulle foto e sui video tra quelli scelti, Ridimensiona sulle foto; anche le cartelle selezionate insieme ai file restano fuori); una riga in fondo al menu lo dice. Una voce che non funziona su nessuno resta al suo posto, grigia: tieni il mouse sopra per leggere il perché (per esempio "Nessuna immagine tra i file scelti").
 
 ## La barra di stato
 

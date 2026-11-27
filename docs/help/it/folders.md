@@ -23,7 +23,7 @@ Quando cambi cartella in un altro modo (dalla griglia, dalla barra degli indiriz
 - Se torni su un telefono o su un server con un clic nel pannello, dopo un altro posto, EyeCanSee apre l'ultima cartella in cui eri lì. La ricorda finché EyeCanSee resta aperto (per un server salvato, solo se quella cartella è dentro la cartella del server). Se quella cartella non c'è più, apre la prima cartella, come la prima volta. Il pannello mostra quella cartella sotto il nome del telefono, del server o del disco ![Cartella](icon://color-folder), come fa **Questo computer** sotto la tua home: un clic ti riporta lì. Il telefono, il server o il disco aperto mostra invece sotto il suo nome le sue cartelle, fino a quella in cui sei.
 - Mentre è aperto un telefono o un server, **Questo computer** mostra la tua cartella home ![Home](icon://color-home) e l'ultima cartella del computer in cui eri (con un server o un telefono aperto direttamente, anche le unità del computer): un clic ti riporta lì.
 
-## Il menù del clic destro su una cartella
+## Il menu del clic destro su una cartella
 
 Il clic destro su una cartella dell'albero offre **Apri**, **Nuova cartella qui dentro…**, **Taglia**, **Copia**, **Incolla in questa cartella** (quando hai copiato qualcosa), **Aggiungi questa cartella ai segnalibri** (vedi [Segnalibri](bookmarks.md)), **Trova duplicati…**, **Rinomina…**, **Elimina…** ed **Elimina definitivamente…**. Vedi [Copiare e spostare](copy-move.md), [Rinominare e nuove cartelle](rename.md), [Eliminare e cestino](delete.md) e [Trovare i duplicati](duplicates.md).
 

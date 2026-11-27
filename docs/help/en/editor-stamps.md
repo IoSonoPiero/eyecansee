@@ -16,7 +16,7 @@ The first seven are on the bar: ![Check](icon://check) Check, ![Cross](icon://x)
 
 ## Options
 
-- **Colour** (green at first), **Size** and **Opacity**.
+- **Colour** (green by default), **Size** and **Opacity**.
 - Change the size in the bar, or drag a corner of the selected stamp: it stays square.
 - Drag the round handle above the selected stamp to rotate it; hold **Shift** to turn it 15° at a time.
 

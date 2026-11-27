@@ -1,11 +1,11 @@
 # Filtri
 
-Il menù ![Filtri](icon://wand-sparkles) **Filtri** nella barra degli strumenti cambia l'aspetto della foto, su tutta l'immagine o su una sua parte.
+Il menu ![Filtri](icon://wand-sparkles) **Filtri** nella barra degli strumenti cambia l'aspetto della foto, su tutta l'immagine o su una sua parte.
 
 ## Aggiungere un filtro
 
 1. Per filtrare solo una parte, prima sceglila con ![Selezione](icon://square-dashed) **Selezione** (M). Vedi [Selezionare un'area](editor-marquee.md). Senza una zona scelta, il filtro va su tutta l'immagine.
-2. Fai clic su ![Filtri](icon://wand-sparkles) **Filtri** e scegline uno. La prima riga del menù dice dove andrà.
+2. Fai clic su ![Filtri](icon://wand-sparkles) **Filtri** e scegline uno. La prima riga del menu dice dove andrà.
 3. Il filtro si applica subito ed è selezionato. Regola l'**Intensità** nella barra delle proprietà.
 4. Fai clic su **Fatto** (o premi Esc, o fai clic altrove) per lasciarlo così.
 

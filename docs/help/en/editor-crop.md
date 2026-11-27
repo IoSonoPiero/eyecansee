@@ -24,7 +24,7 @@ With this tool the whole image is shown, with the crop frame over it and the par
 - Drag a corner or a side of the frame to resize it. Drag inside the frame to move it. Dragging outside the frame moves the view.
 - **Crop**: the proportions. **Free proportions**, **As the original**, 1:1, 5:4, 4:3, 3:2, 16:9, or **Custom** with your own numbers. With fixed proportions only the corners can be dragged.
 - ![Swap width and height](icon://arrow-left-right) turns landscape proportions into portrait ones and back.
-- **Image only**: the largest crop with no empty corners. It follows the rotation, and it is chosen at first.
+- **Image only**: the largest crop with no empty corners. It follows the rotation, and it is the default.
 - **Whole image**: all of the rotated image, with empty corners.
 
 The size of the result is in the status bar. The crop stops at 20,000 pixels a side (or at the size of a larger photo), and the status bar says so.

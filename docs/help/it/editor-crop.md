@@ -24,7 +24,7 @@ Con questo strumento si vede tutta l'immagine, con sopra la cornice del ritaglio
 - Trascina un angolo o un lato della cornice per ridimensionarla. Trascina dentro la cornice per spostarla. Trascinare fuori dalla cornice sposta la vista.
 - **Ritaglio**: le proporzioni. **Proporzioni libere**, **Come l'originale**, 1:1, 5:4, 4:3, 3:2, 16:9, o **Personalizzate** con i tuoi numeri. Con proporzioni fisse si trascinano solo gli angoli.
 - ![Scambia larghezza e altezza](icon://arrow-left-right) passa da proporzioni orizzontali a verticali e viceversa.
-- **Solo immagine**: il ritaglio più grande senza angoli vuoti. Segue la rotazione, ed è quello che hai all'inizio.
+- **Solo immagine**: il ritaglio più grande senza angoli vuoti. Segue la rotazione, ed è quello predefinito.
 - **Tutta l'immagine**: tutta l'immagine ruotata, con gli angoli vuoti.
 
 La misura del risultato è nella barra di stato. Il ritaglio si ferma a 20.000 pixel per lato (o alla misura di una foto più grande), e la barra di stato lo dice.

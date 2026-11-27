@@ -28,14 +28,14 @@ Un pezzo incollato, da qui o da un altro programma, è un'immagine che puoi sist
 
 - Trascinalo per spostarlo.
 - Trascina un angolo per ridimensionarlo. Mantiene le proporzioni; tieni premuto **Maiusc** mentre trascini per cambiare larghezza e altezza separatamente.
-- Trascina la maniglia tonda sopra di lui per ruotarlo di un angolo qualsiasi. Tieni premuto **Maiusc** per girarlo a scatti di 15°.
+- Trascina la maniglia tonda sopra il pezzo per ruotarlo di un angolo qualsiasi. Tieni premuto **Maiusc** per girarlo a scatti di 15°.
 
 Il resto è nella barra delle proprietà:
 
 - **Rotazione**: il suo angolo sullo schermo, da −180° a 180°.
 - ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) e ![Ruota di 90° in senso orario](icon://rotate-cw-square): un quarto di giro del solo pezzo.
 - ![Rifletti orizzontalmente](icon://square-split-horizontal) e ![Rifletti verticalmente](icon://square-split-vertical): rispecchiano il pezzo da sinistra a destra o dall'alto in basso, come lo vedi.
-- Larghezza e altezza in pixel. Con **Mantieni le proporzioni** acceso (com'è all'inizio) l'altro lato segue. Spento, ogni lato cambia da solo, anche trascinando un angolo; allora Maiusc mantiene le proporzioni.
+- Larghezza e altezza in pixel. Con **Mantieni le proporzioni** acceso (predefinito) l'altro lato segue. Spento, ogni lato cambia da solo, anche trascinando un angolo; allora Maiusc mantiene le proporzioni.
 - **Opacità**.
 - ![Porta in primo piano](icon://to-front) **Porta in primo piano** e ![Porta dietro](icon://to-back) **Porta dietro**: sopra tutti gli altri oggetti, o sotto.
 
@@ -43,7 +43,7 @@ Ognuno di questi è un passo di Annulla. Anche se ruoti, rifletti o ridimensioni
 
 ## Filtri su una zona
 
-Con una zona scelta, il menù ![Filtri](icon://wand-sparkles) **Filtri** applica il filtro solo lì. Vedi [Filtri](editor-filters.md).
+Con una zona scelta, il menu ![Filtri](icon://wand-sparkles) **Filtri** applica il filtro solo lì. Vedi [Filtri](editor-filters.md).
 
 ## Da sapere
 

@@ -47,7 +47,7 @@ Un clic si aggancia a ciò che c'è sotto il puntatore, come nei programmi CAD: 
 
 ## Confrontare due versioni di un disegno
 
-Seleziona due disegni nella griglia (**Ctrl + clic**), poi scegli **Confronta disegni** nel menù del clic destro o nel menù File. Il visore li mostra uno sopra l'altro, allineati con le loro coordinate: ciò che c'è in tutti e due in grigio, ciò che c'è solo nel primo in rosso, ciò che c'è solo nel secondo in blu. La barra di stato dice con cosa è confrontato il disegno e in quanti punti è cambiato; **N** ingrandisce sulla modifica successiva e **Maiusc + N** su quella precedente.
+Seleziona due disegni nella griglia (**Ctrl + clic**), poi scegli **Confronta disegni** nel menu del clic destro o nel menu File. Il visore li mostra uno sopra l'altro, allineati con le loro coordinate: ciò che c'è in tutti e due in grigio, ciò che c'è solo nel primo in rosso, ciò che c'è solo nel secondo in blu. La barra di stato dice con cosa è confrontato il disegno e in quanti punti è cambiato; **N** ingrandisce sulla modifica successiva e **Maiusc + N** su quella precedente.
 
 Il riquadro dei livelli si apre con tre livelli, **In tutti e due**, **Solo in** il primo e **Solo in** il secondo, coi loro colori: è la legenda, e togliendo una spunta si vede solo il primo disegno, solo il secondo o solo le modifiche. Ingrandimento, Misura e **Salva come…** funzionano come su ogni disegno, così il confronto si può salvare come immagine.
 
@@ -67,9 +67,9 @@ I testi si scrivono con i font SHX del disegno quando i file dei font sono accan
 
 ## Salvare un disegno come immagine o nell'altro formato AutoCAD
 
-- **Ctrl + Maiusc + S** o **Salva come…** (nel menù File o nel menù del clic destro) salva il disegno come immagine: nel visore quello che vedi (il layout mostrato, con i livelli visibili), nella griglia il disegno intero. Vedi [Salva come](save-as.md).
-- **File > Esporta disegno…** (anche nel menù del clic destro, nella griglia e nel visore) salva i disegni selezionati nella griglia, o quello nel visore, tutti insieme. Scegli il **formato**: un formato di immagine, **SVG** (nitido a ogni ingrandimento, senza livelli né blocchi), oppure **DWG** / **DXF** (tutto il disegno nell'altro formato AutoCAD, con livelli, blocchi, layout e stili). Per le immagini scegli il **Lato lungo** in pixel: il disegno viene ridisegnato a quella misura, quindi resta nitido anche grande. Poi scegli dove vanno i file, come in [Convertire e ridimensionare le immagini](convert.md), e premi **Esporta**.
+- **Ctrl + Maiusc + S** o **Salva come…** (nel menu File o nel menu del clic destro) salva il disegno come immagine: nel visore quello che vedi (il layout mostrato, con i livelli visibili), nella griglia il disegno intero. Vedi [Salva come](save-as.md).
+- **File > Esporta disegno…** (anche nel menu del clic destro, nella griglia e nel visore) salva i disegni selezionati nella griglia, o quello nel visore, tutti insieme. Scegli il **formato**: un formato di immagine, **SVG** (nitido a ogni ingrandimento, senza livelli né blocchi), oppure **DWG** / **DXF** (tutto il disegno nell'altro formato AutoCAD, con livelli, blocchi, layout e stili). Per le immagini scegli il **Lato lungo** in pixel: il disegno viene ridisegnato a quella misura, quindi resta nitido anche grande. Poi scegli dove vanno i file, come in [Convertire e ridimensionare le immagini](convert.md), e premi **Esporta**.
 
 Immagini e SVG mostrano lo spazio modello, non i layout. Un disegno salvato come DWG o DXF viene riletto e confrontato con l'originale (il modello, ogni layout e i livelli con qualcosa sopra): se qualcosa andasse perso, non viene salvato, e il riepilogo alla fine lo dice.
 
-Le rotazioni e i ribaltamenti del menù Immagine non valgono per i disegni.
+Le rotazioni e i ribaltamenti del menu Immagine non valgono per i disegni.

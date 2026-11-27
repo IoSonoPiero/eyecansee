@@ -1,6 +1,6 @@
 # Scorciatoie da tastiera
 
-Tutti i tasti di EyeCanSee, divisi per dove si usano. I menù mostrano il tasto accanto a ogni voce, e passando sopra un pulsante della barra degli strumenti compaiono il nome e il tasto. Nella griglia, nel visore, nell'editor e in Trova duplicati il pulsante **Tasti** in basso a destra elenca i tasti di ciò che stai guardando.
+Tutti i tasti di EyeCanSee, divisi per dove si usano. I menu mostrano il tasto accanto a ogni voce, e passando sopra un pulsante della barra degli strumenti compaiono il nome e il tasto. Nella griglia, nel visore, nell'editor e in Trova duplicati il pulsante **Tasti** in basso a destra elenca i tasti di ciò che stai guardando.
 
 ## Ovunque
 
@@ -16,7 +16,7 @@ Tutti i tasti di EyeCanSee, divisi per dove si usano. I menù mostrano il tasto 
 |---|---|
 | F5 | Rilegge la cartella aperta, solo quella (nel visore resta sull'immagine aperta) |
 | F6 | Porta la tastiera su **Annulla** di un lavoro in corso: una copia, una conversione o un'esportazione di modelli 3D (con più lavori, F6 di nuovo passa al successivo); **Invio** o **Spazio** lo fermano |
-| F11 | Schermo intero e ritorno; nel visore si vede solo l'immagine, senza menù né barre |
+| F11 | Schermo intero e ritorno; nel visore si vede solo l'immagine, senza menu né barre |
 | **Ctrl + R**, **Ctrl + Maiusc + R** | Ruota la foto di 90° in senso orario, antiorario: nel visore la vedi prima di salvarla, nella griglia le foto selezionate vengono salvate dopo la conferma (vedi [Ruotare e riflettere](rotate.md)) |
 | **Ctrl + Z**, **Ctrl + Y** | Nel visore: annulla, ripete una rotazione o riflessione non salvata |
 | **Ctrl + Maiusc + D** | Segnalibri: si apre l'elenco; ↓ ci entra, Invio apre il segnalibro scelto (vedi [Segnalibri](bookmarks.md)) |
@@ -25,7 +25,7 @@ Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** chiud
 
 In **Informazioni su EyeCanSee** all'apertura non è evidenziato niente: **Invio** o **Esc** la chiudono. **Tab** e **Maiusc + Tab** passano tra i suoi link e **Copia (per segnalare un problema)**; **Invio** o **Spazio** aprono o premono quello evidenziato.
 
-In **Nuova immagine** e **Opzioni**, **Tab** e **Maiusc + Tab** fanno il giro dei loro controlli: dall'ultimo si torna al primo, e al contrario; non arrivano mai ai menù o alla griglia sotto la finestra. Lo stesso vale in **Gestione server** e nella scelta della cartella di **Salva come** e **Converti**: **Tab** e le frecce passano tra posti, cartelle e pulsanti, e **Invio** su una cartella ci entra. In **Apri indirizzo**, **Segnalibri > Configura…**, la finestra della password principale, **Converti** e **Ridimensiona** dell'editor, **Tab** con niente evidenziato va ai loro campi, elenchi e pulsanti, e le frecce passano dall'uno all'altro.
+In **Nuova immagine** e **Opzioni**, **Tab** e **Maiusc + Tab** fanno il giro dei loro controlli: dall'ultimo si torna al primo, e al contrario; non arrivano mai ai menu o alla griglia sotto la finestra. Lo stesso vale in **Gestione server** e nella scelta della cartella di **Salva come** e **Converti**: **Tab** e le frecce passano tra posti, cartelle e pulsanti, e **Invio** su una cartella ci entra. In **Apri indirizzo**, **Segnalibri > Configura…**, la finestra della password principale, **Converti** e **Ridimensiona** dell'editor, **Tab** con niente evidenziato va ai loro campi, elenchi e pulsanti, e le frecce passano dall'uno all'altro.
 
 In un elenco a discesa (un formato, una misura, un'unità) **Spazio** o **Invio** lo aprono con la tastiera sulla voce scelta, le frecce proseguono da lì, **Invio** o **Spazio** scelgono una voce e chiudono l'elenco, ed **Esc** lo chiude senza cambiare la scelta.
 

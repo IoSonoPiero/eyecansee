@@ -6,18 +6,18 @@ I segnalibri riportano con un clic nei posti che usi di più: una cartella di qu
 
 Fai clic sulla ![Aggiungi questa cartella ai segnalibri](icon://star) **stella** accanto alla barra degli indirizzi: la cartella aperta (nel visore, la foto mostrata) diventa un segnalibro. La barra di stato lo conferma per qualche secondo.
 
-Puoi anche usare **Segnalibri > + Aggiungi la cartella corrente** nella barra dei menù (nel visore **+ Aggiungi questa immagine**).
+Puoi anche usare **Segnalibri > + Aggiungi la cartella corrente** nella barra dei menu (nel visore **+ Aggiungi questa immagine**).
 
 Per aggiungere una cartella senza aprirla, fai clic destro sulla cartella, nella griglia o nell'albero delle cartelle a sinistra, e scegli **Aggiungi questa cartella ai segnalibri**. Funziona su una cartella alla volta: con più elementi selezionati la voce è grigia.
 
-Un segnalibro nuovo prende il nome della cartella o della foto; per la cima di un disco o di un telefono, il nome del dispositivo. Un posto che è già un segnalibro non viene aggiunto due volte: la stella è accesa e la voce del menù è grigia.
+Un segnalibro nuovo prende il nome della cartella o della foto; per la cima di un disco o di un telefono, il nome del dispositivo. Un posto che è già un segnalibro non viene aggiunto due volte: la stella è accesa e la voce del menu è grigia.
 
 ## Aprire un segnalibro
 
 ![Segnalibri](../img/bookmarks-menu.webp)
 
 - Fai clic su ![Segnalibri](icon://bookmark) **Segnalibri**, la tendina subito dopo la stella, e scegli un segnalibro. Se passi col mouse su un segnalibro, compare il suo indirizzo.
-- Oppure usa il menù **Segnalibri** nella barra dei menù.
+- Oppure usa il menu **Segnalibri** nella barra dei menu.
 - Oppure premi **Ctrl + Maiusc + D**: si apre la tendina; la freccia **Giù** entra nell'elenco e **Invio** apre il segnalibro scelto.
 
 Un segnalibro si apre proprio come se avessi scritto il suo indirizzo nella barra degli indirizzi: un server chiede la sua password o la password principale come al solito, e per una foto ruotata e non salvata EyeCanSee chiede prima cosa fare.
@@ -26,11 +26,11 @@ Un segnalibro si apre proprio come se avessi scritto il suo indirizzo nella barr
 
 Quando il posto aperto è un segnalibro, la stella è accesa e piena, ![Togli dai segnalibri](icon://star-filled): un clic sulla stella lo toglie. La barra di stato lo conferma.
 
-Su una cartella che è già un segnalibro, il menù del clic destro offre ![Togli dai segnalibri](icon://star-filled) **Togli dai segnalibri**, con la stella piena, al posto di Aggiungi, che ha quella vuota.
+Su una cartella che è già un segnalibro, il menu del clic destro offre ![Togli dai segnalibri](icon://star-filled) **Togli dai segnalibri**, con la stella piena, al posto di Aggiungi, che ha quella vuota.
 
 ## Configura
 
-**Configura…**, in fondo alla tendina e al menù Segnalibri, apre l'elenco dei tuoi segnalibri, un riquadro per ciascuno, con il nome e sotto l'indirizzo:
+**Configura…**, in fondo alla tendina e al menu Segnalibri, apre l'elenco dei tuoi segnalibri, un riquadro per ciascuno, con il nome e sotto l'indirizzo:
 
 - ![Cambia nome e indirizzo](icon://pencil) cambia il nome e l'indirizzo. **Fatto** o **Invio** chiudono la modifica. Una password scritta nell'indirizzo non viene conservata.
 - ![Sposta su](icon://chevron-up) e ![Sposta giù](icon://chevron-down) spostano il segnalibro più in alto o più in basso nell'elenco.

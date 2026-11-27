@@ -6,7 +6,7 @@ L'editor è una pagina a sé dove disegni su un'immagine, copri i dati privati, 
 
 ## Aprire l'editor
 
-- **Immagine > Modifica immagine…** (**Ctrl + E**), il pulsante ![Modifica immagine](icon://square-pen) nella barra degli strumenti, oppure **Modifica immagine…** nel menù del clic destro.
+- **Immagine > Modifica immagine…** (**Ctrl + E**), il pulsante ![Modifica immagine](icon://square-pen) nella barra degli strumenti, oppure **Modifica immagine…** nel menu del clic destro.
 - **Immagine > Ruota e ritaglia…** apre la stessa pagina con lo strumento del ritaglio già scelto. Vedi [Ritagliare e ruotare](editor-crop.md).
 - **File > Nuova immagine…** (**Ctrl + N**) apre un'immagine vuota nell'editor. Vedi [Nuova immagine](new-image.md).
 - **File > Apri dagli appunti** apre nell'editor un'immagine copiata in un altro programma. Vedi [Nuova immagine](new-image.md).
@@ -57,7 +57,7 @@ Tutto ciò che disegni resta un oggetto a sé fino al salvataggio: puoi spostarl
 Da sapere:
 
 - Con uno strumento di disegno, un clic seleziona solo un oggetto del suo tipo (una freccia con Freccia, un numero con Numeri di passaggio). Altrove lo strumento fa il suo lavoro, anche sopra altri oggetti.
-- Gli angoli e la maniglia tonda dell'oggetto selezionato si trascinano con qualsiasi strumento. Su un oggetto ruotato gli angoli girano con lui.
+- Gli angoli e la maniglia tonda dell'oggetto selezionato si trascinano con qualsiasi strumento. Su un oggetto ruotato gli angoli girano con l'oggetto.
 - Una forma, una linea o un fumetto disegnati interamente sulla zona scura intorno all'immagine non restano: resta solo ciò che arriva sull'immagine.
 - Un rettangolo o un'ellisse senza riempimento si prende dal bordo, non dall'interno vuoto.
 - Filtri, evidenziatori e riflettori stanno sotto gli altri oggetti: un clic li prende solo dove non c'è nient'altro.
@@ -73,11 +73,11 @@ Da sapere:
 ![Ridimensiona](icon://scaling) **Ridimensiona** (**Ctrl + Alt + I**) cambia la dimensione dell'immagine, per esempio per rimpicciolire una schermata annotata da mettere in un documento.
 
 1. Fai clic su ![Ridimensiona](icon://scaling) **Ridimensiona**. La finestra mostra la dimensione attuale del risultato.
-2. Scrivi la nuova larghezza o altezza, in **pixel** o **per cento** della dimensione attuale. Con **Mantieni le proporzioni** acceso (come all'inizio), l'altro lato segue.
+2. Scrivi la nuova larghezza o altezza, in **pixel** o **per cento** della dimensione attuale. Con **Mantieni le proporzioni** acceso (predefinito), l'altro lato segue.
 3. Scegli il **Filtro**, se vuoi: Lanczos (il più nitido) per rimpicciolire, Catmull-Rom per ingrandire, a meno che tu non ne scelga un altro. **Pixel più vicino** tiene i bordi netti della pixel art.
 4. Fai clic su **Ridimensiona** (o Invio).
 
-Ciò che hai disegnato segue l'immagine: frecce, riquadri, testi e gli spessori delle linee crescono o calano con lei, e così il ritaglio. Poi gli strumenti lavorano in pixel della nuova dimensione.
+Ciò che hai disegnato segue l'immagine: frecce, riquadri, testi e gli spessori delle linee crescono o calano con l'immagine, e così il ritaglio. Poi gli strumenti lavorano in pixel della nuova dimensione.
 
 Da sapere:
 
@@ -101,7 +101,7 @@ Il pulsante **Tasti** nella barra di stato elenca i tasti e i movimenti del mous
 - **Ctrl + C** (o ![Copia](icon://copy) **Copia**) mette negli appunti tutto il risultato, a piena grandezza, da incollare in un altro programma. Con Selezione copia solo la zona scelta.
 - **Ctrl + R** e **Ctrl + Maiusc + R** girano l'immagine di un quarto a destra o a sinistra.
 - **Ctrl + Alt + I** apre Ridimensiona.
-- **Esc** fa una cosa alla volta: ferma il contagocce o un trascinamento (ciò che il trascinamento ha fatto torna com'era: l'oggetto dov'era, la vista com'era; ciò che hai fatto prima resta), finisce il testo che stai scrivendo, lascia la zona o l'oggetto selezionati. Quando non c'è più niente da fermare, chiude la pagina.
+- **Esc** fa una cosa alla volta: ferma il contagocce o un trascinamento (ciò che il trascinamento ha fatto torna com'era: l'oggetto dov'era, la vista com'era; ciò che hai fatto prima resta), finisce il testo che stai scrivendo, toglie la selezione dalla zona o dall'oggetto. Quando non c'è più niente da fermare, chiude la pagina.
 
 ## Chiudere
 

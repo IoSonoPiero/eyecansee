@@ -25,4 +25,4 @@ A selected line or arrow has three handles: its two ends and its middle.
 ## Keys
 
 - **I**: eyedropper. **Alt + click**: take a colour and keep the tool.
-- **Del**: delete the selected line. **Esc**: let go of it.
+- **Del**: delete the selected line. **Esc**: deselect it.

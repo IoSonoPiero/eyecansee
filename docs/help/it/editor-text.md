@@ -57,6 +57,6 @@ Un clic su un numero già messo lo seleziona. Un clic altrove sull'immagine, anc
 
 - **I**: contagocce. **Alt + clic**: prende un colore e lo strumento resta.
 - **Canc**: elimina l'oggetto selezionato (fuori dal campo di testo).
-- **Esc**: finisce il testo che stai scrivendo, o lascia l'oggetto.
+- **Esc**: finisce il testo che stai scrivendo, o toglie la selezione dall'oggetto.
 
 Vedi anche [Colori, linee e contagocce](editor-colors.md).

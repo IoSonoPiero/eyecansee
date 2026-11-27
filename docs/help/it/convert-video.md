@@ -4,16 +4,16 @@ Converte i video in un altro formato o in un'altra misura, li ruota, li fa più 
 
 ## Avviare la conversione
 
-Seleziona i video nella griglia (si possono selezionare anche immagini) e scegli ![Converti…](icon://scaling) **Converti…** dalla barra strumenti, dal menù **Strumenti** (**Ctrl + B**) o dal clic destro. Se tra i file ci sono video, la finestra ha una parte **Video**. Rotazione e ribaltamenti e destinazione funzionano come per le immagini; tra le dimensioni si possono scegliere solo **Invariate**, **Percentuale dell'originale** ed **Entro**: vedi [Convertire e ridimensionare le immagini](convert.md).
+Seleziona i video nella griglia (si possono selezionare anche immagini) e scegli ![Converti…](icon://scaling) **Converti…** dalla barra strumenti, dal menu **Strumenti** (**Ctrl + B**) o dal clic destro. Se tra i file ci sono video, la finestra ha una parte **Video**. Rotazione e ribaltamenti e destinazione funzionano come per le immagini; tra le dimensioni si possono scegliere solo **Invariate**, **Percentuale dell'originale** ed **Entro**: vedi [Convertire e ridimensionare le immagini](convert.md).
 
 ## FFmpeg
 
 I video li converte FFmpeg.
 
 - Se sul computer c'è FFmpeg 4.3 o più recente, EyeCanSee usa quello. Altrimenti la finestra propone **Scarica FFmpeg** e ne mostra il peso: si scarica una volta sola nella cartella dei dati dell'app e viene controllato prima dell'uso (vedi [Componenti aggiuntivi](components.md)).
-- Se l'FFmpeg del computer è troppo vecchio, la finestra dice quale versione ha trovato. Fa lo stesso quando quell'FFmpeg non sa leggere H.264 e HEVC, i formati in cui registrano i telefoni (per esempio l'FFmpeg di Fedora), se in **Opzioni > Video** la scelta è Automatica. Quell'FFmpeg si usa comunque per le operazioni che copiano i flussi così come sono, senza leggerli: **Uguale all'originale**, **Copia con i metadati**, **Copia senza audio** e **Salva l'audio in un file**; lo scaricamento viene proposto solo quando scegli una codifica che converte.
+- Se l'FFmpeg del computer è troppo vecchio, la finestra dice quale versione ha trovato. Fa lo stesso quando quell'FFmpeg non sa leggere H.264 e HEVC, i formati in cui registrano i telefoni (per esempio l'FFmpeg di Fedora), se in **Strumenti > Opzioni… > Video** la scelta è Automatica. Quell'FFmpeg si usa comunque per le operazioni che copiano i flussi così come sono, senza leggerli: **Uguale all'originale**, **Copia con i metadati**, **Copia senza audio** e **Salva l'audio in un file**; lo scaricamento viene proposto solo quando scegli una codifica che converte.
 - La prima volta EyeCanSee controlla quali codificatori funzionano su questo computer ("Controllo quali codificatori funzionano su questo computer…") e poi mostra solo quelli.
-- Quando l'FFmpeg del computer lascia al processore una parte del lavoro della scheda video, e in **Opzioni > Video** la scelta è Automatica, la finestra lo dice e propone di scaricare quello di EyeCanSee, che si usa dall'avvio successivo.
+- Quando l'FFmpeg del computer lascia al processore una parte del lavoro della scheda video, e in **Strumenti > Opzioni… > Video** la scelta è Automatica, la finestra lo dice e propone di scaricare quello di EyeCanSee, che si usa dall'avvio successivo.
 
 ![Convertire i video](../img/convert-video.webp)
 
@@ -24,7 +24,7 @@ I video li converte FFmpeg.
 - **Uguale all'originale (senza ricodifica)**: video e audio vengono copiati così come sono, in pochi secondi e senza nessuna perdita, con i metadati. Rotazione e dimensioni non si applicano. All'inizio il contenitore è quello degli originali (un WebM resta WebM), e l'elenco mostra solo i contenitori che possono contenerne le tracce. Video di formati diversi scelti insieme vengono copiati in MKV, che li contiene tutti. Se poi il contenitore scelto non può contenere le tracce di un video, quel video viene copiato in MKV, così la copia non fallisce per questo.
 - **Codificatore**: prima quelli della scheda video, in verde (NVIDIA, Intel Quick Sync, AMD, VA-API su Linux), poi quello di Windows e quelli del processore. La scheda video è molto più veloce e lascia libero il computer; il processore fa file un po' più piccoli a parità di qualità. Una riga dice a che cosa serve il codificatore scelto.
 - **Qualità**: **Alta**, **Media** (quella predefinita) o **File piccolo**.
-- **Mantieni l'audio** e **Mantieni i metadati (data, posizione, fotocamera)**, tutte e due accese all'inizio.
+- **Mantieni l'audio** e **Mantieni i metadati (data, posizione, fotocamera)**, tutte e due accese in modo predefinito.
 
 Con un codificatore NVIDIA, Intel Quick Sync o VA-API la scheda video, dove può, anche legge, ruota e ridimensiona il video. Se la scheda non sa leggere un video, il video viene riconvertito da solo con il processore.
 

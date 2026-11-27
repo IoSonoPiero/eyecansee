@@ -27,4 +27,4 @@ Una zona tagliata con **Ctrl + X** in [Selezionare un'area](editor-marquee.md) v
 ## Tasti
 
 - **I**: contagocce. **Alt + clic**: prende un colore e lo strumento resta.
-- **Canc**: elimina il riquadro selezionato. **Esc**: lo lascia.
+- **Canc**: elimina il riquadro selezionato. **Esc**: toglie la selezione.
