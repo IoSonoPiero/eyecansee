@@ -1,2 +1,4 @@
 # LF line endings everywhere, Windows included: translation files, guide pages and sources stay identical.
 * text=auto eol=lf
+# The installer's notice pages (tools/eyecansee.iss, InfoBeforeFile): Windows line endings for Inno Setup.
+tools/installer-info.*.txt text eol=crlf

@@ -29,8 +29,11 @@ SolidCompression=yes
 WizardStyle=modern
 
 [Languages]
-Name: "en"; MessagesFile: "compiler:Default.isl"
-Name: "it"; MessagesFile: "compiler:Languages\Italian.isl"
+; InfoBeforeFile: a page to read before choosing the folder (licence, no warranty, keep a backup),
+; Next only, nothing to accept. Updates run the installer with /SILENT (src/update.rs), which shows
+; no wizard page: it appears only when installing by hand. UTF-8 with a BOM.
+Name: "en"; MessagesFile: "compiler:Default.isl"; InfoBeforeFile: "installer-info.en.txt"
+Name: "it"; MessagesFile: "compiler:Languages\Italian.isl"; InfoBeforeFile: "installer-info.it.txt"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"

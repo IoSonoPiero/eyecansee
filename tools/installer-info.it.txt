@@ -1,0 +1,7 @@
+﻿EyeCanSee è software libero con licenza GNU General Public License, versione 3 o successiva: puoi usarlo, copiarlo, condividerlo e modificarlo.
+
+È distribuito SENZA ALCUNA GARANZIA, nei limiti consentiti dalla legge: lo usi a tuo rischio.
+
+EyeCanSee copia, sposta, converte e cancella file quando glielo chiedi: tieni una copia dei file a cui tieni.
+
+La licenza (LICENSE.txt) e le licenze delle librerie (THIRD-PARTY-LICENSES.txt) vengono installate col programma.
