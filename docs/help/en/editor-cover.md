@@ -14,6 +14,8 @@ Drag a corner of the selected box to resize it (Shift keeps the proportions).
 
 Nothing. In the saved file the box replaces every pixel it touches, with no soft edge, so nothing of what was under it can be read or worked back. On an Ultra HDR photo the HDR part is hidden under it too.
 
+The box hides pixels only: the photo's details (place, date, title) stay in the copy unless you choose **All but the place** or **None** under **Metadata** when saving. When the photo records the place where it was taken, the save window says so in yellow.
+
 The box covers what you drew before it. What you draw after it stays on top.
 
 ## Cover, blur or pixelate?

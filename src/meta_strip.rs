@@ -29,6 +29,19 @@ impl Keep {
     }
 }
 
+/// The yellow line when saving an image with a cover box (#359): the box hides pixels, and with
+/// everything kept the file still records where the photo was taken. `place` (whether the photo
+/// records it) is asked last: it reads the metadata again.
+pub fn warn_place(cover: bool, keep: Keep, place: impl FnOnce() -> bool) -> bool {
+    cover && keep == Keep::All && place()
+}
+
+/// The EXIF (a TIFF structure) holds a position: a latitude in its GPS directory. Some cameras
+/// write the directory with its version only, which says nowhere.
+pub fn exif_has_position(t: &[u8]) -> bool {
+    exif::Reader::new().read_raw(t.to_vec()).is_ok_and(|e| e.get_field(exif::Tag::GPSLatitude, exif::In::PRIMARY).is_some())
+}
+
 /// IPTC-IIM datasets of the place: content location code and name (2:26, 2:27), city (2:90),
 /// sublocation (2:92), province or state (2:95), country code and name (2:100, 2:101).
 const IIM_PLACE: [u8; 7] = [26, 27, 90, 92, 95, 100, 101];
@@ -113,8 +126,40 @@ pub fn iim_without_place(iim: &[u8]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use exif::experimental::Writer;
     use exif::{Field, In, Rational, Tag, Value};
+
+    /// #359: the line only with a cover box and everything kept, and only if the photo records
+    /// its place; the metadata are not read again when the rest says no.
+    #[test]
+    fn place_warned_only_with_a_cover_and_all() {
+        assert!(warn_place(true, Keep::All, || true));
+        assert!(!warn_place(true, Keep::All, || false), "no place in the photo");
+        for (cover, keep) in [(false, Keep::All), (true, Keep::NoPlace), (true, Keep::Nothing)] {
+            assert!(!warn_place(cover, keep, || panic!("{cover} {keep:?}: the metadata read for nothing")), "{cover} {keep:?}");
+        }
+    }
+
+    /// #359: an EXIF records the place with a position in its GPS directory (a phone's photo,
+    /// without XMP); a GPS directory with only its version, or no GPS, does not.
+    #[test]
+    fn place_in_the_exif() {
+        let img = image::DynamicImage::new_rgb8(8, 8);
+        let place = |exif: Vec<u8>| crate::encode::Original::with_exif(img.clone(), Some(exif)).has_place(crate::encode::Format::Jpeg);
+        for big in [false, true] {
+            assert!(exif_has_position(&exif_with_gps(big)) && place(exif_with_gps(big)), "big endian {big}");
+        }
+        let f = |tag, value| Field { tag, ifd_num: In::PRIMARY, value };
+        for fields in [vec![f(Tag::Make, Value::Ascii(vec![b"Xiaomi".to_vec()])), f(Tag::GPSVersionID, Value::Byte(vec![2, 2, 0, 0]))], vec![f(Tag::Make, Value::Ascii(vec![b"Xiaomi".to_vec()]))]] {
+            let mut w = Writer::new();
+            fields.iter().for_each(|x| w.push_field(x));
+            let mut out = std::io::Cursor::new(Vec::new());
+            w.write(&mut out, true).unwrap();
+            let exif = out.into_inner();
+            assert!(!exif_has_position(&exif) && !place(exif), "{:?}", fields.iter().map(|f| f.tag).collect::<Vec<_>>());
+        }
+    }
 
     fn exif_with_gps(big_endian: bool) -> Vec<u8> {
         let f = |tag, value| Field { tag, ifd_num: In::PRIMARY, value };

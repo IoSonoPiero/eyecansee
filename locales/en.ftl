@@ -1005,6 +1005,10 @@ meta-keep-hint = What the new file keeps of the original's metadata. "All but th
 meta-keep-all = All (EXIF, XMP, IPTC, colour profile)
 meta-keep-no-place = All but the place (no GPS position)
 meta-keep-nothing = None (only the colour profile)
+# The image has a cover box and the photo records where it was taken (#359).
+edit-place-kept =
+    This photo records the place where it was taken.
+    Choose All but the place to leave it out.
 convert-keep-density = Keep the metadata (resolution only)
 convert-ultra-hdr-lost = This photo is Ultra HDR: it keeps its HDR only in JPEG with the metadata.
 convert-first-only = This image is animated or has several pages: only the picture shown is saved.

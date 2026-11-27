@@ -66,6 +66,9 @@ pub struct Window {
     frame: Option<f64>,
     /// The number of the picture this page asked for (`ask`): another is not its own (#200).
     pub(crate) asked: u64,
+    /// Opened from the editor with a cover box on the image: the metadata row says when the photo
+    /// still records where it was taken (#359).
+    pub(crate) covered: bool,
 }
 
 /// A number for a picture asked for a page (the editor, Save as…), sent back with it in
@@ -121,6 +124,7 @@ impl Window {
             from_viewer: false,
             frame: None,
             asked: ask(),
+            covered: false,
         }
     }
 
@@ -436,7 +440,7 @@ impl crate::App {
                 format_choice(ui, w, i18n);
                 let image = &original.0.image;
                 format_options(ui, &mut w.options, image.color().has_alpha(), image.width().max(image.height()) > crate::encode::ICO_SIDE, i18n);
-                meta_options(ui, &mut w.options, &original.0, i18n);
+                meta_options(ui, &mut w.options, (&original.0, w.covered), i18n);
                 // The other frames or pages are not in the new file (as Convert… says, leaving them out).
                 if w.place.is_none() && self.animated.contains(&w.path) {
                     ui.label(crate::theme::alert(t("convert-first-only")));

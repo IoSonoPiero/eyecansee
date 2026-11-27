@@ -14,6 +14,8 @@ Trascina un angolo del riquadro selezionato per ridimensionarlo (Maiusc mantiene
 
 Niente. Nel file salvato il riquadro sostituisce ogni pixel che tocca, senza bordi sfumati, così niente di ciò che c'era sotto si può leggere o ricostruire. In una foto Ultra HDR anche la parte HDR resta nascosta sotto di lui.
 
+Il riquadro nasconde solo i pixel: i dati della foto (luogo, data, titolo) restano nella copia, a meno che salvando tu scelga **Tutti tranne il luogo** o **Nessuno** in **Metadati**. Quando la foto contiene il luogo dello scatto, la finestra di salvataggio lo dice in giallo.
+
 Il riquadro copre ciò che hai disegnato prima. Ciò che disegni dopo gli resta sopra.
 
 ## Copertura, sfocatura o pixel grossi?

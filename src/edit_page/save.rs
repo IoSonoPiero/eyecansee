@@ -101,6 +101,9 @@ pub struct Prepared {
     bytes: Arc<Vec<u8>>,
     /// What the file keeps of the original's metadata, chosen in the confirmation (#55).
     keep: Keep,
+    /// The image has a cover box and the photo records where it was taken, in the file's format:
+    /// with **All** the confirmation says so (#359).
+    place: bool,
 }
 
 impl Prepared {
@@ -109,7 +112,7 @@ impl Prepared {
         let mut plan = crate::edit::save::plan_keeping(&self.doc, &self.original, &self.bytes, name, &self.word, &self.taken, keep)?;
         plan.name = self.plan.name.clone();
         let (doc, original, word, taken, target, bytes) = (self.doc.clone(), self.original.clone(), self.word.clone(), self.taken.clone(), self.target.clone(), self.bytes.clone());
-        Ok(Prepared { plan, doc, original, word, taken, target, send: self.send, over: self.over, gone: self.gone, bytes, keep })
+        Ok(Prepared { plan, doc, original, word, taken, target, send: self.send, over: self.over, gone: self.gone, bytes, keep, place: self.place })
     }
 
     /// The choice of the metadata is offered: the original has some, and the file's format holds it.
@@ -145,7 +148,8 @@ pub(crate) async fn prepare(store: &crate::source::Store, path: &str, (doc, orig
     if !over {
         plan.name = source::name(&target).to_string();
     }
-    Ok(Prepared { plan, doc: doc.clone(), original, word, taken, target, send, over, gone, bytes, keep })
+    let place = doc.has_cover() && Format::of_file(&plan.name).is_some_and(|f| original.has_place(f));
+    Ok(Prepared { plan, doc: doc.clone(), original, word, taken, target, send, over, gone, bytes, keep, place })
 }
 
 /// The file of a confirmed save: made now (the slow part), or already made by `plan`.
@@ -315,12 +319,16 @@ impl App {
         let title = self.i18n.t(if p.over { "edit-overwrite-title" } else { "edit-save-copy" });
         // What the file keeps of the metadata (#55): chosen here, planned again when changed.
         let mut keep = p.keep;
-        let offers = p.offers_keep();
+        let (offers, place) = (p.offers_keep(), p.place);
         let i18n = &self.i18n;
         let mut extra = |ui: &mut egui::Ui| {
             if offers {
                 // Tab reaches the list with the buttons, Space opens it (#311).
                 crate::confirm::join("edit-save", &crate::convert::meta_choice(ui, &mut keep, i18n));
+                // A cover box hides pixels, not where the photo was taken (#359).
+                if crate::meta_strip::warn_place(true, keep, || place) {
+                    ui.label(crate::theme::alert(i18n.t("edit-place-kept")));
+                }
             }
         };
         let keys = crate::confirm::answer(ctx, &mut self.key_answer, "edit-save");
@@ -523,6 +531,7 @@ impl Window {
         let mut convert = if self.new { crate::convert::Window::for_new_image(path) } else { crate::convert::Window::new(path) };
         convert.place = self.place.clone();
         convert.from_viewer = viewing && !self.new;
+        convert.covered = self.doc.has_cover();
         convert
     }
 
@@ -580,6 +589,30 @@ mod tests {
         std::fs::write(dir.join("p/a.jpg"), &bytes).unwrap();
         let store = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
         (dir, store, bytes)
+    }
+
+    /// #359: the save of a photo that records its place knows it once the image has a cover box,
+    /// whatever the metadata chosen (the confirmation decides with it); without a cover, or for a
+    /// photo without a place, it does not.
+    #[test]
+    fn covered_photo_with_its_place() {
+        let (dir, store, bytes) = place("cover-place");
+        let side = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:exif="http://ns.adobe.com/exif/1.0/" exif:GPSLatitude="40,21.5N" exif:GPSLongitude="18,10.2E"/></rdf:RDF></x:xmpmeta>"#;
+        let image = crate::decode::decode_full(&bytes, "a.jpg").unwrap();
+        let with_place = Arc::new(Original::with_meta_beside(image.clone(), &bytes, "a.jpg", Some(side.as_bytes())));
+        let without = Arc::new(Original::with_meta_of(image.clone(), &bytes, "a.jpg"));
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let mut covered = Doc::new(image.width(), image.height(), None);
+        covered.objects.push(cover(0.0));
+        let plain = Doc::new(image.width(), image.height(), None);
+        let place_of = |doc: &Doc, original: &Arc<Original>, keep: Keep| rt.block_on(prepare(&store, "p/a.jpg", (doc, original.clone()), Some(Arc::new(bytes.clone())), ("edited".into(), false, None, keep))).unwrap();
+        let p = place_of(&covered, &with_place, Keep::All);
+        assert!(p.place && p.offers_keep());
+        assert!(p.keeping(Keep::NoPlace, "a.jpg").unwrap().place, "the photo's place, not the choice");
+        assert!(place_of(&covered, &with_place, Keep::NoPlace).place);
+        assert!(!place_of(&plain, &with_place, Keep::All).place, "no cover");
+        assert!(!place_of(&covered, &without, Keep::All).place, "no place");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     /// One save as the page does it: prepared, sent, and the mark of what was written.

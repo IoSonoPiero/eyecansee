@@ -162,7 +162,7 @@ pub(crate) fn meta_choice(ui: &mut egui::Ui, keep: &mut Keep, i18n: &I18n) -> eg
     .inner
 }
 
-pub(super) fn meta_options(ui: &mut egui::Ui, o: &mut Options, original: &Original, i18n: &I18n) {
+pub(super) fn meta_options(ui: &mut egui::Ui, o: &mut Options, (original, covered): (&Original, bool), i18n: &I18n) {
     let t = |id| i18n.t(id);
     let lossless = match o.format {
         Format::Png | Format::Tiff | Format::Bmp | Format::Qoi | Format::Tga | Format::Pnm | Format::Exr | Format::Farbfeld => true,
@@ -191,6 +191,10 @@ pub(super) fn meta_options(ui: &mut egui::Ui, o: &mut Options, original: &Origin
     };
     if let Some(hint) = hint {
         r.on_hover_text(t(hint)).on_disabled_hover_text(t(hint));
+    }
+    // A cover box of the editor hides pixels, not where the photo was taken (#359).
+    if can_meta && o.format.holds_meta() && crate::meta_strip::warn_place(covered, o.meta, || original.has_place(o.format)) {
+        ui.label(crate::theme::alert(t("edit-place-kept")));
     }
     if original.hdr.is_some() && !keeps_hdr(o) {
         ui.label(crate::theme::alert(t("convert-ultra-hdr-lost")));

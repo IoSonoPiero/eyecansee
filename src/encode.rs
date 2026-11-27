@@ -388,6 +388,18 @@ impl Original {
         self.exif.is_some() || self.icc.is_some() || self.xmp.is_some() || self.irb.is_some() || self.density.is_some() || !self.texts.is_empty()
     }
 
+    /// Records the place where the photo was taken, in a `format` file: a position in the EXIF, or
+    /// a place that "All but the place" would take out of the XMP or the IPTC. An XMP that cannot
+    /// be read counts, as that choice leaves it out whole.
+    pub fn has_place(&self, format: Format) -> bool {
+        if self.exif.as_deref().is_some_and(crate::meta_strip::exif_has_position) {
+            return true;
+        }
+        let (w, h) = (self.image.width(), self.image.height());
+        let (all, other) = (self.blocks(format, w, h, false, Keep::All), self.blocks(format, w, h, false, Keep::NoPlace));
+        (all.xmp, all.irb) != (other.xmp, other.irb)
+    }
+
     /// "Keep the metadata" for a `format` file: whether it can be changed (something of this
     /// original would be kept) and the Fluent id of what pointing at it says. A BMP keeps a
     /// density with a unit and nothing else.
@@ -744,6 +756,28 @@ pub(crate) mod tests {
         assert!(text.contains("Ann"), "{o:?}: {text}");
         // The Camera Raw settings of a photo stay, marked as applied (they go only with None).
         assert!(text.contains("crs:AlreadyApplied"), "{o:?}: {text}");
+    }
+
+    /// #359: a photo records its place when "All but the place" would take something out: a GPS
+    /// position, or a city with no position; not a photo with a title only, nor the copy saved
+    /// without the place.
+    #[test]
+    fn records_the_place() {
+        let xmp = |props: &str| format!(r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description rdf:about="" xmlns:exif="http://ns.adobe.com/exif/1.0/" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/" {props}>
+<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Sea</rdf:li></rdf:Alt></dc:title></rdf:Description></rdf:RDF></x:xmpmeta>"#);
+        let img = DynamicImage::new_rgb8(8, 8);
+        let jpeg = Original::with_meta(img.clone(), &[]).encode(&Options::default()).unwrap();
+        assert!(!Original::with_meta(img.clone(), &jpeg).has_place(Format::Jpeg), "no metadata");
+        for (what, props, place) in [("GPS", r#"exif:GPSLatitude="40,21.5N" exif:GPSLongitude="18,10.2E""#, true), ("city", r#"photoshop:City="Lecce""#, true), ("title", "", false)] {
+            let side = xmp(props);
+            let original = Original::with_meta_beside(img.clone(), &jpeg, "a.jpg", Some(side.as_bytes()));
+            for format in [Format::Jpeg, Format::Png, Format::Webp] {
+                assert_eq!(original.has_place(format), place, "{what}, {format:?}");
+            }
+            let shared = original.encode(&Options { meta: Keep::NoPlace, ..Options::default() }).unwrap();
+            assert!(!Original::with_meta(img.clone(), &shared).has_place(Format::Jpeg), "{what}: saved without the place");
+        }
     }
 
     /// A photo's sidecar (#24) follows the metadata choice (#55): its title kept without the

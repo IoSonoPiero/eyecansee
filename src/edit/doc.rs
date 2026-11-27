@@ -515,6 +515,12 @@ impl Doc {
         Doc { turn: Turn::default(), angle: 0.0, crop: Crop::centred(w as f32, h as f32), fill, objects: Vec::new(), scale: None }
     }
 
+    /// Has a cover box (Cover, or a part cut with Ctrl + X): it hides pixels, not the photo's
+    /// metadata (#359).
+    pub fn has_cover(&self) -> bool {
+        self.objects.iter().any(|o| matches!(o.shape, Shape::Cover(_)))
+    }
+
     /// The flips, quarter turns, angle and crop, as "Rotate and crop" applies them to the pixels.
     pub fn edit(&self) -> Edit {
         Edit { turn: self.turn, angle: self.angle, crop: self.crop, fill: self.fill }
@@ -639,6 +645,17 @@ pub(crate) mod tests {
             Obj { shape: Shape::Cover(Area { rot: 0.0, ..area }), style },
         ];
         d
+    }
+
+    /// #359: a document with a cover box (the sample has one) has a cover; the same without it,
+    /// or a new one, has none.
+    #[test]
+    fn cover_box_found() {
+        let mut d = sample();
+        assert!(d.has_cover());
+        d.objects.retain(|o| !matches!(o.shape, Shape::Cover(_)));
+        assert!(!d.has_cover() && !d.objects.is_empty());
+        assert!(!Doc::new(10, 10, None).has_cover());
     }
 
     /// Every point of every object, in order.
