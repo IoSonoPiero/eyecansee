@@ -263,6 +263,24 @@ fn file_changed_same_panel() {
     });
 }
 
+/// A size from the listing over half the memory (a server's or a phone's, true or not; a file
+/// larger than the memory): no buffer that size, and not read whole instead (audit E.2). One
+/// below is read as before.
+#[test]
+fn size_over_half_the_memory_not_read() {
+    let bytes = jpeg(1600, 1200, true);
+    let ram = 64 << 20;
+    let rt = rt();
+    let op = rt.block_on(stored(&[("a.jpg", &bytes)]));
+    let got = rt.block_on(super::read_for(&op, "a.jpg", bytes.len() as u64, ram)).unwrap();
+    assert_eq!(panel(&got, "a.jpg", None), panel(&bytes, "a.jpg", None));
+    source::BYTES_READ.with(|n| n.set(0));
+    let (got, most) = crate::test_alloc::peak(|| rt.block_on(super::read_for(&op, "a.jpg", 200 << 20, ram)));
+    let read = source::BYTES_READ.with(std::cell::Cell::get);
+    assert!(most < 16 << 20 && read == 0, "{} MB held and {read} bytes read for a size of 200 MB on a computer of 64 MB", most >> 20);
+    assert!(got.unwrap().is_empty());
+}
+
 /// Every picture under `EYECANSEE_SAMPLES` (the private collection, `notes/test-files`) gives the
 /// same panel read in pieces as read whole, its sidecar with it and without; the bytes and reads
 /// of the panel's reading printed, those of the whole file beside.
