@@ -686,6 +686,7 @@ impl eframe::App for App {
         // Also with the window hidden: a later start waits for its address to be taken.
         self.answer_handed(ctx);
         gpu_start::frame_drawn(ctx);
+        self.save_when_moved(ctx);
     }
 
     fn on_exit(&mut self) {

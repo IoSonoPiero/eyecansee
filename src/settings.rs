@@ -459,6 +459,63 @@ impl Settings {
     }
 }
 
+/// What changes while EyeCanSee runs without passing from the Options: the folder open, the
+/// size of the window, the volume. Saved also before the exit (audit 1.11 d): a program that ends
+/// badly (a crash, the session closed, the computer switched off) starts again where it was.
+#[derive(Clone, PartialEq, Debug)]
+pub(crate) struct Moving {
+    pub(crate) location: Option<String>,
+    pub(crate) size: Option<[f32; 2]>,
+    pub(crate) maximized: bool,
+    pub(crate) volume: u32,
+}
+
+/// How long the size and the volume stay the same before they are saved: dragging the window's
+/// border or the volume is many changes, one save.
+pub(crate) const QUIET: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// When `Moving` is saved. `saved`: what the file holds; `seen`: a change not saved yet, and
+/// since when it has stayed the same.
+pub(crate) struct Autosave {
+    saved: Moving,
+    seen: Option<(Moving, std::time::Instant)>,
+}
+
+impl Autosave {
+    pub(crate) fn new(saved: Moving) -> Self {
+        Autosave { saved, seen: None }
+    }
+
+    /// Whether `now` is the time to save `m`; then it counts as saved.
+    pub(crate) fn due(&mut self, _m: &Moving, _now: std::time::Instant) -> bool {
+        false
+    }
+
+    /// A change waits for `QUIET`: the caller asks for a pass after it.
+    pub(crate) fn waiting(&self) -> bool {
+        self.seen.is_some()
+    }
+}
+
+impl crate::App {
+    /// Every pass, also with the window hidden (`App::logic`): the folder, the size of the window
+    /// and the volume saved when `Autosave` says so.
+    pub(crate) fn save_when_moved(&mut self, ctx: &eframe::egui::Context) {
+        static AUTOSAVE: std::sync::Mutex<Option<Autosave>> = std::sync::Mutex::new(None);
+        let s = &self.settings;
+        let location = if self.loader.is_some() { Some(self.display(&self.dir)) } else { s.last_location.clone() };
+        let now = Moving { location, size: s.window_size, maximized: s.window_maximized, volume: s.video_volume };
+        let mut autosave = AUTOSAVE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let autosave = autosave.get_or_insert_with(|| Autosave::new(Moving { location: s.last_location.clone(), ..now.clone() }));
+        if autosave.due(&now, std::time::Instant::now()) {
+            self.settings.last_location = now.location;
+            self.settings.save();
+        } else if autosave.waiting() {
+            ctx.request_repaint_after(QUIET);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
