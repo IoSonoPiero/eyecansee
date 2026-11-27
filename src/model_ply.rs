@@ -83,7 +83,8 @@ fn parsed(bytes: &[u8], z_up: bool) -> Result<Mesh, String> {
 /// have (audit 27/11, S.4 and S.10 c): the parser keeps each row as a table of named values,
 /// about 340 bytes a row at its peak, binary or in text (`parser_peak_per_row`), so about 7 GB at
 /// the most, near the 8 GB of the caps (D1). A mesh in text at its cap (10 million triangles) has
-/// some 15 million rows, half as many points as triangles: it still opens.
+/// some 15 million rows, half as many points as triangles: it still opens. One whose triangles
+/// each have three points of their own has four rows a triangle: refused from 5 million.
 const PARSER_ROWS: usize = 20_000_000;
 
 /// The header the parser is given, checked before it reads (audit 27/11, S.4 and S.10 c): its
