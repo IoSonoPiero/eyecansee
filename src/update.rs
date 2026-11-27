@@ -84,9 +84,11 @@ fn not_updated_id(flatpak: bool, rpm: bool, ostree: bool) -> &'static str {
     }
 }
 
-/// The AppImage this copy runs from (`$APPIMAGE`, `$APPDIR` and the executable).
+/// The AppImage this copy runs from (`$APPIMAGE`, `$APPDIR` and the executable). `APPDIR` with
+/// its links resolved, as `current_exe` is (`/proc/self/exe`).
 fn appimage() -> Option<PathBuf> {
-    appimage_of(std::env::current_exe().ok().as_deref(), std::env::var_os("APPIMAGE"), std::env::var_os("APPDIR"))
+    let appdir = std::env::var_os("APPDIR").map(|d| std::fs::canonicalize(&d).map_or(d, PathBuf::into_os_string));
+    appimage_of(std::env::current_exe().ok().as_deref(), std::env::var_os("APPIMAGE"), appdir)
 }
 
 /// `appimage`, from what it reads: the file the runtime of an AppImage names, believed only when
