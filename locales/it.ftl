@@ -290,6 +290,7 @@ error-phone-copy-lost = Il telefono ci ha messo più di quanto Windows aspetta p
 error-copy-not-made = Il telefono non ha fatto la copia di { $detail }: l'originale non è stato toccato.
 error-copy-not-whole = La copia di { $detail } non è arrivata intera: l'originale non è stato toccato.
 error-pc-space = Non c'è abbastanza spazio libero su questo computer per { $detail }: un file grande dentro il telefono passa da qui. Libera un po' di spazio e riprova.
+error-phone-full = Il telefono non ha accettato il file: la memoria è piena, oppure il file è troppo grande per lei (su una scheda di memoria FAT32 un file deve restare sotto i 4 GB).
 error-phone-space = Non c'è abbastanza spazio libero sul telefono per { $detail }.
 error-move-same-item = Quello che sostituirebbe è questo stesso elemento, raggiunto da un'altra strada: { $detail }
     Lo spostamento si è fermato, e l'elemento è rimasto com'era.

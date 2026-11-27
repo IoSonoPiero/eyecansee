@@ -297,6 +297,7 @@ error-phone-copy-lost = The phone took longer to copy { $detail } than Windows w
 error-copy-not-made = The phone did not make the copy of { $detail }: the original was left as it was.
 error-copy-not-whole = The copy of { $detail } did not arrive whole: the original was left as it was.
 error-pc-space = Not enough free space on this computer for { $detail }: a big file inside the phone goes through it. Free some space and try again.
+error-phone-full = The phone did not take the file: its storage is full, or the file is too big for it (on a FAT32 memory card a file must stay under 4 GB).
 error-phone-space = Not enough free space on the phone for { $detail }.
 error-cancelled = Cancelled.
 error-too-deep = Too many folders one inside another, so the copy stopped: { $detail }

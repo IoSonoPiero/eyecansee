@@ -187,6 +187,9 @@ fn error(e: mtp_rs::Error) -> Error {
         mtp_rs::Error::Timeout => "error-phone-timeout",
         // The phone answered DeviceBusy: Windows Photos importing from it (POCO X7 Pro, 2026-11-08).
         mtp_rs::Error::Busy => "error-phone-busy",
+        // The storage is full, or the file is too big for it: the phone says the same for both
+        // (`StoreFull`, `ObjectTooLarge`; a 4 GiB file to a FAT32 card, Redmi Note 9 Pro, 27/11).
+        mtp_rs::Error::StorageFull => "error-phone-full",
         // A copy onto a name the folder has (mtp-rs 0.37.3): `copy_inside` avoids it.
         mtp_rs::Error::AlreadyExists => "error-phone-name-taken",
         _ => "error-detail",
