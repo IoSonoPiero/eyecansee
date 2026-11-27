@@ -371,6 +371,33 @@ mod tests {
         clean(&dir);
     }
 
+    /// Audit A.2: the broken driver is said at the start that finds it; the starts after keep the
+    /// first-start window and the tip of the day. Its text holds at any start, whoever ended the
+    /// one with Vulkan.
+    #[test]
+    fn broken_driver_said_at_the_start_that_finds_it() {
+        assert_eq!(notice_for(true, false, false), Some(("graphics-broken-title", "graphics-broken-text")));
+        assert_eq!(notice_for(true, true, false), None, "found at an earlier start");
+        for (lang, ftl) in [("en", include_str!("../locales/en.ftl")), ("it", include_str!("../locales/it.ftl"))] {
+            let text = ftl.lines().find_map(|l| l.strip_prefix("graphics-broken-text = ")).unwrap();
+            assert!(!text.contains("At the last start") && !text.contains("All'ultimo avvio"), "{lang}: {text}");
+        }
+    }
+
+    /// Audit A.2: a window hidden from the start (minimised) draws no frame: the mark goes away
+    /// after a while of life all the same, or the next start would take the driver for broken.
+    #[test]
+    fn mark_taken_away_after_a_while_hidden() {
+        let dir = temp("hidden");
+        let path = dir.join(MARK);
+        let mut s = Settings { graphics: Graphics::Vulkan, ..Settings::default() };
+        apply(&dir, &plan_in(&dir, s.graphics, unasked), &mut s);
+        assert!(!take_after_first(&path, 0, std::time::Duration::from_secs(1)), "not at once");
+        assert!(take_after_first(&path, 0, std::time::Duration::from_secs(30)), "after a while");
+        assert!(!path.exists());
+        clean(&dir);
+    }
+
     #[test]
     fn notices() {
         assert_eq!(notice_for(false, false, false), None);
