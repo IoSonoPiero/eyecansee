@@ -815,4 +815,43 @@ mod tests {
         assert!(h.app.listing_pending.contains(&h.app.dir) || gone(&h.app), "the folder not read again");
         h.until(gone, "the folder gone from the grid");
     }
+
+    /// Audit 27/11 F.9 (#282): the end of a deletion asked on a server, come once another source
+    /// is open, took a file of the same path out of the grid of the new one (and so a renaming,
+    /// a restoring, a new folder). Here the server holds its answer until the computer's folder,
+    /// with the same path as the server's, is open.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn the_end_of_a_deletion_on_the_source_left_dropped() {
+        use crate::audit_family_1::fake_ftp;
+        if own_folder("messages::tests::the_end_of_a_deletion_on_the_source_left_dropped") {
+            return;
+        }
+        let local = folder("deleted-on-the-server", &["a.png"]);
+        let png = std::fs::read(local.join("a.png")).unwrap();
+        let abs = local.display().to_string();
+        let mut tree = fake_ftp::Tree::default();
+        tree.folder(&abs, &[("a.png", &png)]);
+        let (target, tree) = fake_ftp::start(tree);
+        let mut h = Harness::open(&format!("ftp://tester:x@127.0.0.1:{}{abs}/", target.port));
+        assert!(h.app.base.starts_with("ftp://"), "on the server: {}", h.app.base);
+        let a = h.app.files()[0].path.clone();
+        let held = tree.lock().unwrap();
+        h.app.loader.as_ref().unwrap().delete(vec![a.clone()], crate::source::Deletion::Permanent);
+        h.app.tx.send(Msg::Open(format!("{abs}/"))).unwrap();
+        h.until(|app| app.base == "/" && !app.files().is_empty(), "the computer's folder listed");
+        drop(held);
+        let start = std::time::Instant::now();
+        while !tree.lock().unwrap().log.iter().any(|l| l.starts_with("DELE")) {
+            assert!(start.elapsed().as_secs() < 10, "the server never asked to delete: {:?}", tree.lock().unwrap().log);
+            h.frame(Vec::new());
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        for _ in 0..20 {
+            h.frame(Vec::new());
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        assert!(local.join("a.png").is_file(), "the computer's a.png deleted");
+        assert!(h.app.files().iter().any(|f| f.path == a), "the computer's a.png taken out of its grid by the server's deletion");
+    }
 }
