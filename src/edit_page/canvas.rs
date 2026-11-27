@@ -739,6 +739,25 @@ mod tests {
         assert_eq!(resized(start, 1, 0, egui::vec2(-500.0, 0.0), None, most).0.w, 1.0);
     }
 
+    /// At 200 megapixels in all the side dragged stops, the others stay where they are; a corner
+    /// keeps the proportions it has, without jumping from wide to tall (audit E.8).
+    #[test]
+    fn crop_drag_within_the_pixels() {
+        let most = crate::edit::resize::crop_most(20_000.0, 5_000.0);
+        let start = Crop::centred(20_000.0, 5_000.0);
+        let (down, capped) = resized(start, 0, 1, egui::vec2(0.0, 12_500.0), None, most);
+        assert!(capped);
+        assert_eq!((down.cx - down.w / 2.0, down.cy - down.h / 2.0, down.w), (-10_000.0, -2_500.0, 20_000.0), "only the bottom moves");
+        assert!((down.h - 10_000.0).abs() < 1.0, "{down:?}");
+        let start = Crop::centred(100.0, 50.0);
+        let most = crate::edit::resize::crop_most(100.0, 50.0);
+        for p in [egui::vec2(19_999.0, 19_999.0), egui::vec2(20_000.0, 19_999.0)] {
+            let (corner, _) = resized(start, 1, 1, p, None, most);
+            assert!(corner.w * corner.h <= most.pixels * 1.001 && (corner.w - corner.h).abs() < 2.0, "{corner:?}");
+            assert_eq!((corner.cx - corner.w / 2.0, corner.cy - corner.h / 2.0), (-50.0, -25.0), "the top left corner stays");
+        }
+    }
+
     /// The crop stops at the largest side (20 000 pixels, or the photo's own side when it is
     /// larger): a side dragged far with the view zoomed out, or the whole of a straightened image,
     /// made a result of tens of thousands of pixels a side, which ran out of memory at Save or
