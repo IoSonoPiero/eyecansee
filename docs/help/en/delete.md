@@ -5,15 +5,15 @@ Deletes files and folders, and gets them back from the trash. On this computer f
 ## Deleting
 
 1. Select the files or folders in the grid, or open the image in the viewer.
-2. Press **Del**, or click ![Delete…](icon://trash) in the toolbar, or choose **File > Delete…**, or right-click and choose **Delete…**. A folder of the tree on the left is deleted from its right-click menu.
-3. A window asks for confirmation, with the name and size (with several items: how many, and the size of their images). The button says what happens: **Move to trash**, or **Delete** when it is for good.
+2. Press **Del**, or click ![Delete…](icon://trash) in the toolbar, or choose **File > Delete…**, or right-click and choose **Delete…**. To delete a folder of the tree on the left, use its right-click menu.
+3. A window asks for confirmation, with the name and size (for several items: how many there are, and the size of their images). The button says what happens: **Move to trash**, or **Delete** when it is for good.
 4. **Enter** confirms, **Esc** cancels.
 
 In the viewer, the next image appears at once.
 
 ## Deleting a folder
 
-A folder is deleted with everything inside it. When a folder is among the items, EyeCanSee reads its first level while the window opens, and the confirmation button waits a moment for it. If the folder holds files or folders the grid does not show (documents, hidden files and the like), which would be deleted too, the window says so with an example; if the folder cannot be read, it says that too. With a folder, **Enter** cancels, like Esc: click the button to delete.
+A folder is deleted with everything inside it. When a folder is among the items, EyeCanSee reads its first level while the window opens, and the confirmation button waits a moment for it. If the folder holds files or folders the grid does not show (documents, hidden files and the like), which would be deleted too, the window says so with an example; if the folder cannot be read, it says that too. With a folder, **Enter** cancels, like **Esc**: click the button to delete.
 
 ## Where deleted files go
 
@@ -22,7 +22,7 @@ A folder is deleted with everything inside it. When a folder is among the items,
 - **Phones and servers**: by default the file goes into a hidden `.EyeCanSee-trash` folder inside its own folder. In **Tools > Options… > Deleting** you can choose **Delete for good** instead (see [Options](options.md)).
 - With the option **Delete files on this computer for good, without the trash (dangerous)**, files on this computer are deleted forever.
 
-**Shift + Del**, or **File > Delete for good…**, deletes forever that one time, whatever the options say.
+**Shift + Del**, or **File > Delete for good…**, deletes for good just that once, whatever the options say.
 
 ## Several items
 
@@ -33,9 +33,9 @@ With several items selected, **Del** deletes all of them after one confirmation.
 Every folder where you deleted something on a phone or a server (and on a USB stick on Windows) has its own trash.
 
 - A strip at the top of the grid says **This folder has a trash**, with the **Open the trash** button.
-- Inside, the strip says whose trash it is and has **Restore all** and **Empty the trash…**.
-- Inside the trash you can look at the images, restore them (right click, **File** or **Edit** > **Restore**: they go back to the folder that holds the trash) or delete them for good. There **Del** always deletes forever. Cut, Copy, Rename, the turns, the editor, Save and Save as… are greyed out: restore the item first.
-- Right click on an empty spot inside the trash: **Restore all** and **Empty the trash…** (everything deleted forever, after a confirmation).
+- Inside, the strip says which folder the trash belongs to and has **Restore all** and **Empty the trash…**.
+- Inside the trash you can look at the images, restore them (right-click, or **File** or **Edit** > **Restore**: they go back to the folder that holds the trash) or delete them for good. There, **Del** always deletes for good. Cut, Copy, Rename, the rotations, the editor, Save and Save as… are greyed out: restore the item first.
+- Right-click an empty spot inside the trash: **Restore all** and **Empty the trash…** (everything deleted forever, after a confirmation).
 - A trash left empty goes away together with its strip.
 
 ![Deleting and the trash](../img/trash-strip.webp)
@@ -51,5 +51,5 @@ On Android phones, the trash of a folder also shows the photos and videos the ph
 - A photo's `.xmp` file (see [Image information](metadata.md)) is deleted with it, into the same trash. In EyeCanSee's trash it takes the photo's name there ("IMG_0001 (2).CR2" with "IMG_0001 (2).CR2.xmp"), and **Restore** puts it back with the photo. In the system trash they are two items: restore both with your file manager.
 - The top folder of a disk, phone or server and the storages of a phone cannot be deleted.
 - A folder moved to another device, or merged into a folder with the same name, takes its trash along; a copy leaves it out.
-- On Linux, on an **NTFS** disk (for example an external disk also used with Windows), the Files app cannot restore from the trash. The files are there all the same: the confirmation reminds you, and [Known limits](limits.md) says how to restore them from a terminal.
+- On Linux, on an **NTFS** disk (for example an external disk also used with Windows), the Files app cannot restore from the trash. The files are still there: the confirmation reminds you, and [Known limits](limits.md) says how to restore them from a terminal.
 - In a folder opened through the file manager's connection (on Linux), deleting follows the choice for phones and servers.
