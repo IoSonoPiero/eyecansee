@@ -5,8 +5,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use mtp_rs::ObjectHandle;
-
 /// How the wait goes.
 pub(super) struct Pace<'a> {
     /// How often the destination is looked at.
@@ -19,9 +17,9 @@ pub(super) struct Pace<'a> {
 
 /// How the wait ended.
 #[derive(Debug)]
-pub(super) enum End {
-    /// What was waited for is there: its handle.
-    Arrived(ObjectHandle),
+pub(super) enum End<T> {
+    /// What was waited for is there: what the look found.
+    Arrived(T),
     /// The phone went meanwhile: the error that said so.
     Gone(mtp_rs::Error),
     /// Left before the item was there (`Pace::leave`): the phone may still be at it.
@@ -36,10 +34,10 @@ pub(super) enum End {
 /// gone (`gone`, in the words of Windows too). The wait is left (`Pace::leave`) between two looks,
 /// never during one: a call of mtp-rs dropped half way can leave the phone's session stuck
 /// (mtp-rs, AGENTS.md, "dropped future"), so leaving takes as long as the look under way.
-pub(super) async fn until_arrived<F, Fut>(pace: Pace<'_>, mut look: F) -> End
+pub(super) async fn until_arrived<T, F, Fut>(pace: Pace<'_>, mut look: F) -> End<T>
 where
     F: FnMut(Duration) -> Fut,
-    Fut: Future<Output = Result<Option<ObjectHandle>, mtp_rs::Error>>,
+    Fut: Future<Output = Result<Option<T>, mtp_rs::Error>>,
 {
     let start = Instant::now();
     while start.elapsed() < pace.most {
@@ -76,6 +74,8 @@ async fn left(pace: &Pace<'_>) -> bool {
 mod tests {
     use std::sync::atomic::AtomicUsize;
 
+    use mtp_rs::ObjectHandle;
+
     use super::*;
 
     /// Nobody leaves the wait.
@@ -91,7 +91,7 @@ mod tests {
     }
 
     /// The wait with a destination that always answers `answer`: how it ended, after how many looks.
-    fn ended(most: u64, answer: impl Fn() -> Result<Option<ObjectHandle>, mtp_rs::Error>) -> (End, usize) {
+    fn ended(most: u64, answer: impl Fn() -> Result<Option<ObjectHandle>, mtp_rs::Error>) -> (End<ObjectHandle>, usize) {
         let looks = AtomicUsize::new(0);
         let end = run(until_arrived(pace(most), |_| {
             looks.fetch_add(1, Ordering::Relaxed);
@@ -139,14 +139,14 @@ mod tests {
     fn the_wait_can_be_left() {
         let (leave, looks) = (AtomicBool::new(false), AtomicUsize::new(0));
         let pace = Pace { look: Duration::from_millis(5), most: Duration::from_millis(400), leave: &leave };
-        let end = run(until_arrived(pace, |_| {
+        let end: End<ObjectHandle> = run(until_arrived(pace, |_| {
             leave.store(looks.fetch_add(1, Ordering::Relaxed) == 2, Ordering::Relaxed);
             async { Ok(None) }
         }));
         assert!(matches!(end, End::Left) && looks.load(Ordering::Relaxed) == 3, "{end:?} after {} looks", looks.load(Ordering::Relaxed));
         let pace = Pace { look: Duration::from_secs(60), most: Duration::from_secs(600), leave: &leave };
         let start = Instant::now();
-        let end = run(until_arrived(pace, |_| async { Ok(None) }));
+        let end: End<ObjectHandle> = run(until_arrived(pace, |_| async { Ok(None) }));
         assert!(matches!(end, End::Left) && start.elapsed() < Duration::from_secs(5), "asked before the wait: {end:?} after {:?}", start.elapsed());
     }
 }

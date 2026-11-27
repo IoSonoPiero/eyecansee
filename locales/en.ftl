@@ -292,6 +292,8 @@ list-more-images = { $n ->
    *[other] and { $n } more
 }
 error-phone-left = EyeCanSee stopped waiting for the phone, which was still working on { $detail }. If the phone finishes by itself, what it made stays on the phone. It answers nothing until it is done.
+error-phone-copy-unseen = The phone copied { $detail }, but it took longer than Windows waits, and Windows does not show the copy. Unplug the phone and plug it in again, then check whether the copy is there: if it is missing, copy it again.
+error-phone-copy-lost = The phone took longer to copy { $detail } than Windows waits, and Windows does not show what the phone does. Wait a few minutes, unplug the phone and plug it in again, then check whether the copy is there: if it is missing, copy it again.
 error-copy-not-made = The phone did not make the copy of { $detail }: the original was left as it was.
 error-copy-not-whole = The copy of { $detail } did not arrive whole: the original was left as it was.
 error-pc-space = Not enough free space on this computer for { $detail }: a big file inside the phone goes through it. Free some space and try again.

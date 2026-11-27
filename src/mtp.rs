@@ -31,6 +31,7 @@ mod events;
 mod storages;
 pub(crate) mod turn;
 mod undo;
+mod unseen;
 mod wait;
 #[cfg(test)]
 pub(crate) use across::alone_limit;
@@ -471,7 +472,7 @@ impl Phone {
         match (self.queued_kept("move", path, storage.move_object(handle, folder, Some(to.id()))).await, size) {
             // To the other storage, past the 30 s mtp-rs waits: the phone is still moving it.
             ((Err(mtp_rs::Error::Timeout), turn), Some(size)) => {
-                self.finished_by_phone(("move", began, turn), path, (&to, folder), (new_name, size), Some((&storage, handle))).await.map_err(|e| across::kept_quiet(e, quiet))?;
+                self.finished_by_phone(("move", began, turn), path, (&to, folder), (new_name, size, None), Some((&storage, handle))).await.map_err(|e| across::kept_quiet(e, quiet))?;
             }
             ((r, _), _) => r.map_err(error)?,
         }

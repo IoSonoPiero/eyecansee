@@ -71,7 +71,7 @@ pub fn stay() {
 /// Whether `e` is of a phone left at work: the wait for it left (`LEFT`) or over. It answers
 /// nothing until it is done.
 fn left_at_work(e: &Error) -> bool {
-    matches!(e.0, LEFT | "error-phone-timeout")
+    matches!(e.0, LEFT | "error-phone-timeout" | unseen::LOST)
 }
 
 /// Whether `e` is of a phone that answers nothing now: left at work, or gone. Nothing more is
@@ -182,8 +182,10 @@ impl Phone {
     /// 30 s: the phone is still at it. Its turn, held since the call (`queued_kept`), is kept, so nothing else is asked meanwhile but the
     /// destination, read every few seconds (`wait::until_arrived`; a reading while the phone works is given up at 30 s
     /// too, and mtp-rs goes on), until `name` is there with `size` bytes and, for a move, the item
-    /// `moved` is no longer on its storage. The handle of what arrived.
-    pub(super) async fn finished_by_phone(&self, (what, began, _turn): (&str, std::time::Instant, turn::Turn<'_>), path: &str, (to, folder): (&Storage, ObjectHandle), (name, size): (&str, u64), moved: Option<(&Storage, ObjectHandle)>) -> Result<ObjectHandle, Error> {
+    /// `moved` is no longer on its storage. The handle of what arrived. `free`, after Windows gave
+    /// the copy up: the free bytes of `to` before it; Windows may never show the item, and the
+    /// wait ends once that space is taken (`unseen`).
+    pub(super) async fn finished_by_phone(&self, (what, began, _turn): (&str, std::time::Instant, turn::Turn<'_>), path: &str, (to, folder): (&Storage, ObjectHandle), (name, size, free): (&str, u64, Option<u64>), moved: Option<(&Storage, ObjectHandle)>) -> Result<ObjectHandle, Error> {
         let start = std::time::Instant::now();
         let (_waiting, _deaf) = (Waiting::start_at(what, path, began), turn::Deaf::start(&self.serial, path));
         log!("phone {}: {what} {path}: the phone is still at it ({size} bytes), its result looked for", self.serial);
@@ -201,18 +203,27 @@ impl Phone {
             };
             let there = found.iter().find(|(n, _, _)| n == name).map(|(_, s, _)| *s);
             log!("phone {}: {what} {path}: destination read in {:.1} s, at {:.0} s: {there:?} of {size} bytes", self.serial, t.elapsed().as_secs_f32(), at.as_secs_f32());
-            let Some(h) = arrived(&found, name, size) else { return Ok(None) };
+            let Some(h) = arrived(&found, name, size) else {
+                return Ok(match free {
+                    Some(before) if self.made_unseen(path, to, (before, size)).await => Some(unseen::Found::Unseen),
+                    _ => None,
+                });
+            };
             if let Some((from, old)) = moved
                 && from.get_object_info(old).await.is_ok_and(|i| i.storage_id == from.id())
             {
                 return Ok(None);
             }
-            Ok(Some(h))
+            Ok(Some(unseen::Found::There(h)))
         };
         match wait::until_arrived(pace, look).await {
-            wait::End::Arrived(h) => {
+            wait::End::Arrived(unseen::Found::There(h)) => {
                 log!("phone {}: {what} {path}: done by the phone in {:.0} s", self.serial, start.elapsed().as_secs_f32());
                 Ok(h)
+            }
+            wait::End::Arrived(unseen::Found::Unseen) => {
+                log!("phone {}: {what} {path}: made by the phone in {:.0} s (its space is taken), in no listing", self.serial, start.elapsed().as_secs_f32());
+                Err((unseen::UNSEEN, path.to_string()))
             }
             wait::End::Gone(e) => Err(error(e)),
             wait::End::Left => {
@@ -221,7 +232,7 @@ impl Phone {
             }
             wait::End::Late => {
                 log!("phone {}: {what} {path}: not done by the phone in {:.0} s", self.serial, start.elapsed().as_secs_f32());
-                Err(("error-phone-timeout", path.to_string()))
+                Err((if free.is_some() { unseen::LOST } else { "error-phone-timeout" }, path.to_string()))
             }
         }
     }
@@ -239,13 +250,16 @@ impl Phone {
         // A copy is made by the phone also inside one storage: a big one takes longer than mtp-rs
         // waits there too (6 GB, about a minute). The events stop for a file that may (`Quiet`).
         let size = self.size_of(path, (&storage, handle)).await?;
+        let free = self.free_before(&to, size).await;
         let (quiet, _deaf) = (size >= LONG_COPY).then(|| (self.quiet(), turn::Deaf::start(&self.serial, path))).unzip();
         stay();
         let began = std::time::Instant::now();
         let h = match self.queued_kept("copy", path, self.marked(storage.copy_object(handle, folder, Some(to.id())))).await {
             // Given up while the phone is still copying it (`still_at_it`).
             (Err(e), turn) if still_at_it(&e, size, began.elapsed()) => {
-                let h = self.finished_by_phone(("copy", began, turn), path, (&to, folder), (source::name(path), size), None).await.map_err(|e| kept_quiet(e, quiet))?;
+                // Given up by Windows: it may never show the copy (`unseen`).
+                let free = free.filter(|_| matches!(e, mtp_rs::Error::InvalidData { .. }));
+                let h = self.finished_by_phone(("copy", began, turn), path, (&to, folder), (source::name(path), size, free), None).await.map_err(|e| kept_quiet(e, quiet))?;
                 self.own.mark(h);
                 h
             }
@@ -311,6 +325,9 @@ mod tests {
         assert!(unanswering(&e(LEFT)) && left_at_work(&e(LEFT)));
         assert!(unanswering(&e("error-phone-timeout")) && left_at_work(&e("error-phone-timeout")));
         assert!(unanswering(&e("error-phone-disconnected")) && !left_at_work(&e("error-phone-disconnected")));
+        // Windows never showed the copy: the phone may still be at it. Its space taken: it is done.
+        assert!(unanswering(&e(unseen::LOST)) && left_at_work(&e(unseen::LOST)));
+        assert!(!unanswering(&e(unseen::UNSEEN)), "the phone is done: the hidden folder of the copy is removed");
         assert!(!unanswering(&e(NOT_MADE)) && !unanswering(&e("error-cancelled")));
         assert_eq!(kept_quiet(e(NOT_MADE), None), e(NOT_MADE));
     }
