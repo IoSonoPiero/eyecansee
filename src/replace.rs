@@ -400,6 +400,24 @@ mod tests {
         assert_eq!((img.width(), img.height()), (16, 32), "the photo of before turned in place of the new one");
     }
 
+    /// The size of the file cannot be asked for a moment (a server without the command, the
+    /// connection down): the copy is not used then, but kept for when it can (audit E.6).
+    #[test]
+    fn open_copy_kept_when_the_size_cannot_be_asked() {
+        let dal = opendal::Operator::new(opendal::services::Memory::default()).unwrap();
+        let op = Store::Dal(dal.clone());
+        let mut jpeg = Vec::new();
+        image::DynamicImage::new_rgb8(64, 48).write_to(&mut std::io::Cursor::new(&mut jpeg), image::ImageFormat::Jpeg).unwrap();
+        let path = "dcim/open-copy-no-size.jpg";
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(dal.write(path, jpeg.clone())).unwrap();
+        rt.block_on(crate::view_memory::read(&op, path, None, crate::view_memory::Use::View, false)).unwrap();
+        rt.block_on(dal.delete(path)).unwrap();
+        assert!(rt.block_on(crate::open_copy::kept(&op, path)).is_none(), "used without knowing the file");
+        rt.block_on(dal.write(path, jpeg)).unwrap();
+        assert!(rt.block_on(crate::open_copy::kept(&op, path)).is_some(), "the copy dropped when the size could not be asked");
+    }
+
     /// A picture kept on this computer is not turned when the turn needs more than half of the
     /// memory, as one read from its source: the viewer asks first (audit E.6 b).
     #[test]
