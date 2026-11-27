@@ -73,6 +73,7 @@ impl App {
             },
             leaving: crate::mtp::leaving(),
             windows_gave_up: crate::mtp::windows_gave_up(),
+            stays: p.by_phone.stays(),
         }
     }
 
@@ -561,6 +562,44 @@ mod tests {
             }
             assert!(sizes[0].x == sizes[1].x && sizes[0].y < sizes[1].y, "{lang}: one file {:?}, several {:?}", sizes[0], sizes[1]);
         }
+    }
+
+    /// Audit T.6 (27/11): Cancel's tooltip said that the phone ends the file and then its copy
+    /// goes, also for a big file going through this computer, where Cancel stops the reading at
+    /// once and a file being written to the phone is finished and stays. And for a small file of
+    /// the other storage that the phone copies (a paste of items of both storages), Cancel's
+    /// tooltip and the line after Cancel said that the copy just made goes: it stays, only a
+    /// copy inside one storage is removed. In both languages.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn cancel_says_what_becomes_of_the_file_under_way() {
+        if own_folder("phone_copy_window::tests::cancel_says_what_becomes_of_the_file_under_way") {
+            return;
+        }
+        let mut wrong = Vec::new();
+        for lang in ["en", "it"] {
+            let (mut h, p) = copying(&format!("phone-copy-cancel-says-{lang}"), 2);
+            h.app.i18n = crate::i18n::I18n::new(lang);
+            let (removed_tip, removed_note) = (h.app.i18n.t("phone-copy-cancel-tip"), h.app.i18n.t("phone-copy-cancelled-note"));
+            let tip = |h: &Harness| h.app.phone_copy_shown(&p).cancel.map(|(_, tip)| tip);
+            assert_eq!(tip(&h), Ok(removed_tip.clone()), "{lang}: a copy inside one storage, removed");
+            *p.staging.lock().unwrap() = Some(crate::transfer::Staging::Reading);
+            if tip(&h) == Ok(removed_tip.clone()) {
+                wrong.push(format!("{lang}: through this computer, the tooltip: {removed_tip}"));
+            }
+            *p.staging.lock().unwrap() = None;
+            p.by_phone.given("SD card/DCIM/a.jpg", "Internal storage/Download/a.jpg");
+            if tip(&h) == Ok(removed_tip.clone()) {
+                wrong.push(format!("{lang}: a file of the other storage, the tooltip: {removed_tip}"));
+            }
+            p.cancel.store(true, Ordering::Relaxed);
+            let note = h.app.phone_copy_shown(&p).note.0;
+            if note.contains(&removed_note) {
+                wrong.push(format!("{lang}: a file of the other storage, after Cancel: {note}"));
+            }
+            frames(&mut h);
+        }
+        assert!(wrong.is_empty(), "Cancel promises to remove a copy that stays:\n{}", wrong.join("\n"));
     }
 
     /// #354: the phone gone from the devices during the copy: the window is no longer modal (back to

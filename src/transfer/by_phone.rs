@@ -44,6 +44,8 @@ pub struct ByPhone {
     file: Mutex<Option<(String, u64, Instant)>>,
     /// Big files (`mtp::LONG_COPY` and more) the phone finished in this paste: bytes and seconds.
     big: Mutex<(u64, f64)>,
+    /// The copy of the file under way stays after Cancel (`undone` said no for it).
+    stays: AtomicBool,
 }
 
 impl ByPhone {
@@ -70,8 +72,23 @@ impl ByPhone {
     /// Whether Cancel during the copy of `src` to `dest` removes the copy the phone made: a paste
     /// of this kind, and a copy that stays inside one storage (Piero, 26/11 night: Cancel means
     /// "not the file under way"; the files done before stay).
+    /// The answer is kept for the window (`stays`): asked for each file the phone is given.
     pub(super) fn undone(&self, src: &str, dest: &str) -> bool {
-        self.on.load(Ordering::Relaxed) && storage(src) == storage(dest)
+        let undone = self.on.load(Ordering::Relaxed) && storage(src) == storage(dest);
+        self.stays.store(!undone, Ordering::Relaxed);
+        undone
+    }
+
+    /// The copy of the file under way stays after Cancel: one of the other storage.
+    pub fn stays(&self) -> bool {
+        self.stays.load(Ordering::Relaxed)
+    }
+
+    /// The phone is given `src`, to copy to `dest`: for the tests of the window.
+    #[cfg(test)]
+    pub(crate) fn given(&self, src: &str, dest: &str) {
+        self.begin(crate::source::name(src), 4 << 20);
+        self.undone(src, dest);
     }
 
     /// The phone is given the file `name` of `size` bytes to copy.
@@ -143,6 +160,8 @@ pub struct Seen {
     pub leaving: bool,
     /// EyeCanSee waits for a copy Windows stopped waiting for (`mtp::windows_gave_up`).
     pub windows_gave_up: bool,
+    /// The copy of the file under way stays after Cancel (`ByPhone::stays`).
+    pub stays: bool,
 }
 
 /// The way out of the wait for the phone, once Cancel is pressed (#354: the wait could last
