@@ -88,6 +88,10 @@ pub(crate) struct Harness {
     pub commands: Vec<egui::ViewportCommand>,
     /// The window's ✕ is pressed in the next frame (`close`).
     closing: bool,
+    /// The frames with one of these keys run in two passes, as egui runs a frame when a pass asks
+    /// to be discarded (`request_discard`: a new grid, a bar measured); the second pass gets no
+    /// events (#360).
+    pub two_passes: Vec<egui::Key>,
 }
 
 impl Harness {
@@ -108,11 +112,12 @@ impl Harness {
         let ctx = egui::Context::default();
         let settings = Settings { check_updates: false, tips: false, local_permanent: true, servers_plain_warned: true, ..Settings::default() };
         let app = App::new(&ctx, settings, Some(address.to_string()));
-        Harness { ctx, app, frame: eframe::Frame::_new_kittest(), full_asked: false, full_wanted: None, full: false, commands: Vec::new(), closing: false }
+        Harness { ctx, app, frame: eframe::Frame::_new_kittest(), full_asked: false, full_wanted: None, full: false, commands: Vec::new(), closing: false, two_passes: Vec::new() }
     }
 
     /// One frame, with `events` (keys) as the window would give them.
     pub fn frame(&mut self, events: Vec<egui::Event>) {
+        let twice = events.iter().any(|e| matches!(e, egui::Event::Key { key, .. } if self.two_passes.contains(key)));
         let mut raw = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, max_texture_side: Some(16384), ..Default::default() };
         if self.full {
             raw.viewports.entry(egui::ViewportId::ROOT).or_default().fullscreen = Some(true);
@@ -122,7 +127,13 @@ impl Harness {
         }
         eframe::App::raw_input_hook(&mut self.app, &self.ctx, &mut raw);
         let (app, frame) = (&mut self.app, &mut self.frame);
-        let mut out = self.ctx.run_ui(raw, |ui| eframe::App::ui(app, ui, frame));
+        let mut out = self.ctx.run_ui(raw, |ui| {
+            if twice && ui.ctx().current_pass_index() == 0 {
+                ui.ctx().request_discard("the test harness: a frame in two passes (#360)");
+            }
+            eframe::App::ui(app, ui, frame)
+        });
+        assert!(!twice || out.platform_output.num_completed_passes == 2, "egui ran the frame in {} passes, not two", out.platform_output.num_completed_passes);
         let full = |c: &egui::ViewportCommand| matches!(c, egui::ViewportCommand::Fullscreen(_));
         self.full_asked |= out.viewport_output.values().any(|v| v.commands.iter().any(full));
         let wanted = out.viewport_output.values().flat_map(|v| &v.commands).filter_map(|c| if let egui::ViewportCommand::Fullscreen(f) = c { Some(*f) } else { None }).next_back();

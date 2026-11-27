@@ -412,14 +412,34 @@ fn tab_goes_into_the_guide() {
     if own_folder("window_keys::tab_goes_into_the_guide") {
         return;
     }
+    into_the_guide("keys-guide", &[]);
+}
+
+/// #360: an arrow in the guide, in a frame egui runs in two passes (`request_discard`: a new grid,
+/// a bar measured): the second pass, which has no keys, forgot the arrow of the first, and the
+/// keyboard stayed on the grid or the viewer under the guide (`app_dialogs::in_ring`).
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn an_arrow_in_two_passes_stays_in_the_guide() {
+    if own_folder("window_keys::an_arrow_in_two_passes_stays_in_the_guide") {
+        return;
+    }
+    into_the_guide("keys-guide-passes", &[Key::ArrowDown, Key::ArrowUp, Key::ArrowRight, Key::ArrowLeft]);
+}
+
+/// The guide open over the grid, then over the viewer, in the folder `name`: Tab and the arrows
+/// stay in it, the frames of the keys `two_passes` run in two passes (`Harness::two_passes`).
+fn into_the_guide(name: &str, two_passes: &[Key]) {
     // The guide's window is on the layer of its id, over the others (`help::window_id`).
     let guide = modal("help-window");
-    let mut h = on_grid("keys-guide");
+    let mut h = on_grid(name);
+    h.two_passes = two_passes.to_vec();
     h.key(Key::F1);
     assert!(h.app.help.open, "F1 did not open the guide");
     tab_and_arrows(&mut h, &guide, &|a: &App| a.help.open, 3, true);
 
-    let mut h = on_grid("keys-guide-viewer");
+    let mut h = on_grid(&format!("{name}-viewer"));
+    h.two_passes = two_passes.to_vec();
     h.app.activate(1);
     h.until(|a| a.zoom_of == Some(1), "b.png shown");
     h.key(Key::F1);
