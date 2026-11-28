@@ -483,6 +483,11 @@ impl Server {
     }
 
     pub async fn read(&self, path: &str) -> Result<Vec<u8>, Error> {
+        self.read_within(path, crate::thumb_memory::ram()).await
+    }
+
+    /// `read` on a computer with `ram` bytes of memory.
+    async fn read_within(&self, path: &str, _ram: u64) -> Result<Vec<u8>, Error> {
         with!(self, path, transfer |c| async {
             let mut d = waited(self.data(&mut c.s, format!("RETR {}", abs(path)), 0)).await?;
             let data = read_up_to(&mut d, u64::MAX).await?;
@@ -1180,5 +1185,23 @@ pub(crate) mod tests {
         assert_eq!(seen.stored.lock().unwrap().get("/photos/album/y.jpg").map(Vec::as_slice), Some(&b"not a jpeg"[..]));
         assert!(seen.deleted("other/album", "y.jpg") && seen.deleted("other", "album"));
         assert!(!seen.deleted("photos/album", "x.jpg"));
+    }
+
+    /// Audit 27/11 S.10 (b), a file read whole (#183): RETR was read to its end, however long, so
+    /// a hostile server could fill the memory with one picture. The read stops past the size
+    /// SIZE gives plus a margin, or past half of the memory when the server gives no size.
+    /// Scaled: the files send 8 MiB, one says 1 MiB, the computer has 4 MiB.
+    #[test]
+    fn a_file_longer_than_its_size_is_stopped() {
+        let (target, _) = fake::start();
+        let server = super::Server::shared(target);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let ram = 4 << 20;
+        for path in ["long/declared.png", "long/unsized.png"] {
+            let r = rt.block_on(server.read_within(path, ram));
+            assert!(r.is_err(), "{path}: read whole, {:?} bytes", r.map(|d| d.len()));
+        }
+        assert_eq!(rt.block_on(server.read_within("loop/a.jpg", ram)).unwrap(), b"not a jpeg", "a file as long as its size");
+        assert_eq!(rt.block_on(server.read_within("links/zeta.jpg", ram)).unwrap().len(), 47, "a link to a file, its size asked");
     }
 }

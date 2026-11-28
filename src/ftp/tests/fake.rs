@@ -15,6 +15,8 @@
 //! - `/slow/a.png`, a file of 1 MiB that the server sends in 4 s (audit 27/11 V.7), read by RETR only;
 //! - `/endless/`, as a hostile server could list it (audit 27/11 S.10): its LIST goes on, a line
 //!   that is no item after another, for `ENDLESS` bytes or until the client stops reading;
+//! - `/long/`, as a hostile server could send a file (audit 27/11 S.10): `declared.png`, whose
+//!   SIZE says 1 MiB, and any other name, with no SIZE; RETR sends 8 MiB of each;
 //! - for a move onto itself through a link (audit 27/11 F.1): `/photos/album/x.jpg`, `/desk/album`
 //!   (a link to `/photos/album/`), `/via` (a link to `/photos/album/` too), and another folder of
 //!   that name, `/other/album/y.jpg`.
@@ -308,11 +310,43 @@ fn link_size(kind: &Kind) -> usize {
     }
 }
 
+/// A sender of the data of a transfer, between "150" and "226".
+type Sender = fn(&mut dyn FnMut(&str) -> std::io::Result<()>, TcpListener) -> std::io::Result<()>;
+
+/// The transfers sent by a function of their own: the RETR of `/slow/a.png` and of the files of
+/// `/long/`, the LIST of `/endless/`.
+fn special(command: &str, path: &str) -> Option<Sender> {
+    match (command.to_ascii_uppercase().as_str(), path.trim_matches('/')) {
+        ("RETR", "slow/a.png") => Some(slowly),
+        ("RETR", p) if p.starts_with("long/") => Some(flood),
+        ("LIST", "endless") => Some(endless),
+        _ => None,
+    }
+}
+
+/// `/long/declared.png`: a file whose SIZE is `DECLARED`, and whose RETR sends `FLOOD` bytes. The
+/// other files of `/long/` have no SIZE and send as much (audit 27/11 S.10: a hostile server).
+const LONG: &str = "long/declared.png";
+const DECLARED: usize = 1 << 20;
+const FLOOD: usize = 8 << 20;
+
+/// The RETR of a file of `/long/`: `FLOOD` bytes, a MiB at a time, or until the client goes.
+fn flood(say: &mut dyn FnMut(&str) -> std::io::Result<()>, listener: TcpListener) -> std::io::Result<()> {
+    say("150 here it comes")?;
+    let (mut to, _) = listener.accept()?;
+    let mib = vec![7u8; 1 << 20];
+    for _ in 0..FLOOD / mib.len() {
+        to.write_all(&mib)?;
+    }
+    drop(to);
+    say("226 sent")
+}
+
 /// What the LIST of `/endless/` sends: more than any listing a client should keep.
 const ENDLESS: usize = 80 << 20;
 
 /// The LIST of `/endless/`: lines of nothing, a MiB at a time, until `ENDLESS` or the client goes.
-fn endless(say: &mut impl FnMut(&str) -> std::io::Result<()>, listener: TcpListener) -> std::io::Result<()> {
+fn endless(say: &mut dyn FnMut(&str) -> std::io::Result<()>, listener: TcpListener) -> std::io::Result<()> {
     say("150 here it comes")?;
     let (mut to, _) = listener.accept()?;
     let line = format!("{}\r\n", "x".repeat(1022));
@@ -325,7 +359,7 @@ fn endless(say: &mut impl FnMut(&str) -> std::io::Result<()>, listener: TcpListe
 }
 
 /// The RETR of `/slow/a.png`: 1 MiB, 64 KiB every quarter of a second, or until the client goes.
-fn slowly(say: &mut impl FnMut(&str) -> std::io::Result<()>, listener: TcpListener) -> std::io::Result<()> {
+fn slowly(say: &mut dyn FnMut(&str) -> std::io::Result<()>, listener: TcpListener) -> std::io::Result<()> {
     say("150 here it comes")?;
     let (mut to, _) = listener.accept()?;
     for _ in 0..16 {
@@ -367,13 +401,9 @@ fn session(control: TcpStream, seen: &Seen) -> std::io::Result<()> {
                 data = Some(listener);
             }
             "CWD" => say(if seen.folder(path).is_some() { "250 fine" } else { "550 no such folder" })?,
-            "RETR" if path.trim_matches('/') == "slow/a.png" => match data.take() {
-                Some(listener) => slowly(&mut say, listener)?,
-                None => say("425 no data connection")?,
-            },
-            "LIST" if path.trim_matches('/') == "endless" => match data.take() {
-                Some(listener) => endless(&mut say, listener)?,
-                None => say("425 no data connection")?,
+            c if special(c, path).is_some() => match (special(c, path), data.take()) {
+                (Some(send), Some(listener)) => send(&mut say, listener)?,
+                _ => say("425 no data connection")?,
             },
             "LIST" => match (seen.listing(path), data.take()) {
                 (Some(lines), Some(listener)) => {
@@ -416,7 +446,7 @@ fn session(control: TcpStream, seen: &Seen) -> std::io::Result<()> {
                 }
                 None => say("425 no data connection")?,
             },
-            "SIZE" => match seen.content(path).map(<[u8]>::len).or_else(|| seen.broken(path)) {
+            "SIZE" => match seen.content(path).map(<[u8]>::len).or_else(|| seen.broken(path)).or_else(|| (path.trim_matches('/') == LONG).then_some(DECLARED)) {
                 Some(size) => say(&format!("213 {size}"))?,
                 None => say("550 no such file")?,
             },
