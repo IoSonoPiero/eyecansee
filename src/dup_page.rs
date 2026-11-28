@@ -48,6 +48,12 @@ impl Window {
         self.progress = Some(Arc::default());
     }
 
+    /// The ticks of every group, the copies to delete (tests).
+    #[cfg(test)]
+    pub(crate) fn ticks(&self) -> Vec<Vec<bool>> {
+        self.groups.iter().flatten().map(|g| g.delete.clone()).collect()
+    }
+
     /// The results page is shown (the window covers the whole interface).
     pub fn page(&self) -> bool {
         self.groups.is_some()

@@ -450,6 +450,12 @@ impl Window {
         matches!(self.original, Some(Ok(_)))
     }
 
+    /// The tool in use (tests).
+    #[cfg(test)]
+    pub(crate) fn tool(&self) -> Tool {
+        self.tool
+    }
+
     /// Anything not saved yet.
     fn changed(&self) -> bool {
         self.history.as_ref().is_some_and(|h| h.changed() || self.doc != *h.doc())
