@@ -660,7 +660,7 @@ impl App {
             _ => None,
         };
         if let Some(tex) = tex {
-            w.refresh_previews();
+            w.refresh_previews(ui.input(|i| i.pointer.any_down()));
             let mut ask = self.edit_keys(ui.ctx(), &mut w);
             egui::Panel::top("edit-tools").show(ui, |ui| ask = self.edit_toolbar(ui, &mut w).or(ask.take()));
             let floor = w.props_floor(ui.available_width(), None);

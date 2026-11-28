@@ -7,11 +7,12 @@ use crate::edit::doc::{Obj, Pt, Shape, Style};
 impl Window {
     /// The filters, highlighters and lenses whose preview is missing or was made for another box
     /// or amount (colour, zoom, what is under it: `photo::refresh_layers`): made again from the
-    /// photo, at most 1200 pixels a side; while a drag is under way at most 400, to follow the
-    /// pointer (the old one, stretched over the new place, showed the part it came from: user,
-    /// 2026-11-06), and sharp again once let go. The lenses last, with the filters' previews and
+    /// photo, at most 1200 pixels a side; while a drag is under way, or a button `held` (the
+    /// slider of a filter's amount: audit 5.14), at most 400, to follow the pointer (the old one,
+    /// stretched over the new place, showed the part it came from: user, 2026-11-06), and sharp
+    /// again once let go. The lenses last, with the filters' previews and
     /// the cover boxes on them, and again whenever those changed.
-    pub(super) fn refresh_previews(&mut self) {
+    pub(super) fn refresh_previews(&mut self, held: bool) {
         use crate::edit::doc::{Pixels, Preview};
         use crate::edit::photo;
         let Some(Ok((original, ..))) = &self.original else { return };
@@ -19,7 +20,7 @@ impl Window {
         if self.doc.scale != self.scaled {
             return;
         }
-        let still = self.hold.is_none();
+        let still = self.hold.is_none() && !held;
         // A highlighter is quick to make and is over text, read closely: sharper.
         let side = |s: &Shape| match (still, s) {
             (false, _) => 400.0,
@@ -68,7 +69,7 @@ impl Window {
                 *preview = crate::edit::doc::Preview::default();
             }
         }
-        self.refresh_previews();
+        self.refresh_previews(false);
     }
 
     /// A filter from the menu: on the part chosen with Selection, or on the whole image; selected,
