@@ -76,6 +76,10 @@ pub struct Listing {
     /// with ".", EyeCanSee's trash too, Android's trashed files, Windows' hidden attribute). For
     /// the check before deleting a folder.
     pub unseen: Vec<String>,
+    /// `played`, worked out once: the status bar asked it of every file at every pass (audit
+    /// 1.9). A listing made anew starts without it; one whose `files` change in place is given
+    /// `OnceLock::new()` (`App::renamed`).
+    pub played: std::sync::OnceLock<(usize, usize)>,
 }
 
 #[derive(Clone)]
@@ -117,13 +121,15 @@ impl Listing {
         }
     }
 
-    /// How many of the files are videos, and how many audio files (the status bar).
+    /// How many of the files are videos, and how many audio files (the status bar), counted once.
     pub fn played(&self) -> (usize, usize) {
-        #[cfg(test)]
-        KINDS_LOOKED.with(|n| n.set(n.get() + self.files.len()));
-        let videos = self.files.iter().filter(|f| crate::decode::is_video(&f.path)).count();
-        let audio = self.files.iter().filter(|f| crate::decode::is_audio(&f.path)).count();
-        (videos, audio)
+        *self.played.get_or_init(|| {
+            #[cfg(test)]
+            KINDS_LOOKED.with(|n| n.set(n.get() + self.files.len()));
+            let videos = self.files.iter().filter(|f| crate::decode::is_video(&f.path)).count();
+            let audio = self.files.iter().filter(|f| crate::decode::is_audio(&f.path)).count();
+            (videos, audio)
+        })
     }
 
     /// Folders and files by name (`natural`). Also takes the trash folder out of `dirs`, into

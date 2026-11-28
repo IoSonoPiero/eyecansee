@@ -60,6 +60,7 @@ impl App {
                 leftovers: Vec::new(),
                 trashed: l.trashed.iter().filter(|f| !gone.contains(f.path.as_str())).cloned().collect(),
                 unseen: l.unseen.clone(),
+                played: Default::default(),
             };
             self.swap_listing(&dir, new);
         }
@@ -81,6 +82,8 @@ impl App {
             && let Some(f) = l.files.iter_mut().find(|f| f.path == old)
         {
             f.path = new.to_string();
+            // Maybe into another kind (a.jpg to a.mp4): counted again.
+            l.played = Default::default();
         }
         self.turn_steps.renamed(old, new);
         if old.ends_with('/') {
