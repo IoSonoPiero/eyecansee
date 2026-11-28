@@ -47,6 +47,12 @@ impl Placement {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Items written as SVG on this thread (audit 6.13).
+    pub(crate) static WRITTEN: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 impl Drawing {
     /// Box around what is shown, or the frame kept while layers are turned on and off.
     pub(crate) fn bounds(&self) -> Option<[f64; 4]> {
@@ -89,6 +95,8 @@ impl Drawing {
         let [br, bg, bb] = BACKGROUND;
         let mut out = format!(r##"<svg xmlns="http://www.w3.org/2000/svg" width="{pw}" height="{ph}" viewBox="0 0 {pw} {ph}"><rect width="100%" height="100%" fill="#{br:02x}{bg:02x}{bb:02x}"/><g fill="none" stroke-width="{stroke}" stroke-linejoin="round" stroke-linecap="round" font-family="sans-serif">"##);
         for item in self.shown_items() {
+            #[cfg(test)]
+            WRITTEN.with(|n| n.set(n.get() + 1));
             match item {
                 Item::Line { pts, color, fill, stroke: line } => {
                     let c = rgb(*color);
@@ -193,4 +201,31 @@ fn escape(s: &str) -> String {
             c => c.to_string(),
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WRITTEN;
+    use crate::cad::{Drawing, Item, Stroke};
+
+    /// A grid of `n` × `n` short lines, 10 units apart.
+    fn grid(n: usize) -> Drawing {
+        let line = |x: f64, y: f64| Item::Line { pts: vec![[x, y], [x + 5.0, y + 5.0]], color: [200; 3], fill: None, stroke: Stroke::default() };
+        let items = (0..n * n).map(|i| line((i % n) as f64 * 10.0, (i / n) as f64 * 10.0)).collect();
+        Drawing { items, ..Default::default() }
+    }
+
+    /// Audit 6.13: to draw sharp the part of the drawing shown, at every stop of the view, the
+    /// whole drawing was written as SVG and parsed: a tenth of its width and height, 1% of it,
+    /// wrote all 10 000 lines.
+    #[test]
+    fn audit_6_13_part_written_alone() {
+        let d = grid(100);
+        let side = crate::decode::CAD_SIDE;
+        let tenth = side as f32 / 10.0;
+        WRITTEN.with(|n| n.set(0));
+        crate::decode::cad_render(&d, side, Some(([tenth * 4.0, tenth * 4.0, tenth, tenth], [800, 800]))).unwrap();
+        let written = WRITTEN.with(|n| n.replace(0));
+        assert!(written < 500, "items written for 1% of the drawing: {written}");
+    }
 }
