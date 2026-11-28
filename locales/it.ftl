@@ -276,7 +276,7 @@ name-refused-heading = { $n ->
 }
 name-refused-why = { $n ->
     [one] Il suo nome non si può usare nella destinazione: è rimasto dove era.
-   *[other] Il loro nome non si può usare nella destinazione: sono rimasti dove erano.
+   *[other] I loro nomi non si possono usare nella destinazione: sono rimasti dove erano.
 }
 move-left-heading = { $n ->
     [one] 1 elemento non spostato:

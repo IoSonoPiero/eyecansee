@@ -412,14 +412,14 @@ mod tests {
         assert_eq!(one.text, format!("In {}\n\n**1 file non copiato per il nome{}**\nIl suo nome non si può usare nella destinazione: è rimasto dove era.\n- {}", md("/arrivo/"), md(":"), md("album/../victim.txt")));
         assert!(one.warning && one.save_as.is_none() && one.help.is_none());
         let ten = refused("it", &names(10));
-        assert!(plain(&ten.text).starts_with("In /arrivo/\n\n10 file non copiati per il nome:\nIl loro nome non si può usare nella destinazione: sono rimasti dove erano.\n- album/1:a.jpg\n- album/2:a.jpg\n"), "{}", ten.text);
+        assert!(plain(&ten.text).starts_with("In /arrivo/\n\n10 file non copiati per il nome:\nI loro nomi non si possono usare nella destinazione: sono rimasti dove erano.\n- album/1:a.jpg\n- album/2:a.jpg\n"), "{}", ten.text);
         assert_eq!(ten.text.matches("\n- ").count(), 10);
         assert!(!ten.text.contains("altri") && ten.text.ends_with(&md("album/10:a.jpg")));
         let many = refused("it", &names(15));
         assert!(many.text.ends_with(&format!("- {}\n- e altri 5", md("album/10:a.jpg"))) && many.text.matches("\n- ").count() == 11, "{}", many.text);
         // Copy takes all fifteen names, as they are.
         let copy = many.copy.unwrap();
-        assert!(copy.starts_with("In /arrivo/\n\n15 file non copiati per il nome:\nIl loro nome non si può usare nella destinazione: sono rimasti dove erano.\n- album/1:a.jpg\n"), "{copy}");
+        assert!(copy.starts_with("In /arrivo/\n\n15 file non copiati per il nome:\nI loro nomi non si possono usare nella destinazione: sono rimasti dove erano.\n- album/1:a.jpg\n"), "{copy}");
         assert!(copy.ends_with("\n- album/14:a.jpg\n- album/15:a.jpg") && copy.matches("\n- ").count() == 15 && !copy.contains("altri"), "{copy}");
         let en = refused("en", &names(12));
         assert_eq!(en.title, "Copy finished");
