@@ -177,8 +177,9 @@ impl Store {
             return Ok(listing);
         }
         let mut listing = self.list_once(dir).await?;
-        if !listing.leftovers.is_empty() {
-            self.recover(dir, &listing.leftovers).await;
+        // The hidden files of a save on its way are left as they are: no need to read the names.
+        let waiting: Vec<File> = listing.leftovers.iter().filter(|f| !crate::trash::being_saved(dir, f)).cloned().collect();
+        if !waiting.is_empty() && self.recover(dir, &waiting).await {
             listing = self.list_once(dir).await?;
         }
         if !listing.trashed.is_empty() {

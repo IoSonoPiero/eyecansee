@@ -145,6 +145,12 @@ fn owner(dir: &str, own: &str, names: &HashSet<String>) -> Option<String> {
     names.iter().chain(&saving).find(|n| hidden(n, end) == own).cloned()
 }
 
+/// Is the hidden file `file` of `dir` that of an image this process is saving (`SAVING`)?
+/// `Store::recover` leaves it alone, so a listing need not even look (audit 2.24).
+pub(crate) fn being_saved(dir: &str, file: &File) -> bool {
+    owner(dir, name(&file.path), &HashSet::new()).is_some_and(|image| SAVING.lock().unwrap().contains(&format!("{dir}{image}")))
+}
+
 /// What to do when an item put back from the trash finds its name taken (`Store::restore`).
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Conflict {
@@ -241,16 +247,18 @@ impl Store {
     /// copy is made again, or the new file takes the name if it is free. A file a paste put aside
     /// (`aside_name`) is an original too, and the one that gets the name back before an older
     /// original a save left; so is the original a move put aside (`moving_name`, audit F.7 of
-    /// 27/11), a file or a folder, which gets its name back when it is free.
-    pub(crate) async fn recover(&self, dir: &str, leftovers: &[File]) {
-        self.recover_at(dir, leftovers, Instant::now()).await;
+    /// 27/11), a file or a folder, which gets its name back when it is free. Whether it touched
+    /// anything: only then is the folder worth listing again (audit 2.24).
+    pub(crate) async fn recover(&self, dir: &str, leftovers: &[File]) -> bool {
+        self.recover_at(dir, leftovers, Instant::now()).await
     }
 
     /// `recover`, `now` by this computer's clock. On a server a new file may be another
     /// computer's save on its way (`SAVING` holds only this process's): it is touched only once
     /// it has stayed as it is for a while (`settled`), audit 2.29 (h).
-    pub(crate) async fn recover_at(&self, dir: &str, leftovers: &[File], now: Instant) {
-        let Ok(names) = self.names(dir).await else { return };
+    pub(crate) async fn recover_at(&self, dir: &str, leftovers: &[File], now: Instant) -> bool {
+        let Ok(names) = self.names(dir).await else { return false };
+        let mut touched = false;
         for file in leftovers {
             let (path, own) = (&file.path, name(&file.path));
             // An original a move put aside on a server may be another computer's move on its way.
@@ -263,6 +271,7 @@ impl Store {
                 if own.ends_with(NEW) && inner(own).is_some() {
                     let r = self.delete(path, Deletion::Permanent).await;
                     log!("recover {path:?}, its image unknown: {r:?}");
+                    touched = true;
                 }
                 continue;
             };
@@ -287,7 +296,9 @@ impl Store {
                 continue;
             };
             log!("recover {path:?}: {r:?}");
+            touched = true;
         }
+        touched
     }
 
     /// Whether a save's new file `file` may be touched: at once where only this computer writes
