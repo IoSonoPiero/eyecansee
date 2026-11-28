@@ -694,6 +694,15 @@ async fn still_from_copy(op: &Store, path: &str, size: u64, side: u32) -> Result
 
 #[cfg(test)]
 mod tests {
+    /// The kept copies (`COPIES`) are one list for the whole process: a test that makes a whole
+    /// copy can lose it to another one running at the same time (the oldest removed past
+    /// `KEPT_COPIES`, all of them by `forget_copies`). Those tests take this lock, one at a time.
+    static SHARED_COPIES: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn shared_copies() -> std::sync::MutexGuard<'static, ()> {
+        SHARED_COPIES.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     /// Audit 27/11 V.1 on a real phone: the player closes while a read of 1 MiB of a big file of
     /// the phone is under way, 20 times, at a different moment each time; after every close the
     /// phone must still list a folder (26/11 a read let go half way left the Redmi answering
@@ -786,6 +795,7 @@ mod tests {
     /// The same file asked twice at once (the viewer during its thumbnail): copied once.
     #[test]
     fn one_copy_at_once() {
+        let _copies = shared_copies();
         let dir = std::env::temp_dir().join(format!("eyecansee-once-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
@@ -818,6 +828,7 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn whole_copy_is_private() {
+        let _copies = shared_copies();
         use std::os::unix::fs::PermissionsExt;
         let dir = std::env::temp_dir().join(format!("eyecansee-copy-private-{}", std::process::id()));
         let tmp = copied(&dir, "private.mp4");
@@ -835,6 +846,7 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn whole_copy_follows_no_link() {
+        let _copies = shared_copies();
         let dir = std::env::temp_dir().join(format!("eyecansee-copy-link-{}", std::process::id()));
         let ours = std::env::temp_dir().join(format!("eyecansee-copy-ours-{}", std::process::id()));
         std::fs::write(&ours, b"ours").unwrap();
@@ -857,6 +869,7 @@ mod tests {
     /// the copy goes away with the reader.
     #[test]
     fn whole_copy_reader() {
+        let _copies = shared_copies();
         let dir = std::env::temp_dir().join(format!("eyecansee-whole-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
@@ -960,6 +973,7 @@ mod tests {
     /// counted from where the old one had got to (V.5), no whole copy made after the close.
     #[test]
     fn closing_during_a_whole_copy_stops_it_by_its_own_way() {
+        let _copies = shared_copies();
         use std::time::{Duration, Instant};
         let dir = std::env::temp_dir().join(format!("eyecansee-closing-copy-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
