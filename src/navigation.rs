@@ -31,6 +31,11 @@ pub(crate) fn folder_under(last: &std::collections::HashMap<String, String>, row
     last.iter().filter(|(k, _)| if remote { *k == row } else { !k.contains("://") }).find_map(|(_, full)| Some((full.clone(), rest_under(full, row)?)))
 }
 
+/// #314: "Close connection" on a server forgets where you were on it, so that its row no longer
+/// shows that folder under it, as if still connected (Piero, 28/11), and a click opens its own
+/// folder again. Every row of the same login goes: they share the connection.
+pub(crate) fn forget_server(_last: &mut std::collections::HashMap<String, String>, _row: &str) {}
+
 /// #314: the part of the address `full` inside the row `row` ("photos/2024" for
 /// "sftp://me@nas/photos/2024/" under "sftp://me@nas/"), `None` outside it or at its root.
 pub(crate) fn rest_under(full: &str, row: &str) -> Option<String> {
@@ -558,6 +563,23 @@ mod tests {
         assert_eq!(last_folder_in(&last, "/", phone, phone, ""), None);
         // A disk of the computer: as before, whatever was open there.
         assert_eq!(last_folder_in(&last, server, "/", "/", "home/me/"), None);
+    }
+
+    /// #314 and Close connection (Piero, 28/11): the folders of the server closed are forgotten,
+    /// those of another server and of this computer stay.
+    #[test]
+    fn close_connection_forgets_the_folder() {
+        let at = |k: &str, v: &str| (k.to_string(), v.to_string());
+        let mut last = std::collections::HashMap::from([
+            at("ftp://me@nas:21/", "ftp://me@nas:21/photos/2024/"),
+            at("ftp://me@nas:21/docs/", "ftp://me@nas:21/docs/old/"),
+            at("sftp://me@nas/", "sftp://me@nas/photos/"),
+            at("/", "/home/me/Pictures/"),
+        ]);
+        forget_server(&mut last, "ftp://me@nas:21/");
+        let mut left: Vec<_> = last.keys().cloned().collect();
+        left.sort();
+        assert_eq!(left, ["/", "sftp://me@nas/"], "the folders of the server closed still shown under it");
     }
 
     /// #314: under a device or a saved server of the panel, the folder last visited inside it;
