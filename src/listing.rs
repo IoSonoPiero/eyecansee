@@ -584,6 +584,33 @@ mod tests {
         h.until(|app| app.files().len() == 30, "the folder let go read again");
     }
 
+    /// Audit 1.9: the open folder that could not be read, then read again with other files in the
+    /// same generation (a phone locked, then unlocked): the thumbnail queue takes the new files,
+    /// not those it kept for the first listing.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn thumbnail_queue_takes_the_files_after_an_error() {
+        use crate::loader::Msg;
+        if crate::audit_family_1::own_folder("listing::tests::thumbnail_queue_takes_the_files_after_an_error") {
+            return;
+        }
+        let dir = sized("queue-after-error", &[("a.png", 8, 6), ("b.png", 8, 6)]);
+        let mut h = crate::audit_family_1::Harness::new(&dir);
+        h.until(|app| app.files().len() == 2 && app.listing_pending.is_empty(), "the folder listed");
+        h.frame(Vec::new());
+        let thumb_files = |h: &crate::audit_family_1::Harness| h.app.loader.as_ref().unwrap().thumb_files().iter().map(|f| f.path.clone()).collect::<Vec<_>>();
+        assert_eq!(thumb_files(&h).len(), 2, "the queue has the files");
+        let (base, here, generation) = (h.app.base.clone(), h.app.dir.clone(), h.app.generation);
+        h.app.tx.send(Msg::Listed(base, here.clone(), Err(("error-device-busy", String::new())))).unwrap();
+        h.frame(Vec::new());
+        h.app.tx.send(listed(&h, &["c.png", "d.png", "e.png"])).unwrap();
+        h.frame(Vec::new());
+        assert_eq!(h.app.generation, generation, "the case of the test: the same generation");
+        assert_eq!(h.app.files().len(), 3);
+        h.app.prefetch_thumbs(0..1, 8, 1, 0, 3);
+        assert_eq!(thumb_files(&h), ["c.png", "d.png", "e.png"].map(|n| format!("{here}{n}")), "the files of the listing before");
+    }
+
     /// Which listings take the place of the one kept, which go in as they are, which change nothing.
     #[test]
     fn arrivals() {

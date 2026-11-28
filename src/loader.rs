@@ -244,6 +244,12 @@ impl Loader {
         self.wake.notify_waiters();
     }
 
+    /// The files the thumbnail queue holds for its generation.
+    #[cfg(test)]
+    pub fn thumb_files(&self) -> Arc<Vec<File>> {
+        self.queue.lock().unwrap().files.clone()
+    }
+
     /// The files of the folder changed in place (a file renamed): the next queue copies them again.
     pub fn forget_thumb_files(&self) {
         self.queue.lock().unwrap().files = Arc::default();
