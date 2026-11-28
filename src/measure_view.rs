@@ -88,11 +88,16 @@ impl App {
         m.clear();
     }
 
-    /// Ctrl+C is Measure's: on, usable on the file shown, with results to copy. `raw_input_hook`
-    /// then lets egui's `Event::Copy` through, and `measure_keys` takes it.
+    /// Measure is on and can be used on the file shown: not while it is read (`keys_hint` then
+    /// shows the file's own keys, and the double click does what they say).
+    pub(crate) fn measure_in_use(&self) -> bool {
+        self.model.measure.on && self.measure_off().is_none()
+    }
+
+    /// Ctrl+C is Measure's: in use, with results to copy. `raw_input_hook` then lets egui's
+    /// `Event::Copy` through, and `measure_keys` takes it.
     pub(crate) fn measure_copies(&self) -> bool {
-        let m = &self.model.measure;
-        m.on && self.measure_off().is_none() && m.shown.as_ref().is_some_and(|s| !s.lines.is_empty())
+        self.measure_in_use() && self.model.measure.shown.as_ref().is_some_and(|s| !s.lines.is_empty())
     }
 
     /// For the status bar while measuring: what is measured, then the results or how to go on.

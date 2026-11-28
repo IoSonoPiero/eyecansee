@@ -359,7 +359,7 @@ impl App {
         let mut chosen = None;
         if let Some(response) = self.model_view(ui) {
             if response.double_clicked() {
-                self.viewer_double_click(ui.ctx(), self.model.measure.on);
+                self.viewer_double_click(ui.ctx(), self.measure_in_use());
             }
             response.context_menu(|ui| {
                 chosen = browser::context_menu(ui, self.viewer_menu(full_screen(ui.ctx())));
@@ -380,9 +380,9 @@ impl App {
             self.frames_bar(ui, rect);
             self.motion_bar(ui, rect);
             self.pano_bar(ui, rect);
-            // While measuring a double click closes an area.
+            // While measuring a double click closes an area; not while the drawing is read (again).
             if response.double_clicked() {
-                self.viewer_double_click(ui.ctx(), self.model.measure.on);
+                self.viewer_double_click(ui.ctx(), self.measure_in_use());
             }
             response.context_menu(|ui| {
                 chosen = browser::context_menu(ui, self.viewer_menu(full_screen(ui.ctx())));
