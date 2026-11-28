@@ -36,8 +36,10 @@ impl Folder {
         Folder { store: s.op, base: s.base, dir: s.dir, names }
     }
 
-    pub(crate) fn taken(&self) -> HashSet<String> {
-        self.names.lock().unwrap().clone().unwrap_or_default()
+    /// `name` if free there, otherwise the first free one beside it (`free_name`), from the names
+    /// read without copying them (audit 3.10: at every frame); `name` while they are being read.
+    pub(crate) fn free(&self, name: &str) -> String {
+        self.names.lock().unwrap().as_ref().map_or_else(|| name.to_string(), |set| source::free_name(set, name))
     }
 }
 
@@ -187,7 +189,7 @@ mod tests {
         // The base of this computer: "/" here, the drive (as "C:\\") on Windows.
         let base = if cfg!(windows) { root.to_string_lossy()[..3].to_string() } else { "/".to_string() };
         assert_eq!((w.dest_dir(), w.dest_base("/"), w.original_base("/")), (dir, base.as_str(), "sftp://u@server/"));
-        assert_eq!(crate::source::free_name(&w.folder.as_ref().unwrap().taken(), "b.png"), "b (2).png");
+        assert_eq!(w.folder.as_ref().unwrap().free("b.png"), "b (2).png");
         std::fs::remove_dir_all(root).unwrap();
     }
 

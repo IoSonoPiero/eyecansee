@@ -204,14 +204,25 @@ pub fn restore_place(path: &str) -> (String, &str) {
 /// differs from one of `taken` only by upper and lower case is not free: on Windows, on FAT and
 /// exFAT and on phones "A.JPG" and "a.jpg" are one file, and the new one would take its place.
 pub fn free_name(taken: &HashSet<String>, name: &str) -> String {
-    if !is_taken(taken, name) {
+    free_name_by(|n| is_taken(taken, n), name)
+}
+
+/// `free_name` asking `taken` whether a name is taken: for names not gathered in a set (Save as…
+/// at every frame, audit 3.10), compared with `same_name`.
+pub fn free_name_by(taken: impl Fn(&str) -> bool, name: &str) -> String {
+    if !taken(name) {
         return name.to_string();
     }
     let (stem, ext) = match name.rsplit_once('.') {
         Some((s, e)) if !s.is_empty() => (s, format!(".{e}")),
         _ => (name, String::new()),
     };
-    (2..).map(|n| format!("{stem} ({n}){ext}")).find(|n| !is_taken(taken, n)).unwrap_or_default()
+    (2..).map(|n| format!("{stem} ({n}){ext}")).find(|n| !taken(n)).unwrap_or_default()
+}
+
+/// Whether two names are one, upper and lower case being the same (`free_name`).
+pub fn same_name(a: &str, b: &str) -> bool {
+    a == b || a.chars().flat_map(char::to_lowercase).eq(b.chars().flat_map(char::to_lowercase))
 }
 
 /// Whether `name` is among `taken`, upper and lower case being the same.

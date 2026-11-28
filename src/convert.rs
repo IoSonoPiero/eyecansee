@@ -3,13 +3,12 @@
 //! both what gets saved and, decoded back, the preview: what the window shows is what the file
 //! will contain.
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
-use eframe::egui::{self, ColorImage};
+use eframe::egui;
 
 use crate::i18n::I18n;
-use crate::mipmap::Picture;
+use crate::mipmap::{Halved, Picture};
 use crate::batch::with_ext;
 use crate::encode::{Format, Options, Original};
 
@@ -162,7 +161,7 @@ impl crate::App {
         self.convert = Some(w);
     }
 
-    pub(crate) fn convert_original(&mut self, ctx: &egui::Context, r: Result<(Arc<Original>, ColorImage, u64), String>) {
+    pub(crate) fn convert_original(&mut self, ctx: &egui::Context, r: Result<(Arc<Original>, Halved, u64), String>) {
         let Some(w) = &mut self.convert else { return };
         if let Err(e) = &r {
             log!("{}", failed_line("save as: read", &w.path, "", e));
@@ -179,16 +178,15 @@ impl crate::App {
             w.name = with_ext(&w.name, w.options.format);
         }
         w.original = Some(r.map(|(original, preview, size)| {
-            w.pan = egui::vec2(preview.size[0] as f32, preview.size[1] as f32) / 2.0;
-            // Its halves here, once: shown fitted, smaller than its pixels (`mipmap`).
-            let halves = crate::mipmap::picture_halves(&preview);
-            (original, Picture::new(ctx, "convert-original", preview, halves), size)
+            w.pan = egui::vec2(preview.image.size[0] as f32, preview.image.size[1] as f32) / 2.0;
+            // With its halves, made where it was read: shown fitted, smaller than its pixels (`mipmap`).
+            (original, Picture::halved(ctx, "convert-original", preview), size)
         }));
     }
 
     /// A picture read for a page (`Msg::Original`): to the one that asked for it (`asked`), Save
     /// as… or the editor; one asked for a page closed since goes to none (#200).
-    pub(crate) fn on_original(&mut self, ctx: &egui::Context, asked: u64, r: Result<(Arc<Original>, ColorImage, u64), String>) {
+    pub(crate) fn on_original(&mut self, ctx: &egui::Context, asked: u64, r: Result<(Arc<Original>, Halved, u64), String>) {
         if self.convert.as_ref().is_some_and(|w| w.asked == asked) {
             self.convert_original(ctx, r);
         } else if self.editor.as_ref().is_some_and(|w| w.asked == asked) {
@@ -200,7 +198,7 @@ impl crate::App {
         }
     }
 
-    pub(crate) fn convert_encoded(&mut self, ctx: &egui::Context, generation: u64, r: Result<(Arc<Vec<u8>>, Option<ColorImage>), String>) {
+    pub(crate) fn convert_encoded(&mut self, ctx: &egui::Context, generation: u64, r: Result<(Arc<Vec<u8>>, Option<Halved>), String>) {
         let Some(w) = &mut self.convert else { return };
         if generation != w.generation {
             return;
@@ -213,10 +211,7 @@ impl crate::App {
             (Some(Ok((original, ..))), Some(o)) => left_out(original, &o),
             _ => Default::default(),
         };
-        w.result = Some(r.map(|(bytes, preview)| (bytes, preview.map(|p| {
-            let halves = crate::mipmap::picture_halves(&p);
-            Picture::new(ctx, "convert-result", p, halves)
-        }))));
+        w.result = Some(r.map(|(bytes, preview)| (bytes, preview.map(|p| Picture::halved(ctx, "convert-result", p)))));
     }
 
     pub(crate) fn convert_saved(&mut self, asked: &str, r: Result<String, crate::source::Error>) {
@@ -323,7 +318,8 @@ impl crate::App {
     /// free one beside it.
     fn convert_dest(&self, w: &Window) -> (String, String) {
         let dir = w.dest_dir();
-        let name = crate::source::free_name(&self.convert_taken(w, &dir).unwrap_or_default(), &crate::batch::typed_name(&w.name, w.options.format));
+        let typed = crate::batch::typed_name(&w.name, w.options.format);
+        let name = self.convert_free(w, &dir, &typed).unwrap_or(typed);
         (dir, name)
     }
 
@@ -333,7 +329,7 @@ impl crate::App {
         let (path, bytes) = (format!("{dir}{final_name}"), bytes.clone());
         let sent = match (w.dest_store(), &self.loader) {
             (Some(store), _) => self.save_in_place(ctx, store.clone(), path, bytes),
-            (None, Some(loader)) if self.convert_taken(w, dir).is_some() => {
+            (None, Some(loader)) if self.convert_free(w, dir, final_name).is_some() => {
                 loader.save(path, bytes);
                 true
             }
@@ -348,17 +344,22 @@ impl crate::App {
         }
     }
 
-    /// The names taken in `dir`, where the file goes: the grid's for its own place (`save_in_place`
-    /// checks them again elsewhere), those read in a folder chosen (`folder`). `None`: not known,
-    /// the grid has no good listing of that folder (gone, or in error).
-    fn convert_taken(&self, w: &Window, dir: &str) -> Option<HashSet<String>> {
+    /// `name` if free in `dir`, where the file goes, otherwise the first free one beside it, from
+    /// the names taken there: the grid's for its own place (`save_in_place` checks them again
+    /// elsewhere), those read in a folder chosen (`folder`). `None`: not known, the grid has no
+    /// good listing of that folder (gone, or in error). The names are looked through where they
+    /// are, not gathered in a set: this runs at every frame (audit 3.10).
+    fn convert_free(&self, w: &Window, dir: &str, name: &str) -> Option<String> {
         if let Some(f) = &w.folder {
-            return Some(f.taken());
+            return Some(f.free(name));
         }
         let here = w.dest_base(&self.base) == self.base;
         // What the grid does not show is taken too: a hidden "e (2).jpg" was overwritten.
         match self.listings.get(dir).filter(|_| here) {
-            Some(Ok(l)) => Some(l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/').to_string()).chain(l.unseen.iter().cloned()).collect()),
+            Some(Ok(l)) => {
+                let names = || l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/')).chain(l.unseen.iter().map(String::as_str));
+                Some(crate::source::free_name_by(|n| names().any(|t| crate::source::same_name(t, n)), name))
+            }
             _ => None,
         }
     }
@@ -392,7 +393,8 @@ impl crate::App {
             let (original, options, generation, tx, ctx2) = (original.clone(), w.options, w.generation, self.tx.clone(), ctx.clone());
             crate::logging::spawn_named("convert-preview", move || {
                 let r = encoded(&original, &options).map(|bytes| {
-                    let preview = crate::decode::decode(&bytes, &format!("x.{}", options.format.ext())).ok();
+                    // Its halves made here too, not on the window's thread (audit 3.10).
+                    let preview = crate::decode::decode(&bytes, &format!("x.{}", options.format.ext())).ok().map(Halved::of);
                     (Arc::new(bytes), preview)
                 });
                 if tx.send(crate::loader::Msg::Encoded(generation, r)).is_ok() {

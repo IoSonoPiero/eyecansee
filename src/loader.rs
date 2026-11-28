@@ -74,8 +74,8 @@ pub enum Msg {
     /// Outcome of `update::check`: a newer version downloaded and checked, up to date, or an error.
     Update(Result<Option<crate::update::Ready>, String>),
     /// The picture of a page (Save in another format, the editor), with the number it was asked
-    /// with (`convert::ask`): the original decoded, its preview and file size.
-    Original(u64, Result<(Arc<crate::encode::Original>, ColorImage, u64), String>),
+    /// with (`convert::ask`): the original decoded, its preview with its halved copies and file size.
+    Original(u64, Result<(Arc<crate::encode::Original>, crate::mipmap::Halved, u64), String>),
     /// The editor's result for the clipboard.
     /// The result for Copy, or why it could not be made (audit 5.15).
     EditCopy(Result<ColorImage, String>),
@@ -92,9 +92,9 @@ pub enum Msg {
     /// The part of the sphere a 360° panorama read by the viewer covers (`pano::detect`, #188);
     /// `None`: the picture read is no panorama.
     Pano(String, Option<crate::pano::Pano>),
-    /// The image encoded with the options of `generation`, and the encoded file decoded back
-    /// (`None`: no decoder for that format in this build).
-    Encoded(u64, Result<(Arc<Vec<u8>>, Option<ColorImage>), String>),
+    /// The image encoded with the options of `generation`, and the encoded file decoded back with
+    /// its halved copies (`None`: no decoder for that format in this build).
+    Encoded(u64, Result<(Arc<Vec<u8>>, Option<crate::mipmap::Halved>), String>),
     /// The converted image written: the path asked for, and the path written or an error.
     Saved(String, Result<String, source::Error>),
     /// A 3D model saved in another 3D format: the new file's path, the model's, and what was
@@ -408,7 +408,7 @@ impl Loader {
                     if !edit {
                         original.hdr = crate::ultrahdr::Source::of(Arc::new(bytes), Vec::new(), Vec::new()).map(|s| Arc::new(s.beside(original.sidecar.clone())));
                     }
-                    let preview = decode::preview(&original.image);
+                    let preview = crate::mipmap::Halved::of(decode::preview(&original.image));
                     Ok((Arc::new(original), preview, size))
                 })
                 .await
@@ -426,7 +426,7 @@ impl Loader {
         self.rt.spawn_blocking(move || {
             let r = decode::cad_render(&drawing, decode::CAD_SIDE, None).map(|img| {
                 let image = image::DynamicImage::ImageRgb8(image::DynamicImage::ImageRgba8(img).into_rgb8());
-                let preview = decode::preview(&image);
+                let preview = crate::mipmap::Halved::of(decode::preview(&image));
                 (Arc::new(crate::encode::Original::with_meta(image, &[])), preview, file_size)
             });
             let _ = tx.send(Msg::Original(asked, r));
@@ -440,7 +440,7 @@ impl Loader {
         self.rt.spawn_blocking(move || {
             // Opaque: no note about transparency in the window.
             let image = image::DynamicImage::ImageRgb8(image::DynamicImage::ImageRgba8(crate::render3d::render(&mesh, &view, size[0], size[1], 2)).into_rgb8());
-            let preview = decode::preview(&image);
+            let preview = crate::mipmap::Halved::of(decode::preview(&image));
             let mut original = crate::encode::Original::with_meta(image, &[]);
             original.notes = mesh.warnings.clone();
             let _ = tx.send(Msg::Original(asked, Ok((Arc::new(original), preview, file_size))));
