@@ -538,6 +538,35 @@ mod tests {
         assert_eq!(both(&too_many(DRAWING_ENTITIES, crate::cad::MAX_POINTS)).0, "The drawing has more than 20 million elements, too many to open.");
     }
 
+    /// The files refused before the cap of their triangles because reading them would take too
+    /// much memory (#181: the tree of the XML of a 3MF or an AMF, the rows of a PLY read by the
+    /// parser) are said so, without a number: "more than 90 million points and triangles" was
+    /// said of a 3MF of 9 million triangles.
+    #[test]
+    fn memory_refusals_said() {
+        let (en, it) = (I18n::new("en"), I18n::new("it"));
+        let both = |e: &str| (en.load_error(e), it.load_error(e), en.brief_load(e), it.brief_load(e));
+        let said = (
+            "The file would take too much memory to open.".to_string(),
+            "Il file chiederebbe troppa memoria per essere aperto.".to_string(),
+            Some("it would take too much memory".to_string()),
+            Some("chiederebbe troppa memoria".to_string()),
+        );
+        // Scaled: a cap of 1000 triangles, so 9000 nodes for a 3MF and 30 000 for an AMF.
+        let model = |n: usize| format!("<model><resources><object id=\"1\"><mesh><vertices>{}</vertices></mesh></object></resources></model>", "<vertex/>".repeat(n));
+        for (format, n) in [("three-mf", 10_000), ("amf", 31_000)] {
+            let e = crate::model_3mf::parse_xml(&model(n), Limit { max: 1000, format }).map(|_| ()).unwrap_err();
+            assert_eq!(both(&e), said, "{format}");
+        }
+        // A PLY in text whose 5 million triangles have three points each: 20 million rows and
+        // one, beyond what the parser may hold (header alone).
+        let ply = b"ply\nformat ascii 1.0\nelement vertex 15000001\nproperty float x\nproperty float y\nproperty float z\nelement face 5000000\nproperty list uchar int vertex_indices\nend_header\n";
+        let e = refused(crate::model::parse(ply, "a.ply")).unwrap();
+        assert_eq!(both(&e), said, "ply");
+        let (id, detail) = e.split_once('\u{1}').unwrap();
+        assert_eq!(en.error_md(id, detail), crate::save_dialogs::md(&said.0));
+    }
+
     /// The early counts give what the readers give, on small files of every kind they count.
     #[test]
     fn counted_as_read_d1() {
