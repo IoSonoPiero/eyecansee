@@ -153,8 +153,9 @@ impl App {
                     self.error = Some(self.i18n.t_args("edit-paste-too-big", &[("w", &iw.to_string()), ("h", &ih.to_string()), ("max", &max), ("mp", &mp)]));
                     return;
                 }
-                let Some(patch) = clipboard_patch(w, &img) else { return };
-                patch
+                // Its pixels made aside (audit 5.14: up to 200 megapixels), the patch once they come.
+                w.aside(ctx, "edit-paste", move || super::work::Done::Pasted(patch_pixels(&img)));
+                return;
             }
             (None, None) => {
                 w.note = Some((self.i18n.t("edit-paste-none"), ctx.input(|i| i.time) + 4.0));
@@ -198,19 +199,26 @@ impl super::Window {
     }
 }
 
-/// An image from the clipboard of another program as a patch: in the middle of the result, at
-/// most 80% of it. `None` for one larger than the editor takes (audit 5.10).
-fn clipboard_patch(w: &super::Window, img: &ColorImage) -> Option<(crate::edit::doc::Area, crate::edit::doc::Pixels)> {
+/// The pixels of an image from the clipboard of another program, for a patch. `None` for one
+/// larger than the editor takes (audit 5.10).
+fn patch_pixels(img: &ColorImage) -> Option<crate::edit::doc::Pixels> {
     if !crate::edit::resize::fits(img.size[0], img.size[1]) {
         return None;
     }
     let rgba: Vec<u8> = img.pixels.iter().flat_map(|c| c.to_srgba_unmultiplied()).collect();
-    let image = image::RgbaImage::from_raw(img.size[0] as u32, img.size[1] as u32, rgba)?;
-    let c = w.doc.crop;
-    let k = (0.8 * c.w / image.width() as f32).min(0.8 * c.h / image.height() as f32).min(1.0);
-    // Upright on the screen, in the middle of what is shown.
-    let centre = crate::edit::geom::turned(Pt::new(c.cx, c.cy), -w.doc.angle);
-    Some((crate::edit::doc::Area { centre, w: image.width() as f32 * k, h: image.height() as f32 * k, rot: -w.doc.angle }, crate::edit::doc::Pixels::new(image)))
+    image::RgbaImage::from_raw(img.size[0] as u32, img.size[1] as u32, rgba).map(crate::edit::doc::Pixels::new)
+}
+
+impl super::Window {
+    /// The pixels of an image of another program came (`patch_pixels`): a patch in the middle of
+    /// the result, at most 80% of it, upright on the screen.
+    pub(super) fn pasted_in(&mut self, pixels: crate::edit::doc::Pixels) {
+        let (pw, ph) = (pixels.image().width() as f32, pixels.image().height() as f32);
+        let c = self.doc.crop;
+        let k = (0.8 * c.w / pw).min(0.8 * c.h / ph).min(1.0);
+        let centre = crate::edit::geom::turned(Pt::new(c.cx, c.cy), -self.doc.angle);
+        self.put_patch(crate::edit::doc::Area { centre, w: pw * k, h: ph * k, rot: -self.doc.angle }, pixels);
+    }
 }
 
 /// On X11, where other programs get at most about 16 MB of a copy (`clip_limit`), where to send its
@@ -319,12 +327,16 @@ mod tests {
     /// is refused: it had no limit (audit 5.10). One that fits becomes a patch.
     #[test]
     fn pasted_image_within_the_limit() {
-        let mut w = super::super::Window::new("p/a.png".into(), Default::default(), super::super::Tool::Select);
-        w.doc = crate::edit::doc::Doc::new(64, 48, None);
         let max = crate::edit::resize::MAX_SIDE as usize;
-        assert!(clipboard_patch(&w, &ColorImage::filled([30, 20], egui::Color32::RED)).is_some());
-        assert!(clipboard_patch(&w, &ColorImage::filled([max, 2], egui::Color32::RED)).is_some());
-        assert!(clipboard_patch(&w, &ColorImage::filled([max + 1, 2], egui::Color32::RED)).is_none());
-        assert!(clipboard_patch(&w, &ColorImage::filled([2, max + 1], egui::Color32::RED)).is_none());
+        let patch = patch_pixels(&ColorImage::filled([30, 20], egui::Color32::RED)).unwrap();
+        assert!(patch_pixels(&ColorImage::filled([max, 2], egui::Color32::RED)).is_some());
+        assert!(patch_pixels(&ColorImage::filled([max + 1, 2], egui::Color32::RED)).is_none());
+        assert!(patch_pixels(&ColorImage::filled([2, max + 1], egui::Color32::RED)).is_none());
+        // In the middle of the result, at most 80% of it.
+        let mut w = super::super::Window::new("p/a.png".into(), Default::default(), super::super::Tool::Select);
+        w.doc = crate::edit::doc::Doc::new(20, 48, None);
+        w.pasted_in(patch);
+        let a = *w.doc.objects[0].shape.area().unwrap();
+        assert!((a.w - 16.0).abs() < 1e-3 && (a.h - 16.0 * 20.0 / 30.0).abs() < 1e-3, "{a:?}");
     }
 }

@@ -22,6 +22,8 @@ pub(super) enum Done {
     Photo(Option<Scale>, Arc<Original>, ColorImage, Vec<ColorImage>),
     /// The part chosen copied: where it was, its pixels, and as the clipboard takes them.
     Part(Area, Pixels, ColorImage),
+    /// The pixels of an image pasted from another program (`None`: it could not be read).
+    Pasted(Option<Pixels>),
 }
 
 /// The work under way.
@@ -96,11 +98,12 @@ impl Window {
 
 impl App {
     /// The work aside done since the last frame (`Window::arrived`), taken in: the part copied
-    /// goes to the clipboard.
+    /// goes to the clipboard, the image pasted becomes a patch.
     pub(super) fn edit_work(&mut self, ctx: &egui::Context, w: &mut Window) {
         for done in w.arrived(ctx) {
             match done {
                 Done::Part(area, pixels, shown) => self.part_copied(ctx, w, (area, pixels, shown)),
+                Done::Pasted(pixels) => pixels.into_iter().for_each(|p| w.pasted_in(p)),
                 Done::Photo(..) => {}
             }
         }
