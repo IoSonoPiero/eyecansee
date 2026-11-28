@@ -21,6 +21,12 @@ pub(super) fn child(dir: &str, name: &str, folder: bool) -> String {
     format!("{dir}{name}{}", if folder { "/" } else { "" })
 }
 
+/// Is there an item in `dir` named `name`, capitals and small letters alike?
+pub(super) fn same_name(handles: &Handles, dir: &str, name: &str) -> bool {
+    let name = name.to_lowercase();
+    handles.keys().any(|p| p.starts_with(dir) && source::parent(p) == dir && source::name(p).to_lowercase() == name)
+}
+
 /// `path` deleted, moved or renamed: forgotten, a folder with the paths below it. A file only
 /// by its exact path: "a.jpg.xmp" starts with "a.jpg" and is still there (audit 2.12).
 pub(super) fn forget(handles: &mut Handles, path: &str) {

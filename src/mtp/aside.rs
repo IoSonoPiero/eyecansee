@@ -35,10 +35,16 @@ impl Drop for InUse {
 impl Phone {
     /// Whether a copy of `path` into `dir` goes through the hidden folder (`copy_aside`): into
     /// its own folder (Android does not copy a file there), or onto a name of `dir` that differs
-    /// only by case.
+    /// only by case. A folder read whole answers from what the phone remembers, as `taken`
+    /// does: it was listed once for each file (audit 2.26).
     pub(super) async fn clash(&self, path: &str, dir: &str) -> Result<bool, Error> {
-        let name = source::name(path).to_lowercase();
-        Ok(dir == source::parent(path) || self.names(dir).await?.iter().any(|n| n.to_lowercase() == name))
+        if dir == source::parent(path) {
+            return Ok(true);
+        }
+        if !self.complete.lock().unwrap().contains(dir) {
+            self.names(dir).await?;
+        }
+        Ok(super::cache::same_name(&self.handles.lock().unwrap(), dir, source::name(path)))
     }
 }
 
