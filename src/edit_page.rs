@@ -696,11 +696,7 @@ impl App {
                 Some(Ask::Close) => open = false,
                 None => {}
             }
-            // Bubbles as tall as their text needs (it goes to a new line at their width).
-            let fonts = crate::decode::usvg_options();
-            for o in &mut w.doc.objects {
-                crate::edit::bubble::fit(o, &fonts);
-            }
+            w.fit_bubbles();
             self.settle(ui.ctx(), &mut w);
         } else if let Some(e) = self.edit_unreadable(&w) {
             // As Close at once, the message in the bar (a whole page for one line, Piero 20/11).

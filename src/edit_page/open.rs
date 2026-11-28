@@ -110,6 +110,7 @@ impl App {
         let turn = if self.viewing.is_some() { self.turn } else { Turn::default() };
         let mut w = Window::new(path.clone(), turn, tool);
         loader.load_original(w.asked, path, true, false);
+        fonts_aside();
         let store = loader.store();
         w.remote = crate::kept::remote(&store).then_some(if matches!(store, crate::source::Store::Mtp(_)) { "edit-remote-phone" } else { "edit-remote-server" });
         // Every save goes where the image is, whatever the grid opens meanwhile.
@@ -123,6 +124,7 @@ impl App {
     /// writes it.
     pub(crate) fn open_new_image(&mut self, ctx: &egui::Context, image: image::DynamicImage, name: &str) {
         let Some(loader) = &self.loader else { return };
+        fonts_aside();
         let mut w = Window::new(format!("{}{name}.png", self.dir), Turn::default(), Tool::Select);
         w.place = Some(Place { store: loader.store(), base: self.base.clone() });
         w.new = true;
@@ -183,6 +185,14 @@ async fn found_animated(store: &crate::source::Store, path: &str, size: Option<u
     };
     log!("animated {path:?}: {found} ({})", if told.is_some() { "from its start" } else { "read whole" });
     found
+}
+
+/// The fonts of the texts and bubbles loaded in a thread as the page opens, while its picture
+/// is read: the first frame that draws letters waited for every font of the system (audit 5.14).
+fn fonts_aside() {
+    if !crate::decode::fonts_loaded() {
+        crate::logging::spawn_named("edit-fonts", || drop(crate::decode::usvg_options()));
+    }
 }
 
 #[cfg(test)]

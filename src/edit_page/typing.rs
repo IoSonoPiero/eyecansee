@@ -48,6 +48,20 @@ pub(super) fn with_hidden<T>(doc: &mut Doc, editing: Option<usize>, f: impl FnOn
     out
 }
 
+impl Window {
+    /// Bubbles as tall as their text needs (it goes to a new line at their width). The fonts
+    /// asked for only when there is one (audit 5.14: the first time loads them all).
+    pub(super) fn fit_bubbles(&mut self) {
+        if !self.doc.objects.iter().any(|o| matches!(o.shape, Shape::Bubble { .. })) {
+            return;
+        }
+        let fonts = crate::decode::usvg_options();
+        for o in &mut self.doc.objects {
+            crate::edit::bubble::fit(o, &fonts);
+        }
+    }
+}
+
 /// The field over the text `i`, centred on `centre` (on the screen), `k` points a pixel of the
 /// image; `on_image`: the image was pressed or clicked in this frame (off the field). Ends when
 /// the object is no longer the selected one, and when it loses the keys (Esc, a press on the

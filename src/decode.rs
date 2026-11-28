@@ -524,11 +524,18 @@ thread_local! {
     pub static FONTS_ASKED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
+/// The fonts of the system, loaded by the first `usvg_options`.
+static FONTS: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
+
+/// The fonts are loaded: `usvg_options` takes no time now (the editor loads them aside, audit 5.14).
+pub(crate) fn fonts_loaded() -> bool {
+    FONTS.get().is_some()
+}
+
 pub(crate) fn usvg_options() -> usvg::Options<'static> {
     #[cfg(test)]
     FONTS_ASKED.with(|n| n.set(n.get() + 1));
     // Loading the system fonts is expensive: only once for the whole session.
-    static FONTS: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
     let fontdb = FONTS.get_or_init(|| {
         let mut db = usvg::fontdb::Database::new();
         db.load_system_fonts();
