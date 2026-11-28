@@ -51,6 +51,27 @@ fn audit_5_14_the_fonts_are_loaded_aside() {
     assert_eq!(asked, 0, "the frame asks for the fonts");
 }
 
+/// Audit 5.12: the PNG of a piece pasted from another program (26 ms for 3 megapixels, 108 for 12
+/// in --release) was made in the first frame that drew it. Now aside, with its pixels.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn audit_5_12_the_png_of_a_pasted_piece_is_made_aside() {
+    if own_folder("edit_page::frame_work::audit_5_12_the_png_of_a_pasted_piece_is_made_aside") {
+        return;
+    }
+    let mut h = Harness::new(&white("five-twelve-png"));
+    editor(&mut h, "a.png", Tool::Select);
+    crate::edit::doc::PNGS.with(|n| n.set(0));
+    let img = std::sync::Arc::new(eframe::egui::ColorImage::filled([600, 400], eframe::egui::Color32::RED));
+    h.frame(vec![eframe::egui::Event::PasteImage(img)]);
+    h.until(|app| app.editor.as_ref().is_some_and(|w| w.doc.objects.iter().any(|o| matches!(o.shape, Shape::Patch { .. }))), "the patch");
+    h.frame(Vec::new());
+    assert!(h.app.editor.as_ref().unwrap().objects.is_some(), "the patch drawn");
+    let made = crate::edit::doc::PNGS.with(|n| n.get());
+    eprintln!("PNGs of the piece made in the frames: {made}");
+    assert_eq!(made, 0, "the PNG of the piece made in the frame");
+}
+
 /// Audit 5.13: with a document that stays as it is, a frame measured every word of every bubble
 /// (`bubble::fit`, an SVG read by `usvg` for each) and copied the whole document twice (the key
 /// of the objects' texture, `History::push`), every point of the strokes drawn by hand with it.

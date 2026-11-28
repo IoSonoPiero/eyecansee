@@ -133,6 +133,8 @@ impl Pixels {
     /// The pixels as a PNG in base64, for an SVG `<image>`; made the first time.
     pub fn png_base64(&self) -> &str {
         self.0.1.get_or_init(|| {
+            #[cfg(test)]
+            PNGS.with(|n| n.set(n.get() + 1));
             use base64::Engine;
             let mut png = Vec::new();
             let encoder = image::codecs::png::PngEncoder::new_with_quality(&mut png, image::codecs::png::CompressionType::Fast, image::codecs::png::FilterType::Sub);
@@ -500,6 +502,8 @@ fn through_mirror(op: Op) -> Op {
 thread_local! {
     /// Copies of a document made on this thread: a frame where nothing changed makes none (audit 5.13).
     pub static COPIES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// PNGs of pieces made on this thread (`Pixels::png_base64`): one pasted has it made aside (audit 5.12).
+    pub static PNGS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 #[derive(PartialEq, Debug)]
