@@ -138,7 +138,7 @@ impl App {
     /// What of the toolbar's first row stays on it, from the width it has: called at its start.
     pub(crate) fn toolbar_fit(&self, ui: &egui::Ui) -> Fit {
         let grid = self.viewing.is_none();
-        let row = self.weighing(|app| Row { grid, file: app.file_ops().len(), image: app.image_ops().len(), tools: app.tool_ops().len() });
+        let row = Row::of(grid);
         let sort = if grid { toolbar_end::sort_width(toolbar_end::TailParts::measure(ui)) } else { 0.0 };
         fit(row, RowParts::measure(ui), ui.available_width(), sort)
     }
@@ -209,6 +209,18 @@ pub(crate) struct Row {
     pub(crate) image: usize,
     /// None in the viewer.
     pub(crate) tools: usize,
+}
+
+impl Row {
+    /// The entries of each group, as `file_ops`, `image_ops` and `tool_ops` build them (a test
+    /// holds them together): counted without building them, which weighs the files chosen for
+    /// each (audit 1.9).
+    pub(crate) fn of(grid: bool) -> Row {
+        match grid {
+            true => Row { grid, file: 6, image: 5, tools: 2 },
+            false => Row { grid, file: 2, image: 5, tools: 0 },
+        }
+    }
 }
 
 impl Row {
@@ -359,6 +371,24 @@ mod tests {
         let passes = (h.ctx.cumulative_pass_nr() - pass) as usize;
         let built = FILE_OPS_BUILT.with(|n| n.get());
         assert_eq!(built, passes, "the file operations built {built} times in {passes} passes");
+    }
+
+    /// `Row::of` counts the entries `file_ops`, `image_ops` and `tool_ops` build, in the grid and
+    /// in the viewer.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn row_counts_the_entries_built() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("toolbar::tests::row_counts_the_entries_built") {
+            return;
+        }
+        let mut h = Harness::new(&folder("row-counts", &["a.png"]));
+        let built = |app: &App| (app.file_ops().len(), app.image_ops().len(), app.tool_ops().len());
+        let (grid, viewer) = (Row::of(true), Row::of(false));
+        assert_eq!(built(&h.app), (grid.file, grid.image, grid.tools), "in the grid");
+        h.app.viewing = Some(0);
+        h.frame(Vec::new());
+        assert_eq!(built(&h.app), (viewer.file, viewer.image, viewer.tools), "in the viewer");
     }
 
     /// egui's default style: padding 8, spacing 8, 4 between the icons of a button.
