@@ -20,8 +20,8 @@ type Dirs = Arc<Mutex<Option<Result<Vec<String>, source::Error>>>>;
 
 #[cfg(test)]
 thread_local! {
-    /// Names of subfolders copied to draw the chooser on this thread (audit 1.14: all of them at
-    /// every frame).
+    /// Names of subfolders copied by the chooser on this thread: the one clicked (audit 1.14: all
+    /// of them were copied to draw them, at every frame).
     static COPIED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
@@ -298,27 +298,35 @@ fn folders_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
     }
     ui.add_space(2.0);
     ui.separator();
-    let dirs = p.dirs.lock().unwrap().clone();
-    #[cfg(test)]
-    COPIED.with(|n| n.set(n.get() + dirs.as_ref().and_then(|d| d.as_ref().ok()).map_or(0, Vec::len)));
-    egui::ScrollArea::vertical().id_salt("pick-dirs").auto_shrink([false, false]).show_follow(ui, |ui| match dirs {
+    // Drawn from the list itself, not from a copy made at every frame (audit 1.14); the folder
+    // clicked is gone into once the list is let go (`go` puts the new one there).
+    let shared = p.dirs.clone();
+    let dirs = shared.lock().unwrap();
+    let mut clicked = None;
+    egui::ScrollArea::vertical().id_salt("pick-dirs").auto_shrink([false, false]).show_follow(ui, |ui| match &*dirs {
         None => {
             ui.spinner();
         }
         Some(Err((id, detail))) => {
-            crate::error_bar::inline(ui, &i18n.error(id, &detail));
+            crate::error_bar::inline(ui, &i18n.error(id, detail));
         }
         Some(Ok(dirs)) if dirs.is_empty() => {
             ui.weak(i18n.t("pick-empty"));
         }
         Some(Ok(dirs)) => {
             for dir in dirs {
-                if ui.selectable_label(false, (icons::image(&ctx, Icon::Folder, 16.0), source::name(&dir))).clicked() {
-                    p.go(dir, rt, &ctx);
+                if ui.selectable_label(false, (icons::image(&ctx, Icon::Folder, 16.0), source::name(dir))).clicked() {
+                    #[cfg(test)]
+                    COPIED.with(|n| n.set(n.get() + 1));
+                    clicked = Some(dir.clone());
                 }
             }
         }
     });
+    drop(dirs);
+    if let Some(dir) = clicked {
+        p.go(dir, rt, &ctx);
+    }
 }
 
 /// The name of a new folder, in a window over the chooser as New folder in the grid (#311: typed
