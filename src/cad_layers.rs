@@ -80,8 +80,13 @@ impl Drawing {
     /// The things drawn on layers that are shown. A thing without a set (a plot, the sheet of a
     /// layout) is always shown.
     pub(crate) fn shown_items(&self) -> impl Iterator<Item = &Item> {
+        self.shown_indexed().map(|(_, item)| item)
+    }
+
+    /// `shown_items`, with their place in `items`.
+    pub(crate) fn shown_indexed(&self) -> impl Iterator<Item = (usize, &Item)> {
         let shown = self.sets_shown();
-        self.items.iter().enumerate().filter(move |(i, _)| self.on.get(*i).is_none_or(|&s| shown.get(s as usize).copied().unwrap_or(true))).map(|(_, item)| item)
+        self.items.iter().enumerate().filter(move |(i, _)| self.on.get(*i).is_none_or(|&s| shown.get(s as usize).copied().unwrap_or(true)))
     }
 
     /// The centres of the circles and arcs on layers that are shown.
