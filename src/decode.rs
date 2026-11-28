@@ -517,7 +517,16 @@ fn svg_sized(bytes: &[u8], side: f32) -> Result<DynamicImage> {
     Ok(DynamicImage::ImageRgba8(pixmap_rgba(&pixmap)))
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Calls of `usvg_options` on this thread: the first loads every font of the system, which the
+    /// editor's frame must not wait for (audit 5.14).
+    pub static FONTS_ASKED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 pub(crate) fn usvg_options() -> usvg::Options<'static> {
+    #[cfg(test)]
+    FONTS_ASKED.with(|n| n.set(n.get() + 1));
     // Loading the system fonts is expensive: only once for the whole session.
     static FONTS: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
     let fontdb = FONTS.get_or_init(|| {

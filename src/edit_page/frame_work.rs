@@ -31,6 +31,26 @@ fn audit_5_14_a_pasted_image_is_made_aside() {
     assert_eq!((w.selected, w.tool), (Some(w.doc.objects.len() - 1), Tool::Select));
 }
 
+/// Audit 5.14 (#295): the first frame of the editor loaded every font of the system (the fonts
+/// of the bubbles, asked for in every frame even with no bubble), the window still meanwhile.
+/// Now they are loaded aside as the page opens, and a frame with no letters to draw does not ask.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn audit_5_14_the_fonts_are_loaded_aside() {
+    if own_folder("edit_page::frame_work::audit_5_14_the_fonts_are_loaded_aside") {
+        return;
+    }
+    let mut h = Harness::new(&white("five-fourteen-fonts"));
+    crate::decode::FONTS_ASKED.with(|n| n.set(0));
+    editor(&mut h, "a.png", Tool::Select);
+    for _ in 0..3 {
+        h.frame(Vec::new());
+    }
+    let asked = crate::decode::FONTS_ASKED.with(|n| n.get());
+    eprintln!("fonts asked for by the frames of a page with no letters: {asked}");
+    assert_eq!(asked, 0, "the frame asks for the fonts");
+}
+
 /// Audit 5.13: with a document that stays as it is, a frame measured every word of every bubble
 /// (`bubble::fit`, an SVG read by `usvg` for each) and copied the whole document twice (the key
 /// of the objects' texture, `History::push`), every point of the strokes drawn by hand with it.
