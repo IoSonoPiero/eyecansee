@@ -19,7 +19,11 @@ use crate::{decode, thumbcache};
 #[derive(Default)]
 pub(crate) struct ThumbQueue {
     pub(crate) generation: u64,
-    pub(crate) items: VecDeque<(usize, File)>,
+    /// Positions in `files`, in the order they are made.
+    pub(crate) items: VecDeque<usize>,
+    /// The files of the folder of this generation, copied once for all the queues of it: each
+    /// row scrolled copied the file of nearly every one (audit 1.9).
+    pub(crate) files: Arc<Vec<File>>,
     /// Items taken from `items` so far: the position of each one in the queue.
     pub(crate) taken: usize,
     /// Videos of a slow disk not in the cache, by position: made two at a time (`SLOW`), always
@@ -28,6 +32,15 @@ pub(crate) struct ThumbQueue {
     /// Source closed: the workers exit and release the source. They used to stay alive forever,
     /// and a phone stayed open: reopening it after switching elsewhere gave "device in use".
     pub(crate) closed: bool,
+}
+
+impl ThumbQueue {
+    /// `Loader::set_thumb_queue`: `order` in place of the queue, with the files of this
+    /// generation kept, or copied by `files` for a new one.
+    pub(crate) fn replace(&mut self, generation: u64, order: Vec<usize>, files: impl FnOnce() -> Vec<File>) {
+        let files = if self.generation == generation && !self.files.is_empty() { self.files.clone() } else { Arc::new(files()) };
+        *self = ThumbQueue { generation, items: order.into(), files, taken: 0, slow: BTreeMap::new(), closed: false };
+    }
 }
 
 pub(crate) async fn thumb_worker(
@@ -53,7 +66,7 @@ pub(crate) async fn thumb_worker(
                 return;
             }
             let (generation, at) = (q.generation, q.taken);
-            let item = q.items.pop_front();
+            let item = q.items.pop_front().and_then(|i| Some((i, q.files.get(i)?.clone())));
             q.taken += usize::from(item.is_some());
             item.map(|item| (generation, at, item))
         };

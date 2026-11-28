@@ -18,6 +18,13 @@ const HEIGHT: f32 = 340.0;
 
 type Dirs = Arc<Mutex<Option<Result<Vec<String>, source::Error>>>>;
 
+#[cfg(test)]
+thread_local! {
+    /// Names of subfolders copied by the chooser on this thread: the one clicked (audit 1.14: all
+    /// of them were copied to draw them, at every frame).
+    static COPIED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// The folder being looked at and its subfolders, read in the background.
 #[derive(Clone)]
 pub struct Picker {
@@ -291,25 +298,35 @@ fn folders_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
     }
     ui.add_space(2.0);
     ui.separator();
-    let dirs = p.dirs.lock().unwrap().clone();
-    egui::ScrollArea::vertical().id_salt("pick-dirs").auto_shrink([false, false]).show_follow(ui, |ui| match dirs {
+    // Drawn from the list itself, not from a copy made at every frame (audit 1.14); the folder
+    // clicked is gone into once the list is let go (`go` puts the new one there).
+    let shared = p.dirs.clone();
+    let dirs = shared.lock().unwrap();
+    let mut clicked = None;
+    egui::ScrollArea::vertical().id_salt("pick-dirs").auto_shrink([false, false]).show_follow(ui, |ui| match &*dirs {
         None => {
             ui.spinner();
         }
         Some(Err((id, detail))) => {
-            crate::error_bar::inline(ui, &i18n.error(id, &detail));
+            crate::error_bar::inline(ui, &i18n.error(id, detail));
         }
         Some(Ok(dirs)) if dirs.is_empty() => {
             ui.weak(i18n.t("pick-empty"));
         }
         Some(Ok(dirs)) => {
             for dir in dirs {
-                if ui.selectable_label(false, (icons::image(&ctx, Icon::Folder, 16.0), source::name(&dir))).clicked() {
-                    p.go(dir, rt, &ctx);
+                if ui.selectable_label(false, (icons::image(&ctx, Icon::Folder, 16.0), source::name(dir))).clicked() {
+                    #[cfg(test)]
+                    COPIED.with(|n| n.set(n.get() + 1));
+                    clicked = Some(dir.clone());
                 }
             }
         }
     });
+    drop(dirs);
+    if let Some(dir) = clicked {
+        p.go(dir, rt, &ctx);
+    }
 }
 
 /// The name of a new folder, in a window over the chooser as New folder in the grid (#311: typed
@@ -376,5 +393,29 @@ mod tests {
         assert_eq!(wait(&p).len(), 3, "a, b and the new c");
         assert_eq!(std::path::Path::new(&p.address()).canonicalize().unwrap(), root.canonicalize().unwrap());
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    /// Audit 1.14: the chooser draws the subfolders without copying their list at every frame.
+    #[test]
+    fn subfolders_drawn_without_a_copy() {
+        let root = std::env::temp_dir().join(format!("eyecansee-pick-copy-{}", std::process::id()));
+        for i in 0..50 {
+            std::fs::create_dir_all(root.join(format!("d{i:02}"))).unwrap();
+        }
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let ctx = egui::Context::default();
+        let mut p = Picker::open(&root.to_string_lossy(), rt.handle(), &ctx);
+        while p.dirs.lock().unwrap().is_none() {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let i18n = I18n::new("en");
+        COPIED.with(|n| n.set(0));
+        for _ in 0..2 {
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| folders_ui(ui, &mut p, &i18n, rt.handle()));
+            out.textures_delta.clear();
+        }
+        let copied = COPIED.with(|n| n.get());
+        std::fs::remove_dir_all(root).unwrap();
+        assert_eq!(copied, 0, "{copied} names of subfolders copied in two frames");
     }
 }

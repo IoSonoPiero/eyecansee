@@ -57,7 +57,10 @@ impl App {
     /// Why the editor is off for the item (`off::editor_id`): no picture (a video, an audio file,
     /// a 3D model, a CAD drawing), several, or one found animated.
     pub(crate) fn edit_off(&self, path: Option<String>) -> Option<String> {
-        let files = self.files_chosen(path);
+        let files = match path {
+            None => self.files_chosen_now(),
+            path => std::rc::Rc::new(self.files_chosen(path)),
+        };
         let pictures: Vec<&String> = files.iter().filter(|p| crate::decode::is_image(p)).collect();
         // A video that turns here is told so; an AVI only that the editor is for pictures.
         let video = files.iter().any(|p| crate::decode::is_video(p) && crate::video_turn::holds_rotation(p));

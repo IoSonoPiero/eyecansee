@@ -53,6 +53,13 @@ fn runs(mut a: &str, mut b: &str) -> Ordering {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Files whose kind `Listing::played` looked at on this thread (audit 1.9: every file of the
+    /// folder at every pass of the status bar).
+    pub static KINDS_LOOKED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 #[derive(Default, Clone)]
 pub struct Listing {
     pub dirs: Vec<String>,
@@ -69,6 +76,10 @@ pub struct Listing {
     /// with ".", EyeCanSee's trash too, Android's trashed files, Windows' hidden attribute). For
     /// the check before deleting a folder.
     pub unseen: Vec<String>,
+    /// `played`, worked out once: the status bar asked it of every file at every pass (audit
+    /// 1.9). A listing made anew starts without it; one whose `files` change in place is given
+    /// `OnceLock::new()` (`App::renamed`).
+    pub played: std::sync::OnceLock<(usize, usize)>,
 }
 
 #[derive(Clone)]
@@ -110,6 +121,17 @@ impl Listing {
         }
     }
 
+    /// How many of the files are videos, and how many audio files (the status bar), counted once.
+    pub fn played(&self) -> (usize, usize) {
+        *self.played.get_or_init(|| {
+            #[cfg(test)]
+            KINDS_LOOKED.with(|n| n.set(n.get() + self.files.len()));
+            let videos = self.files.iter().filter(|f| crate::decode::is_video(&f.path)).count();
+            let audio = self.files.iter().filter(|f| crate::decode::is_audio(&f.path)).count();
+            (videos, audio)
+        })
+    }
+
     /// Folders and files by name (`natural`). Also takes the trash folder out of `dirs`, into
     /// `trash`.
     pub fn sort(&mut self) {
@@ -121,25 +143,38 @@ impl Listing {
     }
 
     /// Images in the order chosen by the user; ties broken by name (`natural`). Those without a
-    /// date (or with zero size) go last, in descending order too.
+    /// date (or with zero size) go last, in descending order too. The extension and the date of
+    /// each file are worked out once, not for each comparison (audit 2.28).
     pub fn sort_files(&mut self, by: SortBy, desc: bool) {
-        let name = |a: &File, b: &File| natural(&a.path, &b.path);
-        let ext = |f: &File| f.path.rsplit_once('.').map(|(_, e)| e.to_lowercase()).unwrap_or_default();
-        let date = |f: &File| crate::human::parse_modified(&f.modified);
-        self.files.sort_by(|a, b| {
+        let tz = jiff::tz::TimeZone::system();
+        let key = |f: &File| match by {
+            SortBy::Type => Key::Ext(f.path.rsplit_once('.').map(|(_, e)| e.to_lowercase()).unwrap_or_default()),
+            SortBy::Date => Key::Date(crate::human::parse_modified_in(&f.modified, &tz)),
+            SortBy::Size => Key::Size(f.size),
+            SortBy::Name => Key::Name,
+        };
+        let mut keyed: Vec<(Key, File)> = std::mem::take(&mut self.files).into_iter().map(|f| (key(&f), f)).collect();
+        keyed.sort_by(|(x, a), (y, b)| {
             let flip = |o: Ordering| if desc { o.reverse() } else { o };
-            let primary = match by {
-                SortBy::Name => flip(name(a, b)),
-                SortBy::Type => flip(ext(a).cmp(&ext(b))),
-                SortBy::Size => (a.size == 0).cmp(&(b.size == 0)).then(flip(a.size.cmp(&b.size))),
-                SortBy::Date => match (date(a), date(b)) {
-                    (Some(x), Some(y)) => flip(x.cmp(&y)),
-                    (x, y) => x.is_none().cmp(&y.is_none()),
-                },
+            let primary = match (x, y) {
+                (Key::Ext(x), Key::Ext(y)) => flip(x.cmp(y)),
+                (Key::Size(x), Key::Size(y)) => (*x == 0).cmp(&(*y == 0)).then(flip(x.cmp(y))),
+                (Key::Date(Some(x)), Key::Date(Some(y))) => flip(x.cmp(y)),
+                (Key::Date(x), Key::Date(y)) => x.is_none().cmp(&y.is_none()),
+                _ => flip(natural(&a.path, &b.path)),
             };
-            primary.then_with(|| name(a, b))
+            primary.then_with(|| natural(&a.path, &b.path))
         });
+        self.files = keyed.into_iter().map(|(_, f)| f).collect();
     }
+}
+
+/// What `sort_files` compares the files by, worked out once for each.
+enum Key {
+    Name,
+    Size(u64),
+    Ext(String),
+    Date(Option<jiff::Timestamp>),
 }
 
 #[cfg(test)]
@@ -169,6 +204,50 @@ mod tests {
         assert_eq!(names(&l), ["b.png", "c.jpg", "A.jpg"]);
         l.sort_files(SortBy::Type, false);
         assert_eq!(names(&l), ["A.jpg", "c.jpg", "b.png"]);
+    }
+
+    /// Audit 1.9: the status bar counts the videos and the audio files of the folder once, not
+    /// at every pass; a file renamed into another kind is counted as such.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn kinds_counted_once() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("source::listing::tests::kinds_counted_once") {
+            return;
+        }
+        const N: usize = 300;
+        let mut names: Vec<String> = (0..N).map(|i| format!("p{i:03}.png")).collect();
+        names.extend(["v.mp4", "s.mp3"].map(String::from));
+        let mut h = Harness::new(&folder("kinds-once", &names.iter().map(String::as_str).collect::<Vec<_>>()));
+        h.until(|app| app.files().len() == N + 2 && app.listing_pending.is_empty(), "the folder listed");
+        h.frame(Vec::new());
+        KINDS_LOOKED.with(|n| n.set(0));
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+        let looked = KINDS_LOOKED.with(|n| n.get());
+        assert_eq!(looked, 0, "the kinds of {} files looked at {looked} times in two frames", N + 2);
+        let Some(Ok(l)) = h.app.listings.get(&h.app.dir) else { panic!("no listing") };
+        assert_eq!(l.played(), (1, 1));
+        let old = format!("{}p000.png", h.app.dir);
+        h.app.renamed(&old, &format!("{}p000.mov", h.app.dir));
+        let Some(Ok(l)) = h.app.listings.get(&h.app.dir) else { panic!("no listing") };
+        assert_eq!(l.played(), (2, 1), "renamed into a video");
+        assert!(h.app.thumb_queue_key.is_none(), "the thumbnail queue not made again with the new name");
+    }
+
+    /// Audit 2.28: sorted by date, each file's date is read once, not twice for each comparison
+    /// (a phone's date without its zone is three `parse` and a change of zone each time).
+    #[test]
+    fn sort_by_date_reads_each_date_once() {
+        const N: usize = 1000;
+        let files = (0..N).map(|i| File { path: format!("p/{i:04}.jpg"), size: 1, modified: format!("2026-11-{:02}T10:{:02}:{:02}", 1 + i * 7 % 28, i * 13 % 60, i % 60) }).collect();
+        let mut l = Listing { files, ..Default::default() };
+        crate::human::PARSED.with(|n| n.set(0));
+        l.sort_files(SortBy::Date, false);
+        let parsed = crate::human::PARSED.with(|n| n.get());
+        let dates: Vec<_> = l.files.iter().map(|f| crate::human::parse_modified(&f.modified).unwrap()).collect();
+        assert!(dates.is_sorted(), "not by date");
+        assert!(parsed <= N, "{parsed} dates read to sort {N} files");
     }
 
     /// Names as people read them (Piero, 21/11): numbers by their value, capitals and small

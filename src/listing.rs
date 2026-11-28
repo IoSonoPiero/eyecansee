@@ -6,31 +6,104 @@ use std::collections::{HashMap, HashSet};
 use crate::source::{self, File, Listing};
 use crate::App;
 
+/// The files the listings of the folders seen keep at most, those shown apart (about 150 bytes
+/// each, some 30 MB): past it the folders nothing shows are let go, and read again when visited
+/// (audit 1.14: all were kept until F5).
+const KEPT_FILES: usize = 200_000;
+
+fn kept_files() -> usize {
+    #[cfg(test)]
+    return KEPT_FILES_CAP.with(std::cell::Cell::get);
+    #[cfg(not(test))]
+    KEPT_FILES
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The files the listings of the folders seen keep at most (`KEPT_FILES`), lower in a test.
+    pub(crate) static KEPT_FILES_CAP: std::cell::Cell<usize> = const { std::cell::Cell::new(KEPT_FILES) };
+    /// Listings rebuilt without the items deleted or moved away, on this thread (audit 1.8: one
+    /// for each file).
+    pub(crate) static REBUILT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 impl App {
     /// Item deleted: out of the listing, as if read again. A deleted folder also takes the
     /// listings under it, and the current folder if it was inside. `to_trash`: moved into the
     /// trash folder next to it, whose button appears if it was not there (phones and servers have
     /// no watcher to tell).
     pub(crate) fn remove_item(&mut self, path: &str, to_trash: bool) {
-        self.marked.remove(path);
-        let trash = format!("{}{}/", source::parent(path), source::TRASH_DIR);
-        let dir = source::listed_in(path);
-        self.listings.retain(|k, _| !(path.ends_with('/') && k.starts_with(path)) && !(to_trash && *k == trash));
-        if left_inside(&self.dir, path) {
-            self.listings.remove(&dir);
-            self.set_dir(dir);
+        self.remove_items(&[(path.to_string(), to_trash)]);
+    }
+
+    /// `remove_item` for each of `items` (`(path, to_trash)`), with the listing of each folder
+    /// rebuilt once for all its items: it was copied whole and swapped once for each file
+    /// deleted or moved away (audit 1.8).
+    pub(crate) fn remove_items(&mut self, items: &[(String, bool)]) {
+        let mut folders: Vec<(String, Vec<&(String, bool)>)> = Vec::new();
+        for item in items {
+            let (path, to_trash) = (&item.0, item.1);
+            self.marked.remove(path);
+            let trash = format!("{}{}/", source::parent(path), source::TRASH_DIR);
+            let dir = source::listed_in(path);
+            self.listings.retain(|k, _| !(path.ends_with('/') && k.starts_with(path.as_str())) && !(to_trash && *k == trash));
+            if left_inside(&self.dir, path) {
+                self.listings.remove(&dir);
+                self.set_dir(dir);
+                continue;
+            }
+            match folders.iter_mut().find(|(d, _)| *d == dir) {
+                Some((_, of_dir)) => of_dir.push(item),
+                None => folders.push((dir, vec![item])),
+            }
+        }
+        for (dir, of_dir) in folders {
+            let Some(Ok(l)) = self.listings.get(&dir) else { continue };
+            #[cfg(test)]
+            REBUILT.with(|n| n.set(n.get() + 1));
+            let gone: HashSet<&str> = of_dir.iter().map(|(p, _)| p.as_str()).collect();
+            // In their order, as one at a time: the last moved into a trash names it.
+            let trash = of_dir.iter().fold(l.trash.clone(), |t, (path, to_trash)| match to_trash {
+                true => Some(format!("{}{}/", source::parent(path), source::TRASH_DIR)),
+                false => t.filter(|t| t != path),
+            });
+            let new = Listing {
+                dirs: l.dirs.iter().filter(|d| !gone.contains(d.as_str())).cloned().collect(),
+                files: l.files.iter().filter(|f| !gone.contains(f.path.as_str())).cloned().collect(),
+                trash,
+                leftovers: Vec::new(),
+                trashed: l.trashed.iter().filter(|f| !gone.contains(f.path.as_str())).cloned().collect(),
+                unseen: l.unseen.clone(),
+                played: Default::default(),
+            };
+            self.swap_listing(&dir, new);
+        }
+    }
+
+    /// A listing in place of none or of an error, as it came. The generation stays: the thumbnail
+    /// queue copies the files again, it kept those of the listing before the error.
+    pub(crate) fn insert_listing(&mut self, dir: &str, r: Result<Listing, String>) {
+        if dir == self.dir
+            && let Some(loader) = &self.loader
+        {
+            loader.forget_thumb_files();
+        }
+        self.listings.insert(dir.to_string(), r);
+    }
+
+    /// Past `KEPT_FILES` files in the listings, the folders nothing shows are let go: all but the
+    /// open one, those on the way to it, and those open in the left panel, whose subfolders it
+    /// draws. One let go is read again when visited, as a folder not seen before.
+    pub(crate) fn let_go_listings(&mut self, ctx: &eframe::egui::Context) {
+        let held: usize = self.listings.values().flatten().map(|l| l.files.len()).sum();
+        if held <= kept_files() {
             return;
         }
-        let Some(Ok(l)) = self.listings.get(&dir) else { return };
-        let new = Listing {
-            dirs: l.dirs.iter().filter(|d| *d != path).cloned().collect(),
-            files: l.files.iter().filter(|f| f.path != path).cloned().collect(),
-            trash: if to_trash { Some(trash) } else { l.trash.clone().filter(|t| t != path) },
-            leftovers: Vec::new(),
-            trashed: l.trashed.iter().filter(|f| f.path != path).cloned().collect(),
-            unseen: l.unseen.clone(),
-        };
-        self.swap_listing(&dir, new);
+        let open = |id| eframe::egui::collapsing_header::CollapsingState::load(ctx, id).is_some_and(|s| s.is_open());
+        let open: HashSet<String> = self.tree_rows.iter().filter(|(id, _)| open(*id)).map(|(_, dir)| dir.clone()).collect();
+        let (before, here) = (self.listings.len(), &self.dir);
+        self.listings.retain(|k, _| here.starts_with(k.as_str()) || open.contains(k));
+        log!("listings: {held} files held, {} folders let go", before - self.listings.len());
     }
 
     /// Item renamed: its folder is read again (its place in the order may change) and the item is
@@ -49,6 +122,13 @@ impl App {
             && let Some(f) = l.files.iter_mut().find(|f| f.path == old)
         {
             f.path = new.to_string();
+            // Maybe into another kind (a.jpg to a.mp4): counted again.
+            l.played = Default::default();
+            // The thumbnails asked by the new name.
+            if let Some(loader) = &self.loader {
+                loader.forget_thumb_files();
+            }
+            self.thumb_queue_key = None;
         }
         self.turn_steps.renamed(old, new);
         if old.ends_with('/') {
@@ -437,6 +517,109 @@ mod tests {
         h.until(|app| app.listing_pending.is_empty(), "read again");
         assert_eq!((h.app.selected, h.app.anchor, h.app.generation), (1, 1, generation), "something changed");
         assert!(sub_dir.join("t.png").exists());
+    }
+
+    /// Audit 1.8: many files deleted, or moved away by a paste, come out of the listing of their
+    /// folder in one go: it was copied whole (and swapped, with the thumbnails asked again) once
+    /// for each file.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn many_removed_in_one_go() {
+        use crate::loader::Msg;
+        if crate::audit_family_1::own_folder("listing::tests::many_removed_in_one_go") {
+            return;
+        }
+        const N: usize = 200;
+        let names: Vec<String> = (0..N).map(|i| format!("p{i:03}.png")).collect();
+        let dir = crate::audit_family_1::folder("removed-in-one-go", &names.iter().map(String::as_str).collect::<Vec<_>>());
+        std::fs::create_dir_all(dir.join("dest")).unwrap();
+        let mut h = crate::audit_family_1::Harness::new(&dir);
+        h.until(|app| app.files().len() == N && app.listing_pending.is_empty(), "the folder listed");
+        let here = h.app.dir.clone();
+        let path = |i: usize| format!("{here}{}", names[i]);
+        // 40 files sent to the trash, their answers come in the same frame.
+        REBUILT.with(|n| n.set(0));
+        h.app.deleting = 40;
+        for i in 0..40 {
+            h.app.tx.send(Msg::Deleted(path(i), crate::source::Deletion::SystemTrash, Ok(()))).unwrap();
+        }
+        h.frame(Vec::new());
+        let rebuilt = REBUILT.with(|n| n.get());
+        assert_eq!(h.app.files().len(), N - 40);
+        assert_eq!(h.app.deleting, 0);
+        assert_eq!(rebuilt, 1, "the listing rebuilt {rebuilt} times for 40 files deleted");
+        // 40 more moved into the subfolder.
+        let p = std::sync::Arc::new(crate::transfer::Progress::default());
+        h.app.transfer = Some((p, true, h.app.base.clone(), format!("{here}dest/")));
+        REBUILT.with(|n| n.set(0));
+        h.app.tx.send(Msg::Pasted((40..80).map(path).collect(), Ok(()))).unwrap();
+        h.frame(Vec::new());
+        let rebuilt = REBUILT.with(|n| n.get());
+        assert_eq!(h.app.files().len(), N - 80);
+        assert_eq!(h.app.files()[0].path, path(80));
+        assert_eq!(rebuilt, 1, "the listing rebuilt {rebuilt} times for 40 files moved away");
+    }
+
+    /// Audit 1.14: past the files the listings may keep, the folders seen and left are let go
+    /// (they are read again when visited); the open one and those on the way to it stay. They
+    /// were all kept, with their files, until F5.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn folders_left_let_go_past_the_cap() {
+        if crate::audit_family_1::own_folder("listing::tests::folders_left_let_go_past_the_cap") {
+            return;
+        }
+        let names: Vec<String> = (0..30).map(|i| format!("p{i:02}.png")).collect();
+        let names: Vec<&str> = names.iter().map(String::as_str).collect();
+        let root = crate::audit_family_1::folder("let-go", &["a.png"]);
+        for k in 0..5 {
+            crate::audit_family_1::folder(&format!("let-go/sub{k}"), &names);
+        }
+        // Less than one subfolder: the one left goes as soon as its parent comes back.
+        KEPT_FILES_CAP.with(|c| c.set(20));
+        let mut h = crate::audit_family_1::Harness::new(&root);
+        let here = h.app.dir.clone();
+        for k in 0..5 {
+            h.app.set_dir(format!("{here}sub{k}/"));
+            h.until(|app| app.files().len() == 30 && app.listing_pending.is_empty(), "the subfolder listed");
+            h.frame(Vec::new());
+        }
+        h.app.go_up();
+        h.until(|app| app.files().len() == 1 && app.listing_pending.is_empty(), "back up");
+        h.frame(Vec::new());
+        let kept: Vec<usize> = (0..5).filter(|k| h.app.listings.contains_key(&format!("{here}sub{k}/"))).collect();
+        assert!(kept.is_empty(), "the subfolders left kept: {kept:?}");
+        assert!(h.app.listings.contains_key(&here) && h.app.listings.contains_key(""), "the open folder and the way to it");
+        // A folder let go is read again when visited.
+        h.app.set_dir(format!("{here}sub0/"));
+        h.until(|app| app.files().len() == 30, "the folder let go read again");
+    }
+
+    /// Audit 1.9: the open folder that could not be read, then read again with other files in the
+    /// same generation (a phone locked, then unlocked): the thumbnail queue takes the new files,
+    /// not those it kept for the first listing.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn thumbnail_queue_takes_the_files_after_an_error() {
+        use crate::loader::Msg;
+        if crate::audit_family_1::own_folder("listing::tests::thumbnail_queue_takes_the_files_after_an_error") {
+            return;
+        }
+        let dir = sized("queue-after-error", &[("a.png", 8, 6), ("b.png", 8, 6)]);
+        let mut h = crate::audit_family_1::Harness::new(&dir);
+        h.until(|app| app.files().len() == 2 && app.listing_pending.is_empty(), "the folder listed");
+        h.frame(Vec::new());
+        let thumb_files = |h: &crate::audit_family_1::Harness| h.app.loader.as_ref().unwrap().thumb_files().iter().map(|f| f.path.clone()).collect::<Vec<_>>();
+        assert_eq!(thumb_files(&h).len(), 2, "the queue has the files");
+        let (base, here, generation) = (h.app.base.clone(), h.app.dir.clone(), h.app.generation);
+        h.app.tx.send(Msg::Listed(base, here.clone(), Err(("error-device-busy", String::new())))).unwrap();
+        h.frame(Vec::new());
+        h.app.tx.send(listed(&h, &["c.png", "d.png", "e.png"])).unwrap();
+        h.frame(Vec::new());
+        assert_eq!(h.app.generation, generation, "the case of the test: the same generation");
+        assert_eq!(h.app.files().len(), 3);
+        h.app.prefetch_thumbs(0..1, 8, 1, 0, 3);
+        assert_eq!(thumb_files(&h), ["c.png", "d.png", "e.png"].map(|n| format!("{here}{n}")), "the files of the listing before");
     }
 
     /// Which listings take the place of the one kept, which go in as they are, which change nothing.

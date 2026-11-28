@@ -314,8 +314,7 @@ impl App {
                 ui.separator();
             }
             ui.label(self.i18n.t_args("status-folders", &[("n", &l.dirs.len().to_string())]));
-            let videos = l.files.iter().filter(|f| crate::decode::is_video(&f.path)).count();
-            let audio = l.files.iter().filter(|f| crate::decode::is_audio(&f.path)).count();
+            let (videos, audio) = l.played();
             if videos + audio < l.files.len() {
                 ui.label(self.i18n.t_args("status-images", &[("n", &(l.files.len() - videos - audio).to_string())]));
             }
@@ -325,11 +324,11 @@ impl App {
             if videos > 0 {
                 ui.label(self.i18n.t_args("status-videos", &[("n", &videos.to_string())]));
             }
-            let marked = self.marked_paths();
-            if !marked.is_empty() {
+            let (marked, size) = self.marked_weight();
+            if marked > 0 {
                 ui.separator();
-                let size = self.human_size(self.images_size(&marked));
-                ui.label(self.i18n.t_args("status-marked", &[("n", &marked.len().to_string()), ("size", &size)]));
+                let size = self.human_size(size);
+                ui.label(self.i18n.t_args("status-marked", &[("n", &marked.to_string()), ("size", &size)]));
                 return;
             }
             if !self.cursor {

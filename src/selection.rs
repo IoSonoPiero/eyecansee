@@ -5,6 +5,7 @@ use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::hash::Hash;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::source::File;
@@ -74,6 +75,37 @@ impl From<HashSet<String>> for Marked {
 impl FromIterator<String> for Marked {
     fn from_iter<I: IntoIterator<Item = String>>(iter: I) -> Self {
         HashSet::from_iter(iter).into()
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Paths copied by `marked_paths` on this thread (audit 1.1: thirty copies in a frame).
+    pub(crate) static MARKED_COPIED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Files of the folder compared with the paths weighed by `images_size`, at most, on this
+    /// thread (audit 1.1: each file with every path marked).
+    pub(crate) static SIZE_COMPARED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+thread_local! {
+    /// `chosen(None)` and `grid_chosen(None)` while the toolbar weighs its entries
+    /// (`App::weighing`): made once for all of them, not once for each (audit 1.1). Kept only
+    /// during a call on `&App`, in which nothing they are made from can change.
+    static WEIGHED: RefCell<Option<Weighed>> = const { RefCell::new(None) };
+}
+
+#[derive(Default)]
+struct Weighed {
+    chosen: Option<Rc<Vec<String>>>,
+    grid: Option<Rc<Vec<String>>>,
+}
+
+/// Ends `App::weighing`, also when what it ran panicked.
+struct EndWeighing;
+
+impl Drop for EndWeighing {
+    fn drop(&mut self) {
+        WEIGHED.with(|w| *w.borrow_mut() = None);
     }
 }
 
@@ -227,7 +259,7 @@ impl App {
         let shown = self.target().filter(|p| !source::in_trash(p));
         match self.viewing {
             Some(_) => shown.filter(|p| turned(p, op)).map(|_| true),
-            None => turned_fit(&self.grid_chosen(None), op),
+            None => turned_fit(&self.grid_chosen_now(), op),
         }
     }
 
@@ -240,7 +272,7 @@ impl App {
     /// Not a file in a trash (a turn there would be saved over it).
     pub(crate) fn turns_fit(&self) -> Option<bool> {
         let photo = || self.viewing_photo() && !self.target().is_some_and(|p| source::in_trash(&p));
-        turn_fit(self.viewing.map(|_| photo()), &self.grid_chosen(None))
+        turn_fit(self.viewing.map(|_| photo()), &self.grid_chosen_now())
     }
 
     /// The files (not folders) an action on `path` in the grid works on, as `chosen`.
@@ -295,13 +327,80 @@ impl App {
     /// The marked items still in the folder, in the grid's order.
     pub(crate) fn marked_paths(&self) -> Vec<String> {
         let Some(Ok(l)) = self.listings.get(&self.dir) else { return Vec::new() };
-        l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).filter(|p| self.marked.contains(*p)).cloned().collect()
+        let paths: Vec<String> = l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).filter(|p| self.marked.contains(*p)).cloned().collect();
+        #[cfg(test)]
+        MARKED_COPIED.with(|n| n.set(n.get() + paths.len()));
+        paths
     }
 
     /// Total size of the images among `paths` (folders are not counted).
     pub(crate) fn images_size(&self, paths: &[String]) -> u64 {
         let Some(Ok(l)) = self.listings.get(&self.dir) else { return 0 };
-        l.files.iter().filter(|f| paths.contains(&f.path)).map(|f| f.size).sum()
+        let paths: HashSet<&str> = paths.iter().map(String::as_str).collect();
+        #[cfg(test)]
+        SIZE_COMPARED.with(|n| n.set(n.get() + l.files.len()));
+        l.files.iter().filter(|f| paths.contains(f.path.as_str())).map(|f| f.size).sum()
+    }
+
+    /// How many of the items of the open folder are marked, and the size of the images among
+    /// them: the status bar's, without a copy of their list (audit 1.1).
+    pub(crate) fn marked_weight(&self) -> (usize, u64) {
+        let Some(Ok(l)) = self.listings.get(&self.dir) else { return (0, 0) };
+        #[cfg(test)]
+        SIZE_COMPARED.with(|n| n.set(n.get() + l.files.len()));
+        let files = l.files.iter().filter(|f| self.marked.contains(&f.path));
+        let (n, size) = files.fold((0, 0), |(n, size), f| (n + 1, size + f.size));
+        (n + l.dirs.iter().filter(|d| self.marked.contains(*d)).count(), size)
+    }
+
+    /// `f` with `chosen_now` and `grid_chosen_now` made once for all it asks: the toolbar
+    /// weighing each of its entries asked for the list of the marked items eighty times a frame
+    /// (audit 1.1).
+    pub(crate) fn weighing<R>(&self, f: impl FnOnce(&Self) -> R) -> R {
+        if WEIGHED.with(|w| w.borrow().is_some()) {
+            return f(self);
+        }
+        WEIGHED.with(|w| *w.borrow_mut() = Some(Weighed::default()));
+        let _end = EndWeighing;
+        f(self)
+    }
+
+    /// `chosen(None)`, made once inside `weighing`.
+    pub(crate) fn chosen_now(&self) -> Rc<Vec<String>> {
+        let kept = WEIGHED.with(|w| w.borrow().as_ref().map(|w| w.chosen.clone()));
+        match kept {
+            Some(Some(chosen)) => chosen,
+            Some(None) => {
+                let chosen = Rc::new(self.chosen(None));
+                WEIGHED.with(|w| w.borrow_mut().as_mut().map(|w| w.chosen = Some(chosen.clone())));
+                chosen
+            }
+            None => Rc::new(self.chosen(None)),
+        }
+    }
+
+    /// `grid_chosen(None)`, made once inside `weighing`: the same list as `chosen_now` when none
+    /// of it is in a trash.
+    pub(crate) fn grid_chosen_now(&self) -> Rc<Vec<String>> {
+        if let Some(Some(grid)) = WEIGHED.with(|w| w.borrow().as_ref().map(|w| w.grid.clone())) {
+            return grid;
+        }
+        let chosen = self.chosen_now();
+        let grid = match () {
+            _ if self.viewing.is_some() => Rc::new(Vec::new()),
+            _ if !chosen.iter().any(|p| source::in_trash(p)) => chosen,
+            _ => Rc::new(chosen.iter().filter(|p| !source::in_trash(p)).cloned().collect()),
+        };
+        WEIGHED.with(|w| w.borrow_mut().as_mut().map(|w| w.grid = Some(grid.clone())));
+        grid
+    }
+
+    /// `files_chosen(None)`: in the grid `grid_chosen_now`.
+    pub(crate) fn files_chosen_now(&self) -> Rc<Vec<String>> {
+        if self.viewing.is_some() {
+            return Rc::new(self.files_chosen(None));
+        }
+        self.grid_chosen_now()
     }
 
     /// `path`: `None` = `target`, or all the marked items if there are any (also when `path` is
@@ -328,6 +427,38 @@ pub(crate) fn can_change_in(base: &str, path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Audit 1.1: Ctrl+A in a large folder. A frame of the grid copies the list of the marked
+    /// items once or twice, not once for each entry of the toolbar and the status bar, and the
+    /// status bar weighs them with one look at each file, not one comparison with every marked path.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn select_all_in_a_large_folder() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("selection::tests::select_all_in_a_large_folder") {
+            return;
+        }
+        const N: usize = 2000;
+        let names: Vec<String> = (0..N).map(|i| format!("p{i:05}.png")).collect();
+        let dir = folder("select-all-large", &names.iter().map(String::as_str).collect::<Vec<_>>());
+        let mut h = Harness::new(&dir);
+        h.until(|app| app.files().len() == N && app.listing_pending.is_empty(), "the folder listed");
+        (h.app.cursor, h.app.focus) = (true, Focus::Grid);
+        h.app.select_all();
+        assert_eq!(h.app.marked.len(), N, "Ctrl+A");
+        h.frame(Vec::new());
+        MARKED_COPIED.with(|n| n.set(0));
+        SIZE_COMPARED.with(|n| n.set(0));
+        // Counted by pass: egui runs a frame twice when a pass asks for it (a busy computer).
+        let pass = h.ctx.cumulative_pass_nr();
+        h.frame(Vec::new());
+        let passes = (h.ctx.cumulative_pass_nr() - pass) as usize;
+        let (copied, compared) = (MARKED_COPIED.with(|n| n.get()) / passes, SIZE_COMPARED.with(|n| n.get()) / passes);
+        eprintln!("one pass with {N} files marked: {copied} paths copied, {compared} files compared");
+        // One for the toolbar's entries, one for the editor's look at the picture chosen.
+        assert!(copied <= 2 * N, "{copied} paths copied in a pass: the marked list made {} times", copied / N);
+        assert!(compared <= N, "{compared} comparisons to weigh {N} files marked");
+    }
 
     #[test]
     fn entries_fit_the_kinds_chosen() {

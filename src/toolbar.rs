@@ -27,8 +27,17 @@ struct Op {
     off: Option<String>,
 }
 
+#[cfg(test)]
+thread_local! {
+    /// The file operations of the toolbar built on this thread (audit 1.9: twice a pass, once
+    /// only to count them).
+    static FILE_OPS_BUILT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 impl App {
     fn file_ops(&self) -> Vec<Op> {
+        #[cfg(test)]
+        FILE_OPS_BUILT.with(|n| n.set(n.get() + 1));
         let t = |id| self.i18n.t(id);
         let (rename, delete) = (
             Op { icon: Line::Rename, label: "menu-rename", keys: "F2".into(), act: Act::Rename(None), off: self.rename_off() },
@@ -79,7 +88,7 @@ impl App {
 
     /// Why Convert… cannot start (also for Ctrl+B): as the Tools menu.
     pub(crate) fn batch_off(&self) -> Option<String> {
-        self.tools_off().or_else(|| fits(&self.grid_chosen(None), CONVERTED).is_none().then(|| self.i18n.t("tb-off-batch")))
+        self.tools_off().or_else(|| fits(&self.grid_chosen_now(), CONVERTED).is_none().then(|| self.i18n.t("tb-off-batch")))
     }
 
     /// Why no entry of Tools on the files chosen can start now: in the viewer, one conversion
@@ -129,7 +138,7 @@ impl App {
     /// What of the toolbar's first row stays on it, from the width it has: called at its start.
     pub(crate) fn toolbar_fit(&self, ui: &egui::Ui) -> Fit {
         let grid = self.viewing.is_none();
-        let row = Row { grid, file: self.file_ops().len(), image: self.image_ops().len(), tools: self.tool_ops().len() };
+        let row = Row::of(grid);
         let sort = if grid { toolbar_end::sort_width(toolbar_end::TailParts::measure(ui)) } else { 0.0 };
         fit(row, RowParts::measure(ui), ui.available_width(), sort)
     }
@@ -138,12 +147,12 @@ impl App {
     /// rest in the "More" menu. The one chosen runs after the frame.
     pub(crate) fn toolbar_ops(&mut self, ui: &mut egui::Ui, fit: Fit) {
         let mut chosen = None;
-        let file = self.file_ops();
+        // Weighed together: the files chosen are worked out once for all the entries (audit 1.1).
+        let (file, image, tools) = self.weighing(|app| (app.file_ops(), app.image_ops(), app.tool_ops()));
         let (kept, gone) = file.split_at(fit.file_kept());
         if !kept.is_empty() {
             group(ui, kept, &self.i18n, &mut chosen);
         }
-        let (image, tools) = (self.image_ops(), self.tool_ops());
         if fit.groups {
             group(ui, &image, &self.i18n, &mut chosen);
             if !tools.is_empty() {
@@ -200,6 +209,18 @@ pub(crate) struct Row {
     pub(crate) image: usize,
     /// None in the viewer.
     pub(crate) tools: usize,
+}
+
+impl Row {
+    /// The entries of each group, as `file_ops`, `image_ops` and `tool_ops` build them (a test
+    /// holds them together): counted without building them, which weighs the files chosen for
+    /// each (audit 1.9).
+    pub(crate) fn of(grid: bool) -> Row {
+        match grid {
+            true => Row { grid, file: 6, image: 5, tools: 2 },
+            false => Row { grid, file: 2, image: 5, tools: 0 },
+        }
+    }
 }
 
 impl Row {
@@ -332,6 +353,43 @@ fn more(ui: &mut egui::Ui, groups: &[&[Op]], i18n: &I18n, chosen: &mut Option<Ac
 mod tests {
     use super::*;
     use crate::toolbar_end::FIELD_MIN;
+
+    /// Audit 1.9: the toolbar builds its entries (each weighing the files chosen) once a pass;
+    /// it built them a second time only to count them (`toolbar_fit`).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn entries_built_once_a_pass() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("toolbar::tests::entries_built_once_a_pass") {
+            return;
+        }
+        let mut h = Harness::new(&folder("built-once", &["a.png"]));
+        h.frame(Vec::new());
+        FILE_OPS_BUILT.with(|n| n.set(0));
+        let pass = h.ctx.cumulative_pass_nr();
+        h.frame(Vec::new());
+        let passes = (h.ctx.cumulative_pass_nr() - pass) as usize;
+        let built = FILE_OPS_BUILT.with(|n| n.get());
+        assert_eq!(built, passes, "the file operations built {built} times in {passes} passes");
+    }
+
+    /// `Row::of` counts the entries `file_ops`, `image_ops` and `tool_ops` build, in the grid and
+    /// in the viewer.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn row_counts_the_entries_built() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("toolbar::tests::row_counts_the_entries_built") {
+            return;
+        }
+        let mut h = Harness::new(&folder("row-counts", &["a.png"]));
+        let built = |app: &App| (app.file_ops().len(), app.image_ops().len(), app.tool_ops().len());
+        let (grid, viewer) = (Row::of(true), Row::of(false));
+        assert_eq!(built(&h.app), (grid.file, grid.image, grid.tools), "in the grid");
+        h.app.viewing = Some(0);
+        h.frame(Vec::new());
+        assert_eq!(built(&h.app), (viewer.file, viewer.image, viewer.tools), "in the viewer");
+    }
 
     /// egui's default style: padding 8, spacing 8, 4 between the icons of a button.
     fn parts() -> RowParts {

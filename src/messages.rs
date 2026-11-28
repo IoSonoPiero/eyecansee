@@ -16,10 +16,26 @@ use crate::loader::Msg;
 use crate::source::Listing;
 use crate::listing::Arrival;
 
+/// A deletion done goes into `deleted`, out of the listings with those after it (audit 1.8);
+/// any other message is handled after them.
+fn held_back(deleted: &mut Vec<(String, source::Deletion)>, msg: Msg) -> Option<Msg> {
+    match msg {
+        Msg::Deleted(path, how, Ok(())) => {
+            deleted.push((path, how));
+            None
+        }
+        msg => Some(msg),
+    }
+}
+
 impl App {
     pub(crate) fn receive(&mut self, ctx: &egui::Context) {
+        // The deletions done in a row, taken out of their listings together (audit 1.8), before
+        // any other message, which comes after them as before.
+        let mut deleted = Vec::new();
         while let Ok(msg) = self.rx.try_recv() {
-            let Some(msg) = self.of_this_source(msg) else { continue };
+            let Some(msg) = self.of_this_source(msg).and_then(|msg| held_back(&mut deleted, msg)) else { continue };
+            self.on_deleted_ok(std::mem::take(&mut deleted));
             match msg {
                 Msg::Listed(base, dir, r) => self.on_listed(ctx, &base, dir, r),
                 Msg::At(..) => {}
@@ -98,6 +114,7 @@ impl App {
                 Msg::Devices(d) => self.on_devices(ctx, d),
             }
         }
+        self.on_deleted_ok(deleted);
     }
 
     /// `msg`, out of its `Msg::At`; `None` when it is about paths of a source left meanwhile,
@@ -226,14 +243,11 @@ impl App {
             Ok(l) => match crate::listing::arrival(self.listings.get(&dir), &l, select, self.fresh.is_some()) {
                 Arrival::Swap => self.swap_listing(&dir, l),
                 Arrival::Keep => log!("listing {dir:?} as before"),
-                Arrival::Insert => {
-                    self.listings.insert(dir.clone(), Ok(l));
-                }
+                Arrival::Insert => self.insert_listing(&dir, Ok(l)),
             },
-            r => {
-                self.listings.insert(dir.clone(), r);
-            }
+            r => self.insert_listing(&dir, r),
         }
+        self.let_go_listings(ctx);
         // After the files followed: the viewer and the selection already on their file by then.
         if dir == self.dir {
             self.start_found();
@@ -319,20 +333,30 @@ impl App {
         self.meta = Some((index, meta));
     }
 
+    /// Items deleted, out of their listings together (audit 1.8: the listing was copied once for
+    /// each).
+    fn on_deleted_ok(&mut self, done: Vec<(String, source::Deletion)>) {
+        if done.is_empty() {
+            return;
+        }
+        // An emptied trash going away comes as one more: never below zero.
+        self.deleting = self.deleting.saturating_sub(done.len());
+        let items: Vec<(String, bool)> = done.iter().map(|(path, how)| (path.clone(), *how == source::Deletion::TrashFolder)).collect();
+        self.remove_items(&items);
+        for (path, _) in done {
+            log!("deleted {path:?}");
+            self.dup_deleted(&path);
+            // An emptied trash: a listing of its folder already on its way would show it again.
+            // An Android trashed file gone: its folder may have no trash left.
+            if source::is_trash(&path) || source::android_trashed(source::name(&path)).is_some() {
+                self.relist(source::parent(&path));
+            }
+        }
+    }
+
     fn on_deleted(&mut self, path: String, how: source::Deletion, r: Result<(), source::Error>) {
         match (path, how, r) {
-            (path, how, Ok(())) => {
-                log!("deleted {path:?}");
-                // An emptied trash going away comes as one more: never below zero.
-                self.deleting = self.deleting.saturating_sub(1);
-                self.remove_item(&path, how == source::Deletion::TrashFolder);
-                self.dup_deleted(&path);
-                // An emptied trash: a listing of its folder already on its way would show it again.
-                // An Android trashed file gone: its folder may have no trash left.
-                if source::is_trash(&path) || source::android_trashed(source::name(&path)).is_some() {
-                    self.relist(source::parent(&path));
-                }
-            }
+            (path, how, Ok(())) => self.on_deleted_ok(vec![(path, how)]),
             (path, _, Err((id, detail))) => {
                 log!("delete {path:?}: ERROR {id} {detail}");
                 // The loader stops at the first error: the others will not come.
@@ -430,9 +454,7 @@ impl App {
         );
         let to = crate::navigation::shown(&base, &dir);
         if base == self.base {
-            for path in &gone {
-                self.remove_item(path, false);
-            }
+            self.remove_items(&gone.iter().map(|path| (path.clone(), false)).collect::<Vec<_>>());
             // The open folder, if inside the destination, is read again instead of dropped: dropped,
             // nothing asked for it and its spinner never ended (Downloads during a paste into home).
             let open = self.dir.clone();
