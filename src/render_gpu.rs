@@ -270,7 +270,7 @@ fn step(on_card: bool, coming: bool) -> Step {
 }
 
 /// A model on its way to the card: the parts its thread makes (`prepare::model`), put on the
-/// card as they come, a piece at a time.
+/// card as they come, one a frame.
 struct Coming {
     mesh: Arc<Mesh>,
     parts: std::sync::mpsc::Receiver<prepare::Part>,
@@ -279,6 +279,8 @@ struct Coming {
     pictures: Vec<wgpu::BindGroup>,
     groups: HashMap<[u16; 5], usize>,
     started: std::time::Instant,
+    /// Its thread ended without its pictures: not asked again for this model.
+    dead: bool,
 }
 
 /// The picture's textures, made again when the viewer changes size.
@@ -453,12 +455,12 @@ impl Gpu {
 
     /// The bytes of `mesh` asked of a thread of their own (`prepare::model`): three vertices per
     /// triangle, grouped by pictures, in pieces of at most 128 MB or the card's limit, and the
-    /// pictures with their copies. At most one piece waits for the window: the thread waits for
-    /// it to be taken.
+    /// pictures with their copies. The thread hands each piece over only when a frame takes it
+    /// (a channel without room): one piece waits while the next is made.
     fn start(&mut self, mesh: &Arc<Mesh>) {
         self.model = None;
         let per = prepare::per(self.rs.device.limits().max_buffer_size.min(128 << 20));
-        let (tx, parts) = std::sync::mpsc::sync_channel(1);
+        let (tx, parts) = std::sync::mpsc::sync_channel(0);
         let (m, ctx) = (mesh.clone(), self.ctx.clone());
         let job = move || {
             prepare::model(&m, per, |part| {
@@ -471,33 +473,43 @@ impl Gpu {
             log!("model on the graphics card: no thread ({e})");
         }
         let started = std::time::Instant::now();
-        self.coming = Some(Coming { mesh: mesh.clone(), parts, views: Vec::new(), pieces: Vec::new(), pictures: Vec::new(), groups: HashMap::new(), started });
+        self.coming = Some(Coming { mesh: mesh.clone(), parts, views: Vec::new(), pieces: Vec::new(), pictures: Vec::new(), groups: HashMap::new(), started, dead: false });
     }
 
-    /// The parts of the model on its way made meanwhile, put on the card: buffers and textures
-    /// only. `true` once it is all there (`model`).
+    /// The next part of the model on its way, if it is made, put on the card: buffers and
+    /// textures only, one part a frame (a piece is 128 MB at most). `true` once it is all there
+    /// (`model`).
     fn take(&mut self) -> bool {
         let Some(mut c) = self.coming.take() else { return false };
-        loop {
-            match c.parts.try_recv() {
-                Ok(prepare::Part::Pictures(p)) => c.views = p.iter().map(|p| self.picture(p)).collect(),
-                Ok(prepare::Part::Piece(k, vertices, bytes)) => {
-                    let at = *c.groups.entry(k).or_insert_with(|| {
-                        c.pictures.push(self.bind(&c.views, k));
-                        c.pictures.len() - 1
-                    });
-                    let buffer = self.rs.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("model"), contents: &bytes, usage: wgpu::BufferUsages::VERTEX });
-                    c.pieces.push((buffer, vertices, at));
-                }
-                Err(std::sync::mpsc::TryRecvError::Empty) => {
-                    self.coming = Some(c);
-                    return false;
-                }
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
-            }
+        if c.dead {
+            self.coming = Some(c);
+            return false;
         }
+        match c.parts.try_recv() {
+            Ok(prepare::Part::Pictures(p)) => c.views = p.iter().map(|p| self.picture(p)).collect(),
+            Ok(prepare::Part::Piece(k, vertices, bytes)) => {
+                let at = *c.groups.entry(k).or_insert_with(|| {
+                    c.pictures.push(self.bind(&c.views, k));
+                    c.pictures.len() - 1
+                });
+                let buffer = self.rs.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("model"), contents: &bytes, usage: wgpu::BufferUsages::VERTEX });
+                c.pieces.push((buffer, vertices, at));
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => return self.taken(c),
+        }
+        // The next part may be there already: the thread asked for a frame when it was not.
+        self.ctx.request_repaint();
+        self.coming = Some(c);
+        false
+    }
+
+    /// The model come whole onto the card: `true`, unless its thread made nothing.
+    fn taken(&mut self, mut c: Coming) -> bool {
         if c.views.is_empty() {
             log!("model on the graphics card: its pictures never came");
+            c.dead = true;
+            self.coming = Some(c);
             return false;
         }
         log!("model on the graphics card: {} triangles, {} pictures, {:.0?} (made outside the window's frames)", c.mesh.tris.len(), c.mesh.textures.len(), c.started.elapsed());
