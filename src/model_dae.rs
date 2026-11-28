@@ -20,6 +20,11 @@ const MAX_PICTURE: u64 = 256 << 20;
 type Look = (Option<[u8; 3]>, u16);
 
 pub fn read(bytes: &[u8], zipped: bool, sibling: Sibling, unpacked: &crate::model_3mf::Unpacked) -> Result<Mesh, String> {
+    read_up_to(bytes, zipped, sibling, unpacked, crate::model_limit::COLLADA)
+}
+
+/// `read`, the parts placed within `cap` (the format's, or a smaller one in the tests).
+fn read_up_to(bytes: &[u8], zipped: bool, sibling: Sibling, unpacked: &crate::model_3mf::Unpacked, cap: crate::model_limit::Limit) -> Result<Mesh, String> {
     let text = if zipped { crate::model_3mf::unzipped(bytes, ".dae", unpacked)? } else { crate::model_3mf::text(bytes) };
     let doc = crate::model_3mf::parse_xml(&text, crate::model_limit::COLLADA)?;
     // Several elements may share an id (an effect named as its geometry): all kept, by kind.
@@ -30,7 +35,7 @@ pub fn read(bytes: &[u8], zipped: bool, sibling: Sibling, unpacked: &crate::mode
         }
     }
     let z_up = doc.descendants().find(|n| n.has_tag_name_local("up_axis")).and_then(|n| n.text()).is_some_and(|t| t.trim() == "Z_UP");
-    let mut b = Builder::up_to(crate::model_limit::COLLADA);
+    let mut b = Builder::up_to(cap);
     // In a ZAE the pictures are in the zip, by their path or just their name.
     let in_zip = |name: &str| {
         use std::io::Read;

@@ -132,6 +132,11 @@ fn transform(node: Node) -> Transform {
 }
 
 pub fn read(bytes: &[u8], unpacked: &Unpacked) -> Result<Mesh, String> {
+    read_up_to(bytes, unpacked, crate::model_limit::THREE_MF)
+}
+
+/// `read`, the parts placed within `cap` (the format's, or a smaller one in the tests).
+fn read_up_to(bytes: &[u8], unpacked: &Unpacked, cap: crate::model_limit::Limit) -> Result<Mesh, String> {
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
     let rels = entry(&mut zip, "_rels/.rels", unpacked).unwrap_or_default();
     let main = parse_xml(&rels, crate::model_limit::THREE_MF)
@@ -143,7 +148,7 @@ pub fn read(bytes: &[u8], unpacked: &Unpacked) -> Result<Mesh, String> {
     let loaded = Loaded { texts: &texts, docs: &docs, models: &models };
     let mut files = Files { zip, unpacked, pictures: HashMap::new(), written: 0, tree: Tree::of(crate::model_limit::THREE_MF) };
     let doc = loaded.model(&mut files, &main)?.doc;
-    let mut b = Builder::up_to(crate::model_limit::THREE_MF);
+    let mut b = Builder::up_to(cap);
     for item in doc.descendants().filter(|n| n.has_tag_name_local("item")) {
         let Some(id) = item.attribute("objectid") else { continue };
         let path = item.attribute_local("path").unwrap_or(&main).to_string();

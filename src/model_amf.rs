@@ -11,6 +11,11 @@ use crate::model::{Builder, Mesh};
 const MAX_DEPTH: u32 = 32;
 
 pub fn read(bytes: &[u8], unpacked: &crate::model_3mf::Unpacked) -> Result<Mesh, String> {
+    read_up_to(bytes, unpacked, crate::model_limit::AMF)
+}
+
+/// `read`, the parts placed within `cap` (the format's, or a smaller one in the tests).
+fn read_up_to(bytes: &[u8], unpacked: &crate::model_3mf::Unpacked, cap: crate::model_limit::Limit) -> Result<Mesh, String> {
     let text = if bytes.starts_with(b"PK") { crate::model_3mf::unzipped(bytes, ".amf", unpacked)? } else { crate::model_3mf::text(bytes) };
     // Counted before the XML is parsed (`model_limit`).
     crate::model_limit::AMF.check(crate::model_limit::xml_triangles(&text))?;
@@ -18,7 +23,7 @@ pub fn read(bytes: &[u8], unpacked: &crate::model_3mf::Unpacked) -> Result<Mesh,
     let root = doc.root_element();
     let ids = |tag: &str| -> HashMap<&str, Node> { root.children().filter(|n| n.has_tag_name(tag)).filter_map(|n| Some((n.attribute("id")?, n))).collect() };
     let (objects, materials, constellations) = (ids("object"), ids("material"), ids("constellation"));
-    let mut b = Builder::up_to(crate::model_limit::AMF);
+    let mut b = Builder::up_to(cap);
     let mut amf = Amf { b: &mut b, objects: &objects, materials: &materials, constellations: &constellations };
     match root.children().find(|n| n.has_tag_name("constellation")) {
         Some(c) => amf.constellation(c, &IDENTITY, 0)?,
