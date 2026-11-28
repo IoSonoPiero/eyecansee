@@ -432,9 +432,7 @@ impl App {
     /// Fluent ids of the lists, one after the other (a tool of the editor, then the keys of every
     /// tool). A list taller than the window scrolls (#331), so no key is cut.
     pub(crate) fn keys_window(&self, ctx: &egui::Context, ids: &[&str], bar: f32) {
-        // The viewer's double click as chosen in the Options (#349).
-        let double = self.i18n.t(double_keys(self.settings.double_click_full));
-        let text = ids.iter().map(|id| self.i18n.t_args(id, &[("double", &double)])).collect::<Vec<_>>().join(" | ");
+        let rows = self.keys_rows(ids);
         // The room above the status bar, less the title, the frame and a margin.
         let room = (ctx.content_rect().height() - bar - 90.0).max(120.0);
         egui::Area::new(egui::Id::unique("viewer-keys")).order(egui::Order::Foreground).anchor(Align2::RIGHT_BOTTOM, vec2(-8.0, -bar - 8.0)).show(ctx, |ui| {
@@ -449,7 +447,7 @@ impl App {
                 // first time egui's 400 points), and a longer one scrolled in it.
                 ScrollArea::vertical().id_salt(ids).max_height(room).min_scrolled_height(room).show(ui, |ui| {
                     egui::Grid::new("viewer-keys-grid").num_columns(2).spacing([18.0, 6.0]).striped(true).show(ui, |ui| {
-                        for (keys, what) in key_rows(&text) {
+                        for (keys, what) in &rows {
                             ui.label(egui::RichText::new(keys).strong());
                             ui.label(what);
                             ui.end_row();
@@ -458,6 +456,14 @@ impl App {
                 });
             });
         });
+    }
+
+    /// The rows of the keys window for the lists `ids`: the keys and what they do. The viewer's
+    /// double click as chosen in the Options (#349).
+    pub(crate) fn keys_rows(&self, ids: &[&str]) -> Vec<(String, String)> {
+        let double = self.i18n.t(double_keys(self.settings.double_click_full));
+        let text = ids.iter().map(|id| self.i18n.t_args(id, &[("double", &double)])).collect::<Vec<_>>().join(" | ");
+        key_rows(&text).into_iter().map(|(k, w)| (k.to_string(), w.to_string())).collect()
     }
 
     /// The keys of the file shown (a 3D model, a CAD drawing, a video or sound, an image): the
@@ -631,6 +637,28 @@ mod tests {
         for id in ["hint-audio", "hint-edit-common", "show-hint"] {
             assert!(en.contains_key(id), "{id}");
         }
+    }
+
+    /// While a file is still read (the viewer shows "Loading…", nothing to click) the keys did
+    /// not leave out "Double click: back to the grid", which there does nothing (DC of 28/11).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn no_double_click_while_the_file_is_read() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("meta_panel::tests::no_double_click_while_the_file_is_read") {
+            return;
+        }
+        let mut h = Harness::new(&folder("keys-loading", &["a.png"]));
+        h.app.activate(0);
+        h.until(|a| a.viewing.is_some_and(|i| matches!(a.full.get(&i), Some(Ok(_)))), "the picture shown");
+        let double = h.app.i18n.t("keys-double-grid");
+        let id = h.app.keys_hint(h.app.viewing.unwrap()).unwrap();
+        let has_double = |h: &Harness| h.app.keys_rows(&[id]).iter().any(|(_, what)| *what == double);
+        assert!(has_double(&h), "the picture shown: the double click listed");
+        // As while it is read: not in memory yet.
+        let i = h.app.viewing.unwrap();
+        h.app.full.remove(&i);
+        assert!(!has_double(&h), "the double click listed while the file is read, where it does nothing");
     }
 
     /// A list of keys taller than the window scrolls (#331): on a screen 600 points high the
