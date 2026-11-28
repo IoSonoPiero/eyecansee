@@ -92,11 +92,14 @@ pub(crate) const DRAWING_PLACED: &str = "error-drawing-too-many-placed";
 /// parser (`model_ply`), the accessors of a glTF (`model_gltf::reading_fits`). Sent as `too_many`, its number for the log; said without it, as the
 /// number counts nodes or rows, not what the user knows of the model.
 pub(crate) const MEMORY: &str = "error-model-needs-too-much-memory";
+/// A model whose parts, placed again and again, would take too long to read (`Builder::work`):
+/// said without a number, as it counts bytes of the file, not what the user knows of the model.
+pub(crate) const WORK: &str = "error-model-takes-too-long";
 /// The rarer refusals said in millions (`said`); the others as their number is.
 const IN_MILLIONS: [&str; 6] = [OFFERED, LINES, PLACED, DRAWING_POINTS, DRAWING_ENTITIES, DRAWING_PLACED];
 const AS_IT_IS: [&str; 3] = [INLINED, UNPACKED, UNPACKED_TIMES];
 /// The rarer refusals said without their number.
-const WITHOUT_NUMBER: [&str; 1] = [MEMORY];
+const WITHOUT_NUMBER: [&str; 2] = [MEMORY, WORK];
 
 /// The error `id` of a rarer refusal, beyond `max` (`OFFERED` and the others).
 pub(crate) fn too_many(id: &str, max: impl std::fmt::Display) -> String {
@@ -544,6 +547,10 @@ mod tests {
         }
         let inlined = both(&too_many(INLINED, 1000));
         assert_eq!((inlined.0.as_str(), inlined.1.as_str()), ("The model includes other files more than 1000 times, too many to open.", "Il modello include altri file più di 1000 volte, troppe per aprirlo."));
+        // Audit 27/11, D.6: said without its number of bytes.
+        let work = both(&too_many(WORK, 1 << 30));
+        assert_eq!((work.0.as_str(), work.1.as_str()), ("The model repeats its parts so many times that it would take too long to open.", "Il modello ripete le sue parti tante volte che aprirlo richiederebbe troppo tempo."));
+        assert_eq!((work.2.as_deref(), work.3.as_deref()), (Some("parts repeated too many times"), Some("parti ripetute troppe volte")));
         assert_eq!(both(&too_many(DRAWING_POINTS, crate::cad::MAX_POINTS)).1, "Il disegno ha più di 20 milioni di punti, troppi per aprirlo.");
         assert_eq!(both(&too_many(DRAWING_ENTITIES, crate::cad::MAX_POINTS)).0, "The drawing has more than 20 million elements, too many to open.");
     }

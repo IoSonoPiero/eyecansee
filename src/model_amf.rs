@@ -109,13 +109,20 @@ impl Amf<'_, '_> {
     }
 
     fn object(&mut self, o: Node, m: &M) -> Result<(), String> {
+        // Gone over again at each instance, whatever it brings (audit 27/11, D.6).
+        self.b.work(o.range().len())?;
         let Some(mesh) = child(o, "mesh") else { return Ok(()) };
         let vertices: Vec<Node> = child(mesh, "vertices").map(|v| v.children().filter(|n| n.has_tag_name("vertex")).collect()).unwrap_or_default();
         let pos: Vec<[f32; 3]> = vertices.iter().map(|v| child(*v, "coordinates").map(|c| apply(m, ["x", "y", "z"].map(|k| number(c, k)))).unwrap_or([f32::NAN; 3])).collect();
         let vcolor: Vec<Option<[u8; 3]>> = vertices.iter().map(|v| color(*v)).collect();
         let (mut tris, mut colors) = (Vec::new(), Vec::new());
+        let own = color(o);
         for vol in mesh.children().filter(|n| n.has_tag_name("volume")) {
-            let fallback = color(vol).or_else(|| color(o)).or_else(|| vol.attribute("materialid").and_then(|id| self.materials.get(id)).and_then(|&mat| color(mat)));
+            let material = vol.attribute("materialid").and_then(|id| self.materials.get(id)).copied();
+            if let Some(mat) = material {
+                self.b.work(mat.range().len())?;
+            }
+            let fallback = color(vol).or(own).or_else(|| material.and_then(color));
             for t in vol.children().filter(|n| n.has_tag_name("triangle")) {
                 let v = ["v1", "v2", "v3"].map(|k| index(t, k));
                 tris.push(v);

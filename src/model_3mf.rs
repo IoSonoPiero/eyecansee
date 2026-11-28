@@ -316,6 +316,8 @@ fn place(b: &mut Builder, files: &mut Files, loaded: &Loaded, path: &str, id: &s
     b.visit()?;
     let model = loaded.model(files, path)?;
     let Some(object) = model.objects.get(id) else { return Ok(()) };
+    // Gone over again at each placement, whatever it brings (audit 27/11, D.6).
+    b.work(object.range().len())?;
     if let Some(mesh) = object.children().find(|n| n.has_tag_name_local("mesh")) {
         mesh_part(b, files, model, *object, mesh, m)?;
     }

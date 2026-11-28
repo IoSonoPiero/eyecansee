@@ -58,6 +58,8 @@ impl Walk<'_, '_> {
         if self.visits > MAX_VISITS {
             return Err(crate::model_limit::too_many(crate::model_limit::PLACED, MAX_VISITS));
         }
+        // Its fields are looked up by name at each visit (audit 27/11, D.6).
+        self.b.work(n.fields.len())?;
         match n.kind.as_str() {
             "Transform" => {
                 let m = mul(m, &transform(n));
@@ -107,6 +109,8 @@ impl Walk<'_, '_> {
     }
 
     fn shape(&mut self, n: &SceneNode, m: &Mat4) -> Result<(), String> {
+        // Its geometry and appearance are read again at each use (audit 27/11, D.6).
+        self.b.work(size(n, 2))?;
         let appearance = n.children().find(|c| c.kind == "Appearance");
         let material = appearance.and_then(|a| a.children().find(|c| c.kind.ends_with("Material")).cloned());
         let color = material.map(|mat| {
@@ -164,6 +168,24 @@ impl Walk<'_, '_> {
             }
         }
     }
+}
+
+/// The fields of `n` with their values, and those of its nodes down to `depth` levels: what
+/// reading a shape goes over (`Builder::work`).
+fn size(n: &SceneNode, depth: u32) -> usize {
+    use crate::model_vrml::Value;
+    n.fields
+        .iter()
+        .map(|(_, v)| {
+            1 + match v {
+                Value::Nums(v) => v.len(),
+                Value::Ints(v) => v.len(),
+                Value::Strs(v) => v.len(),
+                Value::Bool(_) => 0,
+                Value::Nodes(c) => c.len() + if depth > 0 { c.iter().map(|c| size(c, depth - 1)).sum() } else { 0 },
+            }
+        })
+        .sum()
 }
 
 fn rgb(c: &[f32]) -> [u8; 3] {
