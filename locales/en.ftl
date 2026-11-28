@@ -360,16 +360,16 @@ status-images = Images: { $n }
 status-videos = Videos: { $n }
 status-audio = Audio: { $n }
 status-deleting = Deleting { $n }…
-status-file-removed = { $name } was removed from the device.
+status-file-removed = **{ $name }** was removed from the device.
 delete-phone-busy = The phone is { $what ->
         [move] moving
        *[other] copying
-    } { $name } ({ $s } s): **{ $button }** turns on when it is done.
+    } **{ $name }** ({ $s } s): **{ $button }** turns on when it is done.
 quit-phone-title = The phone is still working
 quit-phone-ask = The phone is { $what ->
         [move] moving
        *[other] copying
-    } { $name } by itself and cannot be stopped. Close EyeCanSee now?
+    } **{ $name }** by itself and cannot be stopped. Close EyeCanSee now?
 
     The phone may finish this file by itself: the copy may then stay on the phone.
 quit-phone-yes = Close EyeCanSee
@@ -378,7 +378,7 @@ status-phone-working = The phone is { $what ->
         [move] moving
        *[other] copying
     } { $name } ({ $s } s)…
-status-phone-deaf = Please wait: the phone is writing { $name }. Its folders open when it is done.
+status-phone-deaf = Please wait: the phone is writing **{ $name }**. Its folders open when it is done.
 status-phone-waiting = The phone has not answered for { $s } s ({ $name }): waiting…
 status-phone-waiting-open = The phone has not answered for { $s } s: waiting…
 status-phone-stalled = Windows has not talked to the phone for { $s } s: unplug the cable and plug it in again, or wait
@@ -393,7 +393,7 @@ phone-stalled-upload =
     Unplug the cable and plug it in again (then File transfer), or wait a few minutes: it recovers by itself.
     The phone and its files are fine.
 
-    { $name } will need copying again.
+    { "**" }{ $name }** will need copying again.
 phone-stalled-why = Why does this happen?
 phone-stalled-url = https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.en.md
 status-copied = { $n } copied: Ctrl + V to paste
@@ -1831,8 +1831,8 @@ batch-strip-hint = Makes a new video, the same as the original but without audio
 batch-extract-hint = Saves the audio of the video in a separate file (for example .m4a). The video is not touched. Every audio track is copied as it is into a file of its own, in the format of its codec (AAC as .m4a, Opus as .opus, MP3 as .mp3, FLAC as .flac): no re-encoding, no loss, the metadata kept. For another format, use Convert…
 batch-audio-not-ready = FFmpeg is not ready yet.
 batch-images = { $n ->
-    [one] **1 file** in { $folder }.
-   *[other] **{ $n } files** in { $folder }.
+    [one] **1 file** in **{ $folder }**.
+   *[other] **{ $n } files** in **{ $folder }**.
 }
 batch-same-format = Same as the original
 batch-same-format-hint = Each image in its own format, written as Save writes it (a JPEG at its own quality). Formats EyeCanSee cannot write (HEIC, RAW…) are left out.
@@ -1873,8 +1873,8 @@ batch-left-out-kind = { $n ->
    *[other] { $n } files chosen are left out: this entry does not work on their kind.
 }
 summary-saved = { $n ->
-    [one] **1 file** saved in { $folder }.
-   *[other] **{ $n } files** saved in { $folder }.
+    [one] **1 file** saved in **{ $folder }**.
+   *[other] **{ $n } files** saved in **{ $folder }**.
 }
 summary-left-out = { $n ->
     [one] **1 file** left out.
@@ -2041,10 +2041,10 @@ bm-up = Move up
 bm-down = Move down
 bm-remove = Remove from the bookmarks
 bm-file = Saved in { $path }.
-bm-missing-place = **{ $name }** cannot be opened: { $address } does not exist any more, or it is on a disk that is not connected.
+bm-missing-place = **{ $name }** cannot be opened: **{ $address }** does not exist any more, or it is on a disk that is not connected.
 
     The bookmark stays: connect the disk and choose it again, or remove it in **Bookmarks > Configure…**.
-bm-missing-phone = **{ $name }** cannot be opened: the phone of { $address } is not connected.
+bm-missing-phone = **{ $name }** cannot be opened: the phone of **{ $address }** is not connected.
 
     The bookmark stays: connect the phone, choose "File transfer" on it and choose the bookmark again, or remove it in **Bookmarks > Configure…**.
 tb-more = More operations

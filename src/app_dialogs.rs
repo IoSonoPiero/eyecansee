@@ -184,7 +184,7 @@ impl App {
         if self.notice.is_none()
             && let Some(host) = crate::sftp::rsa_login()
         {
-            let text = self.i18n.t_args("sftp-rsa-key", &[("host", &host)]);
+            let text = self.i18n.t_args("sftp-rsa-key", &[("host", &crate::save_dialogs::md(&host))]);
             self.notice = Some(crate::save_dialogs::Notice { warning: true, ..crate::save_dialogs::Notice::new(self.i18n.t("sftp-rsa-title"), text) });
         }
         if !self.host_ask {

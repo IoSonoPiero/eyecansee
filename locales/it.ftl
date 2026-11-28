@@ -358,16 +358,16 @@ status-images = Immagini: { $n }
 status-videos = Video: { $n }
 status-audio = Audio: { $n }
 status-deleting = Eliminazione in corso: { $n }…
-status-file-removed = { $name } è stato rimosso dal dispositivo.
+status-file-removed = **{ $name }** è stato rimosso dal dispositivo.
 delete-phone-busy = Il telefono sta { $what ->
         [move] spostando
        *[other] copiando
-    } { $name } ({ $s } s): **{ $button }** si attiva quando ha finito.
+    } **{ $name }** ({ $s } s): **{ $button }** si attiva quando ha finito.
 quit-phone-title = Il telefono sta ancora lavorando
 quit-phone-ask = Il telefono sta { $what ->
         [move] spostando
        *[other] copiando
-    } { $name } da solo e non si può fermare. Chiudere EyeCanSee adesso?
+    } **{ $name }** da solo e non si può fermare. Chiudere EyeCanSee adesso?
 
     Il telefono può finire questo file da solo: in quel caso la copia può restare sul telefono.
 quit-phone-yes = Chiudi EyeCanSee
@@ -376,7 +376,7 @@ status-phone-working = Il telefono sta { $what ->
         [move] spostando
        *[other] copiando
     } { $name } ({ $s } s)…
-status-phone-deaf = Attendi: il telefono sta scrivendo { $name }. Le sue cartelle si aprono quando ha finito.
+status-phone-deaf = Attendi: il telefono sta scrivendo **{ $name }**. Le sue cartelle si aprono quando ha finito.
 status-phone-waiting = Il telefono non risponde da { $s } s ({ $name }): aspetto…
 status-phone-waiting-open = Il telefono non risponde da { $s } s: aspetto…
 status-phone-stalled = Windows non comunica col telefono da { $s } s: stacca e ricollega il cavo, oppure aspetta
@@ -391,7 +391,7 @@ phone-stalled-upload =
     Stacca e ricollega il cavo (poi Trasferimento file), oppure aspetta qualche minuto: si sblocca da solo.
     Telefono e file sono a posto.
 
-    { $name } andrà ricopiato.
+    { "**" }{ $name }** andrà ricopiato.
 phone-stalled-why = Perché succede?
 phone-stalled-url = https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.it.md
 status-copied = { $n } copiati: Ctrl + V per incollare
@@ -1844,8 +1844,8 @@ batch-strip-hint = Crea un video nuovo, uguale all'originale ma senza audio. L'o
 batch-extract-hint = Salva l'audio del video in un file a parte (per esempio .m4a). Il video non viene toccato. Ogni traccia audio viene copiata così com'è in un file suo, nel formato del suo codec (AAC come .m4a, Opus come .opus, MP3 come .mp3, FLAC come .flac): nessuna ricodifica, nessuna perdita, metadati conservati. Per un altro formato usa Converti…
 batch-audio-not-ready = FFmpeg non è ancora pronto.
 batch-images = { $n ->
-    [one] **1 file** in { $folder }.
-   *[other] **{ $n } file** in { $folder }.
+    [one] **1 file** in **{ $folder }**.
+   *[other] **{ $n } file** in **{ $folder }**.
 }
 batch-same-format = Uguale all'originale
 batch-same-format-hint = Ogni immagine nel suo formato, scritta come la scrive Salva (un JPEG con la sua qualità). I formati che EyeCanSee non sa scrivere (HEIC, RAW…) vengono esclusi.
@@ -1886,8 +1886,8 @@ batch-left-out-kind = { $n ->
    *[other] { $n } file scelti sono esclusi: questa voce non lavora su quei tipi di file.
 }
 summary-saved = { $n ->
-    [one] **1 file** salvato in { $folder }.
-   *[other] **{ $n } file** salvati in { $folder }.
+    [one] **1 file** salvato in **{ $folder }**.
+   *[other] **{ $n } file** salvati in **{ $folder }**.
 }
 summary-left-out = { $n ->
     [one] **1 file** lasciato fuori.
@@ -2054,10 +2054,10 @@ bm-up = Sposta su
 bm-down = Sposta giù
 bm-remove = Togli dai segnalibri
 bm-file = Salvati in { $path }.
-bm-missing-place = **{ $name }** non si apre: { $address } non esiste più, oppure è su un disco non collegato.
+bm-missing-place = **{ $name }** non si apre: **{ $address }** non esiste più, oppure è su un disco non collegato.
 
     Il segnalibro resta: collega il disco e sceglilo di nuovo, oppure toglilo in **Segnalibri > Configura…**.
-bm-missing-phone = **{ $name }** non si apre: il telefono di { $address } non è collegato.
+bm-missing-phone = **{ $name }** non si apre: il telefono di **{ $address }** non è collegato.
 
     Il segnalibro resta: collega il telefono, scegli "Trasferimento file" e sceglilo di nuovo, oppure toglilo in **Segnalibri > Configura…**.
 tb-more = Altre operazioni
