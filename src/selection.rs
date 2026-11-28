@@ -3,6 +3,15 @@
 
 use crate::{App, Focus, source};
 
+#[cfg(test)]
+thread_local! {
+    /// Paths copied by `marked_paths` on this thread (audit 1.1: thirty copies in a frame).
+    pub(crate) static MARKED_COPIED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Files of the folder compared with the paths weighed by `images_size`, at most, on this
+    /// thread (audit 1.1: each file with every path marked).
+    pub(crate) static SIZE_COMPARED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// What a file is, for the menus: each entry works on some kinds, and only on those files of a
 /// mixed selection.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -221,12 +230,17 @@ impl App {
     /// The marked items still in the folder, in the grid's order.
     pub(crate) fn marked_paths(&self) -> Vec<String> {
         let Some(Ok(l)) = self.listings.get(&self.dir) else { return Vec::new() };
-        l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).filter(|p| self.marked.contains(*p)).cloned().collect()
+        let paths: Vec<String> = l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).filter(|p| self.marked.contains(*p)).cloned().collect();
+        #[cfg(test)]
+        MARKED_COPIED.with(|n| n.set(n.get() + paths.len()));
+        paths
     }
 
     /// Total size of the images among `paths` (folders are not counted).
     pub(crate) fn images_size(&self, paths: &[String]) -> u64 {
         let Some(Ok(l)) = self.listings.get(&self.dir) else { return 0 };
+        #[cfg(test)]
+        SIZE_COMPARED.with(|n| n.set(n.get() + l.files.len() * paths.len()));
         l.files.iter().filter(|f| paths.contains(&f.path)).map(|f| f.size).sum()
     }
 
@@ -254,6 +268,34 @@ pub(crate) fn can_change_in(base: &str, path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Audit 1.1: Ctrl+A in a large folder. A frame of the grid copies the list of the marked
+    /// items once or twice, not once for each entry of the toolbar and the status bar, and the
+    /// status bar weighs them with one look at each file, not one comparison with every marked path.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn select_all_in_a_large_folder() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("selection::tests::select_all_in_a_large_folder") {
+            return;
+        }
+        const N: usize = 2000;
+        let names: Vec<String> = (0..N).map(|i| format!("p{i:05}.png")).collect();
+        let dir = folder("select-all-large", &names.iter().map(String::as_str).collect::<Vec<_>>());
+        let mut h = Harness::new(&dir);
+        h.until(|app| app.files().len() == N && app.listing_pending.is_empty(), "the folder listed");
+        (h.app.cursor, h.app.focus) = (true, Focus::Grid);
+        h.app.select_all();
+        assert_eq!(h.app.marked.len(), N, "Ctrl+A");
+        h.frame(Vec::new());
+        MARKED_COPIED.with(|n| n.set(0));
+        SIZE_COMPARED.with(|n| n.set(0));
+        h.frame(Vec::new());
+        let (copied, compared) = (MARKED_COPIED.with(|n| n.get()), SIZE_COMPARED.with(|n| n.get()));
+        eprintln!("one frame with {N} files marked: {copied} paths copied, {compared} files compared");
+        assert!(copied <= 2 * N, "{copied} paths copied in a frame: the marked list made {} times", copied / N);
+        assert!(compared <= N, "{compared} comparisons to weigh {N} files marked");
+    }
 
     #[test]
     fn entries_fit_the_kinds_chosen() {
