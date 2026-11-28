@@ -141,6 +141,24 @@ mod tests {
         assert_eq!(index(t, "v3"), u32::MAX);
     }
 
+    /// Audit 27/11, D.6: the cap of the visits counts the placements, not the work of each: an
+    /// object whose vertices hold 2000 elements of nothing, placed by 1000 instances, was gone
+    /// over at each one (2 million nodes for no point or triangle offered). Scaled: a cap of 100
+    /// triangles. A triangle placed 20 times opens within the same cap.
+    #[test]
+    fn audit_d6_work_of_each_instance_counted() {
+        let cap = crate::model_limit::Limit { max: 100, format: "amf" };
+        let amf = |vertices: &str, triangles: &str, n: usize| {
+            let instances = r#"<instance objectid="1"/>"#.repeat(n);
+            format!(r#"<amf><object id="1"><mesh><vertices>{vertices}</vertices><volume>{triangles}</volume></mesh></object><constellation id="2">{instances}</constellation></amf>"#)
+        };
+        let r = read_up_to(amf(&"<a/>".repeat(2000), "", 1000).as_bytes(), &Default::default(), cap).map(|m| m.tris.len());
+        assert!(r.as_ref().is_err_and(|e| e.starts_with("error-model-takes-too-long")), "{r:?}");
+        let vertex = |x: u8, y: u8| format!("<vertex><coordinates><x>{x}</x><y>{y}</y><z>0</z></coordinates></vertex>");
+        let one = amf(&(vertex(0, 0) + &vertex(1, 0) + &vertex(0, 1)), "<triangle><v1>0</v1><v2>1</v2><v3>2</v3></triangle>", 20);
+        assert_eq!(read_up_to(one.as_bytes(), &Default::default(), cap).map(|m| m.tris.len()), Ok(20));
+    }
+
     #[test]
     fn a_triangle_placed_twice() {
         let amf = r#"<amf><object id="1"><mesh><vertices>

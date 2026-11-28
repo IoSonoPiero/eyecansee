@@ -670,6 +670,23 @@ mod tests {
         assert_eq!(read(&bytes, &Unpacked::default()).map(|m| m.tris.len()), Ok(100));
     }
 
+    /// Audit 27/11, D.6: the cap of the visits counts the placements, not the work of each: an
+    /// object whose mesh holds 2000 elements of nothing, placed by 1000 components, was gone over
+    /// at each placement (2 million nodes for no point or triangle offered). Scaled: a cap of 100
+    /// triangles. A triangle placed 20 times opens within the same cap.
+    #[test]
+    fn audit_d6_work_of_each_placement_counted() {
+        let cap = crate::model_limit::Limit { max: 100, format: "three-mf" };
+        let model = |mesh: &str, n: usize| {
+            let components = r#"<component objectid="1"/>"#.repeat(n);
+            zip(&format!(r#"<model><resources><object id="1"><mesh>{mesh}</mesh></object><object id="9"><components>{components}</components></object></resources><build><item objectid="9"/></build></model>"#))
+        };
+        let r = read_up_to(&model(&"<a/>".repeat(2000), 1000), &Unpacked::default(), cap).map(|m| m.tris.len());
+        assert!(r.as_ref().is_err_and(|e| e.starts_with("error-model-takes-too-long")), "{r:?}");
+        let triangle = r#"<vertices><vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/></vertices><triangles><triangle v1="0" v2="1" v3="2"/></triangles>"#;
+        assert_eq!(read_up_to(&model(triangle, 20), &Unpacked::default(), cap).map(|m| m.tris.len()), Ok(20));
+    }
+
     /// Audit 27/11, D.6 and 6.12: a part file placed by many components was parsed again at
     /// each of them, whatever it held: 100 components into one part file, and the part with
     /// an object of no mesh placed 100 more times through it. Each model file is parsed once.

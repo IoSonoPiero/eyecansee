@@ -494,6 +494,23 @@ mod tests {
         assert_eq!((m.tris.len(), m.center, m.radius), (4 * 2 + 2 * 3, [0.0, 0.5, 0.0], 1.5));
     }
 
+    /// Audit 27/11, D.6: the cap of the visits counts the placements, not the work of each: a
+    /// shape whose face set has 5000 separators and no face, used 1000 times, had them gone over
+    /// at each use (5 million numbers for no point or triangle offered). Scaled: a cap of 100
+    /// triangles. A triangle used 20 times opens within the same cap.
+    #[test]
+    fn audit_d6_work_of_each_use_counted() {
+        let cap = crate::model_limit::Limit { max: 100, format: "x3d" };
+        let x3d = |index: &str, point: &str, n: usize| {
+            let uses = r#"<Shape USE="s"/>"#.repeat(n);
+            format!(r#"<X3D><Scene><Shape DEF="s"><IndexedFaceSet coordIndex="{index}"><Coordinate point="{point}"/></IndexedFaceSet></Shape>{uses}</Scene></X3D>"#)
+        };
+        let r = read_as(x3d(&"-1 ".repeat(5000), "", 1000).as_bytes(), &|_| None, &Default::default(), cap).map(|m| m.tris.len());
+        assert!(r.as_ref().is_err_and(|e| e.starts_with("error-model-takes-too-long")), "{r:?}");
+        let one = x3d("0 1 2 -1", "0 0 0 1 0 0 0 1 0", 19);
+        assert_eq!(read_as(one.as_bytes(), &|_| None, &Default::default(), cap).map(|m| m.tris.len()), Ok(20));
+    }
+
     /// Audit 6.4 (b): a LineSet that declares a million million points over three real ones.
     #[test]
     fn audit_6_4_lineset_count() {

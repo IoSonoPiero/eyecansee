@@ -293,6 +293,29 @@ mod tests {
         assert_eq!(m.uv[0][1], [1.0, 1.0]);
     }
 
+    /// Audit 27/11, D.6: the cap of the visits counts the placements, not the work of each: a
+    /// geometry whose positions are 8000 spaces, placed by 1000 nodes, had them read again at each
+    /// one (8 million bytes for no point or triangle offered). Scaled: a cap of 100 triangles. A
+    /// triangle placed 20 times opens within the same cap.
+    #[test]
+    fn audit_d6_work_of_each_instance_counted() {
+        let cap = crate::model_limit::Limit { max: 100, format: "collada" };
+        let dae = |numbers: &str, p: &str, n: usize| {
+            let nodes = r##"<node><instance_geometry url="#g"/></node>"##.repeat(n);
+            format!(r##"<COLLADA><library_geometries><geometry id="g"><mesh>
+              <source id="p"><float_array>{numbers}</float_array><technique_common><accessor stride="3"/></technique_common></source>
+              <vertices id="v"><input semantic="POSITION" source="#p"/></vertices>
+              <triangles><input semantic="VERTEX" source="#v" offset="0"/><p>{p}</p></triangles>
+            </mesh></geometry></library_geometries>
+            <library_visual_scenes><visual_scene id="s">{nodes}</visual_scene></library_visual_scenes>
+            <scene><instance_visual_scene url="#s"/></scene></COLLADA>"##)
+        };
+        let r = read_up_to(dae(&" ".repeat(8000), "", 1000).as_bytes(), false, &|_| None, &Default::default(), cap).map(|m| m.tris.len());
+        assert!(r.as_ref().is_err_and(|e| e.starts_with("error-model-takes-too-long")), "{r:?}");
+        let one = dae("0 0 0 1 0 0 0 1 0", "0 1 2", 20);
+        assert_eq!(read_up_to(one.as_bytes(), false, &|_| None, &Default::default(), cap).map(|m| m.tris.len()), Ok(20));
+    }
+
     /// Audit 6.6: a chain of 60 nodes, each one instancing the next twice, the last one empty:
     /// 2^60 visits in a file of a few KB (a node instancing itself is stopped at once by the
     /// depth; a chain is not). It must end (refused, or found empty) without visiting them all.
