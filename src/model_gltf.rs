@@ -133,11 +133,7 @@ pub(crate) fn cut_text(i18n: &crate::i18n::I18n, id: &str, detail: &str) -> Opti
 
 fn read_plain(bytes: &[u8], sibling: Sibling, limit: crate::model_limit::Limit) -> Result<Mesh, String> {
     let g = gltf::Gltf::from_slice(bytes).map_err(|e| gltf_error(e.to_string()))?;
-    // Counted from the accessors before the data is read (T5, Piero 22/11/2026): the triangles,
-    // the lines and points, and every accessor a primitive reads (audit 27/11, D.1).
-    limit.check(triangles(&g.document))?;
-    crate::model_lines::fits(lines_and_points(&g.document), limit)?;
-    accessors_fit(&g.document, limit)?;
+    counts_fit(&g.document, limit)?;
     let inside: Vec<Option<Vec<u8>>> = g
         .document
         .buffers()
@@ -210,6 +206,14 @@ fn read_plain(bytes: &[u8], sibling: Sibling, limit: crate::model_limit::Limit) 
     }
     crate::model_lines::add(&mut b, &extra.0, &extra.1)?;
     b.finish(false)
+}
+
+/// Counted from the accessors before the data is read (T5, Piero 22/11/2026): the triangles,
+/// the lines and points, and every accessor a primitive reads (audit 27/11, D.1).
+fn counts_fit(doc: &gltf::Document, limit: crate::model_limit::Limit) -> Result<(), String> {
+    limit.check(triangles(doc))?;
+    crate::model_lines::fits(lines_and_points(doc), limit)?;
+    accessors_fit(doc, limit)
 }
 
 /// The triangles the reading makes (`gltf_node`, `gltf_mesh`), from the accessors' counts alone:
