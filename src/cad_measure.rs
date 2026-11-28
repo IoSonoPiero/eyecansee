@@ -19,6 +19,12 @@ pub enum Snap {
 /// Lines met near the pointer whose crossings are tried; beyond, too dense to choose among.
 const CROSS_MAX: usize = 400;
 
+#[cfg(test)]
+thread_local! {
+    /// Segments looked at by `snap` on this thread (audit 6.15 c).
+    static EXAMINED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// The point to snap to within `radius` of `at`, the closest; ends and centres before middles,
 /// middles before crossings, as CAD programs order them when they are equally close.
 pub fn snap(d: &Drawing, at: P, radius: f64) -> (P, Snap) {
@@ -43,6 +49,8 @@ pub fn snap(d: &Drawing, at: P, radius: f64) -> (P, Snap) {
         let Item::Line { pts, .. } = item else { continue };
         for seg in pts.windows(2) {
             let (a, b) = (seg[0], seg[1]);
+            #[cfg(test)]
+            EXAMINED.with(|n| n.set(n.get() + 1));
             if a[0].is_nan() || b[0].is_nan() {
                 continue;
             }
@@ -209,6 +217,29 @@ mod tests {
         // On a diagonal, far from its ends and from the circle: the point itself.
         let (p, k) = snap(&d, [30.0, 70.0], 2.0);
         assert!(close(p, [30.0, 70.0]) && k == Snap::Free, "{p:?} {k:?}");
+    }
+
+    /// A grid of `n` × `n` short lines, 10 units apart, and a long one across it.
+    fn lines(n: usize) -> Drawing {
+        let line = |pts: Vec<P>| Item::Line { pts, color: [200; 3], fill: None, stroke: crate::cad::Stroke::default() };
+        let mut items: Vec<Item> = (0..n * n).map(|i| line(vec![[(i % n) as f64 * 10.0, (i / n) as f64 * 10.0], [(i % n) as f64 * 10.0 + 5.0, (i / n) as f64 * 10.0 + 3.0]])).collect();
+        items.push(line((0..=n * 10).map(|k| [k as f64, 501.0 + (k % 7) as f64 * 0.3]).collect()));
+        Drawing { items, ..Default::default() }
+    }
+
+    /// Audit 6.15 (c): the point the pointer snaps to was looked for among all the segments of
+    /// the drawing at every frame with the pointer over it: 100 frames on 10 000 lines looked at
+    /// a million segments.
+    #[test]
+    fn audit_6_15_c_snap_looks_near() {
+        let d = std::sync::Arc::new(lines(100));
+        let mut snapper = Snapper::default();
+        EXAMINED.with(|n| n.set(0));
+        for k in 0..100 {
+            snapper.snap(&d, [k as f64 * 9.7, 503.0], 2.0);
+        }
+        let examined = EXAMINED.with(|n| n.get());
+        assert!(examined < 100 * 1000, "segments looked at for 100 frames: {examined}");
     }
 
     #[test]
