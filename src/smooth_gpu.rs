@@ -631,6 +631,26 @@ mod tests {
         assert_eq!(rows_read(8100.0, 92.0, 30.0, 8192), (8070, 122));
     }
 
+    /// Audit 4.10: a slot made for a large picture (a photo of 8192 × 5462 fitted to a window of
+    /// 1920 × 1080: the rows pass 1792 × 5632, 8 bytes a pixel, 80 MB) is made again smaller when a
+    /// picture asks for less than half of it on a side; zooming a little keeps it. It only grew:
+    /// the largest of the session stayed.
+    #[test]
+    fn the_slot_comes_down_4_10() {
+        let max = 16384;
+        let big = [1792, 5632];
+        let bytes = |s: Option<[u32; 2]>| s.map(|[w, h]| w as u64 * h as u64 * 8);
+        // A landscape photo fitted after it.
+        let after = slot_size(Some(big), [1700, 1080], max);
+        eprintln!("rows pass after a smaller picture: {after:?}, {:?} bytes (before {:?})", bytes(after), bytes(Some(big)));
+        assert_eq!(after, Some([1792, 1280]));
+        // Zooming a little: kept.
+        assert_eq!(slot_size(Some(big), [1600, 4000], max), None);
+        // Larger: grown, as before; and the first one.
+        assert_eq!(slot_size(Some([1024, 1024]), [1100, 900], max), Some([1280, 1024]));
+        assert_eq!(slot_size(None, [10, 10], max), Some([256, 256]));
+    }
+
     /// A flat grey stays the same grey (the weights add up to one).
     #[test]
     fn flat_grey_stays() {
