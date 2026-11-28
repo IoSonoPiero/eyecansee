@@ -695,7 +695,7 @@ impl App {
         let order = thumb_order(selected, visible, near, keep, nfiles, |i| self.thumbs.contains_key(&i), |i| {
             self.generated.contains(&i)
         });
-        loader.set_thumb_queue(self.generation, order.into_iter().map(|i| (i, listing.files[i].clone())).collect());
+        loader.set_thumb_queue(self.generation, order, || listing.files.clone());
         self.thumb_queue_key = Some(key);
     }
 }
@@ -765,6 +765,7 @@ mod tests {
         h.app.prefetch_thumbs(10..14, 8, 1, 0, N);
         let ((), held) = crate::test_alloc::peak(|| h.app.prefetch_thumbs(20..24, 8, 1, 0, N));
         let per_file = held / N;
+        eprintln!("{held} bytes held to queue {N} thumbnails, {per_file} a file");
         assert!(per_file < 64, "{held} bytes held to queue {N} thumbnails: {per_file} a file");
     }
 

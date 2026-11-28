@@ -19,7 +19,11 @@ use crate::{decode, thumbcache};
 #[derive(Default)]
 pub(crate) struct ThumbQueue {
     pub(crate) generation: u64,
-    pub(crate) items: VecDeque<(usize, File)>,
+    /// Positions in `files`, in the order they are made.
+    pub(crate) items: VecDeque<usize>,
+    /// The files of the folder of this generation, copied once for all the queues of it: each
+    /// row scrolled copied the file of nearly every one (audit 1.9).
+    pub(crate) files: Arc<Vec<File>>,
     /// Items taken from `items` so far: the position of each one in the queue.
     pub(crate) taken: usize,
     /// Videos of a slow disk not in the cache, by position: made two at a time (`SLOW`), always
@@ -53,7 +57,7 @@ pub(crate) async fn thumb_worker(
                 return;
             }
             let (generation, at) = (q.generation, q.taken);
-            let item = q.items.pop_front();
+            let item = q.items.pop_front().and_then(|i| Some((i, q.files.get(i)?.clone())));
             q.taken += usize::from(item.is_some());
             item.map(|item| (generation, at, item))
         };

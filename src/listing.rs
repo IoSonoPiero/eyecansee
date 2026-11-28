@@ -84,6 +84,11 @@ impl App {
             f.path = new.to_string();
             // Maybe into another kind (a.jpg to a.mp4): counted again.
             l.played = Default::default();
+            // The thumbnails asked by the new name.
+            if let Some(loader) = &self.loader {
+                loader.forget_thumb_files();
+            }
+            self.thumb_queue_key = None;
         }
         self.turn_steps.renamed(old, new);
         if old.ends_with('/') {

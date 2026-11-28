@@ -233,14 +233,24 @@ impl Loader {
 
     pub fn next_generation(&self) -> u64 {
         let generation = self.generation.fetch_add(1, Ordering::Relaxed) + 1;
-        self.set_thumb_queue(generation, Vec::new());
+        *self.queue.lock().unwrap() = ThumbQueue { generation, ..ThumbQueue::default() };
+        self.wake.notify_waiters();
         generation
     }
 
-    /// Replaces the thumbnail queue: the order is the priority.
-    pub fn set_thumb_queue(&self, generation: u64, items: Vec<(usize, File)>) {
-        *self.queue.lock().unwrap() = ThumbQueue { generation, items: items.into(), taken: 0, slow: BTreeMap::new(), closed: false };
+    /// Replaces the thumbnail queue: positions in the folder's files, the order is the priority.
+    /// `files` copies them, once for each generation: the queues after it keep that copy.
+    pub fn set_thumb_queue(&self, generation: u64, order: Vec<usize>, files: impl FnOnce() -> Vec<File>) {
+        let mut q = self.queue.lock().unwrap();
+        let files = if q.generation == generation && !q.files.is_empty() { q.files.clone() } else { Arc::new(files()) };
+        *q = ThumbQueue { generation, items: order.into(), files, taken: 0, slow: BTreeMap::new(), closed: false };
+        drop(q);
         self.wake.notify_waiters();
+    }
+
+    /// The files of the folder changed in place (a file renamed): the next queue copies them again.
+    pub fn forget_thumb_files(&self) {
+        self.queue.lock().unwrap().files = Arc::default();
     }
 
     /// Maintenance of this source's thumbnail cache, in the background; then the space limit.
@@ -1505,6 +1515,29 @@ mod tests {
         let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
         let (tx, rx) = std::sync::mpsc::channel();
         (Loader::new(rt.handle().clone(), op, format!("{}/", dir.display()), tx, egui::Context::default()), rx, dir)
+    }
+
+    /// Audit 1.9: the files of the thumbnail queue are copied once for a generation, again after
+    /// a file renamed in place (`forget_thumb_files`) and for a new generation.
+    #[test]
+    fn thumb_queue_files_copied_once_a_generation() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (loader, _rx, dir) = loader_on(&rt, "queue-files");
+        let copies = std::cell::Cell::new(0);
+        let files = || {
+            copies.set(copies.get() + 1);
+            vec![File { path: "a.png".into(), size: 1, modified: String::new() }]
+        };
+        let generation = loader.next_generation();
+        loader.set_thumb_queue(generation, vec![0], files);
+        loader.set_thumb_queue(generation, vec![0], files);
+        assert_eq!(copies.get(), 1, "copied again for the same generation");
+        loader.forget_thumb_files();
+        loader.set_thumb_queue(generation, vec![0], files);
+        assert_eq!(copies.get(), 2, "not copied again after a rename");
+        loader.set_thumb_queue(loader.next_generation(), vec![0], files);
+        assert_eq!(copies.get(), 3, "not copied for a new generation");
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     /// Audit 1.2: the generation of a new loader (another source opened) is never one of the
