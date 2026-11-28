@@ -72,6 +72,34 @@ fn audit_5_12_the_png_of_a_pasted_piece_is_made_aside() {
     assert_eq!(made, 0, "the PNG of the piece made in the frame");
 }
 
+/// Copy of a part right after Resize, the photo still being resampled: the part is made at the
+/// new size, with the filters whose previews wait for that photo (the resize made them again).
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn a_part_copied_while_the_photo_is_resampled() {
+    if own_folder("edit_page::frame_work::a_part_copied_while_the_photo_is_resampled") {
+        return;
+    }
+    let dir = crate::audit_family_1::guard().join("five-fourteen-resampled");
+    std::fs::create_dir_all(&dir).unwrap();
+    image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(400, 300, image::Rgb([220, 30, 30]))).save(dir.join("a.png")).unwrap();
+    let mut h = Harness::new(&dir);
+    editor(&mut h, "a.png", Tool::Marquee);
+    let all = Area { centre: Pt::new(0.0, 0.0), w: 400.0, h: 300.0, rot: 0.0 };
+    let gray = Shape::Filter { area: all, filter: crate::edit::filter::Filter::Gray, amount: 1.0, preview: Default::default() };
+    h.app.editor.as_mut().unwrap().doc.objects.push(Obj { shape: gray, style: Style::default() });
+    for _ in 0..3 {
+        h.frame(Vec::new());
+    }
+    let w = h.app.editor.as_mut().unwrap();
+    w.doc = crate::edit::resize::resized(&w.doc, (400, 300), (400, 300), (200, 150), crate::batch::Filter::Nearest);
+    w.marquee = Some(Area { centre: Pt::new(0.0, 0.0), w: 40.0, h: 30.0, rot: 0.0 });
+    h.frame(vec![eframe::egui::Event::Copy]);
+    h.until(|app| app.editor.as_ref().is_some_and(|w| w.clip.is_some()), "the part copied");
+    let p = *h.app.editor.as_ref().unwrap().clip.as_ref().unwrap().1.image().get_pixel(20, 15);
+    assert!(p[0] == p[1] && p[1] == p[2] && p[3] == 255, "the part without its filter: {p:?}");
+}
+
 /// Audit 5.13: with a document that stays as it is, a frame measured every word of every bubble
 /// (`bubble::fit`, an SVG read by `usvg` for each) and copied the whole document twice (the key
 /// of the objects' texture, `History::push`), every point of the strokes drawn by hand with it.
