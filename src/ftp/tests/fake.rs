@@ -14,11 +14,15 @@
 //!   sending (audit 2.29 (h)), dated as LIST dates it: the server's clock, in its own time zone.
 //! - `/slow/a.png`, a file of 1 MiB that the server sends in 4 s (audit 27/11 V.7), read by RETR only;
 //! - `/endless/`, as a hostile server could list it (audit 27/11 S.10): its LIST goes on, a line
-//!   that is no item after another, for `ENDLESS` bytes or until the client stops reading.
+//!   that is no item after another, for `ENDLESS` bytes or until the client stops reading;
+//! - for a move onto itself through a link (audit 27/11 F.1): `/photos/album/x.jpg`, `/desk/album`
+//!   (a link to `/photos/album/`), `/via` (a link to `/photos/album/` too), and another folder of
+//!   that name, `/other/album/y.jpg`.
 //!
 //! Files are measured (SIZE), read (RETR) and deleted (DELE), folders deleted only when empty
-//! (RMD), as a real server does. A file sent (STOR) is kept apart, by its path (`Seen::stored`),
-//! whatever the folder; DELE removes it. It has no MLSD (as vsftpd) but in `GO`: the client falls back to
+//! (RMD), items renamed (RNFR, RNTO: a file there is replaced, a folder is not), as a real server
+//! does. A link leads nowhere once what it leads to is gone or renamed. A file sent (STOR) is kept
+//! apart, by its path (`Seen::stored`), whatever the folder; DELE and a rename take that path. It has no MLSD (as vsftpd) but in `GO`: the client falls back to
 //! LIST, whose Unix lines describe the links.
 
 use std::collections::{HashMap, HashSet};
@@ -81,14 +85,33 @@ const ITEMS: &[(&str, &str, Kind)] = &[
     ("", "shared", Kind::Dir),
     ("shared", "a.jpg", Kind::File(PHOTO)),
     ("shared", ".a.jpg.eyecansee-new", Kind::File(b"being sent")),
+    ("", "photos", Kind::Dir),
+    ("photos", "album", Kind::Dir),
+    ("photos/album", "x.jpg", Kind::File(PHOTO)),
+    ("", "desk", Kind::Dir),
+    ("desk", "album", Kind::Link("photos/album")),
+    ("", "via", Kind::Link("photos/album")),
+    ("", "other", Kind::Dir),
+    ("other", "album", Kind::Dir),
+    ("other/album", "y.jpg", Kind::File(PHOTO)),
 ];
+
+/// An item as `ITEMS` has it: its real folder and its name.
+type Key = (String, String);
+
+/// The real path of an item of `ITEMS`.
+fn real_path((dir, name): &Key) -> String {
+    if dir.is_empty() { name.clone() } else { format!("{dir}/{name}") }
+}
 
 /// What the client did: the folders listed, in order, and the items deleted.
 #[derive(Default)]
 pub struct Seen {
     pub listed: Mutex<Vec<String>>,
-    /// Real folder and name of each item deleted.
-    removed: Mutex<HashSet<(String, String)>>,
+    /// Each item of `ITEMS` deleted.
+    removed: Mutex<HashSet<Key>>,
+    /// The items renamed: where each is now (real folder, name), and which item of `ITEMS` it is.
+    moved: Mutex<HashMap<Key, Key>>,
     /// The path of every STOR, in order.
     pub stors: Mutex<Vec<String>>,
     /// The files sent and not deleted, by path, with what arrived of them.
@@ -96,15 +119,46 @@ pub struct Seen {
 }
 
 impl Seen {
-    /// Whether the item `name` of the real folder `dir` was deleted.
+    /// The names in the folder `path` (links followed), as LIST gives them.
+    pub fn names(&self, path: &str) -> Vec<String> {
+        self.folder(path).map(|dir| self.children(&dir).into_iter().map(|(n, _)| n).collect()).unwrap_or_default()
+    }
+
+    /// Whether the item `name` of the real folder `dir` of `ITEMS` was deleted.
     pub fn deleted(&self, dir: &str, name: &str) -> bool {
         self.removed.lock().unwrap().contains(&(dir.to_string(), name.to_string()))
     }
 
-    /// The item `name` of the real folder `dir`, unless deleted.
+    /// What is at `name` of the real folder `dir`, unless deleted or renamed away: its kind and
+    /// which item of `ITEMS` it is.
+    fn found(&self, dir: &str, name: &str) -> Option<(&'static Kind, Key)> {
+        let key = (dir.to_string(), name.to_string());
+        let original = {
+            let moved = self.moved.lock().unwrap();
+            match moved.get(&key) {
+                Some(original) => original.clone(),
+                None if moved.values().any(|o| *o == key) => return None,
+                None => key,
+            }
+        };
+        if self.removed.lock().unwrap().contains(&original) {
+            return None;
+        }
+        let kind = ITEMS.iter().find(|(d, n, _)| *d == original.0 && *n == original.1).map(|(_, _, k)| k)?;
+        Some((kind, original))
+    }
+
+    /// The item `name` of the real folder `dir`, unless deleted or renamed away.
     fn item(&self, dir: &str, name: &str) -> Option<&'static Kind> {
-        let gone = self.removed.lock().unwrap().contains(&(dir.to_string(), name.to_string()));
-        ITEMS.iter().find(|(d, n, _)| *d == dir && *n == name && !gone).map(|(_, _, k)| k)
+        self.found(dir, name).map(|(kind, _)| kind)
+    }
+
+    /// The names and kinds of what the real folder `dir` holds, renamed items too.
+    fn children(&self, dir: &str) -> Vec<(String, &'static Kind)> {
+        let moved: Vec<String> = self.moved.lock().unwrap().keys().filter(|k| k.0 == dir).map(|k| k.1.clone()).collect();
+        let mut seen = HashSet::new();
+        let names = ITEMS.iter().filter(|(d, _, _)| *d == dir).map(|(_, n, _)| n.to_string()).chain(moved);
+        names.filter(|n| seen.insert(n.clone())).filter_map(|n| self.item(dir, &n).map(|k| (n, k))).collect()
     }
 
     /// An item listed with a name that holds a path (audit 2.3), at the path the client makes
@@ -118,14 +172,14 @@ impl Seen {
     fn folder(&self, path: &str) -> Option<String> {
         let (mut real, mut links) = (String::new(), 0);
         for part in path.split('/').filter(|p| !p.is_empty() && *p != ".") {
-            real = match self.item(&real, part)? {
-                Kind::Dir if real.is_empty() => part.to_string(),
-                Kind::Dir => format!("{real}/{part}"),
-                Kind::Link(to) => {
+            real = match self.found(&real, part)? {
+                (Kind::Dir, original) => real_path(&original),
+                // Only to what is there.
+                (Kind::Link(to), _) => {
                     links += 1;
-                    to.to_string()
+                    self.folder(to)?
                 }
-                Kind::File(_) | Kind::FileLink(..) | Kind::Broken(_) => return None,
+                (Kind::File(_) | Kind::FileLink(..) | Kind::Broken(_), _) => return None,
             };
         }
         (links <= LINKS).then_some(real)
@@ -141,7 +195,7 @@ impl Seen {
     fn listing(&self, path: &str) -> Option<String> {
         let dir = self.folder(path)?;
         let go = dir == GO;
-        let lines = ITEMS.iter().filter(|(d, n, _)| *d == dir && self.item(d, n).is_some()).map(|(_, name, kind)| match kind {
+        let lines = self.children(&dir).into_iter().map(|(name, kind)| match kind {
             Kind::Dir => format!("drwxr-xr-x    2 me       users        4096 Oct 30 09:10 {name}\r\n"),
             Kind::File(c) => format!("-rw-r--r--    1 me       users {:>11} Oct 30 09:10 {name}\r\n", c.len()),
             Kind::Broken(size) => format!("-rw-r--r--    1 me       users {size:>11} Oct 30 09:10 {name}\r\n"),
@@ -155,7 +209,7 @@ impl Seen {
     /// The lines of MLSD for a folder of `GO`; `None` elsewhere (no MLSD there).
     fn mlsd(&self, path: &str) -> Option<String> {
         let dir = self.folder(path).filter(|d| d == GO)?;
-        let lines = ITEMS.iter().filter(|(d, n, _)| *d == dir && self.item(d, n).is_some()).map(|(_, name, kind)| match kind {
+        let lines = self.children(&dir).into_iter().map(|(name, kind)| match kind {
             Kind::Dir => format!("Type=dir;Size=0;Modify=20261121082501; {name}\r\n"),
             Kind::File(c) => format!("Type=file;Size={};Modify=20261121082501; {name}\r\n", c.len()),
             Kind::Broken(size) => format!("Type=file;Size={size};Modify=20261121082501; {name}\r\n"),
@@ -192,12 +246,40 @@ impl Seen {
         }
         let Some((dir, name)) = self.split(path) else { return false };
         let empty = || self.listing(path).is_some_and(|l| l.is_empty());
-        let deletable = match self.item(&dir, name) {
-            Some(Kind::Dir) => folder && empty(),
-            Some(_) => !folder,
-            None => false,
+        let Some((kind, original)) = self.found(&dir, name) else { return false };
+        let deletable = match kind {
+            Kind::Dir => folder && empty(),
+            _ => !folder,
         };
-        deletable && self.removed.lock().unwrap().insert((dir, name.to_string()))
+        deletable && self.removed.lock().unwrap().insert(original)
+    }
+
+    /// RNFR `from`, RNTO `to`: whether it was renamed. A file at `to` is replaced, a folder is not.
+    fn rename(&self, from: &str, to: &str) -> bool {
+        let sent = self.stored.lock().unwrap().remove(from);
+        if let Some(data) = sent {
+            self.stored.lock().unwrap().insert(to.to_string(), data);
+            return true;
+        }
+        let (Some((from_dir, from_name)), Some((to_dir, to_name))) = (self.split(from), self.split(to)) else { return false };
+        let (old, new) = ((from_dir, from_name.to_string()), (to_dir, to_name.to_string()));
+        let Some((_, original)) = self.found(&old.0, &old.1) else { return false };
+        if old == new {
+            return true;
+        }
+        match self.found(&new.0, &new.1) {
+            Some((Kind::Dir, _)) => return false,
+            Some((_, there)) => {
+                self.removed.lock().unwrap().insert(there);
+            }
+            None => {}
+        }
+        let mut moved = self.moved.lock().unwrap();
+        moved.remove(&old);
+        if new != original {
+            moved.insert(new, original);
+        }
+        true
     }
 }
 
@@ -253,6 +335,7 @@ fn session(control: TcpStream, seen: &Seen) -> std::io::Result<()> {
     let mut say = |line: &str| out.write_all(format!("{line}\r\n").as_bytes());
     say("220 test server")?;
     let mut data: Option<TcpListener> = None;
+    let mut renaming: Option<String> = None;
     for line in BufReader::new(control).lines() {
         let line = line?;
         let (command, path) = line.split_once(' ').unwrap_or((&line, ""));
@@ -322,6 +405,15 @@ fn session(control: TcpStream, seen: &Seen) -> std::io::Result<()> {
                 Some(size) => say(&format!("213 {size}"))?,
                 None => say("550 no such file")?,
             },
+            "RNFR" => {
+                let there = seen.split(path).is_some_and(|(dir, name)| seen.item(&dir, name).is_some()) || seen.stored.lock().unwrap().contains_key(path);
+                renaming = there.then(|| path.to_string());
+                say(if there { "350 ready for the new name" } else { "550 no such item" })?
+            }
+            "RNTO" => say(match renaming.take() {
+                Some(from) if seen.rename(&from, path) => "250 renamed",
+                _ => "550 not renamed",
+            })?,
             "DELE" | "RMD" => say(if seen.delete(path, command.eq_ignore_ascii_case("RMD")) { "250 deleted" } else { "550 not deleted" })?,
             _ => say("500 unknown command")?,
         }

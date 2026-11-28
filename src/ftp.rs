@@ -1117,4 +1117,68 @@ pub(crate) mod tests {
         assert!(r.is_err(), "{r:?}");
         assert!(seen.stored.lock().unwrap().is_empty(), "{:?}", seen.stored.lock().unwrap().keys());
     }
+
+    /// A move on the fake server with Replace for each item (`fake.rs`): what `run` gave, and
+    /// the items gone.
+    fn moved_on_the_server(items: &[&str], to_dir: &str) -> (std::sync::Arc<fake::Seen>, Vec<String>, Result<(), crate::source::Error>) {
+        use crate::transfer::{Choice, Clip, Progress, run};
+        let (target, seen) = fake::start();
+        let server = crate::source::Store::Ftp(super::Server::shared(target));
+        let paths: Vec<String> = items.iter().map(|i| i.to_string()).collect();
+        let replace = paths.iter().map(|p| (p.clone(), Choice::Replace)).collect();
+        let clip = Clip { op: server.clone(), base: "ftp://test-f1/".into(), paths, cut: true, text: String::new() };
+        let (gone, r) = tokio::runtime::Runtime::new().unwrap().block_on(run(&clip, &server, "ftp://test-f1/", to_dir, &replace, &Progress::default()));
+        (seen, gone, r)
+    }
+
+    /// The names in a folder of the fake server, sorted.
+    fn names_on(seen: &fake::Seen, dir: &str) -> Vec<String> {
+        let mut names: Vec<String> = seen.names(dir);
+        names.sort();
+        names
+    }
+
+    /// Audit F.1 of 27/11 (#195) on FTP: `photos/album/` cut and merged (Replace) into `desk/`,
+    /// where `desk/album` is a link of the server to `photos/album/`. FTP cannot ask where a link
+    /// leads: each file was written over itself through the link and then deleted as the
+    /// original, and the folder went whole. The move stops before anything is written, saying so.
+    #[test]
+    fn f1_ftp_folder_merged_into_a_link_to_itself() {
+        let (seen, gone, r) = moved_on_the_server(&["photos/album/"], "desk/");
+        assert!(!seen.deleted("photos/album", "x.jpg"), "x.jpg is gone (paste: {r:?}, gone: {gone:?})");
+        assert!(seen.stors.lock().unwrap().is_empty(), "written over itself: {:?}", seen.stors.lock().unwrap());
+        assert_eq!(r.map_err(|e| e.0), Err("error-move-same-item"));
+        assert!(gone.is_empty(), "{gone:?}");
+        assert_eq!(names_on(&seen, "photos"), ["album"], "nothing left aside");
+        assert_eq!(names_on(&seen, "photos/album"), ["x.jpg"]);
+    }
+
+    /// Audit F.1 of 27/11 (#195) on FTP, a file: `photos/album/x.jpg` cut and pasted with Replace
+    /// into `via/`, a link of the server to its own folder. A rename on a server goes only onto a
+    /// free name, so the file there went first: it was the original, and the rename found nothing.
+    #[test]
+    fn f1_ftp_file_replacing_itself_through_a_link() {
+        let (seen, gone, r) = moved_on_the_server(&["photos/album/x.jpg"], "via/");
+        assert!(!seen.deleted("photos/album", "x.jpg"), "x.jpg is gone (paste: {r:?}, gone: {gone:?})");
+        assert_eq!(r.map_err(|e| e.0), Err("error-move-same-item"));
+        assert!(gone.is_empty(), "{gone:?}");
+        assert_eq!(names_on(&seen, "photos/album"), ["x.jpg"], "nothing left aside");
+    }
+
+    /// Next to the two above: a move on the same FTP server with Replace onto an item that is
+    /// another one still replaces it. A file over a file with its name (`loop/a.jpg` into `move/`),
+    /// a folder merged into a real folder with its name (`other/album/` into `photos/`).
+    #[test]
+    fn f1_ftp_replace_onto_another_item_still_moves() {
+        let (seen, gone, r) = moved_on_the_server(&["loop/a.jpg"], "move/");
+        assert_eq!((r, gone), (Ok(()), vec!["loop/a.jpg".to_string()]));
+        assert!(seen.deleted("move", "a.jpg"), "the file there was replaced");
+        assert_eq!(names_on(&seen, "loop"), ["again"]);
+        assert!(names_on(&seen, "move").contains(&"a.jpg".to_string()));
+        let (seen, gone, r) = moved_on_the_server(&["other/album/"], "photos/");
+        assert_eq!((r, gone), (Ok(()), vec!["other/album/".to_string()]));
+        assert_eq!(seen.stored.lock().unwrap().get("/photos/album/y.jpg").map(Vec::as_slice), Some(&b"not a jpeg"[..]));
+        assert!(seen.deleted("other/album", "y.jpg") && seen.deleted("other", "album"));
+        assert!(!seen.deleted("photos/album", "x.jpg"));
+    }
 }
