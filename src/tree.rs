@@ -313,6 +313,10 @@ impl App {
                 let home = std::env::home_dir().map_or("/".into(), |h| h.to_string_lossy().into_owned());
                 self.open_source(&ctx, &home);
             }
+            // Where you were on it goes too: under its row it looked still connected (Piero, 28/11).
+            if let Some(address) = s.address() {
+                crate::navigation::forget_server(&mut self.last_dirs, &crate::address::without_password(&address));
+            }
             if s.scheme == "ftp" || s.scheme == "ftps" {
                 self.rt.spawn(crate::ftp::disconnect(s.host, s.port.unwrap_or(21), s.user));
             } else {

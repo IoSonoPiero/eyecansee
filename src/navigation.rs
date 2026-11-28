@@ -34,7 +34,16 @@ pub(crate) fn folder_under(last: &std::collections::HashMap<String, String>, row
 /// #314: "Close connection" on a server forgets where you were on it, so that its row no longer
 /// shows that folder under it, as if still connected (Piero, 28/11), and a click opens its own
 /// folder again. Every row of the same login goes: they share the connection.
-pub(crate) fn forget_server(_last: &mut std::collections::HashMap<String, String>, _row: &str) {}
+pub(crate) fn forget_server(last: &mut std::collections::HashMap<String, String>, row: &str) {
+    let server = origin(row);
+    last.retain(|k, _| !k.contains("://") || origin(k) != server);
+}
+
+/// "scheme://user@host:port" of an address, without its folder.
+fn origin(address: &str) -> &str {
+    let Some(i) = address.find("://") else { return address };
+    address[i + 3..].find('/').map_or(address, |j| &address[..i + 3 + j])
+}
 
 /// #314: the part of the address `full` inside the row `row` ("photos/2024" for
 /// "sftp://me@nas/photos/2024/" under "sftp://me@nas/"), `None` outside it or at its root.

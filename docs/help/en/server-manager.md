@@ -33,7 +33,7 @@ An address that matches a saved server (same protocol, server, port and user), t
 Every saved server appears in the panel on the left, in the **Servers** section below the devices, with the ![Server](icon://color-server) icon.
 
 - One click opens it in its saved **Folder**, every time; with no folder, in the folder where the server starts (usually your home folder on the server).
-- Right-click: **Close connection** (if it is open, you go back to your home folder; not during a copy) and **Edit…**, which opens the server manager on that server.
+- Right-click: **Close connection** (if it is open, you go back to your home folder; not during a copy): the folder you were in there is forgotten, and no longer shown under its name and **Edit…**, which opens the server manager on that server.
 - With a server or a phone open, the panel also shows **This computer**, with your home folder and the last folder of the computer you were in.
 
 ## Things to know

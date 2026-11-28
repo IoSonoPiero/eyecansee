@@ -33,7 +33,7 @@ Anche un indirizzo che corrisponde a un server salvato (stesso protocollo, serve
 Ogni server salvato compare nel pannello a sinistra, nella sezione **Server** sotto i dispositivi, con l'icona ![Server](icon://color-server).
 
 - Un clic lo apre nella sua **Cartella** salvata, ogni volta; senza cartella, in quella da cui parte il server (di solito la tua cartella home sul server).
-- Clic destro: **Chiudi connessione** (se è aperto, torni alla tua cartella home; non durante una copia) e **Modifica…**, che apre la gestione server su quel server.
+- Clic destro: **Chiudi connessione** (se è aperto, torni alla tua cartella home; non durante una copia): la cartella in cui eri lì viene dimenticata e non compare più sotto il suo nome e **Modifica…**, che apre la gestione server su quel server.
 - Con un server o un telefono aperto, il pannello mostra anche **Questo computer**, con la tua cartella home e l'ultima cartella del computer in cui eri.
 
 ## Da sapere
