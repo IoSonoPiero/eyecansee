@@ -3,7 +3,8 @@
 //! their style's SHX font (`cad_shx`) when it is next to the drawing or in AutoCAD's folder.
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use acadrust::CadDocument;
 use acadrust::entities::EntityType;
@@ -100,26 +101,68 @@ fn font_file(file: &str, sibling: crate::model::Sibling) -> Option<Vec<u8>> {
     }
     let lower = base.to_ascii_lowercase();
     let near = [name.clone(), base.clone(), lower.clone(), format!("fonts/{base}"), format!("Fonts/{base}"), format!("fonts/{lower}")];
-    near.iter().find_map(|n| sibling(n)).or_else(|| autocad_fonts().into_iter().find_map(|d| std::fs::read(d.join(&base)).ok()))
+    near.iter().find_map(|n| sibling(n)).or_else(|| autocad_fonts().iter().find_map(|d| std::fs::read(d.join(&base)).ok()))
 }
 
-/// The `Fonts` folders of AutoCAD and its relatives under Program Files.
-fn autocad_fonts() -> Vec<std::path::PathBuf> {
-    if !cfg!(windows) {
-        return Vec::new();
+/// The `Fonts` folders of AutoCAD and its relatives under Program Files, looked for once (they
+/// were listed again for every font not found, audit 6.20).
+fn autocad_fonts() -> &'static [std::path::PathBuf] {
+    static FOLDERS: OnceLock<Vec<std::path::PathBuf>> = OnceLock::new();
+    FOLDERS.get_or_init(|| {
+        if !cfg!(windows) {
+            return Vec::new();
+        }
+        let roots = ["ProgramFiles", "ProgramFiles(x86)"].iter().filter_map(std::env::var_os).map(|r| std::path::PathBuf::from(r).join("Autodesk"));
+        roots.filter_map(|r| std::fs::read_dir(r).ok()).flatten().flatten().map(|e| e.path().join("Fonts")).filter(|p| p.is_dir()).collect()
+    })
+}
+
+/// How long a file a source did not have is not asked for again: the thumbnails of a folder are
+/// made in that time, and a font copied next to the drawings later is found after it.
+const MISSED_FOR: Duration = Duration::from_secs(300);
+
+/// Files next to drawings that a source did not have (audit 6.20), by their path in it, and
+/// when: one source's, shared by the drawings it reads. Each font of a style is looked for under
+/// six names, and every drawing of a folder asked for them again.
+pub(crate) struct Missed {
+    lasting: Duration,
+    at: Mutex<HashMap<String, Instant>>,
+}
+
+impl Default for Missed {
+    fn default() -> Self {
+        Missed { lasting: MISSED_FOR, at: Mutex::default() }
     }
-    let roots = ["ProgramFiles", "ProgramFiles(x86)"].iter().filter_map(std::env::var_os).map(|r| std::path::PathBuf::from(r).join("Autodesk"));
-    roots.filter_map(|r| std::fs::read_dir(r).ok()).flatten().flatten().map(|e| e.path().join("Fonts")).filter(|p| p.is_dir()).collect()
 }
 
-/// Files next to drawings that a source did not have (audit 6.20): one source's, shared by the
-/// drawings it reads.
-#[derive(Default)]
-pub(crate) struct Missed {}
+impl Missed {
+    fn lately(&self, path: &str) -> bool {
+        self.at.lock().unwrap().get(path).is_some_and(|t| t.elapsed() < self.lasting)
+    }
 
-/// `sibling` for the drawing `name`, remembering in `missed` the files it did not have.
-pub(crate) fn remembering<'a>(_missed: &'a Missed, _name: &'a str, sibling: crate::model::Sibling<'a>) -> impl Fn(&str) -> Option<Vec<u8>> + 'a {
-    move |rel| sibling(rel)
+    fn note(&self, path: String) {
+        let mut at = self.at.lock().unwrap();
+        if at.len() >= 4096 {
+            at.retain(|_, t| t.elapsed() < self.lasting);
+        }
+        at.insert(path, Instant::now());
+    }
+}
+
+/// `sibling` for the drawing `name`, not asking again for a file the source did not have lately
+/// (`Missed`); what it has is read each time.
+pub(crate) fn remembering<'a>(missed: &'a Missed, name: &'a str, sibling: crate::model::Sibling<'a>) -> impl Fn(&str) -> Option<Vec<u8>> + 'a {
+    move |rel| {
+        let Some(path) = crate::model::sibling_path(name, rel) else { return sibling(rel) };
+        if missed.lately(&path) {
+            return None;
+        }
+        let r = sibling(rel);
+        if r.is_none() {
+            missed.note(path);
+        }
+        r
+    }
 }
 
 /// The strokes of one line in the font's units, and its length: each character from the font
@@ -306,12 +349,21 @@ mod tests {
         let dxf = styled("MyFont");
         let read = |name: &str| crate::cad::read_with(dxf.as_bytes(), name, &remembering(&missed, name, &source)).unwrap();
         read("d/a.dxf");
-        // Six names for each font: MyFont, and txt of the standard style the reader adds.
+        // Six names for each font, MyFont and txt of the standard style the reader adds: 12 reads
+        // before, 8 names that differ.
         let first = asked.get();
-        assert_eq!(first, 12);
+        assert_eq!(first, 8);
         read("d/b.dxf");
         read("d/c.dxf");
         assert_eq!(asked.get(), first, "reads of the source for the missing fonts, two more drawings of the folder");
+        // Another folder is asked; a font copied next to the drawings is found once the misses
+        // are old.
+        read("e/a.dxf");
+        assert_eq!(asked.get(), 2 * first);
+        let (missed, before) = (Missed { lasting: Duration::ZERO, ..Missed::default() }, asked.get());
+        crate::cad::read_with(dxf.as_bytes(), "d/a.dxf", &remembering(&missed, "d/a.dxf", &source)).unwrap();
+        crate::cad::read_with(dxf.as_bytes(), "d/a.dxf", &remembering(&missed, "d/a.dxf", &source)).unwrap();
+        assert_eq!(asked.get() - before, 24);
     }
 }
 #[cfg(test)]
