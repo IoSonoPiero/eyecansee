@@ -525,4 +525,64 @@ mod tests {
         let other = r#"Error during a `trash` operation: Os { code: -2147467259, description: "windows error: Errore non specificato (0x80004005)" }"#;
         assert_eq!(recognise(other), None);
     }
+
+    /// The ids of the errors and of what the system said (`error-…`, `fault-…`), from the English
+    /// messages.
+    fn error_ids() -> Vec<String> {
+        let ftl = include_str!("../locales/en.ftl");
+        let ids = ftl.lines().filter_map(|l| l.split_once(" =").map(|(id, _)| id.to_string()));
+        ids.filter(|id| (id.starts_with("error-") || id.starts_with("fault-")) && !id.contains(' ')).collect()
+    }
+
+    /// Piero, 28/11: the bold of a message only where it shows as bold. Every error, in both
+    /// languages and with every kind of detail (a name with `*` and `_`, a library's text, what the
+    /// system said, a name with the server's answer): the plain text (the error bar, the log,
+    /// Copy) has no `**` and the detail as it is; the Markdown of a message window says the same
+    /// words.
+    #[test]
+    fn errors_plain_where_plain() {
+        let denied = "PermissionDenied (permanent) at write, context: { service: fs, path: a/b_c*.jpg } => permission denied, source: Permission denied (os error 13)";
+        let details = ["al*bum_1", "connection reset: a_b `x`", denied, "c*d.jpg\u{1}550 read error", ""];
+        let ids = error_ids();
+        assert!(ids.len() > 60 && ids.iter().any(|id| id == "fault-denied"), "{ids:?}");
+        for lang in ["en", "it"] {
+            let i18n = I18n::new(lang);
+            for id in &ids {
+                for d in details {
+                    let plain = i18n.error(id, d);
+                    assert!(!plain.contains("**"), "{lang} {id} {d:?}: {plain}");
+                    assert_eq!(crate::save_dialogs::plain(&i18n.error_md(id, d)), plain, "{lang} {id} {d:?}");
+                }
+            }
+        }
+    }
+
+    /// Piero, 28/11: in a message window an error says in bold the name, the folder or the server
+    /// it is about, kept as it is inside (`md`); the error bar says it plainly.
+    #[test]
+    fn errors_say_the_name_in_bold() {
+        let denied = "PermissionDenied (permanent) at write, context: { service: fs, path: a/b_c*.jpg } => permission denied, source: Permission denied (os error 13)";
+        for lang in ["en", "it"] {
+            let i18n = I18n::new(lang);
+            let bold = |id: &str, detail: &str, name: &str| {
+                let text = i18n.error_md(id, detail);
+                assert!(text.contains(&format!("**{}**", md(name))), "{lang} {id}: {name} not in bold: {text}");
+                assert!(!i18n.error(id, detail).contains("**"), "{lang} {id}");
+            };
+            for id in ["error-server-silent", "error-login-ssh", "error-host-unknown", "error-host-changed", "error-key-failed", "error-key-failed-open", "error-cert-unknown"] {
+                bold(id, "nas_1.lan", "nas_1.lan");
+            }
+            for id in ["error-path", NOT_FOUND, "error-exists", "error-paste-inside", "error-too-deep", "error-ftp-listing-too-big", "error-move-not-told", "error-no-host", "error-unsupported"] {
+                bold(id, "a/al*bum_1/", "a/al*bum_1/");
+            }
+            for id in ["error-phone-left", "error-phone-copy-unseen", "error-phone-copy-lost", "error-copy-not-made", "error-copy-not-whole", "error-pc-space", "error-phone-space", crate::model_gltf::MISSING_BIN, crate::model_gltf::OUTSIDE_BIN] {
+                bold(id, "v*d_1.mp4", "v*d_1.mp4");
+            }
+            bold(source::BAD_NAME, "x_y*.jpg", "\"x_y*.jpg\"");
+            bold(SERVER_CUT, "c*d.jpg\u{1}550 read error", "\"c*d.jpg\"");
+            // What the system said, with the file's name: inside another error's sentence too.
+            bold("error-detail", denied, "\"b_c*.jpg\"");
+            bold("error-trash-failed", denied, "\"b_c*.jpg\"");
+        }
+    }
 }
