@@ -286,6 +286,33 @@ mod tests {
         let b = text_box([0.0, 0.0], 1.0, std::f64::consts::FRAC_PI_2, "ABCD", (Anchor::Middle, Baseline::Alphabetic));
         assert!(b.iter().any(|p| p[1] < -1.0) && b.iter().any(|p| p[1] > 1.0) && b.iter().any(|p| p[0] < -1.0));
     }
+
+    /// A drawing whose text style uses the SHX font `font`, which may be missing.
+    fn styled(font: &str) -> String {
+        format!("0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nSTYLE\n70\n1\n0\nSTYLE\n2\nS\n70\n0\n40\n0\n41\n1\n50\n0\n71\n0\n42\n1\n3\n{font}\n0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n30\n0\n11\n10\n21\n10\n31\n0\n0\nTEXT\n8\n0\n10\n0\n20\n0\n30\n0\n40\n1\n1\nA\n7\nS\n0\nENDSEC\n0\nEOF\n")
+    }
+
+    /// Audit 6.20: a font missing next to the drawings of a folder was asked for under six names
+    /// by every drawing; a folder of 200 drawings on a phone made 1200 reads for nothing. Three
+    /// drawings of one folder of the same source ask the source for those six names once.
+    #[test]
+    fn audit_6_20_missing_font_asked_once_per_folder() {
+        let asked = std::cell::Cell::new(0);
+        let source = |_: &str| {
+            asked.set(asked.get() + 1);
+            None
+        };
+        let missed = Missed::default();
+        let dxf = styled("MyFont");
+        let read = |name: &str| crate::cad::read_with(dxf.as_bytes(), name, &remembering(&missed, name, &source)).unwrap();
+        read("d/a.dxf");
+        // Six names for each font: MyFont, and txt of the standard style the reader adds.
+        let first = asked.get();
+        assert_eq!(first, 12);
+        read("d/b.dxf");
+        read("d/c.dxf");
+        assert_eq!(asked.get(), first, "reads of the source for the missing fonts, two more drawings of the folder");
+    }
 }
 #[cfg(test)]
 mod shx_live {
