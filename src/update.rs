@@ -641,8 +641,9 @@ pub(crate) mod tests {
             let exe = dir.join("eyecansee.exe");
             std::fs::write(&exe, "old").unwrap();
             let zip = temp.join("EyeCanSee.zip");
-            let sources: Vec<String> = std::fs::read_dir(&new).unwrap().map(|e| quote(&e.unwrap().path())).collect();
-            let pack = format!("$ErrorActionPreference = 'Stop'; Compress-Archive -LiteralPath {} -DestinationPath {}", sources.join(","), quote(&zip));
+            // The zip made by .NET: Compress-Archive of PowerShell 5.1 cannot take a folder named
+            // with "[x]" even with -LiteralPath, so the script itself was never reached (winvm, 28/11).
+            let pack = format!("$ErrorActionPreference = 'Stop'; Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::CreateFromDirectory({}, {})", quote(&new), quote(&zip));
             let out = std::process::Command::new("powershell").args(["-NoProfile", "-NonInteractive", "-Command", &pack]).output().unwrap();
             assert!(out.status.success(), "{pack}\n{}", String::from_utf8_lossy(&out.stderr));
             // An exited process for `Wait-Process`, and the script without its last start.
