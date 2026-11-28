@@ -671,7 +671,7 @@ mod tests {
 
     /// Audit 4.11: the marked files found once are those that would be found again, after every
     /// change of the marks or of the listing: a mark taken off and put back, a file deleted,
-    /// renamed, the order changed, Ctrl+A, the folder read again.
+    /// renamed, the order changed, Ctrl+A, the marks taken off.
     #[test]
     #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
     fn the_marked_files_kept_are_those_of_now_4_11() {
