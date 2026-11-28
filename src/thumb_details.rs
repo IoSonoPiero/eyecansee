@@ -32,7 +32,7 @@ impl Default for Details {
 pub(crate) type Version = (String, u64, String);
 
 pub(crate) fn version(f: &crate::source::File) -> Version {
-    (f.path.clone(), 0, String::new())
+    (f.path.clone(), f.size, f.modified.clone())
 }
 
 /// Below this side the thumbnails are small: only the name stays under them.
