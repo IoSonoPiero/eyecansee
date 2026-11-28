@@ -184,10 +184,16 @@ impl App {
         }
     }
 
-    /// The address from outside held while the editor was open (`hold`), once it is closed.
+    /// Whether an address from outside waits (`hold`): the editor or the Save as page open, which
+    /// would go on with a picture no longer shown behind them (#366).
+    pub(crate) fn holds_outside(&self) -> bool {
+        self.editor.is_some() || self.convert.is_some()
+    }
+
+    /// The address from outside held while the editor or Save as was open (`hold`), once closed.
     pub(crate) fn open_held(&mut self, ctx: &egui::Context) {
-        if let Some(address) = release(self.editor.is_some(), &mut self.held_open) {
-            log!("editor closed: opening {:?}", without_password(&address));
+        if let Some(address) = release(self.holds_outside(), &mut self.held_open) {
+            log!("editor or Save as closed: opening {:?}", without_password(&address));
             self.open_outside(ctx, &address);
         }
     }
@@ -493,8 +499,8 @@ pub(crate) fn shown(base: &str, dir: &str) -> String {
 }
 
 /// An address from outside (`""`: just come forward): `Some` to open now; kept in `held` while
-/// the editor is open (the last one if more arrive), so the grid does not change place under the
-/// page. Until 0.77.0 it opened at once, and the page's saves went to the new place.
+/// the editor or the Save as page is open (the last one if more arrive), so the grid does not
+/// change place under the page (#366 for Save as). Until 0.77.0 it opened at once, and the page's saves went to the new place.
 pub(crate) fn hold(editing: bool, held: &mut Option<String>, address: String) -> Option<String> {
     if editing && !address.is_empty() {
         *held = Some(address);

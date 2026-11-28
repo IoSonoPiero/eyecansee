@@ -622,7 +622,8 @@ fn another_place_closes_the_windows_of_the_place_left() {
     h.app.open_convert(Some(a));
     h.frame(Vec::new());
     assert!(h.app.duplicates.is_some() && h.app.convert.is_some(), "the duplicates and Save in another format open");
-    h.app.tx.send(crate::loader::Msg::Open(format!("{}/", local.display()))).unwrap();
+    // Another place opened directly: an address from outside now waits for Save as to close (#366).
+    h.app.open_source(&h.ctx.clone(), &format!("{}/", local.display()));
     h.until(|app| app.base == "/", "the computer's folder opened");
     assert!(h.app.duplicates.is_none(), "the duplicates of the server stayed over the computer's folder");
     let place = h.app.convert.as_ref().and_then(|w| w.place.as_ref()).map(|p| p.base.clone());
