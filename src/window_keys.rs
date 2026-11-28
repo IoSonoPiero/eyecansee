@@ -940,3 +940,58 @@ fn f6_in_the_viewer() {
     assert!(copy.cancel.load(std::sync::atomic::Ordering::Relaxed), "Space on Cancel did not stop the copy");
     assert_eq!(h.app.viewing, Some(0), "Space on Cancel changed picture");
 }
+
+/// A copy under way, its box drawn and nothing focused; F6, pressed and let go as on a real
+/// keyboard, takes the keyboard to its Cancel; then `key` presses it: the copy stops.
+fn f6_then(h: &mut Harness, key: Key, page: &str) {
+    let copy = std::sync::Arc::new(crate::transfer::Progress::default());
+    h.app.transfer = Some((copy.clone(), false, h.app.base.clone(), h.app.dir.clone()));
+    boxes_up(h, 1);
+    h.blur();
+    let ev = |pressed| egui::Event::Key { key: Key::F6, physical_key: None, pressed, repeat: false, modifiers: Modifiers::NONE };
+    h.frame(vec![ev(true)]);
+    h.frame(vec![ev(false)]);
+    h.frame(Vec::new());
+    assert!(h.ctx.memory(|m| m.focused()).is_some_and(|f| crate::box_keys::controls(&h.ctx).contains(&f)), "F6 {page} did not reach Cancel");
+    h.key(key);
+    h.frame(Vec::new());
+    assert!(copy.cancel.load(std::sync::atomic::Ordering::Relaxed), "{key:?} on Cancel {page} did not stop the copy");
+}
+
+/// #324, #331: F6 reaches Cancel of a job under way also from the editor and from the results of
+/// Find duplicates, and Enter or Space there stops the job, not the page's own key (the crop
+/// applied, a copy ticked): the Keys of those pages can list F6.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn f6_from_the_editor_and_the_duplicates() {
+    if own_folder("window_keys::f6_from_the_editor_and_the_duplicates") {
+        return;
+    }
+    let mut h = on_grid("keys-f6-editor");
+    let a = h.app.files()[0].path.clone();
+    h.app.open_editor(Some(a), crate::edit_page::Tool::Crop);
+    h.until(|a| a.editor.as_ref().is_some_and(crate::edit_page::Window::read), "the editor's picture read");
+    h.frame(Vec::new());
+    let crop = |a: &App| a.editor.as_ref().is_some_and(|w| w.tool() == crate::edit_page::Tool::Crop);
+    assert!(crop(&h.app), "the editor not open on Crop");
+    for key in [Key::Enter, Key::Space] {
+        f6_then(&mut h, key, "in the editor");
+        assert!(crop(&h.app), "{key:?} on Cancel in the editor also applied the crop, or closed the editor");
+    }
+
+    // a.png, b.png and c.png are the same picture: one group of three copies.
+    let mut h = on_grid("keys-f6-duplicates");
+    h.app.open_duplicates(None);
+    h.frame(Vec::new());
+    h.key(Key::Enter);
+    h.until(App::dup_page_shown, "the results of Find duplicates");
+    // On the second copy, ticked: Space there would untick it (the first one, kept, cannot be).
+    h.key(Key::ArrowDown);
+    h.frame(Vec::new());
+    let ticks = h.app.duplicates.as_ref().unwrap().ticks();
+    for key in [Key::Space, Key::Enter] {
+        f6_then(&mut h, key, "over Find duplicates");
+        assert!(h.app.dup_page_shown(), "{key:?} on Cancel closed Find duplicates");
+        assert_eq!(h.app.duplicates.as_ref().unwrap().ticks(), ticks, "{key:?} on Cancel also ticked or unticked a copy");
+    }
+}
