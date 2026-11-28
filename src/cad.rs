@@ -251,6 +251,8 @@ pub(crate) struct Walk<'a> {
     hatch_work: usize,
     /// What the pens of the SHX texts may still do (`cad_text::strokes`), for the whole drawing.
     pen_work: usize,
+    /// The pictures made so far (`cad_image::Pictures`).
+    pictures: crate::cad_image::Pictures,
     /// What the sheets of the file drawn before this one spent (`after`).
     before: Spent,
 }
@@ -275,7 +277,7 @@ pub(crate) fn n3(v: &Vector3) -> [f64; 3] {
 
 impl<'a> Walk<'a> {
     pub(crate) fn new(doc: &'a CadDocument, out: &'a mut Drawing) -> Self {
-        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default(), index: Default::default(), sets: Default::default(), set: 0, placed: 0, met: 0, hatch_work: MAX_HATCH_WORK, pen_work: MAX_POINTS, before: Spent::default() }
+        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default(), index: Default::default(), sets: Default::default(), set: 0, placed: 0, met: 0, hatch_work: MAX_HATCH_WORK, pen_work: MAX_POINTS, pictures: Default::default(), before: Spent::default() }
     }
 
     /// A walk of one more sheet of a file whose sheets drawn before spent `before`.
@@ -487,7 +489,7 @@ impl<'a> Walk<'a> {
                 }
             }
             // Out of a layout's viewports, cutting a picture is not done: then its frame.
-            EntityType::RasterImage(r) if self.clip.is_none() && let Some(png) = crate::cad_image::picture(self.doc, r, self.sibling) => {
+            EntityType::RasterImage(r) if self.clip.is_none() && let Some(png) = crate::cad_image::picture(self.doc, r, self.sibling, &mut self.pictures) => {
                 let corners = crate::cad_image::corners(r).map(|p| t.apply(p));
                 self.out.points += 4;
                 self.put(Item::Image { corners, png });

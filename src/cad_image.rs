@@ -19,9 +19,19 @@ pub(crate) fn none(_: &str) -> Option<Vec<u8>> {
     None
 }
 
-/// The picture of `r` as a base64 PNG, if its file is found and can be read.
-pub(crate) fn picture(doc: &CadDocument, r: &RasterImage, sibling: Sibling) -> Option<String> {
-    let ObjectType::ImageDefinition(def) = doc.objects.get(&r.definition_handle?)? else { return None };
+/// The pictures of a drawing made so far, by their definition: one placed several times (a logo
+/// in a block) is read, decoded and made PNG once (audit 6.13).
+pub(crate) type Pictures = std::collections::HashMap<acadrust::types::Handle, Option<String>>;
+
+/// The picture of `r` as a base64 PNG, if its file is found and can be read; once for each
+/// definition (`seen`).
+pub(crate) fn picture(doc: &CadDocument, r: &RasterImage, sibling: Sibling, seen: &mut Pictures) -> Option<String> {
+    let handle = r.definition_handle?;
+    seen.entry(handle).or_insert_with(|| made(doc, handle, sibling)).clone()
+}
+
+fn made(doc: &CadDocument, handle: acadrust::types::Handle, sibling: Sibling) -> Option<String> {
+    let ObjectType::ImageDefinition(def) = doc.objects.get(&handle)? else { return None };
     let name = def.file_name.trim();
     let bare = name.rsplit(['/', '\\']).next()?;
     let relative = !(name.starts_with(['/', '\\']) || name.contains(':'));
