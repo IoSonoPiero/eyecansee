@@ -136,46 +136,59 @@ fn bounds(pts: &[P]) -> Option<[f64; 4]> {
     (b[0] <= b[2] && b[1] <= b[3]).then_some(b)
 }
 
+/// The runs of the lines shown (item, run) and their boxes.
+fn boxes(d: &Drawing) -> impl Iterator<Item = ((u32, u32), [f64; 4])> + '_ {
+    d.shown_indexed().flat_map(|(i, item)| {
+        let pts: &[P] = match item {
+            Item::Line { pts, .. } => pts,
+            _ => &[],
+        };
+        (0..pts.len().saturating_sub(1).div_ceil(RUN)).filter_map(move |k| bounds(run(pts, k)).map(|b| ((i as u32, k as u32), b)))
+    })
+}
+
 /// The points of the run `k` of a line: its segments and the point after the last.
 fn run(pts: &[P], k: usize) -> &[P] {
     &pts[(k * RUN).min(pts.len())..((k + 1) * RUN + 1).min(pts.len())]
 }
 
 impl Grid {
+    /// Made in three passes over the lines, without keeping their boxes: a drawing at its
+    /// largest has 10 million runs.
     fn new(d: &Drawing) -> Grid {
-        let mut boxes = Vec::new();
-        for (i, item) in d.shown_indexed() {
-            let Item::Line { pts, .. } = item else { continue };
-            for k in 0..pts.len().saturating_sub(1).div_ceil(RUN) {
-                boxes.extend(bounds(run(pts, k)).map(|b| ((i as u32, k as u32), b)));
-            }
+        let (mut all, mut count) = ([f64::MAX, f64::MAX, f64::MIN, f64::MIN], 0);
+        for (_, b) in boxes(d) {
+            all = [all[0].min(b[0]), all[1].min(b[1]), all[2].max(b[2]), all[3].max(b[3])];
+            count += 1;
         }
-        let all = boxes.iter().fold([f64::MAX, f64::MAX, f64::MIN, f64::MIN], |a, (_, b)| [a[0].min(b[0]), a[1].min(b[1]), a[2].max(b[2]), a[3].max(b[3])]);
-        let side = ((boxes.len() as f64).sqrt().ceil() as usize).clamp(1, CELLS);
-        let (lo, cell) = if boxes.is_empty() { ([0.0; 2], [1.0; 2]) } else { ([all[0], all[1]], [0, 1].map(|k| ((all[k + 2] - all[k]) / side as f64).max(f64::MIN_POSITIVE))) };
+        let side = ((count as f64).sqrt().ceil() as usize).clamp(1, CELLS);
+        let (lo, cell) = if count == 0 { ([0.0; 2], [1.0; 2]) } else { ([all[0], all[1]], [0, 1].map(|k| ((all[k + 2] - all[k]) / side as f64).max(f64::MIN_POSITIVE))) };
         let mut g = Grid { lo, cell, side, starts: vec![0; side * side + 1], runs: Vec::new(), wide: Vec::new() };
         // Counted first, then placed.
-        let mut placed = Vec::with_capacity(boxes.len());
-        for (id, b) in boxes {
+        let narrow = |r: [usize; 4]| (r[1] - r[0] + 1) * (r[3] - r[2] + 1) <= WIDE;
+        for (id, b) in boxes(d) {
             let r = g.range(b);
-            if (r[1] - r[0] + 1) * (r[3] - r[2] + 1) > WIDE {
+            if narrow(r) {
+                Grid::each(side, r, |c| g.starts[c + 1] += 1);
+            } else {
                 g.wide.push(id);
-                continue;
             }
-            Grid::each(side, r, |c| g.starts[c + 1] += 1);
-            placed.push((id, r));
         }
         for c in 0..side * side {
             g.starts[c + 1] += g.starts[c];
         }
         let mut next: Vec<u32> = g.starts[..side * side].to_vec();
-        g.runs = vec![(0, 0); g.starts[side * side] as usize];
-        for (id, r) in placed {
-            Grid::each(side, r, |c| {
-                g.runs[next[c] as usize] = id;
-                next[c] += 1;
-            });
+        let mut runs = vec![(0, 0); g.starts[side * side] as usize];
+        for (id, b) in boxes(d) {
+            let r = g.range(b);
+            if narrow(r) {
+                Grid::each(side, r, |c| {
+                    runs[next[c] as usize] = id;
+                    next[c] += 1;
+                });
+            }
         }
+        g.runs = runs;
         g
     }
 
@@ -367,6 +380,26 @@ mod tests {
         let examined = EXAMINED.with(|n| n.get());
         println!("{examined} segments looked at for 100 frames");
         assert!(examined < 100 * 1000, "segments looked at for 100 frames: {examined}");
+    }
+
+    /// Audit 6.15 (c): the grid is made at the first point, on the window's thread: its time and
+    /// memory for 2 million lines of one segment (each its own run, the most there can be), and
+    /// the segments looked at for a point then. `--release`.
+    #[test]
+    #[ignore]
+    fn audit_6_15_c_grid_time() {
+        let d = std::sync::Arc::new(lines(1415));
+        let t = std::time::Instant::now();
+        let (grid, peak) = crate::test_alloc::peak(|| Grid::new(&d));
+        println!("{} lines: grid in {:.0?}, {} MB at most while made, {} MB kept", d.items.len(), t.elapsed(), peak >> 20, (grid.runs.len() * 8 + grid.starts.len() * 4) >> 20);
+        let mut snapper = Snapper { grid: Some((std::sync::Arc::downgrade(&d), grid)) };
+        EXAMINED.with(|n| n.set(0));
+        let t = std::time::Instant::now();
+        snapper.snap(&d, [7000.0, 7000.0], 2.0);
+        println!("one point: {} segments looked at, {:.2?}", EXAMINED.with(|n| n.get()), t.elapsed());
+        let t = std::time::Instant::now();
+        snap(&d, [7000.0, 7000.0], 2.0);
+        println!("one point among all the segments: {:.2?}", t.elapsed());
     }
 
     /// Audit 6.15 (c): with the grid, the point found is the one found among all the segments:
