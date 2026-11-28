@@ -12,19 +12,28 @@ use crate::source::{Deletion, Error, NOT_FOUND, Store, name, parent};
 /// Before a move writes over an item there or into a folder there (`paste`, once everything to
 /// copy is known, before anything is written), for each such item of `copies` (with its `lists`):
 /// whether it would write into itself, reached in another way (#195). Where the real places can
-/// be compared, by them (`within`); between two sources, also as `not_the_same` tells. Not an item
-/// that stays anyway, with something below it left out for its name.
+/// be compared, by them (`within`); between two sources, and on an FTP server (`places_unknown`),
+/// also as `not_the_same` tells. Not an item that stays anyway, with something below it left out
+/// for its name.
 pub(super) async fn not_onto_itself(clip: &Clip, (to, to_base, same): (&Store, &str, bool), copies: &[Planned], lists: &[Vec<(String, String, u64)>], p: &Progress) -> Result<(), Error> {
     if !clip.cut {
         return Ok(());
     }
     for (item, list) in copies.iter().zip(lists).filter(|(c, _)| c.2 && !c.0.is_empty() && !super::left_below(&c.0, p)) {
-        if !same {
+        if !same || places_unknown(to) {
             not_the_same(&clip.op, &item.0, to, &item.1).await?;
         }
         within(clip, (to, to_base), &item.0, list).await?;
     }
     Ok(())
+}
+
+/// Whether the real place of an item of `to` cannot be asked while the server may hold links: FTP
+/// (audit F.1 of 27/11). An item there with the name of one moved may be that one itself, reached
+/// through a link to it or to its folder: then `not_the_same` tells. Not this computer nor SFTP,
+/// which tell the real places (`within`), nor a phone, which has no links.
+pub(super) fn places_unknown(to: &Store) -> bool {
+    matches!(to, Store::Ftp(_))
 }
 
 /// Whether a place the move of `src` writes into (`list`: its destination and what goes below
@@ -59,7 +68,9 @@ async fn within(clip: &Clip, (to, to_base): (&Store, &str), src: &str, list: &[(
 /// FTP, a NAS through gvfs and SFTP; #195). The original steps aside under a hidden name for a
 /// moment: if `dest` goes with it, they are one, the original gets its name back and the move
 /// stops, saying so; copied over itself, it would have been written over and then deleted as the
-/// original. A source that cannot rename stops too: it cannot be told.
+/// original. A source that cannot rename stops too: it cannot be told. A folder `dest` still
+/// listed but no longer to be entered while the original is aside, and again once it is back, is
+/// a link to it (audit F.1 of 27/11): a link stays listed when what it leads to is gone.
 /// Meanwhile the original put aside is held as one being saved (`SAVING`): a listing of its folder
 /// (the grid reads it again) would give it its name back halfway (`Store::recover`, which puts
 /// back one left by a move stopped there, audit F.7 of 27/11), and it would be told as not the same.
@@ -79,10 +90,12 @@ async fn aside_and_back(from: &Store, src: &str, to: &Store, dest: &str) -> Resu
         ("error-move-not-told", own.to_string())
     })?;
     let still = to.names(&parent(dest)).await.map(|n| n.contains(name(dest)));
+    let shut = matches!(still, Ok(true)) && dest.ends_with('/') && !to.is_dir(dest).await;
     let back = from.rename(&aside, own).await;
-    log!("move: {src:?} aside, {dest:?} still there: {still:?}; back: {back:?}");
+    log!("move: {src:?} aside, {dest:?} still there: {still:?}, not to be entered: {shut}; back: {back:?}");
     back?;
     match still {
+        Ok(true) if shut && to.is_dir(dest).await => Err(("error-move-same-item", own.to_string())),
         Ok(true) => Ok(()),
         Ok(false) => Err(("error-move-same-item", own.to_string())),
         Err(e) => Err(e),

@@ -480,6 +480,10 @@ async fn renamed_on_device(clip: &Clip, to: &Store, to_dir: &str, (src, dest, mu
         return Err(("error-exists", name(&dest).to_string()));
     }
     if exists && overwrites(&dest) {
+        // On FTP the item there may be the original itself, through a link (audit F.1 of 27/11).
+        if originals::places_unknown(to) {
+            originals::not_the_same(&clip.op, &src, to, &dest).await?;
+        }
         to.delete(&dest, Deletion::Permanent).await?;
         exists = false;
     }
