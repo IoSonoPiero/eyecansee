@@ -933,6 +933,26 @@ mod tests {
         assert!(wrong.is_empty(), "{wrong:?}");
     }
 
+    /// Audit 27/11, D.1, what was left (#178): the zeros of a "sparse" accessor without data,
+    /// each placement of its mesh within what the file may unpack to (16 MB for a small file),
+    /// but `Builder` keeps the points of every placement: two nodes placing a mesh of 1.3
+    /// million such points (15.6 MB of zeros each) opened from a .gltf of 1 KB, and as many
+    /// nodes as a model may bring points held some 960 MB of them.
+    #[test]
+    fn audit_d1_sparse_zeros_placed_again() {
+        let n = 1_300_000;
+        let small: Vec<u8> = [0u32.to_le_bytes(), 0f32.to_le_bytes(), 0f32.to_le_bytes(), 0f32.to_le_bytes(), 0u32.to_le_bytes(), 1u32.to_le_bytes(), 2u32.to_le_bytes()].concat();
+        let data = base64::engine::general_purpose::STANDARD.encode(&small);
+        let nodes = vec![r#"{"mesh":0}"#; 2].join(",");
+        let json = format!(
+            r#"{{"asset":{{"version":"2.0"}},"buffers":[{{"uri":"data:application/octet-stream;base64,{data}","byteLength":28}}],"bufferViews":[{{"buffer":0,"byteLength":4}},{{"buffer":0,"byteOffset":4,"byteLength":12}},{{"buffer":0,"byteOffset":16,"byteLength":12}}],"accessors":[{{"componentType":5126,"type":"VEC3","count":{n},"min":[0,0,0],"max":[0,0,0],"sparse":{{"count":1,"indices":{{"bufferView":0,"componentType":5125}},"values":{{"bufferView":1}}}}}},{{"bufferView":2,"componentType":5125,"type":"SCALAR","count":3}}],"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0}},"indices":1}}]}}],"nodes":[{nodes}],"scenes":[{{"nodes":[0,1]}}],"scene":0}}"#
+        );
+        let limit = crate::model_limit::Limit { max: 2_000_000, format: "gltf" };
+        let none: crate::model::Sibling = &|_| None;
+        let (r, peak) = crate::test_alloc::peak(|| super::read_plain(json.as_bytes(), none, limit).map(|m| m.tris.len()));
+        assert!(r.as_ref().is_err_and(|e| e.starts_with(crate::model_limit::MEMORY)) && peak < 1 << 20, "{r:?}, {peak} bytes held for the zeros of two placements");
+    }
+
     /// `reading_fits` refuses no model at the cap of its format (headers alone, no data read):
     /// 20 million triangles with three points of their own each, or with shared points and
     /// indices, every attribute read, as a .gltf and as a GLB; nor a strip of as many.
