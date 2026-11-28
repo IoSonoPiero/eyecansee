@@ -89,12 +89,21 @@ impl Drawing {
     /// The drawing as an SVG whose long side is `side` pixels, lines `stroke` pixels wide (less
     /// than 1 when the SVG will be drawn larger, so that they stay 1 pixel on the screen).
     pub fn svg(&self, side: u32, stroke: f32) -> Result<String, String> {
+        self.svg_part(side, stroke, None)
+    }
+
+    /// As `svg`, with only the items that reach `part` of the picture (x, y, width, height in its
+    /// pixels): at a high zoom most of the drawing is neither written nor parsed (audit 6.13).
+    pub(crate) fn svg_part(&self, side: u32, stroke: f32, part: Option<[f64; 4]>) -> Result<String, String> {
         let Placement { origin: [ox, oy], scale: s, size: [pw, ph] } = self.placement(side).ok_or("nothing to draw")?;
         let px = |p: P| ((p[0] - ox) * s, (oy - p[1]) * s);
         let rgb = |c: [u8; 3]| format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]);
         let [br, bg, bb] = BACKGROUND;
         let mut out = format!(r##"<svg xmlns="http://www.w3.org/2000/svg" width="{pw}" height="{ph}" viewBox="0 0 {pw} {ph}"><rect width="100%" height="100%" fill="#{br:02x}{bg:02x}{bb:02x}"/><g fill="none" stroke-width="{stroke}" stroke-linejoin="round" stroke-linecap="round" font-family="sans-serif">"##);
         for item in self.shown_items() {
+            if part.is_some_and(|r| !reaches(item, &px, s, stroke, r)) {
+                continue;
+            }
             #[cfg(test)]
             WRITTEN.with(|n| n.set(n.get() + 1));
             match item {
@@ -156,6 +165,28 @@ impl Drawing {
     }
 }
 
+/// Whether `item` may touch the part `[x, y, w, h]` of the picture: its box in the picture's
+/// pixels (`px`), widened by its line, or for a text a square that holds it at any angle and with
+/// letters as wide as the font size.
+fn reaches(item: &Item, px: &impl Fn(P) -> (f64, f64), s: f64, stroke: f32, [x, y, w, h]: [f64; 4]) -> bool {
+    let mut b = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
+    let mut add = |(u, v): (f64, f64), pad: f64| b = [b[0].min(u - pad), b[1].min(v - pad), b[2].max(u + pad), b[3].max(v + pad)];
+    match item {
+        Item::Line { pts, stroke: line, .. } => {
+            let pad = f64::from(stroke * (line.weight / THIN).max(1.0)) + 1.0;
+            pts.iter().filter(|p| !p[0].is_nan()).for_each(|&p| add(px(p), pad));
+        }
+        Item::Text { at, height, text, .. } => {
+            let chars = text.lines().map(|l| l.chars().count()).max().unwrap_or(0) as f64;
+            let rows = text.lines().count() as f64;
+            // A font size of 1.4 heights, lines 1.75 heights apart (as `svg` writes them).
+            add(px(*at), (chars * 1.4 + rows * 1.75 + 1.4) * height * s + 1.0);
+        }
+        Item::Image { corners, .. } => corners.iter().for_each(|&p| add(px(p), 1.0)),
+    }
+    b[0] <= x + w && b[2] >= x && b[1] <= y + h && b[3] >= y
+}
+
 /// Width and dashes of a line in the picture: weights above the thinnest wider in proportion
 /// (as AutoCAD shows them, in pixels at any zoom), dashes at the picture's scale `s`, a line
 /// type too fine to see drawn continuous.
@@ -206,7 +237,8 @@ fn escape(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::WRITTEN;
-    use crate::cad::{Drawing, Item, Stroke};
+    use resvg::{tiny_skia, usvg};
+    use crate::cad::{Anchor, Baseline, Drawing, Item, Stroke};
 
     /// A grid of `n` × `n` short lines, 10 units apart.
     fn grid(n: usize) -> Drawing {
@@ -226,6 +258,41 @@ mod tests {
         WRITTEN.with(|n| n.set(0));
         crate::decode::cad_render(&d, side, Some(([tenth * 4.0, tenth * 4.0, tenth, tenth], [800, 800]))).unwrap();
         let written = WRITTEN.with(|n| n.replace(0));
+        println!("{written} of {} items written", d.items.len());
         assert!(written < 500, "items written for 1% of the drawing: {written}");
+    }
+
+    /// The part drawn from the items that reach it is the part drawn from the whole drawing:
+    /// a long line across it with both ends outside, a thick line and texts just outside its
+    /// edges, turned and not.
+    #[test]
+    fn audit_6_13_part_drawn_as_before() {
+        let mut d = grid(30);
+        let thick = Stroke { dash: vec![3.0, -2.0], weight: 2.0 };
+        d.items.push(Item::Line { pts: vec![[-50.0, 140.0], [400.0, 160.0]], color: [255, 0, 0], fill: None, stroke: Stroke::default() });
+        d.items.push(Item::Line { pts: vec![[99.0, 90.0], [99.0, 200.0]], color: [0, 255, 0], fill: None, stroke: thick });
+        d.items.push(Item::Line { pts: vec![[120.0, 120.0], [130.0, 120.0], [125.0, 130.0], [f64::NAN, f64::NAN], [122.0, 122.0], [126.0, 122.0], [124.0, 126.0]], color: [0, 0, 255], fill: Some(0.5), stroke: Stroke::default() });
+        let text = |at: [f64; 2], angle: f64, text: &str| Item::Text { at, height: 4.0, angle, text: text.into(), color: [255; 3], anchor: (Anchor::End, Baseline::Middle) };
+        d.items.push(text([98.0, 150.0], 0.0, "WWWW"));
+        d.items.push(text([150.0, 205.0], 1.0, "MMMM\nWW"));
+        let side = 2048;
+        let place = d.placement(side).unwrap();
+        // The drawing's square from (100, 100) to (200, 200), in the picture's pixels.
+        let (x, y) = ((100.0 - place.origin[0]) * place.scale, (place.origin[1] - 200.0) * place.scale);
+        let part = [x, y, 100.0 * place.scale, 100.0 * place.scale];
+        let k = 600.0 / part[2];
+        let draw = |svg: String| {
+            let tree = usvg::Tree::from_data(svg.as_bytes(), &crate::decode::usvg_options()).unwrap();
+            let mut pixmap = tiny_skia::Pixmap::new(600, 600).unwrap();
+            let t = tiny_skia::Transform::from_row(k as f32, 0.0, 0.0, k as f32, (-part[0] * k) as f32, (-part[1] * k) as f32);
+            resvg::render(&tree, t, &mut pixmap.as_mut());
+            pixmap
+        };
+        let stroke = (1.0 / k) as f32;
+        let (whole, cut) = (draw(d.svg(side, stroke).unwrap()), draw(d.svg_part(side, stroke, Some(part)).unwrap()));
+        WRITTEN.with(|n| n.set(0));
+        d.svg_part(side, stroke, Some(part)).unwrap();
+        assert!(WRITTEN.with(|n| n.get()) < d.items.len() / 2);
+        assert!(whole.data() == cut.data(), "the part drawn differs");
     }
 }

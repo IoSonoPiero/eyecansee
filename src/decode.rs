@@ -493,7 +493,7 @@ pub fn cad_render(d: &crate::cad::Drawing, side: u32, region: Option<([f32; 4], 
         return Ok(img.into_rgba8());
     };
     let (sx, sy) = (ow as f32 / w.max(f32::MIN_POSITIVE), oh as f32 / h.max(f32::MIN_POSITIVE));
-    let tree = usvg::Tree::from_data(d.svg(side, 1.0 / sx)?.as_bytes(), &usvg_options()).map_err(|e| e.to_string())?;
+    let tree = usvg::Tree::from_data(d.svg_part(side, 1.0 / sx, Some([x, y, w, h].map(f64::from)))?.as_bytes(), &usvg_options()).map_err(|e| e.to_string())?;
     let mut pixmap = tiny_skia::Pixmap::new(ow.max(1), oh.max(1)).ok_or("CAD: invalid dimensions")?;
     resvg::render(&tree, tiny_skia::Transform::from_row(sx, 0.0, 0.0, sy, -x * sx, -y * sy), &mut pixmap.as_mut());
     Ok(pixmap_rgba(&pixmap))
