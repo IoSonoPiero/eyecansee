@@ -627,8 +627,8 @@ impl eframe::App for App {
         }
         self.first_start_keys(ctx, raw_input);
         self.viewer_bar_keys(ctx, raw_input);
-        // Save as and Find duplicates cover the grid: Tab, copy and paste are theirs, not its (#311).
-        let page = self.convert.is_some() || self.dup_page_shown();
+        // Save as, Find duplicates and the slideshow cover the grid: Tab, copy and paste are not its (#311).
+        let page = self.convert.is_some() || self.dup_page_shown() || self.show.is_some();
         if page || ctx.egui_wants_keyboard_input() || egui::Popup::is_any_open(ctx) || self.rename.is_some() || self.new_folder.is_some() {
             return;
         }
@@ -645,9 +645,9 @@ impl eframe::App for App {
             }
             return;
         }
-        // Text selected with the mouse (a message in the error bar): Ctrl+C copies it, not the
-        // files of the grid. egui drops the selection at a click elsewhere.
-        let selected = ctx.plugin::<egui::text_selection::LabelSelectionState>().lock().has_selection();
+        // Text selected with the mouse (a message in the error bar), or Measure's results: Ctrl+C
+        // copies them, not the files. egui drops the selection at a click elsewhere.
+        let selected = self.measure_copies() || ctx.plugin::<egui::text_selection::LabelSelectionState>().lock().has_selection();
         let act = &mut self.act;
         let copied = self.clip.as_ref().map(|c| c.text.as_str());
         let viewing = self.viewing.is_some();

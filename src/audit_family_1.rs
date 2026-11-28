@@ -86,6 +86,8 @@ pub(crate) struct Harness {
     pub full: bool,
     /// What the app asked of the window in the last frame.
     pub commands: Vec<egui::ViewportCommand>,
+    /// The text put on the clipboard in the last frame, if any.
+    pub copied: Option<String>,
     /// The window's ✕ is pressed in the next frame (`close`).
     closing: bool,
     /// The frames with one of these keys run in two passes, as egui runs a frame when a pass asks
@@ -112,7 +114,7 @@ impl Harness {
         let ctx = egui::Context::default();
         let settings = Settings { check_updates: false, tips: false, local_permanent: true, servers_plain_warned: true, ..Settings::default() };
         let app = App::new(&ctx, settings, Some(address.to_string()));
-        Harness { ctx, app, frame: eframe::Frame::_new_kittest(), full_asked: false, full_wanted: None, full: false, commands: Vec::new(), closing: false, two_passes: Vec::new() }
+        Harness { ctx, app, frame: eframe::Frame::_new_kittest(), full_asked: false, full_wanted: None, full: false, commands: Vec::new(), copied: None, closing: false, two_passes: Vec::new() }
     }
 
     /// One frame, with `events` (keys) as the window would give them.
@@ -139,6 +141,7 @@ impl Harness {
         let wanted = out.viewport_output.values().flat_map(|v| &v.commands).filter_map(|c| if let egui::ViewportCommand::Fullscreen(f) = c { Some(*f) } else { None }).next_back();
         self.full_wanted = wanted.or(self.full_wanted);
         self.commands = out.viewport_output.values().flat_map(|v| v.commands.iter().cloned()).collect();
+        self.copied = out.platform_output.commands.iter().filter_map(|c| if let egui::OutputCommand::CopyText(t) = c { Some(t.clone()) } else { None }).next_back();
         // No painter: the textures are dropped as handled.
         out.textures_delta.clear();
     }

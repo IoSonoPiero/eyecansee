@@ -88,6 +88,18 @@ impl App {
         m.clear();
     }
 
+    /// Measure is on and can be used on the file shown: not while it is read (`keys_hint` then
+    /// shows the file's own keys, and the double click does what they say).
+    pub(crate) fn measure_in_use(&self) -> bool {
+        self.model.measure.on && self.measure_off().is_none()
+    }
+
+    /// Ctrl+C is Measure's: in use, with results to copy. `raw_input_hook` then lets egui's
+    /// `Event::Copy` through, and `measure_keys` takes it.
+    pub(crate) fn measure_copies(&self) -> bool {
+        self.measure_in_use() && self.model.measure.shown.as_ref().is_some_and(|s| !s.lines.is_empty())
+    }
+
     /// For the status bar while measuring: what is measured, then the results or how to go on.
     pub(crate) fn measure_status(&self) -> Option<(String, bool)> {
         // Not while the file is read: Measure stays on then (audit 27/11, D.7), its results are another file's.
@@ -130,8 +142,10 @@ impl App {
         if !m.on {
             return;
         }
-        // Ctrl+C copies the results, not the file, while there are some.
-        if m.shown.as_ref().is_some_and(|s| !s.lines.is_empty()) && ctx.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::C)) {
+        // Ctrl+C copies the results, not the file, while there are some: egui-winit gives it as
+        // `Event::Copy`, not as the C key. Text selected with the mouse keeps its Ctrl+C.
+        let selected = ctx.plugin::<egui::text_selection::LabelSelectionState>().lock().has_selection();
+        if self.measure_copies() && !selected && ctx.input_mut(|i| take_copy(&mut i.events) | i.consume_key(Modifiers::COMMAND, Key::C)) {
             self.copy_measure(ctx);
         }
         // A model has no areas and no modes: Enter goes back to the grid as without Measure (#345),
@@ -217,6 +231,13 @@ impl App {
     }
 }
 
+/// Takes Ctrl+C (`Event::Copy`) from `events`: whether it was there.
+fn take_copy(events: &mut Vec<egui::Event>) -> bool {
+    let n = events.len();
+    events.retain(|e| !matches!(e, egui::Event::Copy));
+    events.len() != n
+}
+
 /// A value written next to the pointer `at`, on a dark band so it reads on any drawing.
 pub(crate) fn pointer_label(painter: &egui::Painter, at: Pos2, text: &str) {
     let galley = painter.layout_no_wrap(text.to_string(), egui::FontId::proportional(14.0), INK);
@@ -286,7 +307,7 @@ fn snap_mark(painter: &egui::Painter, at: Pos2, kind: Snap) {
 
 #[cfg(test)]
 mod tests {
-    use eframe::egui::Key;
+    use eframe::egui::{self, Key};
 
     use crate::audit_family_1::{Harness, folder, own_folder};
 
@@ -367,5 +388,79 @@ mod tests {
         h.key(Key::M);
         h.frame(Vec::new());
         assert_eq!(line(&h), None, "M again left the line");
+    }
+
+    /// Ctrl+C while measuring copies the results, not the file shown: egui-winit gives Ctrl+C to
+    /// the app as `Event::Copy`, never as the C key, and that event became "copy the file". On a
+    /// drawing with a distance and on a model with its size; with no results it still copies the file.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn ctrl_c_copies_the_results() {
+        if own_folder("measure_view::tests::ctrl_c_copies_the_results") {
+            return;
+        }
+        let mut h = measuring("measure-copy", "c.dxf");
+        // Ctrl+C as the window gives it, then what went on the clipboard and whether a file was copied.
+        let copy = |h: &mut Harness| {
+            h.app.clip = None;
+            h.frame(vec![egui::Event::Copy]);
+            let copied = h.copied.take();
+            h.frame(Vec::new());
+            (copied, h.app.clip.is_some())
+        };
+        let results = |h: &Harness| h.app.model.measure.shown.as_ref().map(super::Shown::text).unwrap_or_default();
+        // What Ctrl+C did, against what it should: the results copied and no file, or with no
+        // results the file. All three seen before the assert.
+        let mut seen = Vec::new();
+        h.app.model.measure.pts = vec![[0.0, 0.0], [100.0, 50.0]];
+        h.frame(Vec::new());
+        assert!(!results(&h).is_empty(), "no results of the distance on the drawing");
+        seen.push(("the drawing measured", copy(&mut h), (Some(results(&h)), false)));
+        h.app.model.measure.pts.clear();
+        h.frame(Vec::new());
+        let file = copy(&mut h);
+        seen.push(("the drawing without results", file.clone(), (file.0.clone(), true)));
+
+        open(&mut h, "a.obj");
+        assert!(h.app.model.measure.on, "Measure went off from the drawing to the model");
+        h.until(|a| a.model.measure.shown.as_ref().is_some_and(|s| !s.lines.is_empty()), "the size of the model measured");
+        seen.push(("the model measured", copy(&mut h), (Some(results(&h)), false)));
+        let wrong: Vec<_> = seen.iter().filter(|(_, got, want)| got != want).collect();
+        assert!(wrong.is_empty(), "Ctrl+C while measuring, (copied, file copied) against what it should: {wrong:#?}");
+    }
+
+    /// #348: the picture of a drawing can be there without its drawing (the viewer closed between
+    /// the two), and the drawing is read again. Meanwhile Measure, left on, cannot be used: the
+    /// list of the keys is the drawing's own, with "Double click: back to the grid", but the double
+    /// click was kept for Measure and did nothing. It does what the list says, as with Measure off.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn double_click_while_the_drawing_is_read_again() {
+        if own_folder("measure_view::tests::double_click_while_the_drawing_is_read_again") {
+            return;
+        }
+        let at = egui::pos2(640.0, 400.0);
+        let button = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+        for on in [true, false] {
+            let mut h = measuring(&format!("measure-double-{on}"), "c.dxf");
+            if !on {
+                h.key(Key::M);
+                h.frame(Vec::new());
+            }
+            let i = h.app.viewing.unwrap();
+            let path = h.app.files()[i].path.clone();
+            // The picture here, the drawing read again (`prefetch_full`): asked for, not in memory yet.
+            h.app.model.cad.drawings.remove(&path);
+            h.app.pending.insert(i);
+            h.frame(vec![egui::Event::PointerMoved(at)]);
+            assert!(h.app.measure_off().is_some() && h.app.model.measure.on == on, "Measure {on}: not as while the drawing is read again");
+            assert_eq!(h.app.keys_hint(i), Some("hint-cad"), "Measure {on}: the list of the keys is not the drawing's own");
+            for _ in 0..2 {
+                h.frame(vec![button(true)]);
+                h.frame(vec![button(false)]);
+            }
+            h.frame(Vec::new());
+            assert_eq!(h.app.viewing, None, "Measure {on}: the double click did not go back to the grid, as the list of the keys says");
+        }
     }
 }

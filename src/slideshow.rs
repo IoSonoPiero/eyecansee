@@ -558,6 +558,61 @@ mod tests {
     }
     use super::*;
 
+    /// The slideshow covers the whole window: Ctrl+C, Ctrl+X, Ctrl+V and Tab, which reach the app
+    /// as events before the frame, are not the grid's under it. Ctrl+V pasted the files copied
+    /// into the folder open, Tab moved the grid's cursor once the slideshow ended. The same
+    /// events in the grid do copy, cut, paste and move, so the test sees them arrive.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn clipboard_and_tab_not_under_the_slideshow() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("slideshow::tests::clipboard_and_tab_not_under_the_slideshow") {
+            return;
+        }
+        let mut h = Harness::new(&folder("show-clip-tab", &["a.png", "b.png", "c.png"]));
+        (h.app.cursor, h.app.selected, h.app.focus) = (true, 0, crate::Focus::Grid);
+        let tab = egui::Event::Key { key: Key::Tab, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+        // In the grid: Ctrl+X cuts and Ctrl+C copies the file with the cursor.
+        h.frame(vec![egui::Event::Cut]);
+        assert!(h.app.clip.as_ref().is_some_and(|c| c.cut), "Ctrl+X in the grid did not cut");
+        h.frame(vec![egui::Event::Copy]);
+        let text = h.app.clip.as_ref().map(|c| c.text.clone()).expect("Ctrl+C in the grid did not copy");
+
+        let ctx = h.ctx.clone();
+        h.app.start_show(&ctx, None);
+        assert!(h.app.show.is_some(), "the slideshow did not start");
+        // Each of the four, seen before the assert: what reached the grid.
+        let mut reached = Vec::new();
+        h.frame(vec![egui::Event::Paste(text.clone())]);
+        if h.app.paste_ask.is_some() || h.app.transfer.is_some() {
+            reached.push("Ctrl+V pasted into the folder");
+        }
+        for (event, what) in [(egui::Event::Copy, "Ctrl+C copied the grid's file"), (egui::Event::Cut, "Ctrl+X cut the grid's file")] {
+            h.app.clip = None;
+            h.frame(vec![event]);
+            if h.app.clip.is_some() {
+                reached.push(what);
+            }
+        }
+        h.frame(vec![tab.clone()]);
+        if h.app.tab.is_some() {
+            reached.push("Tab was kept for the grid");
+        }
+        assert!(reached.is_empty(), "in the slideshow: {reached:?}");
+        h.key(Key::Escape);
+        h.frame(Vec::new());
+        assert!(h.app.show.is_none(), "Esc did not end the slideshow");
+
+        // In the grid again: Tab moves the cursor, Ctrl+V pastes what is copied.
+        let at = h.app.selected;
+        h.frame(vec![tab]);
+        assert_eq!(h.app.selected, at + 1, "Tab in the grid did not move the cursor");
+        h.frame(vec![egui::Event::Copy]);
+        let text = h.app.clip.as_ref().map(|c| c.text.clone()).expect("Ctrl+C in the grid did not copy");
+        h.frame(vec![egui::Event::Paste(text)]);
+        assert!(h.app.paste_ask.is_some(), "Ctrl+V in the grid did not paste");
+    }
+
     /// A picture is never shown larger than its pixels; the still of a video fills the screen as
     /// the video does (Piero, 2026-11-18: small for a moment, then the whole screen).
     #[test]
