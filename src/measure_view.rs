@@ -286,7 +286,7 @@ fn snap_mark(painter: &egui::Painter, at: Pos2, kind: Snap) {
 
 #[cfg(test)]
 mod tests {
-    use eframe::egui::Key;
+    use eframe::egui::{self, Key};
 
     use crate::audit_family_1::{Harness, folder, own_folder};
 
@@ -367,5 +367,44 @@ mod tests {
         h.key(Key::M);
         h.frame(Vec::new());
         assert_eq!(line(&h), None, "M again left the line");
+    }
+
+    /// Ctrl+C while measuring copies the results, not the file shown: egui-winit gives Ctrl+C to
+    /// the app as `Event::Copy`, never as the C key, and that event became "copy the file". On a
+    /// drawing with a distance and on a model with its size; with no results it still copies the file.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn ctrl_c_copies_the_results() {
+        if own_folder("measure_view::tests::ctrl_c_copies_the_results") {
+            return;
+        }
+        let mut h = measuring("measure-copy", "c.dxf");
+        // Ctrl+C as the window gives it, then what went on the clipboard and whether a file was copied.
+        let copy = |h: &mut Harness| {
+            h.app.clip = None;
+            h.frame(vec![egui::Event::Copy]);
+            let copied = h.copied.take();
+            h.frame(Vec::new());
+            (copied, h.app.clip.is_some())
+        };
+        let results = |h: &Harness| h.app.model.measure.shown.as_ref().map(super::Shown::text).unwrap_or_default();
+        // What Ctrl+C did, against what it should: the results copied and no file, or with no
+        // results the file. All three seen before the assert.
+        let mut seen = Vec::new();
+        h.app.model.measure.pts = vec![[0.0, 0.0], [100.0, 50.0]];
+        h.frame(Vec::new());
+        assert!(!results(&h).is_empty(), "no results of the distance on the drawing");
+        seen.push(("the drawing measured", copy(&mut h), (Some(results(&h)), false)));
+        h.app.model.measure.pts.clear();
+        h.frame(Vec::new());
+        let file = copy(&mut h);
+        seen.push(("the drawing without results", file.clone(), (file.0.clone(), true)));
+
+        open(&mut h, "a.obj");
+        assert!(h.app.model.measure.on, "Measure went off from the drawing to the model");
+        h.until(|a| a.model.measure.shown.as_ref().is_some_and(|s| !s.lines.is_empty()), "the size of the model measured");
+        seen.push(("the model measured", copy(&mut h), (Some(results(&h)), false)));
+        let wrong: Vec<_> = seen.iter().filter(|(_, got, want)| got != want).collect();
+        assert!(wrong.is_empty(), "Ctrl+C while measuring, (copied, file copied) against what it should: {wrong:#?}");
     }
 }
