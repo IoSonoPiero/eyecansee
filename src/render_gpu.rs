@@ -248,6 +248,26 @@ pub fn present_mode() -> Option<eframe::egui_wgpu::SurfaceConfig> {
     MAILBOX.load(std::sync::atomic::Ordering::Relaxed).then_some(eframe::egui_wgpu::SurfaceConfig { present_mode: wgpu::PresentMode::Mailbox, desired_maximum_frame_latency: Some(2) })
 }
 
+/// What a frame does for the model it draws (`Gpu::draw`, audit 4.12).
+#[derive(Debug, PartialEq)]
+enum Step {
+    /// It is on the card: drawn.
+    Draw,
+    /// Its vertices and pictures made in this frame and put on the card, then drawn: the window
+    /// waits for them.
+    Upload,
+    /// Its bytes asked of a thread of their own; nothing drawn yet.
+    Start,
+    /// What the thread made put on the card; drawn once it is all there.
+    Take,
+}
+
+/// `on_card`: the model is on the card; `coming`: its bytes are being made (`Step`). Today the
+/// frame makes them.
+fn step(on_card: bool, _coming: bool) -> Step {
+    if on_card { Step::Draw } else { Step::Upload }
+}
+
 /// The picture's textures, made again when the viewer changes size.
 struct Target {
     size: [u32; 2],
@@ -335,7 +355,8 @@ impl Gpu {
     /// `mesh` from `view` at `size` pixels: the texture to paint.
     pub fn draw(&mut self, mesh: &Arc<Mesh>, view: &View, size: [u32; 2]) -> egui::TextureId {
         let size = size.map(|v| v.clamp(1, self.rs.device.limits().max_texture_dimension_2d));
-        if !self.model.as_ref().is_some_and(|m| Arc::ptr_eq(&m.mesh, mesh)) {
+        let on_card = self.model.as_ref().is_some_and(|m| Arc::ptr_eq(&m.mesh, mesh));
+        if step(on_card, false) == Step::Upload {
             let t = std::time::Instant::now();
             self.model = Some(self.upload(mesh));
             log!("model on the graphics card: {} triangles, {} pictures, {:.0?}", mesh.tris.len(), mesh.textures.len(), t.elapsed());
@@ -541,6 +562,15 @@ mod tests {
         let d = frugal_descriptor(base);
         assert!(matches!(d.memory_hints, wgpu::MemoryHints::MemoryUsage));
         assert_eq!((d.label, d.required_limits.max_texture_dimension_2d), (Some("egui wgpu device"), 8192));
+    }
+
+    /// Audit 4.12: a model not on the card yet is not made ready inside the frame (its triangles
+    /// sorted, 132 bytes written for each, its pictures halved down to 1 × 1: seconds with millions
+    /// of triangles, the window stopped): a thread of its own makes its bytes, the frames put them
+    /// on the card as they come and draw it once it is all there.
+    #[test]
+    fn a_model_is_not_made_ready_in_the_frame_4_12() {
+        assert_eq!([step(false, false), step(false, true), step(true, false), step(true, true)], [Step::Start, Step::Take, Step::Draw, Step::Draw]);
     }
 
     use wgpu::{Backend as B, DeviceType as T};
