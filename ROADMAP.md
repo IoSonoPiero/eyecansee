@@ -13,7 +13,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Encrypting and decrypting files and folders with a password, in the age format that opens also without EyeCanSee ([#19](https://github.com/IoSonoPiero/eyecansee/issues/19)).
 - Upload to Immich ([#13](https://github.com/IoSonoPiero/eyecansee/issues/13)).
 - Lens correction for Camera RAW photos (lensfun) ([#14](https://github.com/IoSonoPiero/eyecansee/issues/14)).
-- Drag and drop to copy and move ([#15](https://github.com/IoSonoPiero/eyecansee/issues/15)).
+- Drag and drop to copy and move ([#362](https://github.com/IoSonoPiero/eyecansee/issues/362)).
 
 ### Video
 
