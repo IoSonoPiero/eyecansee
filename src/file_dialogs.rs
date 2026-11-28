@@ -501,7 +501,7 @@ impl App {
         }
         if let (Some(path), Some(loader)) = (self.restore_queue.pop_front(), &self.loader) {
             self.restore_busy = true;
-            loader.restore(path, source::Conflict::Ask);
+            loader.restore(path, source::Conflict::Ask, self.restore_queue.is_empty());
         }
     }
 
@@ -526,7 +526,7 @@ impl App {
             Some(Some(conflict)) => {
                 if let Some(loader) = &self.loader {
                     self.restore_busy = true;
-                    loader.restore(path, conflict);
+                    loader.restore(path, conflict, self.restore_queue.is_empty());
                 }
                 self.restore_conflict = None;
             }

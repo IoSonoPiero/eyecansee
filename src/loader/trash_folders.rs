@@ -7,10 +7,11 @@ use super::{Loader, Msg, at};
 use crate::source::{self, Store};
 
 impl Loader {
-    pub fn restore(&self, path: String, conflict: source::Conflict) {
+    /// `last`: no other item of a Restore all comes after it (`App::next_restore`).
+    pub fn restore(&self, path: String, conflict: source::Conflict, last: bool) {
         let (op, base, tx, ctx) = (self.op.clone(), self.base.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            restore_item(&op, &base, path, conflict, &tx).await;
+            restore_item(&op, &base, path, conflict, last, &tx).await;
             ctx.request_repaint();
         });
     }
@@ -28,13 +29,14 @@ impl Loader {
     }
 }
 
-/// An item of the trash put back (`Loader::restore`); a trash left empty goes.
-async fn restore_item(op: &Store, base: &str, path: String, conflict: source::Conflict, tx: &Sender<Msg>) {
+/// An item of the trash put back (`Loader::restore`); after the `last` one a trash left empty
+/// goes. Asked after each, it was one more listing of the trash for each (audit 2.25).
+async fn restore_item(op: &Store, base: &str, path: String, conflict: source::Conflict, last: bool, tx: &Sender<Msg>) {
     let r = crate::sidecar_follow::restore(op, &path, conflict).await;
     let ok = r.is_ok();
     let trash = source::trash_of(&path);
     let _ = tx.send(at(base, Msg::Restored(path, r)));
-    if ok {
+    if ok && last {
         drop_empty_trash(op, base, trash, tx).await;
     }
 }
@@ -108,9 +110,10 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let (tx, _rx) = std::sync::mpsc::channel();
         let mut reads = Vec::new();
-        for n in names {
-            (FOLDERS_READ.with(|c| c.set(0)), LISTINGS.with(|c| c.set(0)));
-            rt.block_on(restore_item(&op, "test://", format!("p/{TRASH_DIR}/{n}"), Conflict::Ask, &tx));
+        for (i, n) in names.iter().enumerate() {
+            FOLDERS_READ.with(|c| c.set(0));
+            LISTINGS.with(|c| c.set(0));
+            rt.block_on(restore_item(&op, "test://", format!("p/{TRASH_DIR}/{n}"), Conflict::Ask, i == names.len() - 1, &tx));
             reads.push(FOLDERS_READ.with(|c| c.get()) + LISTINGS.with(|c| c.get()));
         }
         assert!(names.iter().all(|n| dir.join("p").join(n).exists()) && !trash.exists(), "all back, the trash gone");

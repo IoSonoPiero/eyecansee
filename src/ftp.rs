@@ -486,6 +486,16 @@ impl Server {
         Ok(self.entries(dir).await?.into_iter().map(|f| f.name).collect())
     }
 
+    /// `names`, each with whether it is a folder (`Store::entries`); a link is followed.
+    pub async fn kinds(&self, dir: &str) -> Result<Vec<(String, bool)>, Error> {
+        let mut kinds = Vec::new();
+        for f in self.entries(dir).await? {
+            let folder = self.entry_is_dir(&format!("{dir}{}", f.name), &f).await;
+            kinds.push((f.name, folder));
+        }
+        Ok(kinds)
+    }
+
     pub async fn size(&self, path: &str) -> Result<u64, Error> {
         with!(self, path, |c| c.s.size(abs(path)).await).map(|n| n as u64)
     }

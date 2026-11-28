@@ -2,7 +2,7 @@
 //! (`source::Store` methods and the name helpers they share). Local files go to the system trash
 //! (the `trash` crate); phones and servers use `.EyeCanSee-trash/` inside the folder.
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -455,19 +455,22 @@ impl Store {
     }
 
     /// Moves the contents of folder `from` into folder `to`: folders on both sides merge, files
-    /// on both sides are both kept. Then `from`, now empty, goes.
+    /// on both sides are both kept. Then `from`, now empty, goes. Each folder is read once
+    /// (audit 2.25): a name given on the way is remembered with the names of both.
     async fn merge(&self, from: &str, to: &str) -> Result<(), Error> {
-        let present = self.names(to).await?;
-        for src in self.children(from).await? {
+        let present: HashMap<String, bool> = self.entries(to).await?.into_iter().collect();
+        let items = self.children(from).await?;
+        let mut taken: HashSet<String> = present.keys().cloned().chain(items.iter().map(|p| name(p).to_string())).collect();
+        for src in items {
             let (child, is_dir) = (name(&src).to_string(), src.ends_with('/'));
-            if !present.contains(&child) {
-                self.move_into(&src, to, &child).await?;
-            } else if is_dir && self.is_dir(&format!("{to}{child}/")).await {
-                Box::pin(self.merge(&src, &format!("{to}{child}/"))).await?;
-            } else {
-                let mut all = self.names(to).await?;
-                all.extend(self.names(from).await?.into_iter().filter(|n| *n != child));
-                self.move_into(&src, to, &free_name(&all, &child)).await?;
+            match present.get(&child) {
+                None => self.move_into(&src, to, &child).await.map(|_| ())?,
+                Some(true) if is_dir => Box::pin(self.merge(&src, &format!("{to}{child}/"))).await?,
+                Some(_) => {
+                    let free = free_name(&taken, &child);
+                    self.move_into(&src, to, &free).await?;
+                    taken.insert(free);
+                }
             }
         }
         self.delete(from, Deletion::Permanent).await
@@ -808,7 +811,8 @@ mod tests {
         let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
         let rt = tokio::runtime::Runtime::new().unwrap();
         let counted = |f: &mut dyn FnMut()| {
-            (FOLDERS_READ.with(|n| n.set(0)), DIRS_ASKED.with(|n| n.set(0)));
+            FOLDERS_READ.with(|n| n.set(0));
+            DIRS_ASKED.with(|n| n.set(0));
             f();
             (FOLDERS_READ.with(|n| n.get()), DIRS_ASKED.with(|n| n.get()))
         };

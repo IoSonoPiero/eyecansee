@@ -298,6 +298,20 @@ impl Store {
         }
     }
 
+    /// Names of everything in a folder, of any type, each with whether it is a folder: one
+    /// listing, where asking `is_dir` of each name was one more per name, on a phone a listing
+    /// of the whole folder (audit 2.25).
+    pub async fn entries(&self, dir: &str) -> Result<Vec<(String, bool)>, Error> {
+        #[cfg(test)]
+        FOLDERS_READ.with(|n| n.set(n.get() + 1));
+        match self {
+            Store::Dal(op) => Ok(local_items(op, dir).await?.into_iter().map(|i| (i.1, i.2)).collect()),
+            Store::Mtp(phone) => phone.kinds(dir).await,
+            Store::Sftp(server) => server.kinds(dir).await,
+            Store::Ftp(server) => server.kinds(dir).await,
+        }
+    }
+
     /// Moves a file or folder (path ending in "/") into `to_dir`, created if missing, with the
     /// name `new_name`; returns the new path. The name must be free (`free_name`), except on this
     /// computer, where a file there is replaced (`local::rename`).
@@ -348,15 +362,12 @@ impl Store {
         if is_trash(dir) {
             paths.extend(self.list_once(&parent(dir)).await?.trashed.into_iter().map(|f| f.path));
         }
-        let names = match self.names(dir).await {
-            Ok(names) => names,
+        let entries = match self.entries(dir).await {
+            Ok(entries) => entries,
             Err(e) if paths.is_empty() => return Err(e),
-            Err(_) => HashSet::new(), // only Android's trash, no folder of ours
+            Err(_) => Vec::new(), // only Android's trash, no folder of ours
         };
-        for n in names {
-            let slash = if self.is_dir(&format!("{dir}{n}/")).await { "/" } else { "" };
-            paths.push(format!("{dir}{n}{slash}"));
-        }
+        paths.extend(entries.into_iter().map(|(n, folder)| format!("{dir}{n}{}", if folder { "/" } else { "" })));
         Ok(paths)
     }
 

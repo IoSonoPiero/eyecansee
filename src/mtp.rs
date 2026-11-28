@@ -434,8 +434,13 @@ impl Phone {
 
     /// Names of everything in a folder, of any type and hidden ones too: `list` keeps only images.
     pub async fn names(&self, dir: &str) -> Result<HashSet<String>, Error> {
+        Ok(self.kinds(dir).await?.into_iter().map(|(n, _)| n).collect())
+    }
+
+    /// `names`, each with whether it is a folder, from the same listing (`Store::entries`).
+    pub async fn kinds(&self, dir: &str) -> Result<Vec<(String, bool)>, Error> {
         if dir.is_empty() {
-            return Ok(self.storages().await?.iter().map(|(n, _)| n.clone()).collect());
+            return Ok(self.storages().await?.iter().map(|(n, _)| (n.clone(), true)).collect());
         }
         let (storage, handle) = self.locate(dir).await?;
         let objects = self.queued("names", dir, storage.list_objects(handle)).await.map_err(error)?;
@@ -446,7 +451,8 @@ impl Phone {
             .into_iter()
             .map(|o| {
                 handles.insert(cache::child(dir, &o.filename, o.is_folder()), o.handle);
-                o.filename
+                let folder = o.is_folder();
+                (o.filename, folder)
             })
             .collect())
     }
