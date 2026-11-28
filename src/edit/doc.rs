@@ -496,7 +496,13 @@ fn through_mirror(op: Op) -> Op {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[cfg(test)]
+thread_local! {
+    /// Copies of a document made on this thread: a frame where nothing changed makes none (audit 5.13).
+    pub static COPIES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[derive(PartialEq, Debug)]
 pub struct Doc {
     pub turn: Turn,
     /// Clockwise, in degrees, as `rotate::Edit`.
@@ -507,6 +513,14 @@ pub struct Doc {
     /// Resize (#114): the photo resampled to this size; `None`: the original's pixels. Everything
     /// above is in pixels of that photo.
     pub scale: Option<super::resize::Scale>,
+}
+
+impl Clone for Doc {
+    fn clone(&self) -> Doc {
+        #[cfg(test)]
+        COPIES.with(|n| n.set(n.get() + 1));
+        Doc { turn: self.turn, angle: self.angle, crop: self.crop, fill: self.fill, objects: self.objects.clone(), scale: self.scale }
+    }
 }
 
 impl Doc {

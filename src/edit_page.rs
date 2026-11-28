@@ -28,6 +28,8 @@ mod crop;
 #[cfg(test)]
 mod defects;
 mod field_font;
+#[cfg(test)]
+mod frame_work;
 mod keys;
 mod open;
 mod patch;

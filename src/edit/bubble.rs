@@ -59,8 +59,16 @@ pub fn lines(text: &str, size: f32, font: Option<&str>, width: f32, options: &us
     out
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Lines measured on this thread (`measure`): a frame where no bubble changed measures none (audit 5.13).
+    pub static MEASURES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// How wide a line is drawn.
 fn measure(line: &str, size: f32, font: Option<&str>, options: &usvg::Options) -> f32 {
+    #[cfg(test)]
+    MEASURES.with(|n| n.set(n.get() + 1));
     let mut svg = String::from(r#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1">"#);
     let _ = super::render::text(&mut svg, (Pt::new(0.0, 0.0), size, 0.0), line, font, "");
     svg.push_str("</svg>");
