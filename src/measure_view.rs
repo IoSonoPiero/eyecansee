@@ -423,4 +423,39 @@ mod tests {
         let wrong: Vec<_> = seen.iter().filter(|(_, got, want)| got != want).collect();
         assert!(wrong.is_empty(), "Ctrl+C while measuring, (copied, file copied) against what it should: {wrong:#?}");
     }
+
+    /// #348: the picture of a drawing can be there without its drawing (the viewer closed between
+    /// the two), and the drawing is read again. Meanwhile Measure, left on, cannot be used: the
+    /// list of the keys is the drawing's own, with "Double click: back to the grid", but the double
+    /// click was kept for Measure and did nothing. It does what the list says, as with Measure off.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn double_click_while_the_drawing_is_read_again() {
+        if own_folder("measure_view::tests::double_click_while_the_drawing_is_read_again") {
+            return;
+        }
+        let at = egui::pos2(640.0, 400.0);
+        let button = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+        for on in [true, false] {
+            let mut h = measuring(&format!("measure-double-{on}"), "c.dxf");
+            if !on {
+                h.key(Key::M);
+                h.frame(Vec::new());
+            }
+            let i = h.app.viewing.unwrap();
+            let path = h.app.files()[i].path.clone();
+            // The picture here, the drawing read again (`prefetch_full`): asked for, not in memory yet.
+            h.app.model.cad.drawings.remove(&path);
+            h.app.pending.insert(i);
+            h.frame(vec![egui::Event::PointerMoved(at)]);
+            assert!(h.app.measure_off().is_some() && h.app.model.measure.on == on, "Measure {on}: not as while the drawing is read again");
+            assert_eq!(h.app.keys_hint(i), Some("hint-cad"), "Measure {on}: the list of the keys is not the drawing's own");
+            for _ in 0..2 {
+                h.frame(vec![button(true)]);
+                h.frame(vec![button(false)]);
+            }
+            h.frame(Vec::new());
+            assert_eq!(h.app.viewing, None, "Measure {on}: the double click did not go back to the grid, as the list of the keys says");
+        }
+    }
 }
