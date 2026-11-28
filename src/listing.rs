@@ -8,6 +8,8 @@ use crate::App;
 
 #[cfg(test)]
 thread_local! {
+    /// The files the listings of the folders seen keep at most (`KEPT_FILES`), lower in a test.
+    pub(crate) static KEPT_FILES_CAP: std::cell::Cell<usize> = const { std::cell::Cell::new(200_000) };
     /// Listings rebuilt without the items deleted or moved away, on this thread (audit 1.8: one
     /// for each file).
     pub(crate) static REBUILT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
@@ -518,6 +520,40 @@ mod tests {
         assert_eq!(h.app.files().len(), N - 80);
         assert_eq!(h.app.files()[0].path, path(80));
         assert_eq!(rebuilt, 1, "the listing rebuilt {rebuilt} times for 40 files moved away");
+    }
+
+    /// Audit 1.14: past the files the listings may keep, the folders seen and left are let go
+    /// (they are read again when visited); the open one and those on the way to it stay. They
+    /// were all kept, with their files, until F5.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn folders_left_let_go_past_the_cap() {
+        if crate::audit_family_1::own_folder("listing::tests::folders_left_let_go_past_the_cap") {
+            return;
+        }
+        let names: Vec<String> = (0..30).map(|i| format!("p{i:02}.png")).collect();
+        let names: Vec<&str> = names.iter().map(String::as_str).collect();
+        let root = crate::audit_family_1::folder("let-go", &["a.png"]);
+        for k in 0..5 {
+            crate::audit_family_1::folder(&format!("let-go/sub{k}"), &names);
+        }
+        KEPT_FILES_CAP.with(|c| c.set(40));
+        let mut h = crate::audit_family_1::Harness::new(&root);
+        let here = h.app.dir.clone();
+        for k in 0..5 {
+            h.app.set_dir(format!("{here}sub{k}/"));
+            h.until(|app| app.files().len() == 30 && app.listing_pending.is_empty(), "the subfolder listed");
+            h.frame(Vec::new());
+        }
+        h.app.go_up();
+        h.until(|app| app.files().len() == 1 && app.listing_pending.is_empty(), "back up");
+        h.frame(Vec::new());
+        let kept: Vec<usize> = (0..5).filter(|k| h.app.listings.contains_key(&format!("{here}sub{k}/"))).collect();
+        assert!(kept.is_empty(), "the subfolders left kept: {kept:?}");
+        assert!(h.app.listings.contains_key(&here) && h.app.listings.contains_key(""), "the open folder and the way to it");
+        // A folder let go is read again when visited.
+        h.app.set_dir(format!("{here}sub0/"));
+        h.until(|app| app.files().len() == 30, "the folder let go read again");
     }
 
     /// Which listings take the place of the one kept, which go in as they are, which change nothing.
