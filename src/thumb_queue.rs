@@ -34,6 +34,15 @@ pub(crate) struct ThumbQueue {
     pub(crate) closed: bool,
 }
 
+impl ThumbQueue {
+    /// `Loader::set_thumb_queue`: `order` in place of the queue, with the files of this
+    /// generation kept, or copied by `files` for a new one.
+    pub(crate) fn replace(&mut self, generation: u64, order: Vec<usize>, files: impl FnOnce() -> Vec<File>) {
+        let files = if self.generation == generation && !self.files.is_empty() { self.files.clone() } else { Arc::new(files()) };
+        *self = ThumbQueue { generation, items: order.into(), files, taken: 0, slow: BTreeMap::new(), closed: false };
+    }
+}
+
 pub(crate) async fn thumb_worker(
     op: Store,
     base: String,

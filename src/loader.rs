@@ -2,7 +2,7 @@
 //! Images for the viewer start straight away; thumbnails go through a priority queue that the
 //! UI rewrites when the selection or the visible rows change.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -233,18 +233,14 @@ impl Loader {
 
     pub fn next_generation(&self) -> u64 {
         let generation = self.generation.fetch_add(1, Ordering::Relaxed) + 1;
-        *self.queue.lock().unwrap() = ThumbQueue { generation, ..ThumbQueue::default() };
-        self.wake.notify_waiters();
+        self.set_thumb_queue(generation, Vec::new(), Vec::new);
         generation
     }
 
     /// Replaces the thumbnail queue: positions in the folder's files, the order is the priority.
     /// `files` copies them, once for each generation: the queues after it keep that copy.
     pub fn set_thumb_queue(&self, generation: u64, order: Vec<usize>, files: impl FnOnce() -> Vec<File>) {
-        let mut q = self.queue.lock().unwrap();
-        let files = if q.generation == generation && !q.files.is_empty() { q.files.clone() } else { Arc::new(files()) };
-        *q = ThumbQueue { generation, items: order.into(), files, taken: 0, slow: BTreeMap::new(), closed: false };
-        drop(q);
+        self.queue.lock().unwrap().replace(generation, order, files);
         self.wake.notify_waiters();
     }
 
