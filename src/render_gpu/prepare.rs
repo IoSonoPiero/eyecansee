@@ -4,6 +4,8 @@
 use crate::model::{DEFAULT, Mesh, Surface};
 use crate::render3d;
 
+use super::STRIDE;
+
 /// The surface of triangle `i`, if it has one.
 fn surface(mesh: &Mesh, i: usize) -> Option<&Surface> {
     mesh.surfaces.get((*mesh.surface.get(i)? as usize).checked_sub(1)?)
@@ -17,7 +19,7 @@ fn key(mesh: &Mesh, i: usize) -> [u16; 5] {
 
 /// The triangles' pictures (`key`, 0 where it is not among the `pictures`) and the triangles
 /// sorted by them.
-pub(super) fn order(mesh: &Mesh, pictures: usize) -> (Vec<[u16; 5]>, Vec<usize>) {
+fn order(mesh: &Mesh, pictures: usize) -> (Vec<[u16; 5]>, Vec<usize>) {
     let keys: Vec<[u16; 5]> = (0..mesh.tris.len()).map(|i| key(mesh, i).map(|k| if (k as usize) < pictures { k } else { 0 })).collect();
     let mut order: Vec<usize> = (0..mesh.tris.len()).collect();
     order.sort_by_key(|&i| keys[i]);
@@ -26,7 +28,7 @@ pub(super) fn order(mesh: &Mesh, pictures: usize) -> (Vec<[u16; 5]>, Vec<usize>)
 
 /// A picture's bytes followed by those of its smaller copies down to 1 × 1, and how many there
 /// are with it.
-pub(super) fn mips(img: &image::RgbaImage) -> (u32, Vec<u8>) {
+fn mips(img: &image::RgbaImage) -> (u32, Vec<u8>) {
     let levels = 32 - img.width().max(img.height()).leading_zeros();
     let mut data = img.as_raw().clone();
     let mut level = img.clone();
@@ -61,7 +63,7 @@ pub(super) fn cap_vertices(mesh: &Mesh, cut: &render3d::Cut, out: &mut Vec<u8>) 
 }
 
 /// The three vertices of triangle `i` (`STRIDE` bytes each).
-pub(super) fn vertices(mesh: &Mesh, i: usize, out: &mut Vec<u8>) {
+fn vertices(mesh: &Mesh, i: usize, out: &mut Vec<u8>) {
     let [r, g, b] = mesh.colors.get(i).copied().unwrap_or(DEFAULT);
     let uv = mesh.uv.get(i).copied().unwrap_or_default();
     let normals = mesh.normals.get(i).copied().unwrap_or_default();
@@ -76,5 +78,139 @@ pub(super) fn vertices(mesh: &Mesh, i: usize, out: &mut Vec<u8>) {
         out.extend(uv[k].iter().chain(&normals[k]).flat_map(|f| f.to_le_bytes()));
         out.extend(pbr);
         out.extend([glow[0], glow[1], glow[2], 255]);
+    }
+}
+
+/// A picture for the card: its size, how many copies with it (mipmaps) and their bytes.
+pub(super) struct Picture {
+    pub size: [u32; 2],
+    pub levels: u32,
+    pub data: Vec<u8>,
+}
+
+/// What the card is given for a model, one after the other (`model`).
+pub(super) enum Part {
+    /// Its pictures, the white one first (`Mesh::textures` after it).
+    Pictures(Vec<Picture>),
+    /// Triangles that have the same pictures (`key`): how many vertices, and their bytes.
+    Piece([u16; 5], u32, Vec<u8>),
+}
+
+/// How many triangles a piece holds at most, for buffers of `limit` bytes at most.
+pub(super) fn per(limit: u64) -> usize {
+    (limit / (STRIDE * 3)).max(1) as usize
+}
+
+/// The parts of `mesh` for the card (`Part`), to `send` in order, made outside the window's
+/// frame (audit 4.12): its pictures with their copies, then its triangles grouped by pictures,
+/// `per` at most in a piece. `send` says `false` when they are no longer wanted: nothing more is
+/// made.
+pub(super) fn model(mesh: &Mesh, per: usize, mut send: impl FnMut(Part) -> bool) {
+    let white = image::RgbaImage::from_pixel(1, 1, image::Rgba([255; 4]));
+    let pictures: Vec<Picture> = std::iter::once(&white).chain(mesh.textures.iter().map(|t| &**t)).map(picture).collect();
+    let n = pictures.len();
+    if !send(Part::Pictures(pictures)) {
+        return;
+    }
+    let (keys, order) = order(mesh, n);
+    for group in order.chunk_by(|&a, &b| keys[a] == keys[b]) {
+        for tris in group.chunks(per) {
+            let mut bytes = Vec::with_capacity(tris.len() * 3 * STRIDE as usize);
+            for &i in tris {
+                vertices(mesh, i, &mut bytes);
+            }
+            if !send(Part::Piece(keys[group[0]], tris.len() as u32 * 3, bytes)) {
+                return;
+            }
+        }
+    }
+}
+
+/// A picture with its smaller copies.
+fn picture(img: &image::RgbaImage) -> Picture {
+    let (levels, data) = mips(img);
+    Picture { size: [img.width(), img.height()], levels, data }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A model of `n` triangles, read from a binary STL.
+    fn stl(n: usize) -> Mesh {
+        let mut b = vec![0u8; 80];
+        b.extend((n as u32).to_le_bytes());
+        for i in 0..n {
+            let x = i as f32;
+            for v in [[0.0f32; 3], [x, 0.0, 0.0], [x, 1.0, 0.0], [x, 0.0, 1.0]] {
+                b.extend(v.iter().flat_map(|c| c.to_le_bytes()));
+            }
+            b.extend([0, 0]);
+        }
+        crate::model::parse(&b, "a.stl").unwrap()
+    }
+
+    /// Audit 4.12: the parts in order, the pictures first (the white one, then the model's with
+    /// their copies), then the triangles grouped by pictures, `per` at most in a piece: all of
+    /// them, each vertex `STRIDE` bytes.
+    #[test]
+    fn the_parts_of_a_model_4_12() {
+        let mut mesh = stl(5);
+        mesh.textures = vec![std::sync::Arc::new(image::RgbaImage::new(8, 4))];
+        mesh.tex = vec![1, 0, 1, 0, 1];
+        mesh.uv = vec![[[0.0; 2]; 3]; 5];
+        let mut parts = Vec::new();
+        model(&mesh, 2, |p| {
+            parts.push(match p {
+                Part::Pictures(p) => format!("pictures {:?}", p.iter().map(|p| (p.size, p.levels, p.data.len())).collect::<Vec<_>>()),
+                Part::Piece(k, n, b) => format!("piece {} {n} {}", k[0], b.len() as u64 / STRIDE),
+            });
+            true
+        });
+        assert_eq!(parts, ["pictures [([1, 1], 1, 4), ([8, 4], 4, 172)]", "piece 0 6 6", "piece 1 6 6", "piece 1 3 3"]);
+    }
+
+    /// No longer wanted (another model, the viewer closed): nothing more is made.
+    #[test]
+    fn the_parts_stop_when_not_wanted() {
+        let mut sent = 0;
+        model(&stl(10), 2, |_| {
+            sent += 1;
+            sent < 2
+        });
+        assert_eq!(sent, 2);
+    }
+
+    /// The bytes of the vertices are made a piece at a time, never all together: 100 000
+    /// triangles (13 MB of vertices) in pieces of 1000.
+    #[test]
+    fn the_vertices_made_a_piece_at_a_time() {
+        let mesh = stl(100_000);
+        let ((), held) = crate::test_alloc::peak(|| model(&mesh, 1000, |_| true));
+        let all = mesh.tris.len() * 3 * STRIDE as usize;
+        assert!(held < all / 4, "held {held} bytes for {all} of vertices");
+    }
+
+    /// How long the parts of a model of the private collection take, as the log says it at the end
+    /// of `Gpu::take` ("model on the graphics card: … in …"), less the copies onto the card:
+    /// `EYECANSEE_MODEL=<file> cargo test --release model_parts_time -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "a model of the private collection, named by EYECANSEE_MODEL"]
+    fn model_parts_time() {
+        let path = std::env::var("EYECANSEE_MODEL").expect("EYECANSEE_MODEL=<a model>");
+        let bytes = std::fs::read(&path).unwrap();
+        let t = std::time::Instant::now();
+        let mesh = crate::model::parse(&bytes, &path).unwrap();
+        let read = t.elapsed();
+        let t = std::time::Instant::now();
+        let (mut pieces, mut sum) = (0, 0);
+        model(&mesh, per(128 << 20), |p| {
+            if let Part::Piece(_, _, b) = &p {
+                pieces += 1;
+                sum += b.len();
+            }
+            true
+        });
+        println!("model on the graphics card: {} triangles, {} pictures, {:.0?} ({pieces} pieces, {} MB; the file read in {read:.0?})", mesh.tris.len(), mesh.textures.len(), t.elapsed(), sum >> 20);
     }
 }

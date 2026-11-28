@@ -54,7 +54,7 @@ impl App {
             log!("graphics card: {} ({:?}, {:?}, driver {} {})", i.name, i.device_type, i.backend, i.driver, i.driver_info);
             crate::render_gpu::keep_card(i);
         }
-        self.model.gpu = cc.wgpu_render_state.clone().map(Gpu::new);
+        self.model.gpu = cc.wgpu_render_state.clone().map(|rs| Gpu::new(rs, cc.egui_ctx.clone()));
         // Pictures shown smaller than their pixels, filtered on the card.
         if let Some(rs) = &cc.wgpu_render_state {
             crate::smooth_gpu::init(rs, &cc.egui_ctx);
@@ -185,7 +185,8 @@ impl App {
         let view = self.model.view;
         // Without a graphics card, drawn on the processor (`model_cpu`).
         let id = match self.model.gpu.as_mut() {
-            Some(gpu) => Some(gpu.draw(&mesh, &view, size)),
+            // `None` while it is on its way to the card (`render_gpu::Step`): a spinner meanwhile.
+            Some(gpu) => gpu.draw(&mesh, &view, size),
             None => self.model_cpu_picture(ui.ctx(), &path, &mesh, view, size),
         };
         let painter = ui.painter_at(rect);
@@ -198,8 +199,12 @@ impl App {
         sky.add_triangle(0, 1, 2);
         sky.add_triangle(0, 2, 3);
         painter.add(sky);
-        if let Some(id) = id {
-            crate::paint::paint_frame(&painter, id, rect, Default::default());
+        match id {
+            Some(id) => crate::paint::paint_frame(&painter, id, rect, Default::default()),
+            None if self.model.gpu.is_some() => {
+                ui.put(egui::Rect::from_center_size(rect.center(), egui::vec2(32.0, 32.0)), egui::Spinner::new());
+            }
+            None => {}
         }
         axes_corner(&painter, rect, render3d::axes(&view, mesh.z_up));
         self.section_plane(&painter, rect, &mesh, &view);

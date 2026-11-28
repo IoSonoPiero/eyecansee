@@ -253,19 +253,32 @@ pub fn present_mode() -> Option<eframe::egui_wgpu::SurfaceConfig> {
 enum Step {
     /// It is on the card: drawn.
     Draw,
-    /// Its vertices and pictures made in this frame and put on the card, then drawn: the window
-    /// waits for them.
-    Upload,
     /// Its bytes asked of a thread of their own; nothing drawn yet.
     Start,
     /// What the thread made put on the card; drawn once it is all there.
     Take,
 }
 
-/// `on_card`: the model is on the card; `coming`: its bytes are being made (`Step`). Today the
-/// frame makes them.
-fn step(on_card: bool, _coming: bool) -> Step {
-    if on_card { Step::Draw } else { Step::Upload }
+/// `on_card`: the model is on the card; `coming`: its bytes are being made (`Step`). They were
+/// made inside the frame: with millions of triangles the window stopped for that time.
+fn step(on_card: bool, coming: bool) -> Step {
+    match (on_card, coming) {
+        (true, _) => Step::Draw,
+        (false, false) => Step::Start,
+        (false, true) => Step::Take,
+    }
+}
+
+/// A model on its way to the card: the parts its thread makes (`prepare::model`), put on the
+/// card as they come, a piece at a time.
+struct Coming {
+    mesh: Arc<Mesh>,
+    parts: std::sync::mpsc::Receiver<prepare::Part>,
+    views: Vec<wgpu::TextureView>,
+    pieces: Vec<Piece>,
+    pictures: Vec<wgpu::BindGroup>,
+    groups: HashMap<[u16; 5], usize>,
+    started: std::time::Instant,
 }
 
 /// The picture's textures, made again when the viewer changes size.
@@ -301,11 +314,15 @@ pub struct Gpu {
     picture_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
     model: Option<Model>,
+    /// The model being put on the card.
+    coming: Option<Coming>,
     target: Option<Target>,
+    /// To be drawn again when a part of a model is made.
+    ctx: egui::Context,
 }
 
 impl Gpu {
-    pub fn new(rs: RenderState) -> Self {
+    pub fn new(rs: RenderState, ctx: egui::Context) -> Self {
         let device = &rs.device;
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("model"), source: wgpu::ShaderSource::Wgsl(SHADER.into()) });
         let camera = device.create_buffer(&wgpu::BufferDescriptor { label: Some("camera"), size: CAMERA, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
@@ -339,7 +356,7 @@ impl Gpu {
         let pipeline = make_pipeline(device, &pipeline_layout, &module, Pass::Model);
         let stencil = make_pipeline(device, &pipeline_layout, &module, Pass::Inside);
         let cap = make_pipeline(device, &pipeline_layout, &module, Pass::Cap);
-        Gpu { rs, pipeline, stencil, cap, camera, bind, picture_layout, sampler, model: None, target: None }
+        Gpu { rs, pipeline, stencil, cap, camera, bind, picture_layout, sampler, model: None, coming: None, target: None, ctx }
     }
 
     /// Lets go of the model and of the picture it is drawn into (`App::card_lets_go`); the next
@@ -347,19 +364,29 @@ impl Gpu {
     /// the picture, is already drawn.
     pub fn forget(&mut self) {
         self.model = None;
+        self.coming = None;
         if let Some(t) = self.target.take() {
             self.rs.renderer.write().free_texture(&t.id);
         }
     }
 
-    /// `mesh` from `view` at `size` pixels: the texture to paint.
-    pub fn draw(&mut self, mesh: &Arc<Mesh>, view: &View, size: [u32; 2]) -> egui::TextureId {
+    /// `mesh` from `view` at `size` pixels: the texture to paint; `None` while the model is on
+    /// its way to the card (`Step`).
+    pub fn draw(&mut self, mesh: &Arc<Mesh>, view: &View, size: [u32; 2]) -> Option<egui::TextureId> {
         let size = size.map(|v| v.clamp(1, self.rs.device.limits().max_texture_dimension_2d));
         let on_card = self.model.as_ref().is_some_and(|m| Arc::ptr_eq(&m.mesh, mesh));
-        if step(on_card, false) == Step::Upload {
-            let t = std::time::Instant::now();
-            self.model = Some(self.upload(mesh));
-            log!("model on the graphics card: {} triangles, {} pictures, {:.0?}", mesh.tris.len(), mesh.textures.len(), t.elapsed());
+        let coming = self.coming.as_ref().is_some_and(|c| Arc::ptr_eq(&c.mesh, mesh));
+        match step(on_card, coming) {
+            Step::Draw => {}
+            Step::Start => {
+                self.start(mesh);
+                return None;
+            }
+            Step::Take => {
+                if !self.take() {
+                    return None;
+                }
+            }
         }
         if self.target.as_ref().is_none_or(|t| t.size != size) {
             self.target = Some(self.target(size));
@@ -421,34 +448,62 @@ impl Gpu {
             pieces(&mut pass);
         }
         self.rs.queue.submit([encoder.finish()]);
-        t.id
+        Some(t.id)
     }
 
-    /// Three vertices per triangle, grouped by pictures, in pieces of at most 128 MB or the
-    /// card's limit; and the pictures.
-    fn upload(&self, mesh: &Arc<Mesh>) -> Model {
-        let mut views = vec![self.picture(&image::RgbaImage::from_pixel(1, 1, image::Rgba([255; 4])))];
-        views.extend(mesh.textures.iter().map(|img| self.picture(img)));
-        let (keys, order) = prepare::order(mesh, views.len());
-        let limit = self.rs.device.limits().max_buffer_size.min(128 << 20);
-        let per = (limit / (STRIDE * 3)).max(1) as usize;
-        let (mut pieces, mut pictures, mut groups) = (Vec::new(), Vec::new(), HashMap::new());
-        for group in order.chunk_by(|&a, &b| keys[a] == keys[b]) {
-            let k = keys[group[0]];
-            let at = *groups.entry(k).or_insert_with(|| {
-                pictures.push(self.bind(&views, k));
-                pictures.len() - 1
+    /// The bytes of `mesh` asked of a thread of their own (`prepare::model`): three vertices per
+    /// triangle, grouped by pictures, in pieces of at most 128 MB or the card's limit, and the
+    /// pictures with their copies. At most one piece waits for the window: the thread waits for
+    /// it to be taken.
+    fn start(&mut self, mesh: &Arc<Mesh>) {
+        self.model = None;
+        let per = prepare::per(self.rs.device.limits().max_buffer_size.min(128 << 20));
+        let (tx, parts) = std::sync::mpsc::sync_channel(1);
+        let (m, ctx) = (mesh.clone(), self.ctx.clone());
+        let job = move || {
+            prepare::model(&m, per, |part| {
+                let sent = tx.send(part).is_ok();
+                ctx.request_repaint();
+                sent
             });
-            for tris in group.chunks(per) {
-                let mut bytes = Vec::with_capacity(tris.len() * 3 * STRIDE as usize);
-                for &i in tris {
-                    prepare::vertices(mesh, i, &mut bytes);
+        };
+        if let Err(e) = std::thread::Builder::new().name("model on the card".into()).spawn(job) {
+            log!("model on the graphics card: no thread ({e})");
+        }
+        let started = std::time::Instant::now();
+        self.coming = Some(Coming { mesh: mesh.clone(), parts, views: Vec::new(), pieces: Vec::new(), pictures: Vec::new(), groups: HashMap::new(), started });
+    }
+
+    /// The parts of the model on its way made meanwhile, put on the card: buffers and textures
+    /// only. `true` once it is all there (`model`).
+    fn take(&mut self) -> bool {
+        let Some(mut c) = self.coming.take() else { return false };
+        loop {
+            match c.parts.try_recv() {
+                Ok(prepare::Part::Pictures(p)) => c.views = p.iter().map(|p| self.picture(p)).collect(),
+                Ok(prepare::Part::Piece(k, vertices, bytes)) => {
+                    let at = *c.groups.entry(k).or_insert_with(|| {
+                        c.pictures.push(self.bind(&c.views, k));
+                        c.pictures.len() - 1
+                    });
+                    let buffer = self.rs.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("model"), contents: &bytes, usage: wgpu::BufferUsages::VERTEX });
+                    c.pieces.push((buffer, vertices, at));
                 }
-                let buffer = self.rs.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("model"), contents: &bytes, usage: wgpu::BufferUsages::VERTEX });
-                pieces.push((buffer, tris.len() as u32 * 3, at));
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    self.coming = Some(c);
+                    return false;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
             }
         }
-        Model { mesh: mesh.clone(), pieces, pictures, plain: self.bind(&views, [0; 5]) }
+        if c.views.is_empty() {
+            log!("model on the graphics card: its pictures never came");
+            return false;
+        }
+        log!("model on the graphics card: {} triangles, {} pictures, {:.0?} (made outside the window's frames)", c.mesh.tris.len(), c.mesh.textures.len(), c.started.elapsed());
+        let plain = self.bind(&c.views, [0; 5]);
+        self.model = Some(Model { mesh: c.mesh, pieces: c.pieces, pictures: c.pictures, plain });
+        true
     }
 
     /// The pictures of one group (`key`), white where there is none.
@@ -464,19 +519,18 @@ impl Gpu {
 
     /// A picture on the card with its smaller copies (mipmaps), so that far away it does not
     /// shimmer.
-    fn picture(&self, img: &image::RgbaImage) -> wgpu::TextureView {
-        let (levels, data) = prepare::mips(img);
+    fn picture(&self, p: &prepare::Picture) -> wgpu::TextureView {
         let desc = wgpu::TextureDescriptor {
             label: Some("picture"),
-            size: wgpu::Extent3d { width: img.width(), height: img.height(), depth_or_array_layers: 1 },
-            mip_level_count: levels,
+            size: wgpu::Extent3d { width: p.size[0], height: p.size[1], depth_or_array_layers: 1 },
+            mip_level_count: p.levels,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: FORMAT,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         };
-        self.rs.device.create_texture_with_data(&self.rs.queue, &desc, wgpu::util::TextureDataOrder::LayerMajor, &data).create_view(&Default::default())
+        self.rs.device.create_texture_with_data(&self.rs.queue, &desc, wgpu::util::TextureDataOrder::LayerMajor, &p.data).create_view(&Default::default())
     }
 
     fn target(&self, size: [u32; 2]) -> Target {
