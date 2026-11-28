@@ -84,3 +84,55 @@ impl Window {
         self.marquee = None;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use eframe::egui::{Event, Modifiers, PointerButton, pos2};
+
+    use super::super::Tool;
+    use crate::audit_family_1::{Harness, own_folder};
+    use crate::edit::doc::{Area, Obj, Preview, Pt, Shape, Style};
+
+    /// The width of the preview of the filter, the first object.
+    fn preview_width(h: &Harness) -> u32 {
+        match &h.app.editor.as_ref().unwrap().doc.objects[0].shape {
+            Shape::Filter { preview: Preview(Some((_, _, p))), .. } => p.image().width(),
+            _ => 0,
+        }
+    }
+
+    /// Audit 5.14 (#295): the previews of the filters were made again at up to 1200 pixels in the
+    /// frame at every step of the slider of the amount, as the pointer moved it. Now at 400 while
+    /// a button is held, as during a drag on the image, and sharp again once let go.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn audit_5_14_a_filter_follows_its_slider_small() {
+        if own_folder("edit_page::previews::tests::audit_5_14_a_filter_follows_its_slider_small") {
+            return;
+        }
+        let dir = crate::audit_family_1::guard().join("five-fourteen-filter");
+        std::fs::create_dir_all(&dir).unwrap();
+        image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(2000, 1500, image::Rgb([200, 120, 40]))).save(dir.join("a.png")).unwrap();
+        let mut h = Harness::new(&dir);
+        super::super::defects::editor(&mut h, "a.png", Tool::Select);
+        let area = Area { centre: Pt::new(0.0, 0.0), w: 2000.0, h: 1500.0, rot: 0.0 };
+        let filter = Shape::Filter { area, filter: crate::edit::filter::Filter::Blur, amount: 4.0, preview: Default::default() };
+        h.app.editor.as_mut().unwrap().doc.objects.push(Obj { shape: filter, style: Style::default() });
+        h.frame(Vec::new());
+        assert_eq!(preview_width(&h), 1200);
+        // The button held on the slider (here on the status bar, which takes no drag), the amount moved.
+        let at = pos2(4.0, 796.0);
+        let button = |pressed| Event::PointerButton { pos: at, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+        h.frame(vec![Event::PointerMoved(at), button(true)]);
+        if let Shape::Filter { amount, .. } = &mut h.app.editor.as_mut().unwrap().doc.objects[0].shape {
+            *amount = 6.0;
+        }
+        h.frame(Vec::new());
+        let held = preview_width(&h);
+        eprintln!("preview made while the slider is held: {held} pixels wide");
+        assert!(held <= 400, "the preview made sharp at every step of the slider: {held}");
+        h.frame(vec![button(false)]);
+        h.frame(Vec::new());
+        assert_eq!(preview_width(&h), 1200, "sharp again once let go");
+    }
+}
