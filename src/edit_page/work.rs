@@ -10,6 +10,8 @@ use std::sync::mpsc::{self, Receiver, TryRecvError};
 use eframe::egui::{self, ColorImage};
 
 use super::Window;
+use crate::App;
+use crate::edit::doc::{Area, Pixels};
 use crate::edit::resize::Scale;
 use crate::encode::Original;
 
@@ -18,6 +20,8 @@ pub(super) enum Done {
     /// The photo at the size of `Scale` (`None`: the original's), its preview and the preview's
     /// halves (`mipmap`).
     Photo(Option<Scale>, Arc<Original>, ColorImage, Vec<ColorImage>),
+    /// The part chosen copied: where it was, its pixels, and as the clipboard takes them.
+    Part(Area, Pixels, ColorImage),
 }
 
 /// The work under way.
@@ -26,6 +30,10 @@ pub(super) struct Aside {
     jobs: Vec<Receiver<Done>>,
     /// The size the photo is being resampled to.
     pub resampling: Option<Option<Scale>>,
+    /// A part is being copied (`copy_part`): a Paste meanwhile waits for it (`paste_after`), or it
+    /// would paste what the clipboard held before.
+    pub copying_part: bool,
+    pub paste_after: bool,
 }
 
 impl Window {
@@ -52,9 +60,9 @@ impl Window {
         !self.aside.jobs.is_empty()
     }
 
-    /// The results arrived since the last frame, taken in. A job that stopped without one (a
-    /// fault) is dropped with what waited for it.
-    pub(super) fn arrived(&mut self, ctx: &egui::Context) {
+    /// The results arrived since the last frame: the photo shown, the others returned. A job
+    /// that stopped without one (a fault) is dropped with what waited for it.
+    pub(super) fn arrived(&mut self, ctx: &egui::Context) -> Vec<Done> {
         let mut done = Vec::new();
         let mut lost = false;
         self.aside.jobs.retain(|rx| match rx.try_recv() {
@@ -74,9 +82,26 @@ impl Window {
                 self.aside = Aside::default();
             }
         }
-        for d in done {
-            match d {
-                Done::Photo(scale, photo, preview, halves) => self.photo_arrived(ctx, scale, photo, (preview, halves)),
+        done.into_iter()
+            .filter_map(|d| match d {
+                Done::Photo(scale, photo, preview, halves) => {
+                    self.photo_arrived(ctx, scale, photo, (preview, halves));
+                    None
+                }
+                d => Some(d),
+            })
+            .collect()
+    }
+}
+
+impl App {
+    /// The work aside done since the last frame (`Window::arrived`), taken in: the part copied
+    /// goes to the clipboard.
+    pub(super) fn edit_work(&mut self, ctx: &egui::Context, w: &mut Window) {
+        for done in w.arrived(ctx) {
+            match done {
+                Done::Part(area, pixels, shown) => self.part_copied(ctx, w, (area, pixels, shown)),
+                Done::Photo(..) => {}
             }
         }
     }

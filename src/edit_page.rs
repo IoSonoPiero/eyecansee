@@ -653,7 +653,7 @@ impl App {
         if !w.asking() && !crate::zoom_bar::typing(ui.ctx(), ZOOM_SALT) && ui.input(|i| i.key_pressed(egui::Key::Escape)) && !w.escape() {
             open = false;
         }
-        w.arrived(ui.ctx());
+        self.edit_work(ui.ctx(), &mut w);
         w.follow_size(ui.ctx());
         let tex = match &w.original {
             Some(Ok((_, tex, _))) => Some(tex.clone()),

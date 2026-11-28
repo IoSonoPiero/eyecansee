@@ -64,31 +64,47 @@ impl App {
 
     /// The part chosen with Selection copied as it is seen: the photo with the filters, the
     /// highlighters, the objects drawn and the cover boxes (it was the photo alone: user,
-    /// 2026-11-06), as a magnifier of 1× with its objects makes it. `false` when there is none.
+    /// 2026-11-06), as a magnifier of 1× with its objects makes it. Made in a thread aside from
+    /// the document as it is now (audit 5.14: up to 8000 × 8000, the window still meanwhile), the
+    /// clipboard and Paste have it once it comes (`part_copied`). `false` when there is none.
     fn copy_part(&mut self, ctx: &egui::Context) -> bool {
-        use crate::edit::doc::{Pixels, Preview};
         let Some(w) = &mut self.editor else { return false };
         let (Some(area), Some(Ok((original, ..)))) = (w.marquee, &w.original) else { return false };
-        let area = w.doc.on_pixels(area, (original.image.width(), original.image.height()));
-        let filtered: Vec<crate::edit::photo::Filtered> = w.doc.objects.iter().filter_map(|f| if let Shape::Filter { preview: Preview(Some((a, _, p))), .. } = &f.shape { Some((*a, p.image())) } else { None }).collect();
-        let fonts = crate::decode::usvg_options();
-        let pixels = Pixels::new(crate::edit::photo::lens(&w.doc, &original.image, &area, (1.0, 8000), &filtered, Some((&w.doc.objects, &fonts))));
-        let img = pixels.image();
-        ctx.copy_image(ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw()));
-        if let Some(size) = watch_size(w) {
-            let (part, ctx) = (pixels.clone(), ctx.clone());
-            crate::logging::spawn_named("edit-copy-check", move || {
-                let img = part.image();
-                if let Some(n) = crate::edit::clip_limit::too_large(img.as_raw(), img.width(), img.height())
-                    && size.send(n).is_ok()
-                {
-                    ctx.request_repaint();
-                }
-            });
-        }
+        let photo = original.clone();
+        let (area, doc) = (w.doc.on_pixels(area, w.upright()), w.doc.clone());
+        let size = watch_size(w);
+        w.aside.copying_part = true;
+        w.aside(ctx, "edit-copy-part", move || {
+            use crate::edit::doc::{Pixels, Preview};
+            // The photo at the document's size, also while it is resampled (`follow_size`).
+            let photo = crate::edit::resize::at_size(&photo, doc.scale);
+            let filtered: Vec<crate::edit::photo::Filtered> = doc.objects.iter().filter_map(|f| if let Shape::Filter { preview: Preview(Some((a, _, p))), .. } = &f.shape { Some((*a, p.image())) } else { None }).collect();
+            let fonts = crate::decode::usvg_options();
+            let pixels = Pixels::new(crate::edit::photo::lens(&doc, &photo.image, &area, (1.0, 8000), &filtered, Some((&doc.objects, &fonts))));
+            let img = pixels.image();
+            if let Some(size) = size
+                && let Some(n) = crate::edit::clip_limit::too_large(img.as_raw(), img.width(), img.height())
+            {
+                let _ = size.send(n);
+            }
+            let shown = ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw());
+            super::work::Done::Part(area, pixels, shown)
+        });
+        true
+    }
+
+    /// The part copied (`copy_part`) came: in the clipboard, kept for Paste, and pasted when a
+    /// Paste waited for it.
+    pub(super) fn part_copied(&mut self, ctx: &egui::Context, w: &mut super::Window, (area, pixels, shown): (crate::edit::doc::Area, crate::edit::doc::Pixels, ColorImage)) {
+        ctx.copy_image(shown);
         w.clip = Some((area, pixels));
         w.note = Some((self.i18n.t("edit-part-copied"), ctx.input(|i| i.time) + 4.0));
-        true
+        w.aside.copying_part = false;
+        if std::mem::take(&mut w.aside.paste_after)
+            && let Some((area, pixels)) = w.clip_patch(None)
+        {
+            w.put_patch(area, pixels);
+        }
     }
 
     /// Ctrl+X or Cut: the part copied, then covered with the colour of the empty corners (white
@@ -123,13 +139,13 @@ impl App {
     /// silent, as when the clipboard holds text).
     pub(crate) fn edit_paste(&mut self, ctx: &egui::Context, img: Option<std::sync::Arc<ColorImage>>) {
         let Some(w) = &mut self.editor else { return };
-        // An image of another size in the clipboard was copied elsewhere after the part: it wins.
-        let clip = w.clip.as_ref().filter(|(_, p)| img.as_ref().is_none_or(|i| i.size == [p.image().width() as usize, p.image().height() as usize]));
-        let (area, pixels) = match (clip, img) {
-            (Some((a, p)), _) => {
-                let step = w.long() / 40.0;
-                (crate::edit::doc::Area { centre: Pt::new(a.centre.x + step, a.centre.y + step), ..*a }, p.clone())
-            }
+        // The part being copied: the clipboard does not have it yet, the Paste waits for it.
+        if w.aside.copying_part {
+            w.aside.paste_after = true;
+            return;
+        }
+        let (area, pixels) = match (w.clip_patch(img.as_deref()), img) {
+            (Some(patch), _) => patch,
             (None, Some(img)) => {
                 let [iw, ih] = img.size;
                 if !crate::edit::resize::fits(iw, ih) {
@@ -145,10 +161,7 @@ impl App {
                 return;
             }
         };
-        w.doc.objects.push(Obj { shape: Shape::Patch { area, pixels, mirrored: false }, style: Style::default() });
-        w.selected = Some(w.doc.objects.len() - 1);
-        w.choose(Tool::Select);
-        w.marquee = None;
+        w.put_patch(area, pixels);
     }
 
     pub(crate) fn on_edit_copy(&mut self, ctx: &egui::Context, r: Result<ColorImage, String>) {
@@ -164,6 +177,24 @@ impl App {
                 self.error = Some(super::result_failed(&self.i18n, &e));
             }
         }
+    }
+}
+
+impl super::Window {
+    /// The part copied as a patch a little aside of where it was; none when `img`, the image in
+    /// the clipboard, is of another size: copied elsewhere after the part, it wins.
+    fn clip_patch(&self, img: Option<&ColorImage>) -> Option<(crate::edit::doc::Area, crate::edit::doc::Pixels)> {
+        let (a, p) = self.clip.as_ref().filter(|(_, p)| img.is_none_or(|i| i.size == [p.image().width() as usize, p.image().height() as usize]))?;
+        let step = self.long() / 40.0;
+        Some((crate::edit::doc::Area { centre: Pt::new(a.centre.x + step, a.centre.y + step), ..*a }, p.clone()))
+    }
+
+    /// A patch pasted: selected, with Select chosen to move it.
+    fn put_patch(&mut self, area: crate::edit::doc::Area, pixels: crate::edit::doc::Pixels) {
+        self.doc.objects.push(Obj { shape: Shape::Patch { area, pixels, mirrored: false }, style: Style::default() });
+        self.selected = Some(self.doc.objects.len() - 1);
+        self.choose(Tool::Select);
+        self.marquee = None;
     }
 }
 
@@ -259,6 +290,29 @@ mod tests {
         h.until(|app| app.editor.as_ref().is_some_and(|w| w.clip.is_some()), "the part copied");
         let w = h.app.editor.as_ref().unwrap();
         assert_eq!((w.clip.as_ref().unwrap().1.image().width(), w.note.is_some()), (100, true));
+    }
+
+    /// A Paste while the part is being copied waits for it, and pastes it once it comes: the
+    /// clipboard still has what it had before (here an image of another size, which would win).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn a_paste_waits_for_the_part_being_copied() {
+        use crate::audit_family_1::{Harness, own_folder};
+        if own_folder("edit_page::clip::tests::a_paste_waits_for_the_part_being_copied") {
+            return;
+        }
+        let mut h = Harness::new(&super::super::defects::white("five-fourteen-paste-waits"));
+        super::super::defects::editor(&mut h, "a.png", super::super::Tool::Marquee);
+        h.app.editor.as_mut().unwrap().aside.copying_part = true;
+        let before = std::sync::Arc::new(ColorImage::filled([7, 7], egui::Color32::RED));
+        h.app.edit_paste(&h.ctx.clone(), Some(before));
+        let mut w = h.app.editor.take().unwrap();
+        assert!(w.doc.objects.is_empty() && w.aside.paste_after, "pasted what the clipboard had before");
+        let area = crate::edit::doc::Area { centre: Pt::new(0.0, 0.0), w: 30.0, h: 20.0, rot: 0.0 };
+        let pixels = crate::edit::doc::Pixels::new(image::RgbaImage::new(30, 20));
+        h.app.part_copied(&h.ctx.clone(), &mut w, (area, pixels, ColorImage::filled([30, 20], egui::Color32::RED)));
+        let patch = w.doc.objects.last().and_then(|o| if let Shape::Patch { pixels, .. } = &o.shape { Some(pixels.image().width()) } else { None });
+        assert_eq!((patch, w.selected, w.aside.copying_part), (Some(30), Some(0), false));
     }
 
     /// An image pasted from another program larger than the editor takes (20 000 pixels a side)
