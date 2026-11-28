@@ -109,9 +109,11 @@ impl App {
     }
 
     /// Whether the graphics card lets go of the model it holds and of the picture it draws it
-    /// into (`Gpu::forget`): today never, until another model is drawn.
+    /// into (`Gpu::forget`): when the viewer shows no model read (audit 4.7). They were kept
+    /// until another model was drawn, the picture (about 130 MB at 2560 × 1440) for the whole
+    /// session.
     pub(crate) fn card_lets_go(&self) -> bool {
-        false
+        self.viewing.and_then(|v| self.files().get(v)).is_none_or(|f| !self.model.meshes.contains_key(&f.path))
     }
 
     /// Keys of the viewer on a model: arrows turn it (held: it keeps turning), + − and 0 zoom,

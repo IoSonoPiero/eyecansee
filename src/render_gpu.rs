@@ -320,6 +320,16 @@ impl Gpu {
         Gpu { rs, pipeline, stencil, cap, camera, bind, picture_layout, sampler, model: None, target: None }
     }
 
+    /// Lets go of the model and of the picture it is drawn into (`App::card_lets_go`); the next
+    /// model drawn makes them again. At the start of a frame: the last one, which may have shown
+    /// the picture, is already drawn.
+    pub fn forget(&mut self) {
+        self.model = None;
+        if let Some(t) = self.target.take() {
+            self.rs.renderer.write().free_texture(&t.id);
+        }
+    }
+
     /// `mesh` from `view` at `size` pixels: the texture to paint.
     pub fn draw(&mut self, mesh: &Arc<Mesh>, view: &View, size: [u32; 2]) -> egui::TextureId {
         let size = size.map(|v| v.clamp(1, self.rs.device.limits().max_texture_dimension_2d));
