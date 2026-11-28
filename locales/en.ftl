@@ -40,30 +40,30 @@ video-frame-back-busy = Preparing the previous frame…
 video-stalled =
     No data for 20 seconds: the phone or the server is not answering.
     The video will start as soon as it answers. Press Enter to go back to the thumbnails.
-error-unsupported = Unsupported protocol: { $detail }
-error-no-host = The address has no host: { $detail }
-error-path = Cannot open { $detail }
+error-unsupported = Unsupported protocol: **{ $detail }**
+error-no-host = The address has no host: **{ $detail }**
+error-path = Cannot open **{ $detail }**
 error-source = Cannot connect to the source: { $detail }
 error-detail = { $detail }
 error-login = The server refused the login: wrong user name or password.
-error-login-ssh = The server { $detail } refused the login.
+error-login-ssh = The server **{ $detail }** refused the login.
     It accepted none of your SSH keys and no password was given, or the password is wrong.
-error-key-failed = The saved key of { $detail } could not be opened: wrong passphrase, or the file is missing or is not a key.
+error-key-failed = The saved key of **{ $detail }** could not be opened: wrong passphrase, or the file is missing or is not a key.
     Fix it in File > Server manager.
-error-key-failed-open = The saved key of { $detail } could not be opened: wrong passphrase, or the file is missing or is not a key.
+error-key-failed-open = The saved key of **{ $detail }** could not be opened: wrong passphrase, or the file is missing or is not a key.
     Fix it in the Server manager, open on this server.
 error-permission = Permission denied: { $detail }
 error-no-sftp = The server answers over SSH but has no SFTP service.
     On a NAS, turn SFTP on in its settings.
     ({ $detail })
-error-host-unknown = { $detail } has never been used from this computer: confirm its key to connect.
-error-cert-unknown = The certificate of { $detail } is not signed by a known authority: confirm it to connect.
-error-ftp-listing-too-big = The server sent a listing of { $detail } larger than 64 MB: EyeCanSee stopped reading it.
-error-host-changed = The key of { $detail } has changed: it is not the one recorded in ~/.ssh/known_hosts, so EyeCanSee does not connect.
+error-host-unknown = **{ $detail }** has never been used from this computer: confirm its key to connect.
+error-cert-unknown = The certificate of **{ $detail }** is not signed by a known authority: confirm it to connect.
+error-ftp-listing-too-big = The server sent a listing of **{ $detail }** larger than 64 MB: EyeCanSee stopped reading it.
+error-host-changed = The key of **{ $detail }** has changed: it is not the one recorded in ~/.ssh/known_hosts, so EyeCanSee does not connect.
     Someone may be pretending to be that server.
     If the server was reinstalled, remove its old line from known_hosts.
-error-server-silent = The server { $detail } does not answer: check that it is on and reachable, then try again.
-error-server-cut = The server stopped sending "{ $name }" before its end.
+error-server-silent = The server **{ $detail }** does not answer: check that it is on and reachable, then try again.
+error-server-cut = The server stopped sending **"{ $name }"** before its end.
 error-server-cut-brief = the server stopped sending it before its end
 host-ask =
     { "**" }First connection to { $host }.**
@@ -101,8 +101,8 @@ sftp-rsa-key = **{ $host }** opened with an RSA key.
     This warning appears once per server each time EyeCanSee starts.
 error-trash-failed = The original could not be moved to the trash: the original is unchanged.
     ({ $detail })
-error-not-found = Not found: { $detail }
-error-bad-name = The name of "{ $detail }" cannot be read (it is not valid UTF-8).
+error-not-found = Not found: **{ $detail }**
+error-bad-name = The name of **"{ $detail }"** cannot be read (it is not valid UTF-8).
     Rename it in the file manager to open it.
 error-image-too-large = The picture is too large: { $detail } pixels, while EyeCanSee opens pictures of up to 512 megapixels.
 view-too-large-title = Picture too large for the memory
@@ -186,7 +186,7 @@ transfer-copying = Copying
 transfer-moving = Moving
 transfer-looking = Looking inside the folders: { $n } items found
 transfer-counts = { $n } of { $total } files, { $done } of { $size }
-transfer-to = To { $dir }
+transfer-to = To **{ $dir }**
 transfer-reading-phone = Reading { $name } from the phone
 transfer-writing-phone = Writing { $name } to { $storage }
 transfer-stop-at-end = Stopping after { $name }: the phone must receive it whole
@@ -230,20 +230,20 @@ jobs-report-title = Jobs finished
 transfer-copy-cancelled = Copy cancelled
 transfer-move-cancelled = Move cancelled
 transfer-files-copied = { $n ->
-    [one] **1 file** copied to { $dir }.
-   *[other] **{ $n } files** copied to { $dir }.
+    [one] **1 file** copied to **{ $dir }**.
+   *[other] **{ $n } files** copied to **{ $dir }**.
 }
 transfer-files-moved = { $n ->
-    [one] **1 file** moved to { $dir }.
-   *[other] **{ $n } files** moved to { $dir }.
+    [one] **1 file** moved to **{ $dir }**.
+   *[other] **{ $n } files** moved to **{ $dir }**.
 }
 transfer-files-kept = { $n ->
-    [one] **1 file** copied to { $dir } but not moved: the original stayed where it was.
-   *[other] **{ $n } files** copied to { $dir } but not moved: the originals stayed where they were.
+    [one] **1 file** copied to **{ $dir }** but not moved: the original stayed where it was.
+   *[other] **{ $n } files** copied to **{ $dir }** but not moved: the originals stayed where they were.
 }
 transfer-folders-moved = { $n ->
-    [one] **1 folder** moved to { $dir }.
-   *[other] **{ $n } folders** moved to { $dir }.
+    [one] **1 folder** moved to **{ $dir }**.
+   *[other] **{ $n } folders** moved to **{ $dir }**.
 }
 transfer-files-folders-moved = { $files ->
     [one] **1 file**
@@ -251,15 +251,15 @@ transfer-files-folders-moved = { $files ->
 } and { $folders ->
     [one] **1 folder**
    *[other] **{ $folders } folders**
-} moved to { $dir }.
+} moved to **{ $dir }**.
 transfer-skipped = { $n ->
     [one] **1 item** skipped: its name was already there.
    *[other] **{ $n } items** skipped: their names were already there.
 }
-transfer-done-before-cancel = **{ $n } of { $total } files** copied to { $dir } before Cancel.
-transfer-moved-before-cancel = **{ $n } of { $total } files** moved to { $dir } before Cancel.
-transfer-done-before-error = **{ $n } of { $total } files** copied to { $dir } before it stopped.
-transfer-moved-before-error = **{ $n } of { $total } files** moved to { $dir } before it stopped.
+transfer-done-before-cancel = **{ $n } of { $total } files** copied to **{ $dir }** before Cancel.
+transfer-moved-before-cancel = **{ $n } of { $total } files** moved to **{ $dir }** before Cancel.
+transfer-done-before-error = **{ $n } of { $total } files** copied to **{ $dir }** before it stopped.
+transfer-moved-before-error = **{ $n } of { $total } files** moved to **{ $dir }** before it stopped.
 transfer-copy-stopped = Copy stopped
 transfer-move-stopped = Move stopped
 transfer-links-heading = { $n ->
@@ -269,11 +269,11 @@ transfer-links-heading = { $n ->
 transfer-links-why = A link to a folder on an FTP server, or one that leads back into the folders copied, is not copied.
 transfer-links-why-moved = A link to a folder on an FTP server, or one that leads back into the folders copied, stays where it was, with the folder that holds it.
 notice-guide = More in the guide (F1).
-error-move-same-item = What it would replace is this same item, reached in another way: { $detail }
+error-move-same-item = What it would replace is this same item, reached in another way: **{ $detail }**
     The move stopped, and the item stayed as it was.
-error-move-not-told = It cannot be told whether what it would replace is this same item: { $detail }
+error-move-not-told = It cannot be told whether what it would replace is this same item: **{ $detail }**
     The move stopped before deleting it: it was copied, and it also stayed where it was.
-error-paste-inside = A folder cannot go inside itself: { $detail }
+error-paste-inside = A folder cannot go inside itself: **{ $detail }**
 error-name-too-long = The name is too long for the phone: { $detail } characters, while a phone takes at most 254 (an emoji counts as two).
     Shorten it and try again; nothing was copied.
 name-refused-heading = { $n ->
@@ -309,16 +309,16 @@ list-more-images = { $n ->
     [one] and 1 more
    *[other] and { $n } more
 }
-error-phone-left = EyeCanSee stopped waiting for the phone, which was still working on { $detail }. If the phone finishes by itself, the copy may stay on the phone. It answers nothing until it is done.
-error-phone-copy-unseen = The phone copied { $detail }, but it took longer than Windows waits, and Windows does not show the copy. Unplug the phone and plug it in again, then check whether the copy is there: if it is missing, copy it again.
-error-phone-copy-lost = The phone took longer to copy { $detail } than Windows waits, and Windows does not show what the phone does. Wait a few minutes, unplug the phone and plug it in again, then check whether the copy is there: if it is missing, copy it again.
-error-copy-not-made = The phone did not make the copy of { $detail }: the original was left as it was.
-error-copy-not-whole = The copy of { $detail } did not arrive whole: the original was left as it was.
-error-pc-space = Not enough free space on this computer for { $detail }: a big file inside the phone goes through it. Free some space and try again.
+error-phone-left = EyeCanSee stopped waiting for the phone, which was still working on **{ $detail }**. If the phone finishes by itself, the copy may stay on the phone. It answers nothing until it is done.
+error-phone-copy-unseen = The phone copied **{ $detail }**, but it took longer than Windows waits, and Windows does not show the copy. Unplug the phone and plug it in again, then check whether the copy is there: if it is missing, copy it again.
+error-phone-copy-lost = The phone took longer to copy **{ $detail }** than Windows waits, and Windows does not show what the phone does. Wait a few minutes, unplug the phone and plug it in again, then check whether the copy is there: if it is missing, copy it again.
+error-copy-not-made = The phone did not make the copy of **{ $detail }**: the original was left as it was.
+error-copy-not-whole = The copy of **{ $detail }** did not arrive whole: the original was left as it was.
+error-pc-space = Not enough free space on this computer for **{ $detail }**: a big file inside the phone goes through it. Free some space and try again.
 error-phone-full = The phone did not take the file: its storage is full, or the file is too big for it (on a FAT32 memory card a file must stay under 4 GB).
-error-phone-space = Not enough free space on the phone for { $detail }.
+error-phone-space = Not enough free space on the phone for **{ $detail }**.
 error-cancelled = Cancelled.
-error-too-deep = Too many folders one inside another, so the copy stopped: { $detail }
+error-too-deep = Too many folders one inside another, so the copy stopped: **{ $detail }**
 menu-about = About EyeCanSee
 menu-meta = Metadata boxes
 about-tagline = Viewer, manager and editor for photos, videos, 3D models and CAD drawings, for Linux and Windows
@@ -360,16 +360,16 @@ status-images = Images: { $n }
 status-videos = Videos: { $n }
 status-audio = Audio: { $n }
 status-deleting = Deleting { $n }…
-status-file-removed = { $name } was removed from the device.
+status-file-removed = **{ $name }** was removed from the device.
 delete-phone-busy = The phone is { $what ->
         [move] moving
        *[other] copying
-    } { $name } ({ $s } s): **{ $button }** turns on when it is done.
+    } **{ $name }** ({ $s } s): **{ $button }** turns on when it is done.
 quit-phone-title = The phone is still working
 quit-phone-ask = The phone is { $what ->
         [move] moving
        *[other] copying
-    } { $name } by itself and cannot be stopped. Close EyeCanSee now?
+    } **{ $name }** by itself and cannot be stopped. Close EyeCanSee now?
 
     The phone may finish this file by itself: the copy may then stay on the phone.
 quit-phone-yes = Close EyeCanSee
@@ -378,7 +378,7 @@ status-phone-working = The phone is { $what ->
         [move] moving
        *[other] copying
     } { $name } ({ $s } s)…
-status-phone-deaf = Please wait: the phone is writing { $name }. Its folders open when it is done.
+status-phone-deaf = Please wait: the phone is writing **{ $name }**. Its folders open when it is done.
 status-phone-waiting = The phone has not answered for { $s } s ({ $name }): waiting…
 status-phone-waiting-open = The phone has not answered for { $s } s: waiting…
 status-phone-stalled = Windows has not talked to the phone for { $s } s: unplug the cable and plug it in again, or wait
@@ -393,7 +393,7 @@ phone-stalled-upload =
     Unplug the cable and plug it in again (then File transfer), or wait a few minutes: it recovers by itself.
     The phone and its files are fine.
 
-    { $name } will need copying again.
+    { "**" }{ $name }** will need copying again.
 phone-stalled-why = Why does this happen?
 phone-stalled-url = https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.en.md
 status-copied = { $n } copied: Ctrl + V to paste
@@ -578,7 +578,7 @@ rename-title = New name
 rename-ok = Rename
 rename-bad = Not a valid name
 rename-taken = There is already an item with this name in the folder
-error-exists = There is already an item with this name: { $detail }
+error-exists = There is already an item with this name: **{ $detail }**
 error-save-temp-copy = Not saved over itself: this file is a temporary copy made by Windows, not the original (for example the photo on the phone).
     ({ $detail })
 error-save-gvfs = Not saved over itself: this folder was opened through the file manager (gvfs), where replacing a file can lose the original.
@@ -730,9 +730,9 @@ convert-turned = { $turn ->
 model-triangles = { $n } triangles
 model-node-again = A part of the model is placed more than once in its hierarchy, which glTF does not allow: shown once
 model-node-again-saved = { $name }: a part of the model appeared more than once in its hierarchy; the new file has it only once
-error-gltf-bin-missing = The file with the model's data is missing: { $detail }
+error-gltf-bin-missing = The file with the model's data is missing: **{ $detail }**
 error-gltf-bin-outside = The file with the model's data is not read: EyeCanSee does not read files outside the model's folder or from the internet.
-    { $detail }
+    { "**" }{ $detail }**
 # { $detail }: empty, or the model's name in brackets (Convert).
 error-gltf-data-damaged = The model's data written inside the file is damaged{ $detail }
 error-glb-incomplete = The file is incomplete: the block with the model's data is missing{ $detail }
@@ -1468,41 +1468,41 @@ save-yes = Save
 save-failed = Cannot save: { $detail }
 ## Errors said plainly (src/fault.rs). $known is "yes" when the file's name is known, then in $name.
 fault-denied = { $known ->
-    [yes] Access denied to "{ $name }": the folder or the file is protected, and your user cannot write or read it there.
+    [yes] Access denied to **"{ $name }"**: the folder or the file is protected, and your user cannot write or read it there.
    *[no] Access denied: the folder or the file is protected, and your user cannot write or read it there.
 }
 fault-read-only = { $known ->
-    [yes] The disk or the folder is read-only: "{ $name }" cannot be written there.
+    [yes] The disk or the folder is read-only: **"{ $name }"** cannot be written there.
    *[no] The disk or the folder is read-only: nothing can be written there.
 }
 fault-no-space = { $known ->
-    [yes] There is no space left on the disk for "{ $name }": free some space and try again.
+    [yes] There is no space left on the disk for **"{ $name }"**: free some space and try again.
    *[no] There is no space left on the disk: free some space and try again.
 }
 fault-no-space-replace = { $known ->
-    [yes] There is not enough space on the disk to replace "{ $name }": while it is being replaced, the disk needs room for a second copy of the file.
+    [yes] There is not enough space on the disk to replace **"{ $name }"**: while it is being replaced, the disk needs room for a second copy of the file.
         Free some space and try again.
    *[no] There is not enough space on the disk to replace the file: while it is being replaced, the disk needs room for a second copy of it.
         Free some space and try again.
 }
 fault-too-large = { $known ->
-    [yes] "{ $name }" is too large for this disk: FAT32 disks take files of at most 4 GB.
+    [yes] **"{ $name }"** is too large for this disk: FAT32 disks take files of at most 4 GB.
    *[no] The file is too large for this disk: FAT32 disks take files of at most 4 GB.
 }
 fault-not-found = { $known ->
-    [yes] "{ $name }" is not there any more: it may have been moved, renamed or deleted.
+    [yes] **"{ $name }"** is not there any more: it may have been moved, renamed or deleted.
    *[no] The file or folder is not there any more: it may have been moved, renamed or deleted.
 }
 fault-exists = { $known ->
-    [yes] There is already an item named "{ $name }" there.
+    [yes] There is already an item named **"{ $name }"** there.
    *[no] There is already an item with this name there.
 }
 fault-in-use = { $known ->
-    [yes] "{ $name }" is in use by another program: close it and try again.
+    [yes] **"{ $name }"** is in use by another program: close it and try again.
    *[no] The file is in use by another program: close it and try again.
 }
 fault-bad-name = { $known ->
-    [yes] The name "{ $name }" is not accepted there: it is too long, or has characters this disk does not allow.
+    [yes] The name **"{ $name }"** is not accepted there: it is too long, or has characters this disk does not allow.
    *[no] The name is not accepted there: it is too long, or has characters this disk does not allow.
 }
 # As the sentences above, in a few words after a file's name in the list of a message.
@@ -1831,8 +1831,8 @@ batch-strip-hint = Makes a new video, the same as the original but without audio
 batch-extract-hint = Saves the audio of the video in a separate file (for example .m4a). The video is not touched. Every audio track is copied as it is into a file of its own, in the format of its codec (AAC as .m4a, Opus as .opus, MP3 as .mp3, FLAC as .flac): no re-encoding, no loss, the metadata kept. For another format, use Convert…
 batch-audio-not-ready = FFmpeg is not ready yet.
 batch-images = { $n ->
-    [one] **1 file** in { $folder }.
-   *[other] **{ $n } files** in { $folder }.
+    [one] **1 file** in **{ $folder }**.
+   *[other] **{ $n } files** in **{ $folder }**.
 }
 batch-same-format = Same as the original
 batch-same-format-hint = Each image in its own format, written as Save writes it (a JPEG at its own quality). Formats EyeCanSee cannot write (HEIC, RAW…) are left out.
@@ -1873,8 +1873,8 @@ batch-left-out-kind = { $n ->
    *[other] { $n } files chosen are left out: this entry does not work on their kind.
 }
 summary-saved = { $n ->
-    [one] **1 file** saved in { $folder }.
-   *[other] **{ $n } files** saved in { $folder }.
+    [one] **1 file** saved in **{ $folder }**.
+   *[other] **{ $n } files** saved in **{ $folder }**.
 }
 summary-left-out = { $n ->
     [one] **1 file** left out.
@@ -2041,10 +2041,10 @@ bm-up = Move up
 bm-down = Move down
 bm-remove = Remove from the bookmarks
 bm-file = Saved in { $path }.
-bm-missing-place = **{ $name }** cannot be opened: { $address } does not exist any more, or it is on a disk that is not connected.
+bm-missing-place = **{ $name }** cannot be opened: **{ $address }** does not exist any more, or it is on a disk that is not connected.
 
     The bookmark stays: connect the disk and choose it again, or remove it in **Bookmarks > Configure…**.
-bm-missing-phone = **{ $name }** cannot be opened: the phone of { $address } is not connected.
+bm-missing-phone = **{ $name }** cannot be opened: the phone of **{ $address }** is not connected.
 
     The bookmark stays: connect the phone, choose "File transfer" on it and choose the bookmark again, or remove it in **Bookmarks > Configure…**.
 tb-more = More operations

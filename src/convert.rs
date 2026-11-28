@@ -643,7 +643,8 @@ fn name_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, half: f32, final_nam
         }
     });
     if final_name != crate::batch::typed_name(&w.name, w.options.format) && !w.name.trim().is_empty() {
-        ui.weak(i18n.t_args("convert-exists", &[("name", final_name)]));
+        // Yellow, to be seen: grey it was hardly read (Piero, 28/11); long names wrap.
+        ui.add(egui::Label::new(crate::theme::alert(i18n.t_plain("convert-exists", &[("name", final_name)]))).wrap());
     }
     if let Some(e) = &w.error {
         crate::error_bar::inline(ui, e.as_str());

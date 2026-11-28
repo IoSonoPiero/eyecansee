@@ -75,6 +75,28 @@ impl I18n {
         }
         id.to_string() // message missing everywhere: the id shows, so the bug is obvious
     }
+
+    /// `t_args` for a place that shows the text as it is (the error bar, the status bar, a
+    /// label, the log): without the message's own `**`, which only a message window shows as bold
+    /// (Piero, 28/11), and with the values as they are, a `*` in a name too. The values go in with
+    /// a `\` before every `\` and `*`, taken away after the `**`; only those, so a value that chooses
+    /// a variant ("ply-binary") stays as it is, and the message's own `\` and backticks too.
+    pub fn t_plain(&self, id: &str, args: &[(&str, &str)]) -> String {
+        let kept: Vec<(&str, String)> = args.iter().map(|&(k, v)| (k, v.chars().flat_map(|c| matches!(c, '\\' | '*').then_some('\\').into_iter().chain([c])).collect())).collect();
+        let kept: Vec<(&str, &str)> = kept.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        let (text, mut out) = (self.t_args(id, &kept), String::new());
+        let mut chars = text.chars().peekable();
+        while let Some(c) = chars.next() {
+            match c {
+                '\\' if matches!(chars.peek(), Some('\\' | '*')) => out.extend(chars.next()),
+                '*' if chars.peek() == Some(&'*') => {
+                    chars.next();
+                }
+                c => out.push(c),
+            }
+        }
+        out
+    }
 }
 
 #[cfg(test)]
@@ -128,7 +150,7 @@ mod tests {
             }
         }
         assert!(missing.is_empty(), "error ids without a message: {missing:?}");
-        assert!(I18n::new("it").t_args(crate::source::SILENT, &[("detail", "nas")]).starts_with("Il server nas non risponde"));
+        assert!(I18n::new("it").error(crate::source::SILENT, "nas").starts_with("Il server nas non risponde"));
     }
 
     /// Every language has the same messages as English.
@@ -164,5 +186,55 @@ mod tests {
             }
         }
         assert!(different.is_empty(), "not the same lines in English and Italian: {different:?}");
+    }
+
+    /// Piero, 28/11: in a message window the name, the folder, the address the message is about
+    /// are in bold, kept as they are inside (`md`: a `*` and a `_`); where the same message is shown
+    /// as it is (the status bar, the copy box), `t_plain` gives it without `**` and with the value
+    /// as it is.
+    #[test]
+    fn names_in_bold_in_the_windows() {
+        let v = "Al*bum_1/x.jpg";
+        // The message, its other values, and the one in bold.
+        type Case<'a> = (&'a str, &'a [(&'a str, &'a str)], &'a str);
+        let cases: [Case; 11] = [
+            ("transfer-to", &[], "dir"),
+            ("transfer-files-copied", &[("n", "2")], "dir"),
+            ("status-file-removed", &[], "name"),
+            ("bm-missing-place", &[("name", "Foto")], "address"),
+            ("bm-missing-phone", &[("name", "Foto")], "address"),
+            ("phone-stalled-upload", &[], "name"),
+            ("delete-phone-busy", &[("what", "copy"), ("s", "3"), ("button", "Delete")], "name"),
+            ("status-phone-deaf", &[], "name"),
+            ("quit-phone-ask", &[("what", "move")], "name"),
+            ("batch-images", &[("n", "3")], "folder"),
+            ("summary-saved", &[("n", "3")], "folder"),
+        ];
+        for lang in ["en", "it"] {
+            let i18n = I18n::new(lang);
+            for (id, args, key) in cases {
+                let kept = crate::save_dialogs::md(v);
+                let window = i18n.t_args(id, &[args, &[(key, kept.as_str())]].concat());
+                assert!(window.contains(&format!("**{kept}**")), "{lang} {id}: {v} not in bold: {window}");
+                let plain = i18n.t_plain(id, &[args, &[(key, v)]].concat());
+                assert!(!plain.contains("**") && plain.contains(v), "{lang} {id}: {plain}");
+            }
+        }
+    }
+
+    /// `t_plain` takes away only the message's `**`: a message without them reads the same as
+    /// with `t_args` (a `\` or a backtick of its own stays: "(without / or \)"), in every language.
+    #[test]
+    fn plain_takes_only_the_bold() {
+        for lang in ["en", "it"] {
+            let i18n = I18n::new(lang);
+            for id in ids(LANGS[0].1) {
+                let args = [("n", "2"), ("detail", "D"), ("name", "N"), ("known", "yes"), ("how", "trash"), ("what", "images"), ("fingerprint", "F")];
+                let marked = i18n.t_args(&id, &args);
+                if !marked.contains("**") {
+                    assert_eq!(i18n.t_plain(&id, &args), marked, "{lang} {id}");
+                }
+            }
+        }
     }
 }

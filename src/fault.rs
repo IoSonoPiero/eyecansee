@@ -215,23 +215,23 @@ impl I18n {
             return self.t_args(id, &[("detail", &crate::cad_convert::said(self, detail))]);
         }
         if let Some((name, raw)) = detail.split_once('\u{1}').filter(|_| id == SERVER_CUT) {
-            let text = self.t_args(id, &[("name", name)]);
+            let text = self.t_plain(id, &[("name", name)]);
             return if raw.is_empty() { text } else { format!("{text}\n({raw})") };
         }
         // A detail sent with its own id (`id\u{1}detail`): a picture too large (`pixel_limit`).
         if let Some((inner, d)) = detail.split_once('\u{1}').filter(|(i, _)| crate::pixel_limit::is_too_large(i)) {
             let plain = self.t_args(inner, &[("detail", d)]);
-            return if WRAPPERS.contains(&id) { plain } else { self.t_args(id, &[("detail", &plain)]) };
+            return if WRAPPERS.contains(&id) { plain } else { self.t_plain(id, &[("detail", &plain)]) };
         }
         // Not recognised: the library's text under the sentence, in brackets, as the detail
         // (`error_bar::with_detail`); not a name or an address, which belongs in the sentence.
         let Some((kind, name)) = recognise(detail) else {
-            let text = self.t_args(id, &[("detail", detail)]);
+            let text = self.t_plain(id, &[("detail", detail)]);
             return if NAMED.contains(&id) { text } else { crate::error_bar::with_detail(&text, detail) };
         };
         log!("error {id}, said as {kind:?}: {detail}");
         let plain = self.fault(kind, name.as_deref());
-        if WRAPPERS.contains(&id) { plain } else { self.t_args(id, &[("detail", &plain)]) }
+        if WRAPPERS.contains(&id) { plain } else { self.t_plain(id, &[("detail", &plain)]) }
     }
 
     /// A failed load as shown. The fixed sentences the grid recognises (`occt::MISSING`) stay
@@ -317,13 +317,26 @@ impl I18n {
         }
     }
 
-    /// `error`, to go in a message window's Markdown (`save_dialogs::notice_text`).
+    /// `error`, to go in a message window's Markdown (`save_dialogs::notice_text`): the same
+    /// words (`plain` of it is `error`), with the name, the folder or the server in bold where the
+    /// message has it so (Piero, 28/11), and the detail protected.
     pub(crate) fn error_md(&self, id: &str, detail: &str) -> String {
-        match recognise(detail) {
-            Some(_) => md(&self.error(id, detail)),
-            None if detail.contains('\u{1}') || id == crate::model_gltf::CUT_SIZES || crate::model_limit::is_said(id) => md(&self.error(id, detail)),
-            None => self.t_args(id, &[("detail", &md(detail))]),
+        if let Some((name, raw)) = detail.split_once('\u{1}').filter(|_| id == SERVER_CUT) {
+            let text = self.t_args(id, &[("name", &md(name))]);
+            return if raw.is_empty() { text } else { format!("{text}\n({})", md(raw)) };
         }
+        let special = detail.contains('\u{1}') || id == crate::model_gltf::CUT_SIZES || crate::model_limit::is_said(id) || id == crate::batch::SKIP_WOULD_LOSE || crate::model_gltf::cut_text(self, id, detail).is_some();
+        if special {
+            return md(&self.error(id, detail));
+        }
+        let Some((kind, name)) = recognise(detail) else {
+            let text = self.t_args(id, &[("detail", &md(detail))]);
+            return if NAMED.contains(&id) { text } else { detail_under_md(text, detail) };
+        };
+        log!("error {id}, said as {kind:?}: {detail}");
+        let known = if name.is_some() { "yes" } else { "no" };
+        let said = self.t_args(kind.id(), &[("known", known), ("name", &md(name.as_deref().unwrap_or_default()))]);
+        if WRAPPERS.contains(&id) { said } else { self.t_args(id, &[("detail", &said)]) }
     }
 
     /// "Cannot save: …", with the error said plainly.
@@ -333,7 +346,21 @@ impl I18n {
 
     /// The sentence of `kind`, with the file's name when it is known.
     pub(crate) fn fault(&self, kind: Kind, name: Option<&str>) -> String {
-        self.t_args(kind.id(), &[("known", if name.is_some() { "yes" } else { "no" }), ("name", name.unwrap_or_default())])
+        self.t_plain(kind.id(), &[("known", if name.is_some() { "yes" } else { "no" }), ("name", name.unwrap_or_default())])
+    }
+}
+
+/// `error_bar::with_detail` for `error_md`: the library's text `raw` at the end of `text`
+/// (Markdown, `raw` protected in it) put under it in brackets, as `error` puts it.
+fn detail_under_md(text: String, raw: &str) -> String {
+    let raw = raw.trim();
+    if raw.is_empty() || raw.starts_with('(') || raw.contains('\n') {
+        return text;
+    }
+    let kept = md(raw);
+    match text.trim_end().strip_suffix(&kept).map(|head| head.trim_end().trim_end_matches(':').trim_end()) {
+        Some(head) if !head.is_empty() => format!("{head}\n({kept})"),
+        _ => text,
     }
 }
 
@@ -497,5 +524,68 @@ mod tests {
         // Another error of Windows: as before.
         let other = r#"Error during a `trash` operation: Os { code: -2147467259, description: "windows error: Errore non specificato (0x80004005)" }"#;
         assert_eq!(recognise(other), None);
+    }
+
+    /// The ids of the errors and of what the system said (`error-…`, `fault-…`), from the English
+    /// messages.
+    fn error_ids() -> Vec<String> {
+        let ftl = include_str!("../locales/en.ftl");
+        let ids = ftl.lines().filter_map(|l| l.split_once(" =").map(|(id, _)| id.to_string()));
+        ids.filter(|id| (id.starts_with("error-") || id.starts_with("fault-")) && !id.contains(' ')).collect()
+    }
+
+    /// Piero, 28/11: the bold of a message only where it shows as bold. Every error, in both
+    /// languages and with every kind of detail (a name with `*` and `_`, a library's text, what the
+    /// system said, a name with the server's answer): the plain text (the error bar, the log,
+    /// Copy) has no `**` and the detail as it is; the Markdown of a message window says the same
+    /// words.
+    #[test]
+    fn errors_plain_where_plain() {
+        let denied = "PermissionDenied (permanent) at write, context: { service: fs, path: a/b_c*.jpg } => permission denied, source: Permission denied (os error 13)";
+        let details = ["al*bum_1", "connection reset: a_b `x`", denied, "c*d.jpg\u{1}550 read error", ""];
+        let ids = error_ids();
+        assert!(ids.len() > 60 && ids.iter().any(|id| id == "fault-denied"), "{ids:?}");
+        for lang in ["en", "it"] {
+            let i18n = I18n::new(lang);
+            for id in &ids {
+                for d in details {
+                    let plain = i18n.error(id, d);
+                    assert!(!plain.contains("**"), "{lang} {id} {d:?}: {plain}");
+                    assert_eq!(crate::save_dialogs::plain(&i18n.error_md(id, d)), plain, "{lang} {id} {d:?}");
+                }
+            }
+        }
+    }
+
+    /// Piero, 28/11: in a message window an error says in bold the name, the folder or the server
+    /// it is about, kept as it is inside (`md`); the error bar says it plainly.
+    #[test]
+    fn errors_say_the_name_in_bold() {
+        let denied = "PermissionDenied (permanent) at write, context: { service: fs, path: a/b_c*.jpg } => permission denied, source: Permission denied (os error 13)";
+        for lang in ["en", "it"] {
+            let i18n = I18n::new(lang);
+            // The name in bold, alone or with its quotation marks.
+            let bold_as = |id: &str, detail: &str, want: String| {
+                let text = i18n.error_md(id, detail);
+                assert!(text.contains(&want), "{lang} {id}: {want} not there: {text}");
+                assert!(!i18n.error(id, detail).contains("**"), "{lang} {id}");
+            };
+            let bold = |id: &str, detail: &str, name: &str| bold_as(id, detail, format!("**{}**", md(name)));
+            let quoted = |id: &str, detail: &str, name: &str| bold_as(id, detail, format!("**\"{}\"**", md(name)));
+            for id in ["error-server-silent", "error-login-ssh", "error-host-unknown", "error-host-changed", "error-key-failed", "error-key-failed-open", "error-cert-unknown"] {
+                bold(id, "nas_1.lan", "nas_1.lan");
+            }
+            for id in ["error-path", NOT_FOUND, "error-exists", "error-paste-inside", "error-too-deep", "error-ftp-listing-too-big", "error-move-not-told", "error-no-host", "error-unsupported"] {
+                bold(id, "a/al*bum_1/", "a/al*bum_1/");
+            }
+            for id in ["error-phone-left", "error-phone-copy-unseen", "error-phone-copy-lost", "error-copy-not-made", "error-copy-not-whole", "error-pc-space", "error-phone-space", crate::model_gltf::MISSING_BIN, crate::model_gltf::OUTSIDE_BIN] {
+                bold(id, "v*d_1.mp4", "v*d_1.mp4");
+            }
+            quoted(source::BAD_NAME, "x_y*.jpg", "x_y*.jpg");
+            quoted(SERVER_CUT, "c*d.jpg\u{1}550 read error", "c*d.jpg");
+            // What the system said, with the file's name: inside another error's sentence too.
+            quoted("error-detail", denied, "b_c*.jpg");
+            quoted("error-trash-failed", denied, "b_c*.jpg");
+        }
     }
 }

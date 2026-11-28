@@ -384,7 +384,7 @@ mod tests {
         let device = it.t_args("error-no-device", &[("detail", "USB 3-2: no MTP device")]);
         let device = bar_parts(&device);
         assert_eq!((device.lead, device.lines.len(), device.detail), ("Il dispositivo non è stato trovato", 1, vec!["(USB 3-2: no MTP device)"]));
-        let host = it.t_args("error-host-changed", &[("detail", "nas.local (known_hosts, line 12)")]);
+        let host = it.error("error-host-changed", "nas.local (known_hosts, line 12)");
         let host = bar_parts(&host);
         assert_eq!((host.lead, host.lines.len(), host.detail.len()), ("La chiave di nas.local (known_hosts, line 12) è cambiata", 2, 0));
     }

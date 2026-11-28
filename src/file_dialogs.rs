@@ -180,7 +180,8 @@ impl App {
         let (current, counts, left) = self.transfer_lines(p, &phase);
         // Two lines that stay in their place (they took turns on one, "it changes all the time",
         // Piero 25/11): the speed and the time left, then what the phone is doing (`phone_line`).
-        let to = self.i18n.t_args("transfer-to", &[("dir", &shown(base, dest))]);
+        // Plain text: the bold of the message at the end is not this window's (Piero, 28/11).
+        let to = self.i18n.t_plain("transfer-to", &[("dir", &shown(base, dest))]);
         let cancelling = p.cancel.load(Ordering::Relaxed);
         let phone = self.phone_line(p, cancelling);
         let staged = p.staging.lock().unwrap().is_some();

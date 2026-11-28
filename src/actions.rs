@@ -417,7 +417,7 @@ impl App {
         let made = crate::desktop_icon::create();
         log!("desktop icon: {made:?}");
         let (text, warning) = match &made {
-            Ok(Made::Made(name)) => (self.i18n.t_args("desktop-icon-made", &[("name", name)]), false),
+            Ok(Made::Made(name)) => (self.i18n.t_args("desktop-icon-made", &[("name", &crate::save_dialogs::md(name))]), false),
             Ok(Made::There) => (self.i18n.t("desktop-icon-there"), false),
             Err(e) => (format!("{}\n\n{e}", self.i18n.t("desktop-icon-failed")), true),
         };

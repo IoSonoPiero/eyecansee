@@ -124,9 +124,9 @@ impl App {
             self.close_viewer();
         }
         self.relist(self.dir.clone());
-        let text = self.i18n.t_args("status-file-removed", &[("name", source::name(path))]);
         // In the status bar for a while, and in a message to close.
-        self.status_note = Some(text.clone());
+        let (line, text) = removed_texts(&self.i18n, path);
+        self.status_note = Some(line);
         self.note_until = Some(ctx.input(|i| i.time) + NOTE_SECS);
         self.tell("file-removed-title", text);
     }
@@ -215,8 +215,23 @@ impl App {
     }
 }
 
+/// That the file `path` was removed from the device: the line of the status bar, as it is, and the
+/// text of the message, with the name in bold (Piero, 28/11).
+fn removed_texts(i18n: &crate::i18n::I18n, path: &str) -> (String, String) {
+    let name = source::name(path);
+    (i18n.t_plain("status-file-removed", &[("name", name)]), i18n.t_args("status-file-removed", &[("name", &crate::save_dialogs::md(name))]))
+}
+
 #[cfg(test)]
 mod tests {
+    /// The file gone from a phone: its name in bold in the message, as it is in the status bar.
+    #[test]
+    fn removed_name_in_bold_in_the_message_only() {
+        let (line, text) = super::removed_texts(&crate::i18n::I18n::new("en"), "DCIM/a_b*.jpg");
+        assert_eq!(line, "a_b*.jpg was removed from the device.");
+        assert_eq!(text, format!("**{}** was removed from the device.", crate::save_dialogs::md("a_b*.jpg")));
+    }
+
     #[test]
     fn shown() {
         let dir = std::env::temp_dir().join(format!("eyecansee-watch-{}", std::process::id()));

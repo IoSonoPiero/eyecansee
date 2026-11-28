@@ -39,30 +39,30 @@ video-frame-back-busy = Preparo il fotogramma precedente…
 video-stalled =
     Da 20 secondi non arrivano dati: il telefono o il server non risponde.
     Il video parte appena risponde. Premi Invio per tornare alle miniature.
-error-unsupported = Protocollo non supportato: { $detail }
-error-no-host = L'indirizzo non contiene l'host: { $detail }
-error-path = Impossibile aprire { $detail }
+error-unsupported = Protocollo non supportato: **{ $detail }**
+error-no-host = L'indirizzo non contiene l'host: **{ $detail }**
+error-path = Impossibile aprire **{ $detail }**
 error-source = Impossibile collegarsi alla sorgente: { $detail }
 error-detail = { $detail }
 error-login = Il server ha rifiutato l'accesso: nome utente o password sbagliati.
-error-login-ssh = Il server { $detail } ha rifiutato l'accesso.
+error-login-ssh = Il server **{ $detail }** ha rifiutato l'accesso.
     Non ha accettato nessuna delle tue chiavi SSH e non c'è una password, oppure la password è sbagliata.
-error-key-failed = La chiave salvata per { $detail } non si apre: la passphrase è sbagliata, oppure il file manca o non è una chiave.
+error-key-failed = La chiave salvata per **{ $detail }** non si apre: la passphrase è sbagliata, oppure il file manca o non è una chiave.
     Correggila in File > Gestione server.
-error-key-failed-open = La chiave salvata per { $detail } non si apre: la passphrase è sbagliata, oppure il file manca o non è una chiave.
+error-key-failed-open = La chiave salvata per **{ $detail }** non si apre: la passphrase è sbagliata, oppure il file manca o non è una chiave.
     Correggila nella Gestione server, aperta su questo server.
 error-permission = Permesso negato: { $detail }
 error-no-sftp = Il server risponde in SSH ma non ha il servizio SFTP.
     Su un NAS, attiva SFTP nelle sue impostazioni.
     ({ $detail })
-error-host-unknown = { $detail } non è mai stato usato da questo computer: conferma la sua chiave per collegarti.
-error-cert-unknown = Il certificato di { $detail } non è firmato da un'autorità riconosciuta: confermalo per collegarti.
-error-ftp-listing-too-big = Il server ha mandato un elenco di { $detail } più grande di 64 MB: EyeCanSee ha smesso di leggerlo.
-error-host-changed = La chiave di { $detail } è cambiata: non è quella registrata in ~/.ssh/known_hosts, quindi EyeCanSee non si collega.
+error-host-unknown = **{ $detail }** non è mai stato usato da questo computer: conferma la sua chiave per collegarti.
+error-cert-unknown = Il certificato di **{ $detail }** non è firmato da un'autorità riconosciuta: confermalo per collegarti.
+error-ftp-listing-too-big = Il server ha mandato un elenco di **{ $detail }** più grande di 64 MB: EyeCanSee ha smesso di leggerlo.
+error-host-changed = La chiave di **{ $detail }** è cambiata: non è quella registrata in ~/.ssh/known_hosts, quindi EyeCanSee non si collega.
     Qualcuno potrebbe fingersi quel server.
     Se il server è stato reinstallato, togli la sua riga vecchia da known_hosts.
-error-server-silent = Il server { $detail } non risponde: controlla che sia acceso e raggiungibile, poi riprova.
-error-server-cut = Il server ha smesso di inviare "{ $name }" prima della fine.
+error-server-silent = Il server **{ $detail }** non risponde: controlla che sia acceso e raggiungibile, poi riprova.
+error-server-cut = Il server ha smesso di inviare **"{ $name }"** prima della fine.
 error-server-cut-brief = il server ha smesso di inviarlo prima della fine
 host-ask =
     { "**" }Primo collegamento a { $host }.**
@@ -100,8 +100,8 @@ sftp-rsa-key = **{ $host }** aperto con una chiave RSA.
     Questo avviso compare una volta per server a ogni avvio di EyeCanSee.
 error-trash-failed = Non è stato possibile spostare l'originale nel cestino: l'originale è intatto.
     ({ $detail })
-error-not-found = Non trovato: { $detail }
-error-bad-name = Il nome di "{ $detail }" non si può leggere (non è UTF-8 valido).
+error-not-found = Non trovato: **{ $detail }**
+error-bad-name = Il nome di **"{ $detail }"** non si può leggere (non è UTF-8 valido).
     Rinominalo nel gestore dei file per aprirlo.
 error-image-too-large = L'immagine è troppo grande: { $detail } pixel, mentre EyeCanSee apre immagini fino a 512 megapixel.
 view-too-large-title = Immagine troppo grande per la memoria
@@ -185,7 +185,7 @@ transfer-copying = Copia in corso
 transfer-moving = Spostamento in corso
 transfer-looking = Esamino le cartelle: { $n } elementi trovati
 transfer-counts = { $n } di { $total } file, { $done } di { $size }
-transfer-to = In { $dir }
+transfer-to = In **{ $dir }**
 transfer-reading-phone = Leggo { $name } dal telefono
 transfer-writing-phone = Scrivo { $name } su { $storage }
 transfer-stop-at-end = Mi fermo dopo { $name }: il telefono deve riceverlo intero
@@ -229,20 +229,20 @@ jobs-report-title = Lavori finiti
 transfer-copy-cancelled = Copia annullata
 transfer-move-cancelled = Spostamento annullato
 transfer-files-copied = { $n ->
-    [one] **1 file** copiato in { $dir }.
-   *[other] **{ $n } file** copiati in { $dir }.
+    [one] **1 file** copiato in **{ $dir }**.
+   *[other] **{ $n } file** copiati in **{ $dir }**.
 }
 transfer-files-moved = { $n ->
-    [one] **1 file** spostato in { $dir }.
-   *[other] **{ $n } file** spostati in { $dir }.
+    [one] **1 file** spostato in **{ $dir }**.
+   *[other] **{ $n } file** spostati in **{ $dir }**.
 }
 transfer-files-kept = { $n ->
-    [one] **1 file** copiato in { $dir } ma non spostato: l'originale è rimasto dov'era.
-   *[other] **{ $n } file** copiati in { $dir } ma non spostati: gli originali sono rimasti dov'erano.
+    [one] **1 file** copiato in **{ $dir }** ma non spostato: l'originale è rimasto dov'era.
+   *[other] **{ $n } file** copiati in **{ $dir }** ma non spostati: gli originali sono rimasti dov'erano.
 }
 transfer-folders-moved = { $n ->
-    [one] **1 cartella** spostata in { $dir }.
-   *[other] **{ $n } cartelle** spostate in { $dir }.
+    [one] **1 cartella** spostata in **{ $dir }**.
+   *[other] **{ $n } cartelle** spostate in **{ $dir }**.
 }
 transfer-files-folders-moved = { $files ->
     [one] **1 file**
@@ -250,15 +250,15 @@ transfer-files-folders-moved = { $files ->
 } e { $folders ->
     [one] **1 cartella**
    *[other] **{ $folders } cartelle**
-} spostati in { $dir }.
+} spostati in **{ $dir }**.
 transfer-skipped = { $n ->
     [one] **1 elemento** saltato: il nome c'era già.
    *[other] **{ $n } elementi** saltati: i nomi c'erano già.
 }
-transfer-done-before-cancel = **{ $n } file su { $total }** copiati in { $dir } prima di Annulla.
-transfer-moved-before-cancel = **{ $n } file su { $total }** spostati in { $dir } prima di Annulla.
-transfer-done-before-error = **{ $n } file su { $total }** copiati in { $dir } prima dell'interruzione.
-transfer-moved-before-error = **{ $n } file su { $total }** spostati in { $dir } prima dell'interruzione.
+transfer-done-before-cancel = **{ $n } file su { $total }** copiati in **{ $dir }** prima di Annulla.
+transfer-moved-before-cancel = **{ $n } file su { $total }** spostati in **{ $dir }** prima di Annulla.
+transfer-done-before-error = **{ $n } file su { $total }** copiati in **{ $dir }** prima dell'interruzione.
+transfer-moved-before-error = **{ $n } file su { $total }** spostati in **{ $dir }** prima dell'interruzione.
 transfer-copy-stopped = Copia interrotta
 transfer-move-stopped = Spostamento interrotto
 transfer-links-heading = { $n ->
@@ -302,21 +302,21 @@ list-more-images = { $n ->
     [one] e un'altra
    *[other] e altre { $n }
 }
-error-phone-left = EyeCanSee ha smesso di aspettare il telefono, che lavorava ancora su { $detail }. Se il telefono finisce da solo, la copia può restare sul telefono. Finché lavora non risponde.
-error-phone-copy-unseen = Il telefono ha copiato { $detail }, ma ci ha messo più di quanto Windows aspetta, e Windows non mostra la copia. Scollega e ricollega il telefono, poi controlla se la copia c'è: se manca, rifalla.
-error-phone-copy-lost = Il telefono ci ha messo più di quanto Windows aspetta per copiare { $detail }, e Windows non mostra quello che il telefono fa. Aspetta qualche minuto, scollega e ricollega il telefono, poi controlla se la copia c'è: se manca, rifalla.
-error-copy-not-made = Il telefono non ha fatto la copia di { $detail }: l'originale non è stato toccato.
-error-copy-not-whole = La copia di { $detail } non è arrivata intera: l'originale non è stato toccato.
-error-pc-space = Non c'è abbastanza spazio libero su questo computer per { $detail }: un file grande dentro il telefono passa da qui. Libera un po' di spazio e riprova.
+error-phone-left = EyeCanSee ha smesso di aspettare il telefono, che lavorava ancora su **{ $detail }**. Se il telefono finisce da solo, la copia può restare sul telefono. Finché lavora non risponde.
+error-phone-copy-unseen = Il telefono ha copiato **{ $detail }**, ma ci ha messo più di quanto Windows aspetta, e Windows non mostra la copia. Scollega e ricollega il telefono, poi controlla se la copia c'è: se manca, rifalla.
+error-phone-copy-lost = Il telefono ci ha messo più di quanto Windows aspetta per copiare **{ $detail }**, e Windows non mostra quello che il telefono fa. Aspetta qualche minuto, scollega e ricollega il telefono, poi controlla se la copia c'è: se manca, rifalla.
+error-copy-not-made = Il telefono non ha fatto la copia di **{ $detail }**: l'originale non è stato toccato.
+error-copy-not-whole = La copia di **{ $detail }** non è arrivata intera: l'originale non è stato toccato.
+error-pc-space = Non c'è abbastanza spazio libero su questo computer per **{ $detail }**: un file grande dentro il telefono passa da qui. Libera un po' di spazio e riprova.
 error-phone-full = Il telefono non ha accettato il file: la memoria è piena, oppure il file è troppo grande per lei (su una scheda di memoria FAT32 un file deve restare sotto i 4 GB).
-error-phone-space = Non c'è abbastanza spazio libero sul telefono per { $detail }.
-error-move-same-item = Quello che sostituirebbe è questo stesso elemento, raggiunto da un'altra strada: { $detail }
+error-phone-space = Non c'è abbastanza spazio libero sul telefono per **{ $detail }**.
+error-move-same-item = Quello che sostituirebbe è questo stesso elemento, raggiunto da un'altra strada: **{ $detail }**
     Lo spostamento si è fermato, e l'elemento è rimasto com'era.
-error-move-not-told = Non si può sapere se quello che sostituirebbe è questo stesso elemento: { $detail }
+error-move-not-told = Non si può sapere se quello che sostituirebbe è questo stesso elemento: **{ $detail }**
     Lo spostamento si è fermato prima di cancellarlo: è stato copiato, ed è rimasto anche dove era.
-error-paste-inside = Una cartella non può andare dentro sé stessa: { $detail }
+error-paste-inside = Una cartella non può andare dentro sé stessa: **{ $detail }**
 error-cancelled = Annullato.
-error-too-deep = Troppe cartelle una dentro l'altra, quindi la copia si è fermata: { $detail }
+error-too-deep = Troppe cartelle una dentro l'altra, quindi la copia si è fermata: **{ $detail }**
 menu-about = Informazioni su EyeCanSee
 menu-meta = Riquadri dei metadati
 about-tagline = Visualizzatore, gestore ed editor di foto, video, modelli 3D e disegni CAD per Linux e Windows
@@ -358,16 +358,16 @@ status-images = Immagini: { $n }
 status-videos = Video: { $n }
 status-audio = Audio: { $n }
 status-deleting = Eliminazione in corso: { $n }…
-status-file-removed = { $name } è stato rimosso dal dispositivo.
+status-file-removed = **{ $name }** è stato rimosso dal dispositivo.
 delete-phone-busy = Il telefono sta { $what ->
         [move] spostando
        *[other] copiando
-    } { $name } ({ $s } s): **{ $button }** si attiva quando ha finito.
+    } **{ $name }** ({ $s } s): **{ $button }** si attiva quando ha finito.
 quit-phone-title = Il telefono sta ancora lavorando
 quit-phone-ask = Il telefono sta { $what ->
         [move] spostando
        *[other] copiando
-    } { $name } da solo e non si può fermare. Chiudere EyeCanSee adesso?
+    } **{ $name }** da solo e non si può fermare. Chiudere EyeCanSee adesso?
 
     Il telefono può finire questo file da solo: in quel caso la copia può restare sul telefono.
 quit-phone-yes = Chiudi EyeCanSee
@@ -376,7 +376,7 @@ status-phone-working = Il telefono sta { $what ->
         [move] spostando
        *[other] copiando
     } { $name } ({ $s } s)…
-status-phone-deaf = Attendi: il telefono sta scrivendo { $name }. Le sue cartelle si aprono quando ha finito.
+status-phone-deaf = Attendi: il telefono sta scrivendo **{ $name }**. Le sue cartelle si aprono quando ha finito.
 status-phone-waiting = Il telefono non risponde da { $s } s ({ $name }): aspetto…
 status-phone-waiting-open = Il telefono non risponde da { $s } s: aspetto…
 status-phone-stalled = Windows non comunica col telefono da { $s } s: stacca e ricollega il cavo, oppure aspetta
@@ -391,7 +391,7 @@ phone-stalled-upload =
     Stacca e ricollega il cavo (poi Trasferimento file), oppure aspetta qualche minuto: si sblocca da solo.
     Telefono e file sono a posto.
 
-    { $name } andrà ricopiato.
+    { "**" }{ $name }** andrà ricopiato.
 phone-stalled-why = Perché succede?
 phone-stalled-url = https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.it.md
 status-copied = { $n } copiati: Ctrl + V per incollare
@@ -576,7 +576,7 @@ rename-title = Nuovo nome
 rename-ok = Rinomina
 rename-bad = Nome non valido
 rename-taken = Nella cartella c'è già un elemento con questo nome
-error-exists = Esiste già un elemento con questo nome: { $detail }
+error-exists = Esiste già un elemento con questo nome: **{ $detail }**
 error-save-temp-copy = Non salvata sopra se stessa: questo file è una copia temporanea fatta da Windows, non l'originale (per esempio la foto sul telefono).
     ({ $detail })
 error-save-gvfs = Non salvata sopra se stessa: questa cartella è aperta tramite il file manager (gvfs), dove sostituire un file può far perdere l'originale.
@@ -728,9 +728,9 @@ convert-turned = { $turn ->
 model-triangles = { $n } triangoli
 model-node-again = Una parte del modello compare più volte nella sua gerarchia, cosa che glTF non permette: mostrata una volta sola
 model-node-again-saved = { $name }: una parte del modello compariva più volte nella sua gerarchia; il file nuovo la contiene una volta sola
-error-gltf-bin-missing = Manca il file con i dati del modello: { $detail }
+error-gltf-bin-missing = Manca il file con i dati del modello: **{ $detail }**
 error-gltf-bin-outside = Il file con i dati del modello non viene letto: EyeCanSee non legge file fuori dalla cartella del modello né da internet.
-    { $detail }
+    { "**" }{ $detail }**
 # { $detail }: empty, or the model's name in brackets (Convert).
 error-gltf-data-damaged = I dati del modello scritti dentro il file sono rovinati{ $detail }
 error-glb-incomplete = Il file è incompleto: manca il blocco con i dati del modello{ $detail }
@@ -1481,41 +1481,41 @@ save-yes = Salva
 save-failed = Impossibile salvare: { $detail }
 ## Errors said plainly (src/fault.rs). $known is "yes" when the file's name is known, then in $name.
 fault-denied = { $known ->
-    [yes] Accesso negato a "{ $name }": la cartella o il file sono protetti e il tuo utente non può scrivere o leggere lì.
+    [yes] Accesso negato a **"{ $name }"**: la cartella o il file sono protetti e il tuo utente non può scrivere o leggere lì.
    *[no] Accesso negato: la cartella o il file sono protetti e il tuo utente non può scrivere o leggere lì.
 }
 fault-read-only = { $known ->
-    [yes] Il disco o la cartella sono in sola lettura: lì non si può scrivere "{ $name }".
+    [yes] Il disco o la cartella sono in sola lettura: lì non si può scrivere **"{ $name }"**.
    *[no] Il disco o la cartella sono in sola lettura: lì non si può scrivere nulla.
 }
 fault-no-space = { $known ->
-    [yes] Sul disco non c'è più spazio per "{ $name }": libera un po' di spazio e riprova.
+    [yes] Sul disco non c'è più spazio per **"{ $name }"**: libera un po' di spazio e riprova.
    *[no] Sul disco non c'è più spazio: libera un po' di spazio e riprova.
 }
 fault-no-space-replace = { $known ->
-    [yes] Sul disco non c'è abbastanza spazio per sostituire "{ $name }": durante la sostituzione serve spazio per una seconda copia del file.
+    [yes] Sul disco non c'è abbastanza spazio per sostituire **"{ $name }"**: durante la sostituzione serve spazio per una seconda copia del file.
         Libera un po' di spazio e riprova.
    *[no] Sul disco non c'è abbastanza spazio per sostituire il file: durante la sostituzione serve spazio per una sua seconda copia.
         Libera un po' di spazio e riprova.
 }
 fault-too-large = { $known ->
-    [yes] "{ $name }" è troppo grande per questo disco: i dischi FAT32 accettano file fino a 4 GB.
+    [yes] **"{ $name }"** è troppo grande per questo disco: i dischi FAT32 accettano file fino a 4 GB.
    *[no] Il file è troppo grande per questo disco: i dischi FAT32 accettano file fino a 4 GB.
 }
 fault-not-found = { $known ->
-    [yes] "{ $name }" non c'è più: forse è stato spostato, rinominato o eliminato.
+    [yes] **"{ $name }"** non c'è più: forse è stato spostato, rinominato o eliminato.
    *[no] Il file o la cartella non ci sono più: forse sono stati spostati, rinominati o eliminati.
 }
 fault-exists = { $known ->
-    [yes] Lì c'è già un elemento chiamato "{ $name }".
+    [yes] Lì c'è già un elemento chiamato **"{ $name }"**.
    *[no] Lì c'è già un elemento con questo nome.
 }
 fault-in-use = { $known ->
-    [yes] "{ $name }" è in uso da un altro programma: chiudilo e riprova.
+    [yes] **"{ $name }"** è in uso da un altro programma: chiudilo e riprova.
    *[no] Il file è in uso da un altro programma: chiudilo e riprova.
 }
 fault-bad-name = { $known ->
-    [yes] Il nome "{ $name }" lì non è accettato: è troppo lungo o ha caratteri che questo disco non permette.
+    [yes] Il nome **"{ $name }"** lì non è accettato: è troppo lungo o ha caratteri che questo disco non permette.
    *[no] Il nome lì non è accettato: è troppo lungo o ha caratteri che questo disco non permette.
 }
 # As the sentences above, in a few words after a file's name in the list of a message.
@@ -1844,8 +1844,8 @@ batch-strip-hint = Crea un video nuovo, uguale all'originale ma senza audio. L'o
 batch-extract-hint = Salva l'audio del video in un file a parte (per esempio .m4a). Il video non viene toccato. Ogni traccia audio viene copiata così com'è in un file suo, nel formato del suo codec (AAC come .m4a, Opus come .opus, MP3 come .mp3, FLAC come .flac): nessuna ricodifica, nessuna perdita, metadati conservati. Per un altro formato usa Converti…
 batch-audio-not-ready = FFmpeg non è ancora pronto.
 batch-images = { $n ->
-    [one] **1 file** in { $folder }.
-   *[other] **{ $n } file** in { $folder }.
+    [one] **1 file** in **{ $folder }**.
+   *[other] **{ $n } file** in **{ $folder }**.
 }
 batch-same-format = Uguale all'originale
 batch-same-format-hint = Ogni immagine nel suo formato, scritta come la scrive Salva (un JPEG con la sua qualità). I formati che EyeCanSee non sa scrivere (HEIC, RAW…) vengono esclusi.
@@ -1886,8 +1886,8 @@ batch-left-out-kind = { $n ->
    *[other] { $n } file scelti sono esclusi: questa voce non lavora su quei tipi di file.
 }
 summary-saved = { $n ->
-    [one] **1 file** salvato in { $folder }.
-   *[other] **{ $n } file** salvati in { $folder }.
+    [one] **1 file** salvato in **{ $folder }**.
+   *[other] **{ $n } file** salvati in **{ $folder }**.
 }
 summary-left-out = { $n ->
     [one] **1 file** lasciato fuori.
@@ -2054,10 +2054,10 @@ bm-up = Sposta su
 bm-down = Sposta giù
 bm-remove = Togli dai segnalibri
 bm-file = Salvati in { $path }.
-bm-missing-place = **{ $name }** non si apre: { $address } non esiste più, oppure è su un disco non collegato.
+bm-missing-place = **{ $name }** non si apre: **{ $address }** non esiste più, oppure è su un disco non collegato.
 
     Il segnalibro resta: collega il disco e sceglilo di nuovo, oppure toglilo in **Segnalibri > Configura…**.
-bm-missing-phone = **{ $name }** non si apre: il telefono di { $address } non è collegato.
+bm-missing-phone = **{ $name }** non si apre: il telefono di **{ $address }** non è collegato.
 
     Il segnalibro resta: collega il telefono, scegli "Trasferimento file" e sceglilo di nuovo, oppure toglilo in **Segnalibri > Configura…**.
 tb-more = Altre operazioni

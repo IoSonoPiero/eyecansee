@@ -87,7 +87,7 @@ fn stopped_lines(i18n: &crate::i18n::I18n, cut: bool, dir: &str, (id, detail): &
     } else {
         i18n.t_args("transfer-to", &[("dir", dir)])
     };
-    format!("{done}\n{}", md(&i18n.error(id, detail)))
+    format!("{done}\n{}", i18n.error_md(id, detail))
 }
 
 /// What the end of a copy (`cut`: a move) into `to` has to say, all in one window
@@ -245,7 +245,7 @@ mod tests {
         assert_eq!(one.title, "Copia finita");
         let said = "In /home/p/arrivo/\n\n1 collegamento a una cartella saltato:\nUn collegamento a una cartella su un server FTP, o che riporta dentro le cartelle copiate, non viene copiato.\n- collegamenti/self\n\nAltro nella guida (F1).";
         assert_eq!(plain(&one.text), said);
-        assert!(one.text.starts_with(&format!("In {}\n\n**1 collegamento a una cartella saltato{}**\n", md("/home/p/arrivo/"), md(":"))), "{}", one.text);
+        assert!(one.text.starts_with(&format!("In **{}**\n\n**1 collegamento a una cartella saltato{}**\n", md("/home/p/arrivo/"), md(":"))), "{}", one.text);
         assert!(one.warning && one.save_as.is_none());
         assert_eq!(one.help, Some("help:copy-move"));
         assert_eq!(one.copy.as_deref(), Some(said));
@@ -260,7 +260,7 @@ mod tests {
         let copy = moved.copy.unwrap();
         assert!(copy.starts_with(&format!("To {odd}\n\n{start}")) && copy.ends_with("\n- a/link_11\n- a/link_12\n\nMore in the guide (F1).") && !copy.contains("more\n"), "{copy}");
         let server = end("it", false, "ftp://u:secret@host/in/", Ok(()), [&links, &[], &[]], &[]).unwrap();
-        assert!(server.text.starts_with(&format!("In {}\n", md("ftp://u:***@host/in/"))) && !server.copy.unwrap().contains("secret"), "{}", server.text);
+        assert!(server.text.starts_with(&format!("In **{}**\n", md("ftp://u:***@host/in/"))) && !server.copy.unwrap().contains("secret"), "{}", server.text);
         assert!(plain(&end("it", true, "/a/", Ok(()), [&links, &[], &[]], &[]).unwrap().text).contains("\n12 collegamenti a cartelle saltati:\nUn collegamento a una cartella su un server FTP, o che riporta dentro le cartelle copiate, resta dov'era, con la cartella che lo contiene.\n"));
     }
 
@@ -289,8 +289,8 @@ mod tests {
         assert_eq!(blocks[3], "1 elemento non spostato:\nÈ arrivato durante lo spostamento, o qui non si vede: è rimasto dove era, con la sua cartella.\n- c/late.jpg");
         assert_eq!(blocks[4], "1 file non letto:\nNon è stato copiato: è rimasto dove era.\n- c/x.jpg");
         assert_eq!(blocks[5], "Altro nella guida (F1).");
-        // Every heading in bold, nothing else.
-        assert_eq!(all.text.matches("**").count(), 8, "{}", all.text);
+        // Every heading in bold, and the folder (Piero, 28/11); nothing else.
+        assert_eq!(all.text.matches("**").count(), 10, "{}", all.text);
         let copy = all.copy.unwrap();
         assert!(copy.starts_with("In /arrivo/\n\n1 collegamento") && copy.contains("\n- c/self\n\n1 file non copiato per il nome:\nIl suo nome") && copy.ends_with("\n- c/x.jpg: timeout\n\nAltro nella guida (F1)."), "{copy}");
         // The copy stopped at an error (said in the error bar): the title says so, the links
@@ -409,7 +409,7 @@ mod tests {
         let refused = |lang: &str, names: &[String]| end(lang, false, "/arrivo/", Ok(()), [&[], &names.iter().map(String::as_str).collect::<Vec<_>>(), &[]], &[]).unwrap();
         let one = refused("it", &["album/../victim.txt".to_string()]);
         assert_eq!(one.title, "Copia finita");
-        assert_eq!(one.text, format!("In {}\n\n**1 file non copiato per il nome{}**\nIl suo nome non si può usare nella destinazione: è rimasto dove era.\n- {}", md("/arrivo/"), md(":"), md("album/../victim.txt")));
+        assert_eq!(one.text, format!("In **{}**\n\n**1 file non copiato per il nome{}**\nIl suo nome non si può usare nella destinazione: è rimasto dove era.\n- {}", md("/arrivo/"), md(":"), md("album/../victim.txt")));
         assert!(one.warning && one.save_as.is_none() && one.help.is_none());
         let ten = refused("it", &names(10));
         assert!(plain(&ten.text).starts_with("In /arrivo/\n\n10 file non copiati per il nome:\nI loro nomi non si possono usare nella destinazione: sono rimasti dove erano.\n- album/1:a.jpg\n- album/2:a.jpg\n"), "{}", ten.text);
@@ -506,7 +506,7 @@ mod tests {
         let n = super::transfer_notice(&crate::i18n::I18n::new("en"), false, "/in/", &Ok(()), &p).unwrap();
         assert!(plain(&n.text).starts_with("2 files copied to /in/.\n2.0 MB in "), "{}", n.text);
         assert!(plain(&n.text).contains("/s on average.\n\n1 file not read:\n"), "{}", n.text);
-        assert!(n.text.starts_with(&format!("**2 files** copied to {}", md("/in/"))), "{}", n.text);
+        assert!(n.text.starts_with(&format!("**2 files** copied to **{}**", md("/in/"))), "{}", n.text);
         // Stopped at an error: the files done before it, and why (audit F.6 (b) of 27/11).
         let stopped = super::transfer_notice(&crate::i18n::I18n::new("en"), false, "/in/", &Err(("error-detail", "x".into())), &p).unwrap();
         assert!(plain(&stopped.text).starts_with("2 of 3 files copied to /in/ before it stopped.\n"), "{}", stopped.text);
@@ -587,6 +587,35 @@ mod tests {
             assert_eq!(said(false, Err(("error-cancelled", String::new()))), cancelled);
             assert!(said(false, Err(("error-no-host", "nas".into()))).starts_with(&i18n.t("transfer-copy-stopped")));
         }
+    }
+
+    /// Piero, 28/11: the window of a move stopped because what it would replace is the item itself
+    /// ("Spostamento interrotto") said the folder and the name in plain text: both in bold, kept
+    /// as they are inside (a `*` and a `_` in the name); Copy without the stars.
+    #[test]
+    fn a_stopped_move_says_the_folder_and_the_name_in_bold() {
+        let p = crate::transfer::Progress::default();
+        let same: Result<(), Error> = Err(("error-move-same-item", "al*bum_1".into()));
+        for lang in ["en", "it"] {
+            let i18n = crate::i18n::I18n::new(lang);
+            let part = super::quiet_copy(&i18n, true, "/home/p/Scrivania/", &same, &p);
+            assert!(part.text.contains(&format!("**{}**", md("/home/p/Scrivania/"))), "{lang}: the folder not in bold: {}", part.text);
+            assert!(part.text.contains(&format!("**{}**", md("al*bum_1"))), "{lang}: the name not in bold: {}", part.text);
+            assert!(!part.copy.contains("**") && part.copy.contains("/home/p/Scrivania/") && part.copy.contains("al*bum_1"), "{lang}: {}", part.copy);
+        }
+    }
+
+    /// The bold of 28/11 changes the look only: the words of a copy stopped by an error, as Copy
+    /// gives them, are what they were for a name, an error the system gave, a library's text
+    /// (apart, in brackets) and an unplugged phone.
+    #[test]
+    fn a_stopped_copy_reads_as_before() {
+        let p = crate::transfer::Progress::default();
+        let said = |lang: &str, cut: bool, e: Error| plain(&super::quiet_copy(&crate::i18n::I18n::new(lang), cut, "/in/", &Err(e), &p).text);
+        assert_eq!(said("en", true, ("error-move-same-item", "al*bum_1".into())), "To /in/\nWhat it would replace is this same item, reached in another way: al*bum_1\nThe move stopped, and the item stayed as it was.");
+        assert_eq!(said("it", false, ("error-source", "PermissionDenied (permanent) at write, context: { service: fs, path: a/b_c.jpg } => permission denied, source: Permission denied (os error 13)".into())), "In /in/\nImpossibile collegarsi alla sorgente: Accesso negato a \"b_c.jpg\": la cartella o il file sono protetti e il tuo utente non può scrivere o leggere lì.");
+        assert_eq!(said("en", false, ("error-source", "connection reset by peer".into())), "To /in/\nCannot connect to the source\n(connection reset by peer)");
+        assert_eq!(said("it", true, ("error-phone-disconnected", "device disconnected".into())), "In /in/\nIl telefono è stato scollegato.\n(device disconnected)");
     }
 
     /// P7 of 26/11: a copy stopped by an unplugged phone says so, with the files done before; the

@@ -275,7 +275,8 @@ impl App {
         let line = phone_line(&self.base, crate::mtp::turn::deaf(), crate::mtp::waiting(3), (cfg!(windows), self.transfer.is_some()));
         let Some((id, name, secs)) = line else { return };
         ui.add(egui::Spinner::new().color(Color32::WHITE));
-        ui.label(crate::theme::alert(self.i18n.t_args(id, &[("s", &secs.to_string()), ("name", &name)])));
+        // As it is: the bold of these words is the message windows' (Piero, 28/11).
+        ui.label(crate::theme::alert(self.i18n.t_plain(id, &[("s", &secs.to_string()), ("name", &name)])));
         ui.separator();
         // Gone soon after the phone answers.
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));

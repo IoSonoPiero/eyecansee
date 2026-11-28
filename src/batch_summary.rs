@@ -276,11 +276,11 @@ mod tests {
         let i18n = I18n::new("en");
         let s = summary(&i18n, "batch-title", &outcome(&[], 3, 3, 3), "/p/converted".into());
         assert_eq!(s.title, "Convert");
-        assert_eq!(s.text, "**3 files** saved in \\/p\\/converted.\n\nIt took 1 min 15 s.\nSize: 4.0 MB before, 1.0 MB after (25%).");
+        assert_eq!(s.text, "**3 files** saved in **\\/p\\/converted**.\n\nIt took 1 min 15 s.\nSize: 4.0 MB before, 1.0 MB after (25%).");
         assert_eq!(s.open.as_deref(), Some("/p/converted"));
         let failed = [("skip-not-picture", "a.txt".to_string())];
         let s = summary(&i18n, "batch-title", &outcome(&failed, 1, 5, 9), String::new());
-        assert!(s.text.starts_with("**1 file** saved in \\/p\\/converted.\n**1 file** left out.\n**4 files** not done: the work was stopped.\n\n"), "{}", s.text);
+        assert!(s.text.starts_with("**1 file** saved in **\\/p\\/converted**.\n**1 file** left out.\n**4 files** not done: the work was stopped.\n\n"), "{}", s.text);
         // Nothing saved: no folder to open, no sizes.
         let s = summary(&i18n, "batch-title-resize", &outcome(&failed, 0, 1, 1), String::new());
         assert_eq!((s.open, s.text.as_str()), (None, "**1 file** left out.\n\nIt took 1 min 15 s."));
@@ -289,7 +289,7 @@ mod tests {
         // Nothing left out: Copy takes the text as it reads.
         assert_eq!(summary(&i18n, "batch-title", &outcome(&[], 3, 3, 3), String::new()).copy, "3 files saved in /p/converted.\n\nIt took 1 min 15 s.\nSize: 4.0 MB before, 1.0 MB after (25%).");
         let it = summary(&I18n::new("it"), "batch-title", &outcome(&[], 2, 2, 2), String::new());
-        assert!(it.text.starts_with("**2 file** salvati in \\/p\\/converted.\n\nCi sono voluti 1 min 15 s.\nDimensione: 4,0 MB prima, 1,0 MB dopo (25%)."), "{}", it.text);
+        assert!(it.text.starts_with("**2 file** salvati in **\\/p\\/converted**.\n\nCi sono voluti 1 min 15 s.\nDimensione: 4,0 MB prima, 1,0 MB dopo (25%)."), "{}", it.text);
     }
 
     /// The files that do not decode, as Convert… leaves them out, in the order of their names: a
@@ -450,7 +450,7 @@ mod tests {
         let thin = [(META_TOO_LARGE, "b.png (EXIF)".to_string()), (META_TOO_LARGE, format!("a.tif (EXIF {} XMP)", crate::encoders::AND))];
         let failed = [("skip-not-picture", "c.txt".to_string())];
         let s = summary(&i18n, "batch-title", &Outcome { left_out_meta: &thin, ..outcome(&failed, 2, 3, 3) }, String::new());
-        assert!(s.text.starts_with("**2 files** saved in \\/p\\/converted.\n**2 files** saved without part of their metadata, because it is too large for a JPEG file.\n**1 file** left out."), "{}", s.text);
+        assert!(s.text.starts_with("**2 files** saved in **\\/p\\/converted**.\n**2 files** saved without part of their metadata, because it is too large for a JPEG file.\n**1 file** left out."), "{}", s.text);
         assert_eq!(s.groups[0].heading, "2 files saved without the metadata in brackets, because it is too large for a JPEG file:");
         assert_eq!(s.groups[0].items, ["a\\.tif \\(EXIF and XMP\\)", "b\\.png \\(EXIF\\)"]);
         let it = summary(&I18n::new("it"), "batch-title", &Outcome { left_out_meta: &thin[..1], ..outcome(&[], 1, 1, 1) }, String::new());
