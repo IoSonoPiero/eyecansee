@@ -6,6 +6,13 @@ use std::collections::{HashMap, HashSet};
 use crate::source::{self, File, Listing};
 use crate::App;
 
+#[cfg(test)]
+thread_local! {
+    /// Listings rebuilt without the items deleted or moved away, on this thread (audit 1.8: one
+    /// for each file).
+    pub(crate) static REBUILT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 impl App {
     /// Item deleted: out of the listing, as if read again. A deleted folder also takes the
     /// listings under it, and the current folder if it was inside. `to_trash`: moved into the
@@ -22,6 +29,8 @@ impl App {
             return;
         }
         let Some(Ok(l)) = self.listings.get(&dir) else { return };
+        #[cfg(test)]
+        REBUILT.with(|n| n.set(n.get() + 1));
         let new = Listing {
             dirs: l.dirs.iter().filter(|d| *d != path).cloned().collect(),
             files: l.files.iter().filter(|f| f.path != path).cloned().collect(),
@@ -437,6 +446,47 @@ mod tests {
         h.until(|app| app.listing_pending.is_empty(), "read again");
         assert_eq!((h.app.selected, h.app.anchor, h.app.generation), (1, 1, generation), "something changed");
         assert!(sub_dir.join("t.png").exists());
+    }
+
+    /// Audit 1.8: many files deleted, or moved away by a paste, come out of the listing of their
+    /// folder in one go: it was copied whole (and swapped, with the thumbnails asked again) once
+    /// for each file.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn many_removed_in_one_go() {
+        use crate::loader::Msg;
+        if crate::audit_family_1::own_folder("listing::tests::many_removed_in_one_go") {
+            return;
+        }
+        const N: usize = 200;
+        let names: Vec<String> = (0..N).map(|i| format!("p{i:03}.png")).collect();
+        let dir = crate::audit_family_1::folder("removed-in-one-go", &names.iter().map(String::as_str).collect::<Vec<_>>());
+        std::fs::create_dir_all(dir.join("dest")).unwrap();
+        let mut h = crate::audit_family_1::Harness::new(&dir);
+        h.until(|app| app.files().len() == N && app.listing_pending.is_empty(), "the folder listed");
+        let here = h.app.dir.clone();
+        let path = |i: usize| format!("{here}{}", names[i]);
+        // 40 files sent to the trash, their answers come in the same frame.
+        REBUILT.with(|n| n.set(0));
+        h.app.deleting = 40;
+        for i in 0..40 {
+            h.app.tx.send(Msg::Deleted(path(i), crate::source::Deletion::SystemTrash, Ok(()))).unwrap();
+        }
+        h.frame(Vec::new());
+        let rebuilt = REBUILT.with(|n| n.get());
+        assert_eq!(h.app.files().len(), N - 40);
+        assert_eq!(h.app.deleting, 0);
+        assert_eq!(rebuilt, 1, "the listing rebuilt {rebuilt} times for 40 files deleted");
+        // 40 more moved into the subfolder.
+        let p = std::sync::Arc::new(crate::transfer::Progress::default());
+        h.app.transfer = Some((p, true, h.app.base.clone(), format!("{here}dest/")));
+        REBUILT.with(|n| n.set(0));
+        h.app.tx.send(Msg::Pasted((40..80).map(path).collect(), Ok(()))).unwrap();
+        h.frame(Vec::new());
+        let rebuilt = REBUILT.with(|n| n.get());
+        assert_eq!(h.app.files().len(), N - 80);
+        assert_eq!(h.app.files()[0].path, path(80));
+        assert_eq!(rebuilt, 1, "the listing rebuilt {rebuilt} times for 40 files moved away");
     }
 
     /// Which listings take the place of the one kept, which go in as they are, which change nothing.
