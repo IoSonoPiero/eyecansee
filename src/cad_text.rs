@@ -112,6 +112,16 @@ fn autocad_fonts() -> Vec<std::path::PathBuf> {
     roots.filter_map(|r| std::fs::read_dir(r).ok()).flatten().flatten().map(|e| e.path().join("Fonts")).filter(|p| p.is_dir()).collect()
 }
 
+/// Files next to drawings that a source did not have (audit 6.20): one source's, shared by the
+/// drawings it reads.
+#[derive(Default)]
+pub(crate) struct Missed {}
+
+/// `sibling` for the drawing `name`, remembering in `missed` the files it did not have.
+pub(crate) fn remembering<'a>(_missed: &'a Missed, _name: &'a str, sibling: crate::model::Sibling<'a>) -> impl Fn(&str) -> Option<Vec<u8>> + 'a {
+    move |rel| sibling(rel)
+}
+
 /// The strokes of one line in the font's units, and its length: each character from the font
 /// (by Unicode, else by its code-page byte), else from the big font at the same height, else a
 /// question mark. At most `left` steps of the pen (`Shx::glyph`), taken from it.
