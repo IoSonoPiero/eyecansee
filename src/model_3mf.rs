@@ -180,6 +180,8 @@ impl Files<'_, '_> {
 
     /// `text`, the file at `at` in the zip, parsed within the limit the model files share.
     fn parse<'t>(&mut self, at: Option<usize>, text: &'t str) -> Result<Document<'t>, String> {
+        #[cfg(test)]
+        PARSES.with(|p| p.set(p.get() + 1));
         let three_mf = crate::model_limit::THREE_MF;
         if let Some(took) = at.and_then(|k| self.charged.get(&k)) {
             return parse_within(text, three_mf, &mut Tree { nodes: took.nodes, attributes: took.attributes });
@@ -427,6 +429,12 @@ fn parse_within<'t>(text: &'t str, limit: crate::model_limit::Limit, left: &mut 
     Ok(doc)
 }
 
+#[cfg(test)]
+thread_local! {
+    /// The model files parsed by `Files::parse` on this thread, for the tests that count them.
+    static PARSES: Cell<usize> = const { Cell::new(0) };
+}
+
 /// The first file of the zip whose name ends with `ext` (AMF, Collada's ZAE).
 pub(crate) fn unzipped(bytes: &[u8], ext: &str, unpacked: &Unpacked) -> Result<String, String> {
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
@@ -663,6 +671,27 @@ mod tests {
         }
         let bytes = w.finish().unwrap().into_inner();
         assert_eq!(read(&bytes, &Unpacked::default()).map(|m| m.tris.len()), Ok(100));
+    }
+
+    /// Audit 27/11, D.6 and 6.12: a part file placed by many components was parsed again at
+    /// each of them, whatever it held: 100 components into one part file, and the part with
+    /// an object of no mesh placed 100 more times through it. Each model file is parsed once.
+    #[test]
+    fn audit_d6_each_model_file_parsed_once() {
+        let triangle = r#"<mesh><vertices><vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/></vertices><triangles><triangle v1="0" v2="1" v3="2"/></triangles></mesh>"#;
+        let part = format!(r#"<model><resources><object id="1">{triangle}</object><object id="2"/></resources><build/></model>"#);
+        let components: String = (0..100).map(|k| format!(r#"<component objectid="{}" p:path="/3D/part.model"/>"#, 1 + k % 2)).collect();
+        let main = format!(r#"<model xmlns:p="p"><resources><object id="9"><components>{components}</components></object></resources><build><item objectid="9"/></build></model>"#);
+        let mut w = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        for (name, text) in [("3D/3dmodel.model", main.as_str()), ("3D/part.model", part.as_str()), ("3D/unused.model", "not XML")] {
+            w.start_file(name, zip::write::SimpleFileOptions::default()).unwrap();
+            w.write_all(text.as_bytes()).unwrap();
+        }
+        let bytes = w.finish().unwrap().into_inner();
+        PARSES.with(|p| p.set(0));
+        assert_eq!(read(&bytes, &Unpacked::default()).map(|m| m.tris.len()), Ok(50));
+        let parses = PARSES.with(Cell::get);
+        assert_eq!(parses, 2, "{parses} parses of 2 model files");
     }
 
     /// Audit 27/11, D.4: the nodes and attributes roxmltree builds for the XML of every 3MF, AMF,
