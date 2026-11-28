@@ -7,6 +7,7 @@ pub mod density;
 pub mod jfif;
 pub mod jpeg_quality;
 pub mod texts;
+use std::borrow::Cow;
 use std::io::Cursor;
 
 use image::codecs::{bmp, farbfeld, gif, hdr, ico, openexr, png, pnm, qoi, tga};
@@ -481,15 +482,9 @@ impl Original {
 
     /// The file as it would be saved.
     pub fn encode(&self, o: &Options) -> Result<Vec<u8>, String> {
-        let turned;
-        let image = if o.turn.is_none() {
-            &self.image
-        } else {
-            let mut img = self.image.clone();
-            o.turn.apply(&mut img);
-            turned = img;
-            &turned
-        };
+        // Turned from the picture itself, not from a copy of it (audit 3.11).
+        let turned = o.turn.turned(&self.image);
+        let image = turned.as_ref().unwrap_or(&self.image);
         let img = pixels(image, o.format);
         let mut b = self.blocks_turned(o.format, img.width(), img.height(), o);
         // The profile only with pixels of its colour space (#214): a CMYK JPEG is decoded to RGB,
@@ -560,21 +555,25 @@ pub(crate) fn profile_fits(icc: &[u8], grey: bool) -> bool {
 /// The largest side an ICO holds.
 pub const ICO_SIDE: u32 = 256;
 
-fn pixels(img: &DynamicImage, format: Format) -> DynamicImage {
+/// The picture itself when its pixels are already those (audit 3.11: a copy of a large picture
+/// for nothing), otherwise the pixels made.
+fn pixels(img: &DynamicImage, format: Format) -> Cow<'_, DynamicImage> {
+    use DynamicImage::*;
+    let made = |same: bool, make: &dyn Fn() -> DynamicImage| if same { Cow::Borrowed(img) } else { Cow::Owned(make()) };
     let alpha = img.color().has_alpha();
-    let deep = matches!(img, DynamicImage::ImageRgb16(_) | DynamicImage::ImageRgba16(_) | DynamicImage::ImageLuma16(_));
+    let deep = matches!(img, ImageRgb16(_) | ImageRgba16(_) | ImageLuma16(_));
     match format {
         // ICO holds at most 256 × 256 pixels: larger images are reduced (the page says so).
-        Format::Ico if img.width().max(img.height()) > ICO_SIDE => pixels(&img.resize(ICO_SIDE, ICO_SIDE, image::imageops::FilterType::Lanczos3), format),
+        Format::Ico if img.width().max(img.height()) > ICO_SIDE => Cow::Owned(pixels(&img.resize(ICO_SIDE, ICO_SIDE, image::imageops::FilterType::Lanczos3), format).into_owned()),
         // Always RGBA: readers of icons (`image` too) expect the PNG inside in RGBA.
-        Format::Ico => DynamicImage::ImageRgba8(img.to_rgba8()),
-        Format::Exr if alpha => DynamicImage::ImageRgba32F(img.to_rgba32f()),
-        Format::Exr => DynamicImage::ImageRgb32F(img.to_rgb32f()),
+        Format::Ico => made(matches!(img, ImageRgba8(_)), &|| ImageRgba8(img.to_rgba8())),
+        Format::Exr if alpha => made(matches!(img, ImageRgba32F(_)), &|| ImageRgba32F(img.to_rgba32f())),
+        Format::Exr => made(matches!(img, ImageRgb32F(_)), &|| ImageRgb32F(img.to_rgb32f())),
         // No transparency in HDR: on white, as JPEG.
-        Format::Hdr => DynamicImage::ImageRgb32F(pixels(img, Format::Jpeg).to_rgb32f()),
-        Format::Farbfeld => DynamicImage::ImageRgba16(img.to_rgba16()),
-        Format::Pnm if deep && alpha => DynamicImage::ImageRgba16(img.to_rgba16()),
-        Format::Pnm if deep => DynamicImage::ImageRgb16(img.to_rgb16()),
+        Format::Hdr => Cow::Owned(ImageRgb32F(pixels(img, Format::Jpeg).to_rgb32f())),
+        Format::Farbfeld => made(matches!(img, ImageRgba16(_)), &|| ImageRgba16(img.to_rgba16())),
+        Format::Pnm if deep && alpha => made(matches!(img, ImageRgba16(_)), &|| ImageRgba16(img.to_rgba16())),
+        Format::Pnm if deep => made(matches!(img, ImageRgb16(_)), &|| ImageRgb16(img.to_rgb16())),
         Format::Jpeg if alpha => {
             let mut rgba = img.to_rgba8();
             for p in rgba.pixels_mut() {
@@ -583,12 +582,12 @@ fn pixels(img: &DynamicImage, format: Format) -> DynamicImage {
                     p[c] = ((p[c] as u16 * a + 255 * (255 - a)) / 255) as u8;
                 }
             }
-            DynamicImage::ImageRgb8(DynamicImage::ImageRgba8(rgba).to_rgb8())
+            Cow::Owned(ImageRgb8(ImageRgba8(rgba).to_rgb8()))
         }
-        Format::Png | Format::Tiff if deep || matches!(img, DynamicImage::ImageLuma8(_)) => img.clone(),
-        Format::Png if matches!(img, DynamicImage::ImageLumaA8(_) | DynamicImage::ImageLumaA16(_)) => img.clone(),
-        _ if alpha && format != Format::Jpeg => DynamicImage::ImageRgba8(img.to_rgba8()),
-        _ => DynamicImage::ImageRgb8(img.to_rgb8()),
+        Format::Png | Format::Tiff if deep || matches!(img, ImageLuma8(_)) => Cow::Borrowed(img),
+        Format::Png if matches!(img, ImageLumaA8(_) | ImageLumaA16(_)) => Cow::Borrowed(img),
+        _ if alpha && format != Format::Jpeg => made(matches!(img, ImageRgba8(_)), &|| ImageRgba8(img.to_rgba8())),
+        _ => made(matches!(img, ImageRgb8(_)), &|| ImageRgb8(img.to_rgb8())),
     }
 }
 

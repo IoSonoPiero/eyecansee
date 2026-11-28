@@ -245,7 +245,13 @@ fn layer_simple(c: &mut Cur) -> Option<bool> {
 pub fn encode(img: &DynamicImage, original: &[u8]) -> Result<Vec<u8>, String> {
     let info = read(original).unwrap_or_default();
     // Opaque stays without an alpha channel, as the original was.
-    let img = if img.to_rgba8().pixels().all(|p| p[3] == 255) { DynamicImage::ImageRgb8(img.to_rgb8()) } else { DynamicImage::ImageRgba8(img.to_rgba8()) };
+    // Told and made without copying a picture whose pixels are already those (audit 3.11).
+    let opaque = !img.color().has_alpha() || img.as_rgba8().map_or_else(|| img.to_rgba8().pixels().all(|p| p[3] == 255), |i| i.pixels().all(|p| p[3] == 255));
+    let img = match (opaque, img) {
+        (true, DynamicImage::ImageRgb8(_)) | (false, DynamicImage::ImageRgba8(_)) => std::borrow::Cow::Borrowed(img),
+        (true, _) => std::borrow::Cow::Owned(DynamicImage::ImageRgb8(img.to_rgb8())),
+        (false, _) => std::borrow::Cow::Owned(DynamicImage::ImageRgba8(img.to_rgba8())),
+    };
     let mut png = Vec::new();
     img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).map_err(|e| e.to_string())?;
     crate::decode::magick_init();
