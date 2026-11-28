@@ -82,3 +82,32 @@ fn audit_5_13_a_still_document_is_neither_measured_nor_copied() {
     assert_eq!(measures, 0, "the bubble is measured again in frames where nothing changed");
     assert_eq!(copies, 0, "the document is copied in frames where nothing changed");
 }
+
+/// Audit 5.12, a measure: a pan of the view with a piece of 2000 × 1500 pasted draws the texture
+/// of the objects again in every frame (the view and the zoom are in its key, `Drawn`): how many frames of
+/// twenty, and how long a frame takes. Run by name, with `--release -- --ignored --nocapture`.
+#[test]
+#[ignore = "a measure: by name, in --release"]
+fn audit_5_12_measure_a_pan_with_a_piece() {
+    if own_folder("edit_page::frame_work::audit_5_12_measure_a_pan_with_a_piece") {
+        return;
+    }
+    let mut h = Harness::new(&white("five-twelve"));
+    editor(&mut h, "a.png", Tool::Select);
+    h.app.editor.as_mut().unwrap().pasted_in(crate::edit::render::tests::photo_like(2000, 1500));
+    for _ in 0..3 {
+        h.frame(Vec::new());
+    }
+    let seen = |h: &Harness| h.app.editor.as_ref().unwrap().objects.as_ref().map(|(d, _)| (d.seen.at, d.seen.k));
+    let (mut drawn, start) = (0, std::time::Instant::now());
+    for _ in 0..20 {
+        let w = h.app.editor.as_mut().unwrap();
+        let (at, k) = w.shown;
+        w.view = Some((at + eframe::egui::vec2(2.0, 0.0), k));
+        let before = seen(&h);
+        h.frame(Vec::new());
+        drawn += usize::from(seen(&h) != before);
+    }
+    let ms = start.elapsed().as_secs_f64() * 1000.0 / 20.0;
+    eprintln!("a pan of 20 frames with a piece of 2000 x 1500 pasted: the objects drawn again in {drawn} frames, {ms:.1} ms a frame");
+}

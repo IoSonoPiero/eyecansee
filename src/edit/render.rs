@@ -464,6 +464,66 @@ pub(crate) mod tests {
     use crate::rotate::Crop;
     use crate::transform::Op;
 
+    /// A piece of `w` × `h` pixels like a photo's: smooth, with some noise (a PNG of it is not
+    /// small).
+    pub(crate) fn photo_like(w: u32, h: u32) -> super::super::doc::Pixels {
+        let mut seed = 0x9E37_79B9u32;
+        super::super::doc::Pixels::new(image::RgbaImage::from_fn(w, h, |x, y| {
+            seed ^= seed << 13;
+            seed ^= seed >> 17;
+            seed ^= seed << 5;
+            let n = (seed & 31) as u8;
+            image::Rgba([(x * 200 / w) as u8 + n, (y * 200 / h) as u8 + n, 100 + n, 255])
+        }))
+    }
+
+    /// Audit 5.12, a measure: at every step of a pan the texture of the objects is drawn again
+    /// from nothing, a pasted piece of some megapixels with it: the SVG built (the piece's PNG
+    /// in base64 in it), read back by usvg (the PNG decoded), drawn by resvg. Run by name, with
+    /// `--release -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "a measure: by name, in --release"]
+    fn audit_5_12_measure_the_objects_drawn_again_at_every_pan() {
+        use std::time::{Duration, Instant};
+        let o = crate::decode::usvg_options();
+        const STEPS: u32 = 20;
+        for (pw, ph) in [(2000u32, 1500u32), (4000, 3000)] {
+            let pixels = photo_like(pw, ph);
+            let t = Instant::now();
+            let png = pixels.png_base64().len();
+            let first = t.elapsed();
+            let area = Area { centre: Pt::new(0.0, 0.0), w: pw as f32, h: ph as f32, rot: 0.0 };
+            let arrow = Obj { shape: Shape::Arrow(Pt::new(-500.0, 0.0), Pt::new(500.0, 300.0), None), style: Style { width: 8.0, ..Style::default() } };
+            let doc = Doc { objects: vec![Obj { shape: Shape::Patch { area, pixels, mirrored: false }, style: Style::default() }, arrow], ..Doc::new(6000, 4000, None) };
+            let (mut build, mut parse, mut draw) = (Duration::ZERO, Duration::ZERO, Duration::ZERO);
+            for i in 0..STEPS {
+                // The screen, 1280 × 720, moved by 20 pixels of the result at each step.
+                let view = View { x: 2000.0 + i as f32 * 20.0, y: 1500.0, w: 1280, h: 720, scale: 0.4 };
+                let t = Instant::now();
+                let svg = svg(&doc, (6000, 4000), &view, &o);
+                build += t.elapsed();
+                let t = Instant::now();
+                let tree = tree(&svg, &o).unwrap();
+                parse += t.elapsed();
+                let t = Instant::now();
+                let mut pixmap = tiny_skia::Pixmap::new(view.w, view.h).unwrap();
+                resvg::render(&tree, tiny_skia::Transform::identity(), &mut pixmap.as_mut());
+                draw += t.elapsed();
+            }
+            let ms = |d: Duration| d.as_secs_f64() * 1000.0 / STEPS as f64;
+            eprintln!(
+                "piece {pw} x {ph} ({:.1} MP), PNG {:.1} MB made once in {:.0} ms; every step: SVG built {:.1} ms, read by usvg {:.1} ms, drawn {:.1} ms, together {:.1} ms",
+                (pw * ph) as f64 / 1e6,
+                png as f64 / 1e6,
+                first.as_secs_f64() * 1000.0,
+                ms(build),
+                ms(parse),
+                ms(draw),
+                ms(build + parse + draw)
+            );
+        }
+    }
+
     /// The fonts of the tests: only the one egui carries in the program (Ubuntu Light), the same
     /// on every system and in the CI, as the sans-serif font.
     pub(crate) fn options() -> usvg::Options<'static> {
