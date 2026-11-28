@@ -252,6 +252,34 @@ mod tests {
         assert_eq!((whole.flipped, whole.volume.is_some()), (0, true));
     }
 
+    /// Audit 6.15 (b): the point under the pointer on a model of 2 million triangles (a grid of
+    /// 1000 × 1000 squares), looked for at every move of the pointer: ms for each. `--release`.
+    #[test]
+    #[ignore]
+    fn audit_6_15_b_hit_time() {
+        use std::fmt::Write;
+        let n = 1000;
+        let mut obj = String::new();
+        for y in 0..=n {
+            for x in 0..=n {
+                let _ = writeln!(obj, "v {x} {y} 0");
+            }
+        }
+        for y in 0..n {
+            for x in 0..n {
+                let (a, c) = (y * (n + 1) + x + 1, (y + 1) * (n + 1) + x + 1);
+                let _ = writeln!(obj, "f {a} {} {}\nf {a} {} {c}", a + 1, c + 1, c + 1);
+            }
+        }
+        let m = crate::model::parse(obj.as_bytes(), "g.obj").unwrap();
+        let rays = 50;
+        let t = std::time::Instant::now();
+        for k in 0..rays {
+            assert!(hit(&m, [k as f32 * 10.0 + 0.3, 500.6, 10.0], [0.0, 0.0, -1.0]).is_some());
+        }
+        println!("{} triangles: {:.1} ms for each point", m.tris.len(), t.elapsed().as_secs_f64() * 1000.0 / f64::from(rays));
+    }
+
     #[test]
     fn the_point_under_the_pointer() {
         let m = cube(false);
