@@ -75,6 +75,17 @@ impl I18n {
         }
         id.to_string() // message missing everywhere: the id shows, so the bug is obvious
     }
+
+    /// `t_args` for a place that shows the text as it is (the error bar, the status bar, a
+    /// label, the log): without the message's own `**`, which only a message window shows as bold
+    /// (Piero, 28/11), and with the values as they are, a `*` in a name too. The values pass
+    /// protected through `save_dialogs::plain`, which takes the `**` away; only what `plain` reads
+    /// is protected, so a value that chooses a variant ("ply-binary") stays as it is.
+    pub fn t_plain(&self, id: &str, args: &[(&str, &str)]) -> String {
+        let kept: Vec<(&str, String)> = args.iter().map(|&(k, v)| (k, v.chars().flat_map(|c| matches!(c, '\\' | '*' | '`').then_some('\\').into_iter().chain([c])).collect())).collect();
+        let kept: Vec<(&str, &str)> = kept.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        crate::save_dialogs::plain(&self.t_args(id, &kept))
+    }
 }
 
 #[cfg(test)]

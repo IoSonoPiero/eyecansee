@@ -215,23 +215,23 @@ impl I18n {
             return self.t_args(id, &[("detail", &crate::cad_convert::said(self, detail))]);
         }
         if let Some((name, raw)) = detail.split_once('\u{1}').filter(|_| id == SERVER_CUT) {
-            let text = self.t_args(id, &[("name", name)]);
+            let text = self.t_plain(id, &[("name", name)]);
             return if raw.is_empty() { text } else { format!("{text}\n({raw})") };
         }
         // A detail sent with its own id (`id\u{1}detail`): a picture too large (`pixel_limit`).
         if let Some((inner, d)) = detail.split_once('\u{1}').filter(|(i, _)| crate::pixel_limit::is_too_large(i)) {
             let plain = self.t_args(inner, &[("detail", d)]);
-            return if WRAPPERS.contains(&id) { plain } else { self.t_args(id, &[("detail", &plain)]) };
+            return if WRAPPERS.contains(&id) { plain } else { self.t_plain(id, &[("detail", &plain)]) };
         }
         // Not recognised: the library's text under the sentence, in brackets, as the detail
         // (`error_bar::with_detail`); not a name or an address, which belongs in the sentence.
         let Some((kind, name)) = recognise(detail) else {
-            let text = self.t_args(id, &[("detail", detail)]);
+            let text = self.t_plain(id, &[("detail", detail)]);
             return if NAMED.contains(&id) { text } else { crate::error_bar::with_detail(&text, detail) };
         };
         log!("error {id}, said as {kind:?}: {detail}");
         let plain = self.fault(kind, name.as_deref());
-        if WRAPPERS.contains(&id) { plain } else { self.t_args(id, &[("detail", &plain)]) }
+        if WRAPPERS.contains(&id) { plain } else { self.t_plain(id, &[("detail", &plain)]) }
     }
 
     /// A failed load as shown. The fixed sentences the grid recognises (`occt::MISSING`) stay
@@ -317,13 +317,26 @@ impl I18n {
         }
     }
 
-    /// `error`, to go in a message window's Markdown (`save_dialogs::notice_text`).
+    /// `error`, to go in a message window's Markdown (`save_dialogs::notice_text`): the same
+    /// words (`plain` of it is `error`), with the name, the folder or the server in bold where the
+    /// message has it so (Piero, 28/11), and the detail protected.
     pub(crate) fn error_md(&self, id: &str, detail: &str) -> String {
-        match recognise(detail) {
-            Some(_) => md(&self.error(id, detail)),
-            None if detail.contains('\u{1}') || id == crate::model_gltf::CUT_SIZES || crate::model_limit::is_said(id) => md(&self.error(id, detail)),
-            None => self.t_args(id, &[("detail", &md(detail))]),
+        if let Some((name, raw)) = detail.split_once('\u{1}').filter(|_| id == SERVER_CUT) {
+            let text = self.t_args(id, &[("name", &md(name))]);
+            return if raw.is_empty() { text } else { format!("{text}\n({})", md(raw)) };
         }
+        let special = detail.contains('\u{1}') || id == crate::model_gltf::CUT_SIZES || crate::model_limit::is_said(id) || id == crate::batch::SKIP_WOULD_LOSE || crate::model_gltf::cut_text(self, id, detail).is_some();
+        if special {
+            return md(&self.error(id, detail));
+        }
+        let Some((kind, name)) = recognise(detail) else {
+            let text = self.t_args(id, &[("detail", &md(detail))]);
+            return if NAMED.contains(&id) { text } else { detail_under_md(text, detail) };
+        };
+        log!("error {id}, said as {kind:?}: {detail}");
+        let known = if name.is_some() { "yes" } else { "no" };
+        let said = self.t_args(kind.id(), &[("known", known), ("name", &md(name.as_deref().unwrap_or_default()))]);
+        if WRAPPERS.contains(&id) { said } else { self.t_args(id, &[("detail", &said)]) }
     }
 
     /// "Cannot save: …", with the error said plainly.
@@ -333,7 +346,21 @@ impl I18n {
 
     /// The sentence of `kind`, with the file's name when it is known.
     pub(crate) fn fault(&self, kind: Kind, name: Option<&str>) -> String {
-        self.t_args(kind.id(), &[("known", if name.is_some() { "yes" } else { "no" }), ("name", name.unwrap_or_default())])
+        self.t_plain(kind.id(), &[("known", if name.is_some() { "yes" } else { "no" }), ("name", name.unwrap_or_default())])
+    }
+}
+
+/// `error_bar::with_detail` for `error_md`: the library's text `raw` at the end of `text`
+/// (Markdown, `raw` protected in it) put under it in brackets, as `error` puts it.
+fn detail_under_md(text: String, raw: &str) -> String {
+    let raw = raw.trim();
+    if raw.is_empty() || raw.starts_with('(') || raw.contains('\n') {
+        return text;
+    }
+    let kept = md(raw);
+    match text.trim_end().strip_suffix(&kept).map(|head| head.trim_end().trim_end_matches(':').trim_end()) {
+        Some(head) if !head.is_empty() => format!("{head}\n({kept})"),
+        _ => text,
     }
 }
 

@@ -185,7 +185,7 @@ transfer-copying = Copia in corso
 transfer-moving = Spostamento in corso
 transfer-looking = Esamino le cartelle: { $n } elementi trovati
 transfer-counts = { $n } di { $total } file, { $done } di { $size }
-transfer-to = In { $dir }
+transfer-to = In **{ $dir }**
 transfer-reading-phone = Leggo { $name } dal telefono
 transfer-writing-phone = Scrivo { $name } su { $storage }
 transfer-stop-at-end = Mi fermo dopo { $name }: il telefono deve riceverlo intero
@@ -229,20 +229,20 @@ jobs-report-title = Lavori finiti
 transfer-copy-cancelled = Copia annullata
 transfer-move-cancelled = Spostamento annullato
 transfer-files-copied = { $n ->
-    [one] **1 file** copiato in { $dir }.
-   *[other] **{ $n } file** copiati in { $dir }.
+    [one] **1 file** copiato in **{ $dir }**.
+   *[other] **{ $n } file** copiati in **{ $dir }**.
 }
 transfer-files-moved = { $n ->
-    [one] **1 file** spostato in { $dir }.
-   *[other] **{ $n } file** spostati in { $dir }.
+    [one] **1 file** spostato in **{ $dir }**.
+   *[other] **{ $n } file** spostati in **{ $dir }**.
 }
 transfer-files-kept = { $n ->
-    [one] **1 file** copiato in { $dir } ma non spostato: l'originale è rimasto dov'era.
-   *[other] **{ $n } file** copiati in { $dir } ma non spostati: gli originali sono rimasti dov'erano.
+    [one] **1 file** copiato in **{ $dir }** ma non spostato: l'originale è rimasto dov'era.
+   *[other] **{ $n } file** copiati in **{ $dir }** ma non spostati: gli originali sono rimasti dov'erano.
 }
 transfer-folders-moved = { $n ->
-    [one] **1 cartella** spostata in { $dir }.
-   *[other] **{ $n } cartelle** spostate in { $dir }.
+    [one] **1 cartella** spostata in **{ $dir }**.
+   *[other] **{ $n } cartelle** spostate in **{ $dir }**.
 }
 transfer-files-folders-moved = { $files ->
     [one] **1 file**
@@ -250,15 +250,15 @@ transfer-files-folders-moved = { $files ->
 } e { $folders ->
     [one] **1 cartella**
    *[other] **{ $folders } cartelle**
-} spostati in { $dir }.
+} spostati in **{ $dir }**.
 transfer-skipped = { $n ->
     [one] **1 elemento** saltato: il nome c'era già.
    *[other] **{ $n } elementi** saltati: i nomi c'erano già.
 }
-transfer-done-before-cancel = **{ $n } file su { $total }** copiati in { $dir } prima di Annulla.
-transfer-moved-before-cancel = **{ $n } file su { $total }** spostati in { $dir } prima di Annulla.
-transfer-done-before-error = **{ $n } file su { $total }** copiati in { $dir } prima dell'interruzione.
-transfer-moved-before-error = **{ $n } file su { $total }** spostati in { $dir } prima dell'interruzione.
+transfer-done-before-cancel = **{ $n } file su { $total }** copiati in **{ $dir }** prima di Annulla.
+transfer-moved-before-cancel = **{ $n } file su { $total }** spostati in **{ $dir }** prima di Annulla.
+transfer-done-before-error = **{ $n } file su { $total }** copiati in **{ $dir }** prima dell'interruzione.
+transfer-moved-before-error = **{ $n } file su { $total }** spostati in **{ $dir }** prima dell'interruzione.
 transfer-copy-stopped = Copia interrotta
 transfer-move-stopped = Spostamento interrotto
 transfer-links-heading = { $n ->
@@ -310,9 +310,9 @@ error-copy-not-whole = La copia di { $detail } non è arrivata intera: l'origina
 error-pc-space = Non c'è abbastanza spazio libero su questo computer per { $detail }: un file grande dentro il telefono passa da qui. Libera un po' di spazio e riprova.
 error-phone-full = Il telefono non ha accettato il file: la memoria è piena, oppure il file è troppo grande per lei (su una scheda di memoria FAT32 un file deve restare sotto i 4 GB).
 error-phone-space = Non c'è abbastanza spazio libero sul telefono per { $detail }.
-error-move-same-item = Quello che sostituirebbe è questo stesso elemento, raggiunto da un'altra strada: { $detail }
+error-move-same-item = Quello che sostituirebbe è questo stesso elemento, raggiunto da un'altra strada: **{ $detail }**
     Lo spostamento si è fermato, e l'elemento è rimasto com'era.
-error-move-not-told = Non si può sapere se quello che sostituirebbe è questo stesso elemento: { $detail }
+error-move-not-told = Non si può sapere se quello che sostituirebbe è questo stesso elemento: **{ $detail }**
     Lo spostamento si è fermato prima di cancellarlo: è stato copiato, ed è rimasto anche dove era.
 error-paste-inside = Una cartella non può andare dentro sé stessa: { $detail }
 error-cancelled = Annullato.

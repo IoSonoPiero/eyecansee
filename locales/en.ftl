@@ -186,7 +186,7 @@ transfer-copying = Copying
 transfer-moving = Moving
 transfer-looking = Looking inside the folders: { $n } items found
 transfer-counts = { $n } of { $total } files, { $done } of { $size }
-transfer-to = To { $dir }
+transfer-to = To **{ $dir }**
 transfer-reading-phone = Reading { $name } from the phone
 transfer-writing-phone = Writing { $name } to { $storage }
 transfer-stop-at-end = Stopping after { $name }: the phone must receive it whole
@@ -230,20 +230,20 @@ jobs-report-title = Jobs finished
 transfer-copy-cancelled = Copy cancelled
 transfer-move-cancelled = Move cancelled
 transfer-files-copied = { $n ->
-    [one] **1 file** copied to { $dir }.
-   *[other] **{ $n } files** copied to { $dir }.
+    [one] **1 file** copied to **{ $dir }**.
+   *[other] **{ $n } files** copied to **{ $dir }**.
 }
 transfer-files-moved = { $n ->
-    [one] **1 file** moved to { $dir }.
-   *[other] **{ $n } files** moved to { $dir }.
+    [one] **1 file** moved to **{ $dir }**.
+   *[other] **{ $n } files** moved to **{ $dir }**.
 }
 transfer-files-kept = { $n ->
-    [one] **1 file** copied to { $dir } but not moved: the original stayed where it was.
-   *[other] **{ $n } files** copied to { $dir } but not moved: the originals stayed where they were.
+    [one] **1 file** copied to **{ $dir }** but not moved: the original stayed where it was.
+   *[other] **{ $n } files** copied to **{ $dir }** but not moved: the originals stayed where they were.
 }
 transfer-folders-moved = { $n ->
-    [one] **1 folder** moved to { $dir }.
-   *[other] **{ $n } folders** moved to { $dir }.
+    [one] **1 folder** moved to **{ $dir }**.
+   *[other] **{ $n } folders** moved to **{ $dir }**.
 }
 transfer-files-folders-moved = { $files ->
     [one] **1 file**
@@ -251,15 +251,15 @@ transfer-files-folders-moved = { $files ->
 } and { $folders ->
     [one] **1 folder**
    *[other] **{ $folders } folders**
-} moved to { $dir }.
+} moved to **{ $dir }**.
 transfer-skipped = { $n ->
     [one] **1 item** skipped: its name was already there.
    *[other] **{ $n } items** skipped: their names were already there.
 }
-transfer-done-before-cancel = **{ $n } of { $total } files** copied to { $dir } before Cancel.
-transfer-moved-before-cancel = **{ $n } of { $total } files** moved to { $dir } before Cancel.
-transfer-done-before-error = **{ $n } of { $total } files** copied to { $dir } before it stopped.
-transfer-moved-before-error = **{ $n } of { $total } files** moved to { $dir } before it stopped.
+transfer-done-before-cancel = **{ $n } of { $total } files** copied to **{ $dir }** before Cancel.
+transfer-moved-before-cancel = **{ $n } of { $total } files** moved to **{ $dir }** before Cancel.
+transfer-done-before-error = **{ $n } of { $total } files** copied to **{ $dir }** before it stopped.
+transfer-moved-before-error = **{ $n } of { $total } files** moved to **{ $dir }** before it stopped.
 transfer-copy-stopped = Copy stopped
 transfer-move-stopped = Move stopped
 transfer-links-heading = { $n ->
@@ -269,9 +269,9 @@ transfer-links-heading = { $n ->
 transfer-links-why = A link to a folder on an FTP server, or one that leads back into the folders copied, is not copied.
 transfer-links-why-moved = A link to a folder on an FTP server, or one that leads back into the folders copied, stays where it was, with the folder that holds it.
 notice-guide = More in the guide (F1).
-error-move-same-item = What it would replace is this same item, reached in another way: { $detail }
+error-move-same-item = What it would replace is this same item, reached in another way: **{ $detail }**
     The move stopped, and the item stayed as it was.
-error-move-not-told = It cannot be told whether what it would replace is this same item: { $detail }
+error-move-not-told = It cannot be told whether what it would replace is this same item: **{ $detail }**
     The move stopped before deleting it: it was copied, and it also stayed where it was.
 error-paste-inside = A folder cannot go inside itself: { $detail }
 error-name-too-long = The name is too long for the phone: { $detail } characters, while a phone takes at most 254 (an emoji counts as two).
