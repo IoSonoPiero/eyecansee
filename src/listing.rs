@@ -80,6 +80,17 @@ impl App {
         }
     }
 
+    /// A listing in place of none or of an error, as it came. The generation stays: the thumbnail
+    /// queue copies the files again, it kept those of the listing before the error.
+    pub(crate) fn insert_listing(&mut self, dir: &str, r: Result<Listing, String>) {
+        if dir == self.dir
+            && let Some(loader) = &self.loader
+        {
+            loader.forget_thumb_files();
+        }
+        self.listings.insert(dir.to_string(), r);
+    }
+
     /// Past `KEPT_FILES` files in the listings, the folders nothing shows are let go: all but the
     /// open one, those on the way to it, and those open in the left panel, whose subfolders it
     /// draws. One let go is read again when visited, as a folder not seen before.

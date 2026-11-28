@@ -243,13 +243,9 @@ impl App {
             Ok(l) => match crate::listing::arrival(self.listings.get(&dir), &l, select, self.fresh.is_some()) {
                 Arrival::Swap => self.swap_listing(&dir, l),
                 Arrival::Keep => log!("listing {dir:?} as before"),
-                Arrival::Insert => {
-                    self.listings.insert(dir.clone(), Ok(l));
-                }
+                Arrival::Insert => self.insert_listing(&dir, Ok(l)),
             },
-            r => {
-                self.listings.insert(dir.clone(), r);
-            }
+            r => self.insert_listing(&dir, r),
         }
         self.let_go_listings(ctx);
         // After the files followed: the viewer and the selection already on their file by then.
