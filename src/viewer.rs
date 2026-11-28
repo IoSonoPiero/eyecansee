@@ -592,6 +592,40 @@ mod tests {
     use super::*;
     use egui::{Event, Modifiers};
 
+    /// Audit 4.11: what a frame of the viewer asks of the images it moves among (`prefetch_full`
+    /// and the window's title, at every frame: 30 to 60 a second while a video plays) does not
+    /// grow with the folder, 50 000 files, with none marked and with all of them marked. Each
+    /// frame made a list of them twice, and with marks looked up every file among them twice.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn a_frame_of_the_viewer_does_not_list_the_folder_4_11() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("viewer::tests::a_frame_of_the_viewer_does_not_list_the_folder_4_11") {
+            return;
+        }
+        const N: usize = 50_000;
+        let mut h = Harness::new(&folder("viewer-4-11", &["a.png"]));
+        let dir = h.app.dir.clone();
+        let files: Vec<crate::source::File> = (0..N).map(|i| crate::source::File { path: format!("{dir}f{i:05}.png"), size: 1, modified: String::new() }).collect();
+        let paths: Vec<String> = files.iter().map(|f| f.path.clone()).collect();
+        h.app.listings.insert(dir, Ok(crate::source::Listing { files, ..Default::default() }));
+        h.app.viewing = Some(N / 2);
+        let frame = |h: &mut Harness| crate::test_alloc::peak(|| {
+            h.app.prefetch_full(N / 2);
+            h.app.update_title(&h.ctx);
+        }).1;
+        // The first frame asks for the neighbours and changes the title.
+        frame(&mut h);
+        let none = frame(&mut h);
+        for p in paths {
+            h.app.marked.insert(p);
+        }
+        frame(&mut h);
+        let all = frame(&mut h);
+        assert!(h.app.title.contains(&(N / 2 + 1).to_string()), "{}", h.app.title);
+        assert!(none < 64 << 10 && all < 64 << 10, "a frame held {none} bytes with nothing marked, {all} with every file marked");
+    }
+
     #[test]
     fn full_screen_after_two_frames_drawn_ahead() {
         // With DirectX 12 two frames without bars first; otherwise the command goes at once.

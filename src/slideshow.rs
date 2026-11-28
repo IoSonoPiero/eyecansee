@@ -528,6 +528,34 @@ pub fn options_ui(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
 #[cfg(test)]
 mod tests {
 
+    /// Audit 4.11: the slideshow looks for its images in the listing at every frame (the one shown,
+    /// the one it comes from, the next and the one before): found once, then where they were, while
+    /// they are still there. Each time went through the whole folder (50 000 files: 25 000 paths
+    /// compared for one in the middle).
+    #[test]
+    fn the_slideshow_finds_its_images_where_they_were_4_11() {
+        use std::cell::Cell;
+        const N: usize = 50_000;
+        let mut paths: Vec<String> = (0..N).map(|i| format!("d/f{i:05}.png")).collect();
+        let places = super::Places::default();
+        let looked = Cell::new(0);
+        fn counted<'a>(paths: &'a [String], looked: &'a Cell<usize>) -> impl Fn(usize) -> &'a str {
+            move |i| {
+                looked.set(looked.get() + 1);
+                paths[i].as_str()
+            }
+        }
+        let middle = paths[N / 2].clone();
+        for _ in 0..100 {
+            assert_eq!(places.find(&middle, N, counted(&paths, &looked)), Some(N / 2));
+        }
+        assert!(looked.get() <= N + 100, "100 frames looked at {} paths", looked.get());
+        // A file before it gone: found again at its new place.
+        paths.remove(0);
+        assert_eq!(places.find(&middle, N - 1, counted(&paths, &looked)), Some(N / 2 - 1));
+        assert_eq!(places.find("d/none.png", N - 1, counted(&paths, &looked)), None);
+    }
+
     /// #209: in the slideshow a video that cannot be opened is passed over as a picture that
     /// cannot be opened (Piero, 20/11): its name said small in the corner, and when no file of
     /// the slideshow opens it stops with the message in the bar. Skipped without libmpv (the CI).
