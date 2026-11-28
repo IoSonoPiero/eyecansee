@@ -589,6 +589,35 @@ mod tests {
         }
     }
 
+    /// Piero, 28/11: the window of a move stopped because what it would replace is the item itself
+    /// ("Spostamento interrotto") said the folder and the name in plain text: both in bold, kept
+    /// as they are inside (a `*` and a `_` in the name); Copy without the stars.
+    #[test]
+    fn a_stopped_move_says_the_folder_and_the_name_in_bold() {
+        let p = crate::transfer::Progress::default();
+        let same: Result<(), Error> = Err(("error-move-same-item", "al*bum_1".into()));
+        for lang in ["en", "it"] {
+            let i18n = crate::i18n::I18n::new(lang);
+            let part = super::quiet_copy(&i18n, true, "/home/p/Scrivania/", &same, &p);
+            assert!(part.text.contains(&format!("**{}**", md("/home/p/Scrivania/"))), "{lang}: the folder not in bold: {}", part.text);
+            assert!(part.text.contains(&format!("**{}**", md("al*bum_1"))), "{lang}: the name not in bold: {}", part.text);
+            assert!(!part.copy.contains("**") && part.copy.contains("/home/p/Scrivania/") && part.copy.contains("al*bum_1"), "{lang}: {}", part.copy);
+        }
+    }
+
+    /// The bold of 28/11 changes the look only: the words of a copy stopped by an error, as Copy
+    /// gives them, are what they were for a name, an error the system gave, a library's text
+    /// (apart, in brackets) and an unplugged phone.
+    #[test]
+    fn a_stopped_copy_reads_as_before() {
+        let p = crate::transfer::Progress::default();
+        let said = |lang: &str, cut: bool, e: Error| plain(&super::quiet_copy(&crate::i18n::I18n::new(lang), cut, "/in/", &Err(e), &p).text);
+        assert_eq!(said("en", true, ("error-move-same-item", "al*bum_1".into())), "To /in/\nWhat it would replace is this same item, reached in another way: al*bum_1\nThe move stopped, and the item stayed as it was.");
+        assert_eq!(said("it", false, ("error-source", "PermissionDenied (permanent) at write, context: { service: fs, path: a/b_c.jpg } => permission denied, source: Permission denied (os error 13)".into())), "In /in/\nImpossibile collegarsi alla sorgente: Accesso negato a \"b_c.jpg\": la cartella o il file sono protetti e il tuo utente non può scrivere o leggere lì.");
+        assert_eq!(said("en", false, ("error-source", "connection reset by peer".into())), "To /in/\nCannot connect to the source\n(connection reset by peer)");
+        assert_eq!(said("it", true, ("error-phone-disconnected", "device disconnected".into())), "In /in/\nIl telefono è stato scollegato.\n(device disconnected)");
+    }
+
     /// P7 of 26/11: a copy stopped by an unplugged phone says so, with the files done before; the
     /// error bar that said it was cleared when the window went to the home folder.
     #[test]
