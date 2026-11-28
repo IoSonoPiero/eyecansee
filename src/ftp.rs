@@ -151,10 +151,15 @@ const LISTING_MAX: u64 = 64 << 20;
 /// size (refused, or `u32::MAX`, which says it is not known, as for a phone: audit F.11), half of
 /// the memory `ram`, the line past which EyeCanSee reads no file whole (`meta_read`).
 fn read_limit(size: Option<u64>, ram: u64) -> u64 {
-    match size {
-        Some(size) if size != u64::from(u32::MAX) => size.saturating_add((size / 16).max(1 << 20)),
-        _ => ram / 2,
+    match known(size) {
+        Some(size) => size.saturating_add((size / 16).max(1 << 20)),
+        None => ram / 2,
     }
+}
+
+/// A size SIZE gave, unless it is `u32::MAX`, which says it is not known (audit F.11).
+fn known(size: Option<u64>) -> Option<u64> {
+    size.filter(|s| *s != u64::from(u32::MAX))
 }
 
 /// The connection is gone (closed by the server after its idle timeout, network down).
@@ -511,12 +516,16 @@ impl Server {
                 Err(e) => return Err(e),
             };
             let limit = read_limit(size, ram);
+            let why = match known(size) {
+                Some(size) => format!("longer than the {size} bytes the server gave"),
+                None => format!("over half of the memory ({limit} bytes), with no size given by the server"),
+            };
             let mut d = waited(self.data(&mut c.s, format!("RETR {}", abs(path)), 0)).await?;
             let data = read_up_to(&mut d, limit.saturating_add(1)).await?;
             if data.len() as u64 > limit {
-                log!("ftp: {path:?} longer than {limit} bytes (size given: {size:?}): not read further");
+                log!("ftp: {path:?} {why}: not read further");
                 c.ok = false;
-                return Ok(Err(("error-detail", format!("{path}: longer than the size the server gave ({limit} bytes)"))));
+                return Ok(Err(("error-detail", format!("{path}: {why}"))));
             }
             waited(close_data(&mut c.s, d, false)).await?;
             Ok::<_, FtpError>(Ok(data))
@@ -1217,16 +1226,18 @@ pub(crate) mod tests {
     /// Audit 27/11 S.10 (b), a file read whole (#183): RETR was read to its end, however long, so
     /// a hostile server could fill the memory with one picture. The read stops past the size
     /// SIZE gives plus a margin, or past half of the memory when the server gives no size.
-    /// Scaled: the files send 8 MiB, one says 1 MiB, the computer has 4 MiB.
+    /// Scaled: the files send 64 MiB, one says 1 MiB, the computer has 4 MiB: the read stops at
+    /// 2 MiB, and the memory it takes stays far below what was sent.
     #[test]
     fn a_file_longer_than_its_size_is_stopped() {
         let (target, _) = fake::start();
         let server = super::Server::shared(target);
         let rt = tokio::runtime::Runtime::new().unwrap();
         let ram = 4 << 20;
-        for path in ["long/declared.png", "long/unsized.png"] {
-            let r = rt.block_on(server.read_within(path, ram));
-            assert!(r.is_err(), "{path}: read whole, {:?} bytes", r.map(|d| d.len()));
+        for (path, why) in [("long/declared.png", "longer than the 1048576 bytes the server gave"), ("long/unsized.png", "over half of the memory (2097152 bytes)")] {
+            let (r, peak) = crate::test_alloc::peak(|| rt.block_on(server.read_within(path, ram)));
+            assert!(r.as_ref().is_err_and(|e| e.0 == "error-detail" && e.1.contains(why)), "{path}: {:?}", r.map(|d| d.len()));
+            assert!(peak < 16 << 20, "{path}: {} MiB taken to read it", peak >> 20);
         }
         assert_eq!(rt.block_on(server.read_within("loop/a.jpg", ram)).unwrap(), b"not a jpeg", "a file as long as its size");
         assert_eq!(rt.block_on(server.read_within("links/zeta.jpg", ram)).unwrap().len(), 47, "a link to a file, its size asked");

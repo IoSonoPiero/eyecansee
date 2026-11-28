@@ -16,7 +16,7 @@
 //! - `/endless/`, as a hostile server could list it (audit 27/11 S.10): its LIST goes on, a line
 //!   that is no item after another, for `ENDLESS` bytes or until the client stops reading;
 //! - `/long/`, as a hostile server could send a file (audit 27/11 S.10): `declared.png`, whose
-//!   SIZE says 1 MiB, and any other name, with no SIZE; RETR sends 8 MiB of each;
+//!   SIZE says 1 MiB, and any other name, with no SIZE; RETR sends 64 MiB of each;
 //! - `/disk/`: the files of a folder of this computer (`Seen::disk`), for the tests on real files;
 //! - for a move onto itself through a link (audit 27/11 F.1): `/photos/album/x.jpg`, `/desk/album`
 //!   (a link to `/photos/album/`), `/via` (a link to `/photos/album/` too), and another folder of
@@ -340,7 +340,7 @@ fn special(command: &str, path: &str) -> Option<Sender> {
 /// other files of `/long/` have no SIZE and send as much (audit 27/11 S.10: a hostile server).
 const LONG: &str = "long/declared.png";
 const DECLARED: usize = 1 << 20;
-const FLOOD: usize = 8 << 20;
+const FLOOD: usize = 64 << 20;
 
 /// The RETR of a file of `/long/`: `FLOOD` bytes, a MiB at a time, or until the client goes.
 fn flood(say: &mut dyn FnMut(&str) -> std::io::Result<()>, listener: TcpListener) -> std::io::Result<()> {
