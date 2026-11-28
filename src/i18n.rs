@@ -78,13 +78,24 @@ impl I18n {
 
     /// `t_args` for a place that shows the text as it is (the error bar, the status bar, a
     /// label, the log): without the message's own `**`, which only a message window shows as bold
-    /// (Piero, 28/11), and with the values as they are, a `*` in a name too. The values pass
-    /// protected through `save_dialogs::plain`, which takes the `**` away; only what `plain` reads
-    /// is protected, so a value that chooses a variant ("ply-binary") stays as it is.
+    /// (Piero, 28/11), and with the values as they are, a `*` in a name too. The values go in with
+    /// a `\` before every `\` and `*`, taken away after the `**`; only those, so a value that chooses
+    /// a variant ("ply-binary") stays as it is, and the message's own `\` and backticks too.
     pub fn t_plain(&self, id: &str, args: &[(&str, &str)]) -> String {
-        let kept: Vec<(&str, String)> = args.iter().map(|&(k, v)| (k, v.chars().flat_map(|c| matches!(c, '\\' | '*' | '`').then_some('\\').into_iter().chain([c])).collect())).collect();
+        let kept: Vec<(&str, String)> = args.iter().map(|&(k, v)| (k, v.chars().flat_map(|c| matches!(c, '\\' | '*').then_some('\\').into_iter().chain([c])).collect())).collect();
         let kept: Vec<(&str, &str)> = kept.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        crate::save_dialogs::plain(&self.t_args(id, &kept))
+        let (text, mut out) = (self.t_args(id, &kept), String::new());
+        let mut chars = text.chars().peekable();
+        while let Some(c) = chars.next() {
+            match c {
+                '\\' if matches!(chars.peek(), Some('\\' | '*')) => out.extend(chars.next()),
+                '*' if chars.peek() == Some(&'*') => {
+                    chars.next();
+                }
+                c => out.push(c),
+            }
+        }
+        out
     }
 }
 
