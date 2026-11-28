@@ -80,6 +80,27 @@
   </provides>
 
   <releases>
+    <release version="0.78.0" date="2026-12-07">
+      <description>
+        <ul>
+          <li>A window at the first start offers the video engine, FFmpeg and the CAD engine to download; on Windows also an icon on the desktop</li>
+          <li>Viewer: 360° panoramas are seen from inside; a double click, or Full screen in the menus, goes to full screen</li>
+          <li>Videos: the time under the pointer shows on the timeline, and . and , step one frame forward and back</li>
+          <li>A picture opened from a phone or a server is not downloaded again to save it</li>
+          <li>Every window that asks something can be used with the keyboard: Tab, the arrows, Enter and Space; F6 reaches Cancel of a job under way</li>
+          <li>Phones: copies and moves to the memory card now end up there, and a big file copied inside the phone no longer ends with an error or leaves EyeCanSee waiting forever</li>
+          <li>The left panel shows the folder last opened on each phone, server or disk, and going back to it reopens that folder</li>
+          <li>Windows: if the Vulkan driver stops EyeCanSee at startup, the next start goes back to DirectX 12 by itself</li>
+          <li>Linux: without a dedicated graphics card EyeCanSee draws with the integrated one, and a window that cannot be opened is told in a message</li>
+          <li>Export as a 3D model keeps textures and materials in OBJ, shows its progress and can be cancelled</li>
+          <li>The CAD engine is now Open CASCADE 8.0.2</li>
+          <li>Messages put each sentence on a line of its own and show names and folders in bold, and lists of names can be copied whole</li>
+          <li>Many fixes in the editor, in saving and metadata, in copies and in videos</li>
+          <li>Security: crafted pictures, 3D models, drawings and servers can no longer close EyeCanSee or fill the memory, and downloads are checked before they are unpacked</li>
+          <li>Linux: the temporary copies of videos and of CAD models can no longer be read by other users of the computer</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.77.0" date="2026-11-23">
       <description>
         <ul>
