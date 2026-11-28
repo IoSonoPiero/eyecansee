@@ -28,23 +28,43 @@ impl Window {
     }
 
     /// The photo shown follows the document's size, after Resize, Undo and Redo: resampled from
-    /// the original each time (never twice). The next objects' widths and the view follow it.
+    /// the original each time (never twice), in a thread aside (audit 5.14: the window stood
+    /// still meanwhile); until it comes the photo before is drawn at the new size.
     pub(super) fn follow_size(&mut self, ctx: &egui::Context) {
-        if self.doc.scale == self.scaled {
+        let scale = self.doc.scale;
+        if scale == self.scaled || self.aside.resampling == Some(scale) {
             return;
         }
-        let (Some(full), Some(Ok((_, _, size)))) = (self.full.clone(), &self.original) else { return };
-        let (size, start) = (*size, std::time::Instant::now());
-        let photo = match self.doc.scale {
-            Some(s) => Arc::new(resize::resample(&full, s)),
-            None => full,
-        };
-        let tex = crate::mipmap::Picture::now(ctx, "edit-original", crate::decode::preview(&photo.image), crate::mipmap::SMALLEST_PICTURE);
-        log!("edit: photo at {:?} in {:?}", self.doc.scale, start.elapsed());
-        let before = self.long();
+        let (Some(full), Some(Ok(_))) = (self.full.clone(), &self.original) else { return };
+        self.aside.resampling = Some(scale);
+        self.aside(ctx, "edit-resample", move || {
+            let start = std::time::Instant::now();
+            let photo = match scale {
+                Some(s) => Arc::new(resize::resample(&full, s)),
+                None => full,
+            };
+            let preview = crate::decode::preview(&photo.image);
+            let halves = crate::mipmap::picture_halves(&preview);
+            log!("edit: photo at {scale:?} in {:?}", start.elapsed());
+            super::work::Done::Photo(scale, photo, preview, halves)
+        });
+    }
+
+    /// The photo at `scale` resampled (`follow_size`): shown, unless the document went to another
+    /// size meanwhile. The next objects' widths and the view follow it.
+    pub(super) fn photo_arrived(&mut self, ctx: &egui::Context, scale: Option<resize::Scale>, photo: Arc<crate::encode::Original>, (preview, halves): (egui::ColorImage, Vec<egui::ColorImage>)) {
+        if self.aside.resampling == Some(scale) {
+            self.aside.resampling = None;
+        }
+        let Some(Ok((before, _, size))) = &self.original else { return };
+        if scale != self.doc.scale || scale == self.scaled {
+            return;
+        }
+        let long = |o: &crate::encode::Original| o.image.width().max(o.image.height()) as f32;
+        let (k, size) = (long(&photo) / long(before), *size);
+        let tex = crate::mipmap::Picture::new(ctx, "edit-original", preview, halves);
         self.original = Some(Ok((photo, tex, size)));
-        self.scaled = self.doc.scale;
-        let k = self.long() / before;
+        self.scaled = scale;
         // In whole pixels, as the properties bar has them.
         for (_, s) in &mut self.styles {
             s.width = (s.width * k).round().max(1.0);
@@ -195,5 +215,51 @@ mod tests {
         let n = RESAMPLES.with(|n| n.get());
         eprintln!("photos resampled in the frame: {n}");
         assert_eq!(n, 0, "the photo resampled in the frame");
+        assert!(w.working(), "the status bar says Preparing");
+        // Meanwhile the page is at the new size, drawn from the photo before.
+        assert_eq!(w.upright(), (200, 150));
+        w.follow_size(&ctx);
+        let start = std::time::Instant::now();
+        while w.working() {
+            assert!(start.elapsed().as_secs() < 10, "the photo never came");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            w.arrived(&ctx);
+        }
+        let Some(Ok((photo, ..))) = &w.original else { panic!() };
+        assert_eq!((photo.image.width(), photo.image.height(), w.scaled), (200, 150, w.doc.scale));
+    }
+
+    /// Resize, then Undo before the photo comes, then Redo: one photo made, the one asked last
+    /// shown; a photo for a size the document left is dropped.
+    #[test]
+    fn only_the_last_size_is_shown() {
+        let ctx = egui::Context::default();
+        let mut w = read(&ctx);
+        let half = Some(Scale { w: 200, h: 150, filter: crate::batch::Filter::Lanczos3 });
+        w.doc.scale = half;
+        w.follow_size(&ctx);
+        w.doc.scale = None;
+        w.follow_size(&ctx);
+        w.doc.scale = half;
+        w.follow_size(&ctx);
+        assert_eq!(w.jobs_under_way(), 1, "asked twice for the same size");
+        let wait = |w: &mut Window| {
+            let start = std::time::Instant::now();
+            while w.working() {
+                assert!(start.elapsed().as_secs() < 10, "the photo never came");
+                std::thread::sleep(std::time::Duration::from_millis(5));
+                w.arrived(&ctx);
+            }
+        };
+        wait(&mut w);
+        assert_eq!((w.upright(), w.scaled), ((200, 150), half));
+        // Undo before the photo comes back: the one at the original's size.
+        w.doc.scale = None;
+        w.follow_size(&ctx);
+        w.doc.scale = Some(Scale { w: 100, h: 75, filter: crate::batch::Filter::Nearest });
+        w.follow_size(&ctx);
+        wait(&mut w);
+        let Some(Ok((photo, ..))) = &w.original else { panic!() };
+        assert_eq!((photo.image.width(), w.scaled), (100, w.doc.scale));
     }
 }

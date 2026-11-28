@@ -41,6 +41,7 @@ mod save;
 mod style_bar;
 mod tools;
 mod typing;
+mod work;
 use canvas::canvas;
 
 /// The smallest and the largest zoom, in points of the screen per pixel of the image.
@@ -167,6 +168,8 @@ pub struct Window {
     scaled: Option<crate::edit::resize::Scale>,
     /// The Resize window is open.
     resizing: Option<crate::edit::resize::Form>,
+    /// The work done aside (`work`).
+    aside: work::Aside,
     /// The document shown, changed by the controls and the mouse.
     doc: Doc,
     /// The operations done; `None` until the image is read.
@@ -299,6 +302,7 @@ impl Window {
             full: None,
             scaled: None,
             resizing: None,
+            aside: Default::default(),
             doc: Doc::new(1, 1, None),
             history: None,
             start_turn: turn,
@@ -360,12 +364,12 @@ impl Window {
         }
     }
 
-    /// Size of the image as read, upright.
+    /// Size of the image as read, upright, at the document's size: also while its photo is
+    /// resampled (`follow_size`).
     fn upright(&self) -> (u32, u32) {
-        match &self.original {
-            Some(Ok((o, ..))) => (o.image.width(), o.image.height()),
-            _ => (1, 1),
-        }
+        let Some(Ok((o, ..))) = &self.original else { return (1, 1) };
+        let at = |o: &crate::encode::Original| (o.image.width(), o.image.height());
+        self.doc.scale.map_or_else(|| self.full.as_deref().map_or(at(o), at), |s| (s.w, s.h))
     }
 
     /// Size of the image once flipped and turned as in the document.
@@ -649,6 +653,7 @@ impl App {
         if !w.asking() && !crate::zoom_bar::typing(ui.ctx(), ZOOM_SALT) && ui.input(|i| i.key_pressed(egui::Key::Escape)) && !w.escape() {
             open = false;
         }
+        w.arrived(ui.ctx());
         w.follow_size(ui.ctx());
         let tex = match &w.original {
             Some(Ok((_, tex, _))) => Some(tex.clone()),

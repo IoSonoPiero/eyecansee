@@ -15,6 +15,10 @@ impl Window {
         use crate::edit::doc::{Pixels, Preview};
         use crate::edit::photo;
         let Some(Ok((original, ..))) = &self.original else { return };
+        // Not from the photo of another size, still being resampled (`follow_size`).
+        if self.doc.scale != self.scaled {
+            return;
+        }
         let still = self.hold.is_none();
         // A highlighter is quick to make and is over text, read closely: sharper.
         let side = |s: &Shape| match (still, s) {
