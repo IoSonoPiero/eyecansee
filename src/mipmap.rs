@@ -154,6 +154,11 @@ impl Picture {
     /// Another picture in its place (the next frame of an animation, another page), with its
     /// copies made again: the old ones would still show the first.
     pub(crate) fn set(&mut self, ctx: &egui::Context, image: Arc<ColorImage>) {
+        self.set_with(ctx, image, true);
+    }
+
+    /// `set`, `used`: whether the picture is drawn from its halved copies.
+    fn set_with(&mut self, ctx: &egui::Context, image: Arc<ColorImage>, _used: bool) {
         let halves = picture_halves(&image);
         self.halves.truncate(halves.len());
         for (i, h) in halves.into_iter().enumerate() {
