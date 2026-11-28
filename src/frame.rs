@@ -69,6 +69,11 @@ impl App {
         if let Some(current) = self.viewing {
             self.prefetch_full(current);
         }
+        if self.card_lets_go()
+            && let Some(gpu) = &mut self.model.gpu
+        {
+            gpu.forget();
+        }
         self.probe_chosen(ctx);
         self.update_title(ctx);
         let (size, viewport) = ctx.input(|i| (i.viewport_rect().size(), i.viewport().clone()));

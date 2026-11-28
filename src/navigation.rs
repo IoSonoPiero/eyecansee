@@ -366,8 +366,8 @@ impl App {
         }
         if let Some(current) = self.viewing {
             let set = self.viewer_set();
-            if let Some(at) = set.iter().position(|&i| i == current) {
-                self.viewing = Some(set[step(at, set.len(), to, self.settings.wrap_around)]);
+            if let Some(at) = set.find(current) {
+                self.viewing = Some(set.get(step(at, set.len(), to, self.settings.wrap_around)));
             }
         } else {
             let n = self.items();
@@ -398,7 +398,7 @@ impl App {
         let viewing = self.viewing.filter(|_| editing.is_none()).map(|i| {
             // Among the images it moves through: "2 of 3" with three marked.
             let set = self.viewer_set();
-            let at = set.iter().position(|&k| k == i).unwrap_or(0);
+            let at = set.find(i).unwrap_or(0);
             let counter = self.i18n.t_args("counter", &[("n", &(at + 1).to_string()), ("total", &set.len().to_string())]);
             (self.files().get(i).map_or("", |f| source::shown(&f.path)), counter)
         });

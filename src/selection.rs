@@ -1,7 +1,81 @@
 //! What an action works on: the selected item or the one in the viewer, the marked items, and
 //! which of them may be changed.
 
+use std::borrow::Borrow;
+use std::cell::RefCell;
+use std::collections::HashSet;
+use std::hash::Hash;
+use std::sync::Arc;
+
+use crate::source::File;
 use crate::{App, Focus, source};
+
+/// The marked items (`App::marked`, paths), with the positions of the marked files in the open
+/// folder's listing found last: the viewer asks for them at every frame (`viewer_set`, the
+/// title), and finding them looked at every file of the folder twice a frame (audit 4.11). Every
+/// change of the marks lets the positions go; a listing changed has another generation or another
+/// number of files.
+#[derive(Default)]
+pub(crate) struct Marked {
+    set: HashSet<String>,
+    found: RefCell<Option<Found>>,
+}
+
+/// The positions of the marked files, and the listing they are of: its generation, its files.
+type Found = ((u64, usize), Arc<[usize]>);
+
+impl Marked {
+    pub(crate) fn insert(&mut self, path: String) -> bool {
+        *self.found.get_mut() = None;
+        self.set.insert(path)
+    }
+
+    pub(crate) fn remove<Q: Hash + Eq + ?Sized>(&mut self, path: &Q) -> bool
+    where
+        String: Borrow<Q>,
+    {
+        *self.found.get_mut() = None;
+        self.set.remove(path)
+    }
+
+    pub(crate) fn clear(&mut self) {
+        *self.found.get_mut() = None;
+        self.set.clear();
+    }
+
+    /// The positions in `files` (a listing of `generation`) of the marked ones, in order.
+    pub(crate) fn positions(&self, files: &[File], generation: u64) -> Arc<[usize]> {
+        let key = (generation, files.len());
+        let mut found = self.found.borrow_mut();
+        match &*found {
+            Some((k, p)) if *k == key => p.clone(),
+            _ => {
+                let p: Arc<[usize]> = files.iter().enumerate().filter(|(_, f)| self.set.contains(&f.path)).map(|(i, _)| i).collect();
+                *found = Some((key, p.clone()));
+                p
+            }
+        }
+    }
+}
+
+impl std::ops::Deref for Marked {
+    type Target = HashSet<String>;
+    fn deref(&self) -> &HashSet<String> {
+        &self.set
+    }
+}
+
+impl From<HashSet<String>> for Marked {
+    fn from(set: HashSet<String>) -> Self {
+        Self { set, found: RefCell::default() }
+    }
+}
+
+impl FromIterator<String> for Marked {
+    fn from_iter<I: IntoIterator<Item = String>>(iter: I) -> Self {
+        HashSet::from_iter(iter).into()
+    }
+}
 
 /// What a file is, for the menus: each entry works on some kinds, and only on those files of a
 /// mixed selection.

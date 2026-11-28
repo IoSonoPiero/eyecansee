@@ -224,6 +224,8 @@ struct Slot {
     uniforms: [wgpu::Buffer; 2],
     used: bool,
     memo: Memo,
+    /// Frames in a row it could have been made smaller (`slot_size`, `SETTLE`).
+    small: u32,
 }
 
 /// What a result depends on: the texture read and how many times the picture changed, the part
@@ -426,20 +428,41 @@ pub(crate) fn resampled(pic: &Picture, scale: f32, uv: egui::Rect, out: [u32; 2]
     Some((slot.id, extent(&slot.out.0)))
 }
 
+/// Frames in a row a slot is asked for less than half of it on a side before it is made again
+/// smaller: a zoom dragged down and up again, a portrait among landscapes, do not make it again.
+const SETTLE: u32 = 30;
+
+/// The new size of one of a slot's pictures, `old` its size (`None`: none yet) and `size` the size
+/// asked, in steps of `GRAIN`, never beyond `max`: `None` while it holds it; grown to hold it;
+/// with `smaller`, on a side asked less than half, as asked (audit 4.10: it only grew, and the
+/// largest picture of the session stayed, 80 MB for a photo of 8192 × 5462 fitted to 1920 × 1080).
+fn slot_size(old: Option<[u32; 2]>, size: [u32; 2], max: u32, smaller: bool) -> Option<[u32; 2]> {
+    let had = old.unwrap_or([0, 0]);
+    let new = std::array::from_fn(|k| if smaller && size[k].saturating_mul(2) < had[k] { size[k] } else { size[k].max(had[k]) }.div_ceil(GRAIN).saturating_mul(GRAIN).min(max));
+    (old != Some(new)).then_some(new)
+}
+
+/// How many frames in a row a slot could have been smaller, `before` until the last one, `could`
+/// at this one; at `SETTLE` it is made smaller.
+fn small_frames(before: u32, could: bool) -> u32 {
+    if could { before.saturating_add(1) } else { 0 }
+}
+
 impl Smoother {
     /// The next slot of this frame, large enough for the two passes.
     fn slot(&mut self, mid: [u32; 2], out: [u32; 2]) -> usize {
         let i = self.next;
         self.next += 1;
-        let fits = |t: &wgpu::Texture, size: [u32; 2]| t.width() >= size[0] && t.height() >= size[1];
-        match self.slots.get(i) {
-            Some(slot) if fits(&slot.mid.0, mid) && fits(&slot.out.0, out) => {}
+        let max = self.rs.device.limits().max_texture_dimension_2d;
+        let had = |t: &wgpu::Texture| [t.width(), t.height()];
+        let old = self.slots.get(i).map(|s| (had(&s.mid.0), had(&s.out.0)));
+        let could = |o: Option<[u32; 2]>, size| slot_size(o, size, max, true) != slot_size(o, size, max, false);
+        let small = self.slots.get(i).map_or(0, |s| small_frames(s.small, could(old.map(|o| o.0), mid) || could(old.map(|o| o.1), out)));
+        let smaller = small >= SETTLE;
+        let (new_mid, new_out) = (slot_size(old.map(|o| o.0), mid, max, smaller), slot_size(old.map(|o| o.1), out, max, smaller));
+        match (old, new_mid, new_out) {
+            (Some(_), None, None) => self.slots[i].small = small,
             _ => {
-                let grown = |t: Option<&wgpu::Texture>, size: [u32; 2]| {
-                    let max = self.rs.device.limits().max_texture_dimension_2d;
-                    let old = t.map_or([0, 0], |t| [t.width(), t.height()]);
-                    std::array::from_fn::<u32, 2, _>(|k| size[k].max(old[k]).div_ceil(GRAIN).saturating_mul(GRAIN).min(max))
-                };
                 let make = |size: [u32; 2], format| {
                     let t = self.rs.device.create_texture(&wgpu::TextureDescriptor {
                         label: Some("smooth"),
@@ -454,9 +477,9 @@ impl Smoother {
                     let v = t.create_view(&Default::default());
                     (t, v)
                 };
+                let mid = make(new_mid.or(old.map(|o| o.0)).unwrap_or(mid), MID);
+                let out = make(new_out.or(old.map(|o| o.1)).unwrap_or(out), OUT);
                 let old = self.slots.get(i);
-                let mid = make(grown(old.map(|s| &s.mid.0), mid), MID);
-                let out = make(grown(old.map(|s| &s.out.0), out), OUT);
                 let mut renderer = self.rs.renderer.write();
                 let id = match old {
                     Some(s) => {
@@ -467,7 +490,7 @@ impl Smoother {
                 };
                 drop(renderer);
                 let uniform = || self.rs.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("smooth"), contents: &[0; 32], usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST });
-                let slot = Slot { mid, out, id, uniforms: [uniform(), uniform()], used: true, memo: Memo::default() };
+                let slot = Slot { mid, out, id, uniforms: [uniform(), uniform()], used: true, memo: Memo::default(), small: 0 };
                 if i < self.slots.len() {
                     self.slots[i] = slot;
                 } else {
@@ -620,6 +643,37 @@ mod tests {
         assert_eq!(rows_read(0.0, 8192.0, 12.6, 8192), (0, 8192));
         assert_eq!(rows_read(100.0, 50.0, 4.5, 8192), (95, 60));
         assert_eq!(rows_read(8100.0, 92.0, 30.0, 8192), (8070, 122));
+    }
+
+    /// Audit 4.10: a slot made for a large picture (a photo of 8192 × 5462 fitted to a window of
+    /// 1920 × 1080: the rows pass 1792 × 5632, 8 bytes a pixel, 80 MB) is made again smaller when a
+    /// picture asks for less than half of it on a side; zooming a little keeps it. It only grew:
+    /// the largest of the session stayed.
+    #[test]
+    fn the_slot_comes_down_4_10() {
+        let max = 16384;
+        let big = [1792, 5632];
+        let bytes = |s: Option<[u32; 2]>| s.map(|[w, h]| w as u64 * h as u64 * 8);
+        // A landscape photo fitted after it.
+        let after = slot_size(Some(big), [1700, 1080], max, true);
+        eprintln!("rows pass after a smaller picture: {after:?}, {:?} bytes (before {:?})", bytes(after), bytes(Some(big)));
+        assert_eq!(after, Some([1792, 1280]));
+        // Zooming a little: kept.
+        assert_eq!(slot_size(Some(big), [1600, 4000], max, true), None);
+        // Larger: grown, as before; and the first one.
+        assert_eq!(slot_size(Some([1024, 1024]), [1100, 900], max, true), Some([1280, 1024]));
+        assert_eq!(slot_size(Some([1024, 1024]), [1100, 900], max, false), Some([1280, 1024]));
+        assert_eq!(slot_size(None, [10, 10], max, false), Some([256, 256]));
+        // Smaller only once asked for less during `SETTLE` frames in a row (a zoom dragged down
+        // and up again, a portrait among landscapes): until then kept.
+        assert_eq!(slot_size(Some(big), [1700, 1080], max, false), None);
+        let mut small = 0;
+        // Once asked for as much at the third frame: from the fourth, 35 frames in a row.
+        let frames = (0..SETTLE + 8).map(|f| f != 2).map(|could| {
+            small = small_frames(small, could);
+            small >= SETTLE
+        });
+        assert_eq!(frames.filter(|s| *s).count(), 6, "made smaller only after {SETTLE} frames in a row");
     }
 
     /// A flat grey stays the same grey (the weights add up to one).

@@ -36,7 +36,7 @@ impl App {
             selected: 0,
             cursor: false,
             up_selected: false,
-            marked: HashSet::new(),
+            marked: Default::default(),
             band: None,
             anchor: 0,
             focus: Focus::Grid,

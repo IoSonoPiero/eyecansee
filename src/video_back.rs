@@ -8,7 +8,7 @@
 
 use std::time::{Duration, Instant};
 
-use eframe::egui::{ColorImage, Context, TextureHandle, TextureOptions};
+use eframe::egui::{ColorImage, Context, TextureHandle};
 
 use crate::mpv;
 
@@ -169,10 +169,7 @@ impl Buffer {
         if std::mem::take(&mut self.show_now)
             && let Some(image) = self.shown.map(|i| self.frames[i].1.clone())
         {
-            match texture {
-                Some(t) => t.set(image, TextureOptions::LINEAR),
-                None => *texture = Some(ctx.load_texture("video", image, TextureOptions::LINEAR)),
-            }
+            crate::mipmap::put_in(texture, ctx, "video", image);
         }
     }
 }

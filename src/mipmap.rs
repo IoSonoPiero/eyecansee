@@ -96,7 +96,8 @@ impl Halved {
 
 /// Options > Look > Smooth pictures shown below 100% (#151), set at every frame (`set_smooth`):
 /// off, every picture is drawn from itself by the card's linear filter, as up to 0.76.2. The
-/// copies are still made, so that turning it on shows them at once.
+/// copies are still made, so that turning it on shows them at once; not those of the frames of
+/// an animation and of the pages (`Picture::set`).
 static SMOOTH: AtomicBool = AtomicBool::new(true);
 
 pub(crate) fn set_smooth(on: bool) {
@@ -140,6 +141,27 @@ pub(crate) fn level(scale: f32, copies: usize) -> usize {
     }
     // A hair over: at 50% the half itself, pixel for pixel, not the picture squeezed.
     (((1.0 / scale).log2() + 1e-3).floor() as usize).min(copies)
+}
+
+/// `image` into `tex`: written into the texture already on the card when it has the same size
+/// (`set_partial`). Given whole, egui-wgpu makes a new texture each time and lets the old one go:
+/// 33 MB of graphics memory a frame for a 4K video (audit 4.9).
+pub(crate) fn put(tex: &mut TextureHandle, image: impl Into<egui::ImageData>) {
+    let image = image.into();
+    if tex.size() == image.size() {
+        tex.set_partial([0, 0], image, TextureOptions::LINEAR);
+    } else {
+        tex.set(image, TextureOptions::LINEAR);
+    }
+}
+
+/// `put` into the texture of `slot`, or into a texture `name` made there the first time: the
+/// frames of a video.
+pub(crate) fn put_in(slot: &mut Option<TextureHandle>, ctx: &egui::Context, name: &str, image: impl Into<egui::ImageData>) {
+    match slot {
+        Some(t) => put(t, image),
+        None => *slot = Some(ctx.load_texture(name, image, TextureOptions::LINEAR)),
+    }
 }
 
 /// A picture on the graphics card with its halved copies.
@@ -187,15 +209,22 @@ impl Picture {
     /// Another picture in its place (the next frame of an animation, another page), with its
     /// copies made again: the old ones would still show the first.
     pub(crate) fn set(&mut self, ctx: &egui::Context, image: Arc<ColorImage>) {
-        let halves = picture_halves(&image);
+        self.set_with(ctx, image, smooth() && filter() == crate::settings::SmoothFilter::Halves);
+    }
+
+    /// `set`, `used`: whether the picture is drawn from its halved copies (Options > Look). When
+    /// not, none are made (audit 4.9): the filter reads the whole picture, and so it does when
+    /// they are turned on, until the next frame or page.
+    fn set_with(&mut self, ctx: &egui::Context, image: Arc<ColorImage>, used: bool) {
+        let halves = if used { picture_halves(&image) } else { Vec::new() };
         self.halves.truncate(halves.len());
         for (i, h) in halves.into_iter().enumerate() {
             match self.halves.get_mut(i) {
-                Some(t) => t.set(h, TextureOptions::LINEAR),
+                Some(t) => put(t, h),
                 None => self.halves.push(ctx.load_texture(format!("frame 1/{}", 2 << i), h, TextureOptions::LINEAR)),
             }
         }
-        self.tex.set(image, TextureOptions::LINEAR);
+        put(&mut self.tex, image);
         self.version += 1;
     }
 
@@ -229,6 +258,53 @@ mod tests {
         assert!(below_100(0.99) && below_100(0.5));
     }
     use super::*;
+
+    /// Audit 4.9: the next frame of an animation, of the same size, is written into the textures
+    /// already on the card (`set_partial`), its own and its halved copies': given whole, each
+    /// time egui-wgpu made new ones and let the old go (33 MB of graphics memory a frame for a 4K
+    /// frame). Not drawn from its halved copies (the filter from the whole picture, or Mitchell),
+    /// none are made: they were made and sent to the card at every frame, on the window's thread.
+    #[test]
+    fn a_frame_of_the_same_size_goes_into_the_same_textures_4_9() {
+        let ctx = egui::Context::default();
+        let img = |v: u8| Arc::new(ColorImage::new([512, 256], vec![egui::Color32::from_gray(v); 512 * 256]));
+        let mut pic = Picture::now(&ctx, "frame", (*img(0)).clone(), SMALLEST_PICTURE);
+        assert_eq!(pic.halves.len(), 2);
+        ctx.tex_manager().write().take_delta().clear();
+        pic.set_with(&ctx, img(1), true);
+        let mut delta = ctx.tex_manager().write().take_delta();
+        let whole = delta.set.values().flatten().filter(|d| d.pos.is_none()).count();
+        let given = (delta.set.len(), whole);
+        delta.clear();
+        assert_eq!(given, (3, 0), "textures given a frame, of them given whole (made again)");
+        pic.set_with(&ctx, img(2), false);
+        let mut delta = ctx.tex_manager().write().take_delta();
+        let given = (delta.set.len(), pic.halves.len());
+        delta.clear();
+        assert_eq!(given, (1, 0), "textures given a frame not drawn from its copies, copies kept");
+        drop(pic);
+        ctx.tex_manager().write().take_delta().clear();
+    }
+
+    /// Audit 4.9: the frames of a video in their texture, made with the first; a frame of another
+    /// size (the video turned, its size changed) makes a new one.
+    #[test]
+    fn a_video_frame_goes_into_its_texture_4_9() {
+        let ctx = egui::Context::default();
+        let frame = |w: usize| ColorImage::new([w, 4], vec![egui::Color32::BLACK; w * 4]);
+        let mut slot = None;
+        let mut whole = Vec::new();
+        for w in [8, 8, 8, 6, 6] {
+            put_in(&mut slot, &ctx, "video", frame(w));
+            let mut delta = ctx.tex_manager().write().take_delta();
+            whole.push(delta.set.values().flatten().all(|d| d.pos.is_none()));
+            delta.clear();
+        }
+        assert_eq!(whole, [true, false, false, true, false]);
+        assert_eq!(slot.as_ref().map(TextureHandle::size), Some([6, 4]));
+        drop(slot);
+        ctx.tex_manager().write().take_delta().clear();
+    }
 
     /// `size` pixels, white where `white(x, y)`, black elsewhere.
     fn pattern(size: [usize; 2], white: impl Fn(usize, usize) -> bool) -> ColorImage {
