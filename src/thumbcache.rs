@@ -92,7 +92,20 @@ fn create(conn: &Connection) -> rusqlite::Result<()> {
 }
 
 /// Keeps the most recently used thumbnails as long as the total fits in `limit` bytes.
+/// Over its limit, the cache is cut to this share of it: room for a while before the next cut,
+/// so that it is not cut, a row or two each time, at every maintenance (audit 2.27).
+const TRIM_TO_PERCENT: u64 = 90;
+
+/// The share of the file free (in pages) past which a cut gives the space back to the disk
+/// (VACUUM, which writes the whole file again); below it the free pages are reused.
+const VACUUM_FREE_PERCENT: i64 = 25;
+
+/// Over `limit` bytes of thumbnails, the least recently used go down to `TRIM_TO_PERCENT` of it.
 fn trim_rows(conn: &Connection, limit: u64) -> rusqlite::Result<usize> {
+    let total: i64 = conn.query_row("SELECT coalesce(sum(length(data)), 0) FROM thumbs", [], |r| r.get(0))?;
+    if total as u64 <= limit {
+        return Ok(0);
+    }
     conn.execute(
         "DELETE FROM thumbs WHERE rowid IN (
             SELECT rowid FROM (
@@ -100,8 +113,14 @@ fn trim_rows(conn: &Connection, limit: u64) -> rusqlite::Result<usize> {
                 FROM thumbs
             ) WHERE total > ?1
         )",
-        [limit as i64],
+        [(limit.saturating_mul(TRIM_TO_PERCENT) / 100) as i64],
     )
+}
+
+/// Is so much of the file free that it is worth giving back (`VACUUM_FREE_PERCENT`)?
+fn mostly_free(conn: &Connection) -> bool {
+    let pragma = |name: &str| conn.query_row(&format!("PRAGMA {name}"), [], |r| r.get::<_, i64>(0)).unwrap_or(0);
+    pragma("freelist_count") * 100 > pragma("page_count") * VACUUM_FREE_PERCENT
 }
 
 fn now() -> i64 {
@@ -148,7 +167,7 @@ thread_local! {
 fn write_loop(mut conn: Connection, rx: Receiver<Write>) {
     while let Ok(first) = rx.recv() {
         let Ok(tx) = conn.transaction() else { continue };
-        let mut trimmed = 0;
+        let (mut trimmed, mut emptied) = (0, false);
         let mut done = Vec::new();
         for w in std::iter::once(first).chain(rx.try_iter()) {
             let _ = match w {
@@ -176,6 +195,7 @@ fn write_loop(mut conn: Connection, rx: Receiver<Write>) {
                 Write::Delete { source, path } => forget_row(&tx, &source, &path),
                 // Emptying the cache empties the metadata too.
                 Write::Trim { limit } => trim_rows(&tx, limit)
+                    .inspect(|_| emptied |= limit == 0)
                     .and_then(|n| if limit == 0 { tx.execute_batch("DELETE FROM meta; DELETE FROM info").map(|()| n) } else { Ok(n) })
                     .inspect(|n| trimmed += n),
                 Write::Forget { source, paths, done: d } => {
@@ -186,8 +206,10 @@ fn write_loop(mut conn: Connection, rx: Receiver<Write>) {
         }
         let committed = tx.commit().is_ok();
         done.into_iter().for_each(|d| d());
-        // Without VACUUM the file does not shrink: the freed space would only be reusable.
-        if committed && trimmed > 0 {
+        // Without VACUUM the file does not shrink: the freed space would only be reusable. That
+        // is enough after a cut at the limit; emptying the cache, or a much lower limit, gives it
+        // back to the disk.
+        if committed && trimmed > 0 && (emptied || mostly_free(&conn)) {
             #[cfg(test)]
             VACUUMS.with(|n| n.set(n.get() + 1));
             let _ = conn.execute_batch("VACUUM");
@@ -622,7 +644,8 @@ mod tests {
     /// Audit 2.27: with the cache at its limit, every maintenance (each start, each new source)
     /// cut a row or two and ran VACUUM, which writes the whole file again (about 1 GB). Thirty
     /// sessions that each add a thumbnail to a cache at its limit write it again never, and the
-    /// file does not grow: the space freed is reused. Emptying it (`purge`) still gives it back.
+    /// file does not grow: the space freed is reused. A much lower limit and emptying it
+    /// (`purge`) still give the space back.
     #[test]
     fn audit_2_27_full_cache_not_rewritten_at_each_maintenance() {
         let dir = std::env::temp_dir().join(format!("eyecansee-2-27-{}", std::process::id()));
@@ -648,9 +671,12 @@ mod tests {
         }
         let at_limit = VACUUMS.with(|n| n.get());
         let grown = std::fs::metadata(&db).unwrap().len() as f64 / full as f64;
+        // A limit four times lower frees most of the file: it goes back to the disk.
+        session(vec![Write::Trim { limit: limit / 4 }]);
+        let lowered = VACUUMS.with(|n| n.get()) - at_limit;
         session(vec![Write::Trim { limit: 0 }]);
-        let emptied = VACUUMS.with(|n| n.get()) - at_limit;
-        assert_eq!((at_limit, emptied), (0, 1), "VACUUMs at the limit, then emptied");
+        let emptied = VACUUMS.with(|n| n.get()) - at_limit - lowered;
+        assert_eq!((at_limit, lowered, emptied), (0, 1, 1), "VACUUMs at the limit, with a lower limit, emptied");
         assert!(grown <= 1.1, "the file grew {grown:.2} times");
         std::fs::remove_dir_all(&dir).unwrap();
     }
