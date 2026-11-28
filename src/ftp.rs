@@ -146,6 +146,22 @@ fn error(e: FtpError, path: &str) -> Error {
 /// was read whole (audit 27/11 S.10). A line of LIST is about 70 bytes: some 900,000 items.
 const LISTING_MAX: u64 = 64 << 20;
 
+/// The most a file read whole may bring (`Server::read`): the size the server gave plus a margin
+/// of 1/16 of it, at least 1 MiB, for a file that grew a little between SIZE and RETR. Without a
+/// size (refused, or `u32::MAX`, which says it is not known, as for a phone: audit F.11), half of
+/// the memory `ram`, the line past which EyeCanSee reads no file whole (`meta_read`).
+fn read_limit(size: Option<u64>, ram: u64) -> u64 {
+    match known(size) {
+        Some(size) => size.saturating_add((size / 16).max(1 << 20)),
+        None => ram / 2,
+    }
+}
+
+/// A size SIZE gave, unless it is `u32::MAX`, which says it is not known (audit F.11).
+fn known(size: Option<u64>) -> Option<u64> {
+    size.filter(|s| *s != u64::from(u32::MAX))
+}
+
 /// The connection is gone (closed by the server after its idle timeout, network down).
 fn broken(e: &FtpError) -> bool {
     matches!(e, FtpError::ConnectionError(_) | FtpError::BadResponse)
@@ -483,13 +499,38 @@ impl Server {
     }
 
     pub async fn read(&self, path: &str) -> Result<Vec<u8>, Error> {
+        self.read_within(path, crate::thumb_memory::ram()).await
+    }
+
+    /// `read` on a computer with `ram` bytes of memory: up to `read_limit` bytes (audit 27/11
+    /// S.10, #183: read to its end, a file without an end filled the memory). The size is asked
+    /// (SIZE) on the connection held, one command more per file, as SFTP asks it (`fstat`). Past
+    /// the limit the read stops with an error, the connection, left in the middle of the
+    /// transfer, is not used again, and the file is not read again on another one.
+    async fn read_within(&self, path: &str, ram: u64) -> Result<Vec<u8>, Error> {
         with!(self, path, transfer |c| async {
+            let size = match waited(c.s.size(abs(path))).await {
+                Ok(n) => Some(n as u64),
+                // Refused, or an answer that is no number: not known.
+                Err(FtpError::UnexpectedResponse(_) | FtpError::BadResponse) => None,
+                Err(e) => return Err(e),
+            };
+            let limit = read_limit(size, ram);
+            let why = match known(size) {
+                Some(size) => format!("longer than the {size} bytes the server gave"),
+                None => format!("over half of the memory ({limit} bytes), with no size given by the server"),
+            };
             let mut d = waited(self.data(&mut c.s, format!("RETR {}", abs(path)), 0)).await?;
-            let data = read_up_to(&mut d, u64::MAX).await?;
+            let data = read_up_to(&mut d, limit.saturating_add(1)).await?;
+            if data.len() as u64 > limit {
+                log!("ftp: {path:?} {why}: not read further");
+                c.ok = false;
+                return Ok(Err(("error-detail", format!("{path}: {why}"))));
+            }
             waited(close_data(&mut c.s, d, false)).await?;
-            Ok::<_, FtpError>(data)
+            Ok::<_, FtpError>(Ok(data))
         }
-        .await)
+        .await)?
     }
 
     /// `len` bytes from `offset`, fewer at the end of the file. A transfer stopped before the end
@@ -1116,5 +1157,124 @@ pub(crate) mod tests {
         let r = tokio::runtime::Runtime::new().unwrap().block_on(op.write_chunks("loop/short.jpg", 10, rx));
         assert!(r.is_err(), "{r:?}");
         assert!(seen.stored.lock().unwrap().is_empty(), "{:?}", seen.stored.lock().unwrap().keys());
+    }
+
+    /// A move on the fake server with Replace for each item (`fake.rs`): what `run` gave, and
+    /// the items gone.
+    fn moved_on_the_server(items: &[&str], to_dir: &str) -> (std::sync::Arc<fake::Seen>, Vec<String>, Result<(), crate::source::Error>) {
+        use crate::transfer::{Choice, Clip, Progress, run};
+        let (target, seen) = fake::start();
+        let server = crate::source::Store::Ftp(super::Server::shared(target));
+        let paths: Vec<String> = items.iter().map(|i| i.to_string()).collect();
+        let replace = paths.iter().map(|p| (p.clone(), Choice::Replace)).collect();
+        let clip = Clip { op: server.clone(), base: "ftp://test-f1/".into(), paths, cut: true, text: String::new() };
+        let (gone, r) = tokio::runtime::Runtime::new().unwrap().block_on(run(&clip, &server, "ftp://test-f1/", to_dir, &replace, &Progress::default()));
+        (seen, gone, r)
+    }
+
+    /// The names in a folder of the fake server, sorted.
+    fn names_on(seen: &fake::Seen, dir: &str) -> Vec<String> {
+        let mut names: Vec<String> = seen.names(dir);
+        names.sort();
+        names
+    }
+
+    /// Audit F.1 of 27/11 (#195) on FTP: `photos/album/` cut and merged (Replace) into `desk/`,
+    /// where `desk/album` is a link of the server to `photos/album/`. FTP cannot ask where a link
+    /// leads: each file was written over itself through the link and then deleted as the
+    /// original, and the folder went whole. The move stops before anything is written, saying so.
+    #[test]
+    fn f1_ftp_folder_merged_into_a_link_to_itself() {
+        let (seen, gone, r) = moved_on_the_server(&["photos/album/"], "desk/");
+        assert!(!seen.deleted("photos/album", "x.jpg"), "x.jpg is gone (paste: {r:?}, gone: {gone:?})");
+        assert!(seen.stors.lock().unwrap().is_empty(), "written over itself: {:?}", seen.stors.lock().unwrap());
+        assert_eq!(r.map_err(|e| e.0), Err("error-move-same-item"));
+        assert!(gone.is_empty(), "{gone:?}");
+        assert_eq!(names_on(&seen, "photos"), ["album"], "nothing left aside");
+        assert_eq!(names_on(&seen, "photos/album"), ["x.jpg"]);
+    }
+
+    /// Audit F.1 of 27/11 (#195) on FTP, a file: `photos/album/x.jpg` cut and pasted with Replace
+    /// into `via/`, a link of the server to its own folder. A rename on a server goes only onto a
+    /// free name, so the file there went first: it was the original, and the rename found nothing.
+    #[test]
+    fn f1_ftp_file_replacing_itself_through_a_link() {
+        let (seen, gone, r) = moved_on_the_server(&["photos/album/x.jpg"], "via/");
+        assert!(!seen.deleted("photos/album", "x.jpg"), "x.jpg is gone (paste: {r:?}, gone: {gone:?})");
+        assert_eq!(r.map_err(|e| e.0), Err("error-move-same-item"));
+        assert!(gone.is_empty(), "{gone:?}");
+        assert_eq!(names_on(&seen, "photos/album"), ["x.jpg"], "nothing left aside");
+    }
+
+    /// Next to the two above: a move on the same FTP server with Replace onto an item that is
+    /// another one still replaces it. A file over a file with its name (`loop/a.jpg` into `move/`),
+    /// a folder merged into a real folder with its name (`other/album/` into `photos/`).
+    #[test]
+    fn f1_ftp_replace_onto_another_item_still_moves() {
+        let (seen, gone, r) = moved_on_the_server(&["loop/a.jpg"], "move/");
+        assert_eq!((r, gone), (Ok(()), vec!["loop/a.jpg".to_string()]));
+        assert!(seen.deleted("move", "a.jpg"), "the file there was replaced");
+        assert_eq!(names_on(&seen, "loop"), ["again"]);
+        assert!(names_on(&seen, "move").contains(&"a.jpg".to_string()));
+        let (seen, gone, r) = moved_on_the_server(&["other/album/"], "photos/");
+        assert_eq!((r, gone), (Ok(()), vec!["other/album/".to_string()]));
+        assert_eq!(seen.stored.lock().unwrap().get("/photos/album/y.jpg").map(Vec::as_slice), Some(&b"not a jpeg"[..]));
+        assert!(seen.deleted("other/album", "y.jpg") && seen.deleted("other", "album"));
+        assert!(!seen.deleted("photos/album", "x.jpg"));
+    }
+
+    /// Audit 27/11 S.10 (b), a file read whole (#183): RETR was read to its end, however long, so
+    /// a hostile server could fill the memory with one picture. The read stops past the size
+    /// SIZE gives plus a margin, or past half of the memory when the server gives no size.
+    /// Scaled: the files send 64 MiB, one says 1 MiB, the computer has 4 MiB: the read stops at
+    /// 2 MiB, and the memory it takes stays far below what was sent.
+    #[test]
+    fn a_file_longer_than_its_size_is_stopped() {
+        let (target, _) = fake::start();
+        let server = super::Server::shared(target);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let ram = 4 << 20;
+        for (path, why) in [("long/declared.png", "longer than the 1048576 bytes the server gave"), ("long/unsized.png", "over half of the memory (2097152 bytes)")] {
+            let (r, peak) = crate::test_alloc::peak(|| rt.block_on(server.read_within(path, ram)));
+            assert!(r.as_ref().is_err_and(|e| e.0 == "error-detail" && e.1.contains(why)), "{path}: {:?}", r.map(|d| d.len()));
+            assert!(peak < 16 << 20, "{path}: {} MiB taken to read it", peak >> 20);
+        }
+        assert_eq!(rt.block_on(server.read_within("loop/a.jpg", ram)).unwrap(), b"not a jpeg", "a file as long as its size");
+        assert_eq!(rt.block_on(server.read_within("links/zeta.jpg", ram)).unwrap().len(), 47, "a link to a file, its size asked");
+    }
+
+    /// What a file read whole may bring: its size plus 1/16, at least 1 MiB more; without a size
+    /// (or with `u32::MAX`, a size not known), half of the memory. Never an overflow.
+    #[test]
+    fn read_limits() {
+        let (mib, gib) = (1u64 << 20, 1u64 << 30);
+        assert_eq!(super::read_limit(Some(0), 16 * gib), mib);
+        assert_eq!(super::read_limit(Some(10), 16 * gib), 10 + mib);
+        assert_eq!(super::read_limit(Some(4 * gib), 16 * gib), 4 * gib + gib / 4, "a big video");
+        assert_eq!(super::read_limit(Some(5 * gib), 2 * gib), 5 * gib + 5 * gib / 16, "not the memory: it was asked for");
+        assert_eq!(super::read_limit(Some(u32::MAX.into()), 16 * gib), 8 * gib);
+        assert_eq!(super::read_limit(None, 16 * gib), 8 * gib);
+        assert_eq!(super::read_limit(Some(u64::MAX), 16 * gib), u64::MAX);
+    }
+
+    /// The limit of a file read whole (`read_limit`) on the big files of the collection
+    /// (`notes/test-files`, not in the CI): TIFF, PSD, PSB and videos, given by the fake server
+    /// with their true size, come whole. The collection: `notes/test-files` or `EYECANSEE_TEST_FILES`.
+    /// `cargo test ftp_read_real_files -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn ftp_read_real_files() {
+        let files = std::env::var_os("EYECANSEE_TEST_FILES").map_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("notes/test-files"), std::path::PathBuf::from);
+        let (target, seen) = fake::start();
+        let server = super::Server::shared(target);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        for f in ["formati/x.tif", "formati/x.tiff", "formati/x.psd", "formati/x.psb", "psd/layer_effects.psd", "generati/VID_verticale_prova.mp4", "foto-video/Ocean waves.mp4"] {
+            let file = files.join(f);
+            *seen.disk.lock().unwrap() = file.parent().map(std::path::Path::to_path_buf);
+            let name = file.file_name().unwrap().to_string_lossy().into_owned();
+            let read = rt.block_on(server.read(&format!("disk/{name}"))).unwrap();
+            println!("{f}: {} bytes read", read.len());
+            assert!(read == std::fs::read(&file).unwrap(), "{f}");
+        }
     }
 }
