@@ -14,6 +14,14 @@ pub(crate) const MAX_TRIANGLES: usize = 50_000_000;
 /// a few KB can ask for 10^32 placements. A million is far more than a scene places (a 3MF plate
 /// places hundreds); an AMF reaches it in 3 s in a debug build.
 pub(crate) const MAX_VISITS: usize = 1_000_000;
+/// What reading the parts placed may go over, in times `Limit::offered` (`Builder::work`): bytes
+/// of XML, or numbers and fields in X3D and VRML. A part placed a million times was read a
+/// million times, though it brought nothing (audit 27/11, D.6). The real files of the collection
+/// go over up to 330 bytes a triangle (AMF; 3MF 125, Collada 200), so some 220 a point or
+/// triangle offered: a part placed again and again up to the offered cap stays within 256 times.
+/// The most of them takes 0.9 times the offered cap (`audit_d6_work_live`, 28/11/2026). At the
+/// cap, 10 to 20 GB gone over: at a few GB a second, seconds instead of hours (not measured).
+pub(crate) const WORK_TIMES: usize = 256;
 /// The error of a model whose points are too far apart to be drawn (`Builder::finish`).
 pub(crate) const TOO_FAR: &str = "points too far apart to be drawn";
 /// Normals are worked out (`model_smooth`) up to this many triangles: 36 bytes each.
@@ -103,6 +111,12 @@ pub(crate) type Textured = ([[f32; 2]; 3], u16);
 /// has pictures), its surface (`Builder::surface`, 0 = matte) and its corners' normals.
 pub(crate) type Shine = (Option<Textured>, u16, Option<[[f32; 3]; 3]>);
 
+#[cfg(test)]
+thread_local! {
+    /// The work and the offered cap of the last model finished on this thread (`Builder::work`).
+    pub(crate) static WORK_DONE: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0, 0)) };
+}
+
 /// Collects the parts of a model (glTF primitives, OBJ groups, 3MF objects) into one mesh.
 #[derive(Default)]
 pub(crate) struct Builder {
@@ -121,6 +135,8 @@ pub(crate) struct Builder {
     /// Nodes and instances placed so far (`visit`), points and triangles brought (`Limit::offered`).
     visits: usize,
     offered: usize,
+    /// What the parts placed so far were gone over for (`work`).
+    work: usize,
     warnings: Vec<&'static str>,
     /// What of the pictures was not kept as the file has it (`Mesh::pictures_cut`).
     cut: Vec<&'static str>,
@@ -199,6 +215,17 @@ impl Builder {
         Ok(())
     }
 
+    /// `n` more bytes of a part's XML (or numbers and fields of a part in X3D) gone over at a
+    /// placement, refused beyond `WORK_TIMES` × `Limit::offered`.
+    pub(crate) fn work(&mut self, n: usize) -> Result<(), String> {
+        self.work = self.work.saturating_add(n);
+        let most = WORK_TIMES.saturating_mul(self.limit.offered());
+        if self.work > most {
+            return Err(crate::model_limit::too_many(crate::model_limit::WORK, most));
+        }
+        Ok(())
+    }
+
     /// What follows are points or lines drawn as small solids (`Mesh::solids`).
     pub(crate) fn made_solid(&mut self) {
         self.solids = true;
@@ -267,6 +294,8 @@ impl Builder {
     }
 
     pub(crate) fn finish(self, z_up: bool) -> Result<Mesh, String> {
+        #[cfg(test)]
+        WORK_DONE.with(|w| w.set((self.work, self.limit.offered())));
         let Builder { pos, tris, colors, uv, textures, surfaces, shine, warnings, cut, solids, .. } = self;
         let finite = |p: &[f32; 3]| p.iter().all(|c| c.is_finite());
         let tris: Vec<(usize, [u32; 3])> = tris.into_iter().enumerate().filter(|(_, t)| t.iter().all(|&v| finite(&pos[v as usize]))).collect();
@@ -773,6 +802,43 @@ mod tests {
             }
         }
         println!("failed: {failed:?}");
+    }
+
+    /// Audit 27/11, D.6: what reading each 3MF, AMF, Collada, X3D and VRML under
+    /// `EYECANSEE_MODELS` (and its folders) goes over (`Builder::work`), against its cap: none
+    /// refused, and the most of them all, for `WORK_TIMES`.
+    #[test]
+    #[ignore]
+    fn audit_d6_work_live() {
+        let Ok(dir) = std::env::var("EYECANSEE_MODELS") else { return };
+        let (mut stack, mut most) = (vec![std::path::PathBuf::from(dir)], (0.0f64, String::new()));
+        while let Some(d) = stack.pop() {
+            for f in std::fs::read_dir(&d).unwrap().flatten() {
+                let path = f.path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                let name = path.file_name().unwrap().to_string_lossy().to_string();
+                let ext = name.rsplit('.').next().unwrap_or("").to_lowercase();
+                if !["3mf", "amf", "dae", "zae", "x3d", "x3dv", "x3dz", "x3dvz", "wrl", "wrz"].contains(&ext.as_str()) {
+                    continue;
+                }
+                let bytes = std::fs::read(&path).unwrap();
+                let full = path.to_string_lossy().to_string();
+                let next = |rel: &str| sibling_path(&full, rel).and_then(|p| std::fs::read(p).ok());
+                WORK_DONE.with(|w| w.set((0, 0)));
+                let r = parse_with(&bytes, &name, &next).map(|m| m.tris.len());
+                let (work, offered) = WORK_DONE.with(std::cell::Cell::get);
+                let times = work as f64 / offered.max(1) as f64;
+                println!("WORK {name}: {r:?}, work {work}, {times:.4} times the offered cap");
+                assert!(!r.as_ref().is_err_and(|e| e.starts_with(crate::model_limit::WORK)), "{name}");
+                if times > most.0 {
+                    most = (times, name);
+                }
+            }
+        }
+        println!("WORK most: {:.4} times the offered cap ({}), cap {WORK_TIMES}", most.0, most.1);
     }
 
     #[test]

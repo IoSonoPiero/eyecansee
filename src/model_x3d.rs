@@ -58,6 +58,8 @@ impl Walk<'_, '_> {
         if self.visits > MAX_VISITS {
             return Err(crate::model_limit::too_many(crate::model_limit::PLACED, MAX_VISITS));
         }
+        // Its fields are looked up by name at each visit (audit 27/11, D.6).
+        self.b.work(n.fields.len())?;
         match n.kind.as_str() {
             "Transform" => {
                 let m = mul(m, &transform(n));
@@ -84,6 +86,8 @@ impl Walk<'_, '_> {
     }
 
     fn inline(&mut self, n: &SceneNode, m: &Mat4, inline: u32) -> Result<(), String> {
+        // Its addresses are copied and looked up at each use (audit 27/11, D.6).
+        self.b.work(n.strs("url").iter().map(|u| u.len() + 1).sum())?;
         let urls = n.strs("url").to_vec();
         let scene = match self.inlined.get(&urls) {
             Some(scene) => scene.clone(),
@@ -107,6 +111,8 @@ impl Walk<'_, '_> {
     }
 
     fn shape(&mut self, n: &SceneNode, m: &Mat4) -> Result<(), String> {
+        // Its geometry and appearance are read again at each use (audit 27/11, D.6).
+        self.b.work(size(n, 2))?;
         let appearance = n.children().find(|c| c.kind == "Appearance");
         let material = appearance.and_then(|a| a.children().find(|c| c.kind.ends_with("Material")).cloned());
         let color = material.map(|mat| {
@@ -164,6 +170,24 @@ impl Walk<'_, '_> {
             }
         }
     }
+}
+
+/// The fields of `n` with their values, and those of its nodes down to `depth` levels: what
+/// reading a shape goes over (`Builder::work`).
+fn size(n: &SceneNode, depth: u32) -> usize {
+    use crate::model_vrml::Value;
+    n.fields
+        .iter()
+        .map(|(_, v)| {
+            1 + match v {
+                Value::Nums(v) => v.len(),
+                Value::Ints(v) => v.len(),
+                Value::Strs(v) => v.len(),
+                Value::Bool(_) => 0,
+                Value::Nodes(c) => c.len() + if depth > 0 { c.iter().map(|c| size(c, depth - 1)).sum() } else { 0 },
+            }
+        })
+        .sum()
 }
 
 fn rgb(c: &[f32]) -> [u8; 3] {
@@ -492,6 +516,34 @@ mod tests {
         // The default square along the default spine: a cube of side 2 and height 1.
         let m = read(b"#VRML V2.0 utf8\nShape { geometry Extrusion { } }", &|_| None, &Default::default()).unwrap();
         assert_eq!((m.tris.len(), m.center, m.radius), (4 * 2 + 2 * 3, [0.0, 0.5, 0.0], 1.5));
+    }
+
+    /// Audit 27/11, D.6: the cap of the visits counts the placements, not the work of each: a
+    /// shape whose face set has 5000 separators and no face, used 1000 times, had them gone over
+    /// at each use (5 million numbers for no point or triangle offered). Scaled: a cap of 100
+    /// triangles. A triangle used 20 times opens within the same cap.
+    #[test]
+    fn audit_d6_work_of_each_use_counted() {
+        let cap = crate::model_limit::Limit { max: 100, format: "x3d" };
+        let x3d = |index: &str, point: &str, n: usize| {
+            let uses = r#"<Shape USE="s"/>"#.repeat(n);
+            format!(r#"<X3D><Scene><Shape DEF="s"><IndexedFaceSet coordIndex="{index}"><Coordinate point="{point}"/></IndexedFaceSet></Shape>{uses}</Scene></X3D>"#)
+        };
+        let r = read_as(x3d(&"-1 ".repeat(5000), "", 1000).as_bytes(), &|_| None, &Default::default(), cap).map(|m| m.tris.len());
+        assert!(r.as_ref().is_err_and(|e| e.starts_with("error-model-takes-too-long")), "{r:?}");
+        let one = x3d("0 1 2 -1", "0 0 0 1 0 0 0 1 0", 19);
+        assert_eq!(read_as(one.as_bytes(), &|_| None, &Default::default(), cap).map(|m| m.tris.len()), Ok(20));
+    }
+
+    /// Audit 27/11, D.6, the Inline: one of 100 addresses of 1000 letters, not found, used 1000
+    /// times, had its addresses copied at each use (100 million letters). Scaled as above.
+    #[test]
+    fn audit_d6_work_of_each_inline_counted() {
+        let cap = crate::model_limit::Limit { max: 100, format: "x3d" };
+        let urls: String = (0..100).map(|k| format!("\"{k}{}\" ", "a".repeat(1000))).collect();
+        let x3d = format!(r#"<X3D><Scene><Inline DEF="i" url='{urls}'/>{}</Scene></X3D>"#, r#"<Inline USE="i"/>"#.repeat(1000));
+        let r = read_as(x3d.as_bytes(), &|_| None, &Default::default(), cap).map(|m| m.tris.len());
+        assert!(r.as_ref().is_err_and(|e| e.starts_with("error-model-takes-too-long")), "{r:?}");
     }
 
     /// Audit 6.4 (b): a LineSet that declares a million million points over three real ones.

@@ -11,6 +11,11 @@ use crate::model::{Builder, Mesh};
 const MAX_DEPTH: u32 = 32;
 
 pub fn read(bytes: &[u8], unpacked: &crate::model_3mf::Unpacked) -> Result<Mesh, String> {
+    read_up_to(bytes, unpacked, crate::model_limit::AMF)
+}
+
+/// `read`, the parts placed within `cap` (the format's, or a smaller one in the tests).
+fn read_up_to(bytes: &[u8], unpacked: &crate::model_3mf::Unpacked, cap: crate::model_limit::Limit) -> Result<Mesh, String> {
     let text = if bytes.starts_with(b"PK") { crate::model_3mf::unzipped(bytes, ".amf", unpacked)? } else { crate::model_3mf::text(bytes) };
     // Counted before the XML is parsed (`model_limit`).
     crate::model_limit::AMF.check(crate::model_limit::xml_triangles(&text))?;
@@ -18,7 +23,7 @@ pub fn read(bytes: &[u8], unpacked: &crate::model_3mf::Unpacked) -> Result<Mesh,
     let root = doc.root_element();
     let ids = |tag: &str| -> HashMap<&str, Node> { root.children().filter(|n| n.has_tag_name(tag)).filter_map(|n| Some((n.attribute("id")?, n))).collect() };
     let (objects, materials, constellations) = (ids("object"), ids("material"), ids("constellation"));
-    let mut b = Builder::up_to(crate::model_limit::AMF);
+    let mut b = Builder::up_to(cap);
     let mut amf = Amf { b: &mut b, objects: &objects, materials: &materials, constellations: &constellations };
     match root.children().find(|n| n.has_tag_name("constellation")) {
         Some(c) => amf.constellation(c, &IDENTITY, 0)?,
@@ -90,6 +95,8 @@ impl Amf<'_, '_> {
         if depth > MAX_DEPTH {
             return Err("constellations nested too deep".into());
         }
+        // Its children and instances are gone over again at each placement (audit 27/11, D.6).
+        self.b.work(c.range().len())?;
         for i in c.children().filter(|n| n.has_tag_name("instance")) {
             self.b.visit()?;
             let id = i.attribute("objectid").unwrap_or("");
@@ -104,13 +111,20 @@ impl Amf<'_, '_> {
     }
 
     fn object(&mut self, o: Node, m: &M) -> Result<(), String> {
+        // Gone over again at each instance, whatever it brings (audit 27/11, D.6).
+        self.b.work(o.range().len())?;
         let Some(mesh) = child(o, "mesh") else { return Ok(()) };
         let vertices: Vec<Node> = child(mesh, "vertices").map(|v| v.children().filter(|n| n.has_tag_name("vertex")).collect()).unwrap_or_default();
         let pos: Vec<[f32; 3]> = vertices.iter().map(|v| child(*v, "coordinates").map(|c| apply(m, ["x", "y", "z"].map(|k| number(c, k)))).unwrap_or([f32::NAN; 3])).collect();
         let vcolor: Vec<Option<[u8; 3]>> = vertices.iter().map(|v| color(*v)).collect();
         let (mut tris, mut colors) = (Vec::new(), Vec::new());
+        let own = color(o);
         for vol in mesh.children().filter(|n| n.has_tag_name("volume")) {
-            let fallback = color(vol).or_else(|| color(o)).or_else(|| vol.attribute("materialid").and_then(|id| self.materials.get(id)).and_then(|&mat| color(mat)));
+            let material = vol.attribute("materialid").and_then(|id| self.materials.get(id)).copied();
+            if let Some(mat) = material {
+                self.b.work(mat.range().len())?;
+            }
+            let fallback = color(vol).or(own).or_else(|| material.and_then(color));
             for t in vol.children().filter(|n| n.has_tag_name("triangle")) {
                 let v = ["v1", "v2", "v3"].map(|k| index(t, k));
                 tris.push(v);
@@ -134,6 +148,35 @@ mod tests {
         assert_eq!(index(t, "v1"), 16_777_217);
         assert_eq!(index(t, "v2"), u32::MAX);
         assert_eq!(index(t, "v3"), u32::MAX);
+    }
+
+    /// Audit 27/11, D.6: the cap of the visits counts the placements, not the work of each: an
+    /// object whose vertices hold 2000 elements of nothing, placed by 1000 instances, was gone
+    /// over at each one (2 million nodes for no point or triangle offered). Scaled: a cap of 100
+    /// triangles. A triangle placed 20 times opens within the same cap.
+    #[test]
+    fn audit_d6_work_of_each_instance_counted() {
+        let cap = crate::model_limit::Limit { max: 100, format: "amf" };
+        let amf = |vertices: &str, triangles: &str, n: usize| {
+            let instances = r#"<instance objectid="1"/>"#.repeat(n);
+            format!(r#"<amf><object id="1"><mesh><vertices>{vertices}</vertices><volume>{triangles}</volume></mesh></object><constellation id="2">{instances}</constellation></amf>"#)
+        };
+        let r = read_up_to(amf(&"<a/>".repeat(2000), "", 1000).as_bytes(), &Default::default(), cap).map(|m| m.tris.len());
+        assert!(r.as_ref().is_err_and(|e| e.starts_with("error-model-takes-too-long")), "{r:?}");
+        let vertex = |x: u8, y: u8| format!("<vertex><coordinates><x>{x}</x><y>{y}</y><z>0</z></coordinates></vertex>");
+        let one = amf(&(vertex(0, 0) + &vertex(1, 0) + &vertex(0, 1)), "<triangle><v1>0</v1><v2>1</v2><v3>2</v3></triangle>", 20);
+        assert_eq!(read_up_to(one.as_bytes(), &Default::default(), cap).map(|m| m.tris.len()), Ok(20));
+    }
+
+    /// Audit 27/11, D.6, the walk: a constellation of 2000 elements of nothing, placed 1000
+    /// times by another, was gone over at each placement (2 million nodes). Scaled as above.
+    #[test]
+    fn audit_d6_work_of_each_constellation_counted() {
+        let cap = crate::model_limit::Limit { max: 100, format: "amf" };
+        let instances = r#"<instance objectid="3"/>"#.repeat(1000);
+        let amf = format!(r#"<amf><constellation id="2">{instances}</constellation><constellation id="3">{}</constellation></amf>"#, "<a/>".repeat(2000));
+        let r = read_up_to(amf.as_bytes(), &Default::default(), cap).map(|m| m.tris.len());
+        assert!(r.as_ref().is_err_and(|e| e.starts_with("error-model-takes-too-long")), "{r:?}");
     }
 
     #[test]

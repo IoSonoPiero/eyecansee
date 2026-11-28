@@ -18,8 +18,15 @@ const MAX_PICTURE: u64 = 256 << 20;
 
 /// What a material shows: its colour, or its picture (`Builder::texture`) with white.
 type Look = (Option<[u8; 3]>, u16);
+/// The numbers of a `<source>` and its stride.
+type Source = std::rc::Rc<(Vec<f32>, usize)>;
 
 pub fn read(bytes: &[u8], zipped: bool, sibling: Sibling, unpacked: &crate::model_3mf::Unpacked) -> Result<Mesh, String> {
+    read_up_to(bytes, zipped, sibling, unpacked, crate::model_limit::COLLADA)
+}
+
+/// `read`, the parts placed within `cap` (the format's, or a smaller one in the tests).
+fn read_up_to(bytes: &[u8], zipped: bool, sibling: Sibling, unpacked: &crate::model_3mf::Unpacked, cap: crate::model_limit::Limit) -> Result<Mesh, String> {
     let text = if zipped { crate::model_3mf::unzipped(bytes, ".dae", unpacked)? } else { crate::model_3mf::text(bytes) };
     let doc = crate::model_3mf::parse_xml(&text, crate::model_limit::COLLADA)?;
     // Several elements may share an id (an effect named as its geometry): all kept, by kind.
@@ -30,7 +37,7 @@ pub fn read(bytes: &[u8], zipped: bool, sibling: Sibling, unpacked: &crate::mode
         }
     }
     let z_up = doc.descendants().find(|n| n.has_tag_name_local("up_axis")).and_then(|n| n.text()).is_some_and(|t| t.trim() == "Z_UP");
-    let mut b = Builder::up_to(crate::model_limit::COLLADA);
+    let mut b = Builder::up_to(cap);
     // In a ZAE the pictures are in the zip, by their path or just their name.
     let in_zip = |name: &str| {
         use std::io::Read;
@@ -41,7 +48,7 @@ pub fn read(bytes: &[u8], zipped: bool, sibling: Sibling, unpacked: &crate::mode
         unpacked.read(zip.by_name(&entry).ok()?.take(MAX_PICTURE)).ok()
     };
     let next: Sibling = if zipped { &in_zip } else { sibling };
-    let mut dae = Dae { b: &mut b, ids: &ids, sibling: next };
+    let mut dae = Dae { b: &mut b, ids: &ids, sibling: next, looks: HashMap::new() };
     let scene = doc.descendants().find(|n| n.has_tag_name_local("instance_visual_scene")).and_then(|i| dae.target(i, "url", "visual_scene"));
     let scene = scene.or_else(|| doc.descendants().find(|n| n.has_tag_name_local("visual_scene")));
     match scene {
@@ -97,6 +104,8 @@ struct Dae<'a, 'd> {
     b: &'a mut Builder,
     ids: &'a HashMap<&'d str, Vec<Node<'d, 'd>>>,
     sibling: Sibling<'a>,
+    /// The look of each material, read once however many instances bind it (audit 27/11, D.6).
+    looks: HashMap<roxmltree::NodeId, Option<Look>>,
 }
 
 impl<'d> Dae<'_, 'd> {
@@ -111,6 +120,8 @@ impl<'d> Dae<'_, 'd> {
             return Err("nodes nested too deep".into());
         }
         self.b.visit()?;
+        // The text of each child is read as a transform, at each visit (audit 27/11, D.6).
+        self.b.work(n.children().map(|c| c.text().map_or(0, str::len) + 1).sum())?;
         let m = n.children().filter_map(transform).fold(*parent, |acc, t| mul(&acc, &t));
         for c in n.children() {
             match c.tag_name().name() {
@@ -122,6 +133,7 @@ impl<'d> Dae<'_, 'd> {
                 }
                 "instance_geometry" | "instance_controller" => {
                     let mut g = self.target(c, "url", if c.tag_name().name() == "instance_geometry" { "geometry" } else { "controller" });
+                    let target = g;
                     let mut place = m;
                     // A skin names the mesh it deforms, placed first by its bind shape matrix
                     // (the rest pose, with the skeleton as it was bound).
@@ -131,8 +143,12 @@ impl<'d> Dae<'_, 'd> {
                             place = mul(&m, &bind);
                         }
                     }
+                    // Searched for its skin at each placement: counted here when `geometry` does not.
+                    if let Some(t) = target.filter(|t| g.map(|g| g.id()) != Some(t.id())) {
+                        self.b.work(t.range().len())?;
+                    }
                     if let Some(g) = g {
-                        let bound = self.bound_looks(c);
+                        let bound = self.bound_looks(c)?;
                         self.geometry(g, &place, &bound)?;
                     }
                 }
@@ -143,12 +159,22 @@ impl<'d> Dae<'_, 'd> {
     }
 
     /// The look of each material symbol of an instance.
-    fn bound_looks(&mut self, inst: Node) -> HashMap<String, Look> {
+    fn bound_looks(&mut self, inst: Node) -> Result<HashMap<String, Look>, String> {
+        self.b.work(inst.range().len())?;
         let materials: Vec<(String, Node)> = inst.descendants().filter(|n| n.has_tag_name_local("instance_material")).filter_map(|i| Some((i.attribute("symbol")?.to_string(), self.target(i, "target", "material")?))).collect();
-        materials.into_iter().filter_map(|(symbol, m)| Some((symbol, self.material_look(m)?))).collect()
+        Ok(materials.into_iter().filter_map(|(symbol, m)| Some((symbol, self.material_look(m)?))).collect())
     }
 
     fn material_look(&mut self, material: Node) -> Option<Look> {
+        if let Some(&look) = self.looks.get(&material.id()) {
+            return look;
+        }
+        let look = self.read_look(material);
+        self.looks.insert(material.id(), look);
+        look
+    }
+
+    fn read_look(&mut self, material: Node) -> Option<Look> {
         let effect = self.target(material.descendants().find(|n| n.has_tag_name_local("instance_effect"))?, "url", "effect")?;
         let diffuse = effect.descendants().find(|n| n.has_tag_name_local("diffuse"))?;
         if let Some(file) = self.picture(effect, diffuse) {
@@ -175,21 +201,37 @@ impl<'d> Dae<'_, 'd> {
         Some(file.trim_start_matches("file://").to_string())
     }
 
-    /// The numbers of a `<source>`, by groups of its accessor's stride.
-    fn source(&self, input: Node) -> Option<(Vec<f32>, usize)> {
-        let s = self.target(input, "source", "source")?;
-        let data = floats(s.descendants().find(|n| n.has_tag_name_local("float_array"))?);
-        let stride = s.descendants().find(|n| n.has_tag_name_local("accessor")).and_then(|a| a.attribute("stride")?.parse().ok()).unwrap_or(3usize).max(1);
-        Some((data, stride))
+    /// The numbers of a `<source>`, by groups of its accessor's stride: read once for each
+    /// placement of geometry `g` (`read`, by the source), however many of its primitives use
+    /// it; one outside `g` counted as work (audit 27/11, D.6).
+    fn source(&mut self, input: Node, g: Node, read: &mut HashMap<roxmltree::NodeId, Option<Source>>) -> Result<Option<Source>, String> {
+        let Some(s) = self.target(input, "source", "source") else { return Ok(None) };
+        if let Some(done) = read.get(&s.id()) {
+            return Ok(done.clone());
+        }
+        let (inner, outer) = (s.range(), g.range());
+        if inner.start < outer.start || inner.end > outer.end {
+            self.b.work(inner.len())?;
+        }
+        let numbers = s.descendants().find(|n| n.has_tag_name_local("float_array")).map(|f| {
+            let stride = s.descendants().find(|n| n.has_tag_name_local("accessor")).and_then(|a| a.attribute("stride")?.parse().ok()).unwrap_or(3usize).max(1);
+            Source::new((floats(f), stride))
+        });
+        read.insert(s.id(), numbers.clone());
+        Ok(numbers)
     }
 
     fn geometry(&mut self, g: Node<'d, 'd>, m: &Mat4, bound: &HashMap<String, Look>) -> Result<(), String> {
+        // Gone over again at each placement, whatever it brings (audit 27/11, D.6).
+        self.b.work(g.range().len())?;
         let Some(mesh) = tagged(g, "mesh").next() else { return Ok(()) };
         let Some(vertices) = tagged(mesh, "vertices").next() else { return Ok(()) };
         let semantic = |n: Node<'d, 'd>, s: &str| tagged(n, "input").find(|i| i.attribute("semantic") == Some(s));
-        let Some((p, stride)) = semantic(vertices, "POSITION").and_then(|i| self.source(i)) else { return Ok(()) };
+        let mut read = HashMap::new();
+        let Some(position) = semantic(vertices, "POSITION").map(|i| self.source(i, g, &mut read)).transpose()?.flatten() else { return Ok(()) };
+        let (p, stride) = (&position.0, position.1);
         let pos: Vec<[f32; 3]> = p.chunks(stride).filter(|c| c.len() >= 3).map(|c| apply(m, [c[0], c[1], c[2]])).collect();
-        let vertex_colors = semantic(vertices, "COLOR").and_then(|i| self.source(i));
+        let vertex_colors = semantic(vertices, "COLOR").map(|i| self.source(i, g, &mut read)).transpose()?.flatten();
         let (mut tris, mut colors, mut uv) = (Vec::new(), Vec::new(), Vec::new());
         for prim in mesh.children().filter(|n| matches!(n.tag_name().name(), "triangles" | "polylist" | "polygons" | "tristrips" | "trifans")) {
             let inputs: Vec<Node> = tagged(prim, "input").collect();
@@ -197,16 +239,18 @@ impl<'d> Dae<'_, 'd> {
             let step = inputs.iter().map(|i| offset(i) + 1).max().unwrap_or(1);
             let Some(vin) = inputs.iter().find(|i| i.attribute("semantic") == Some("VERTEX")) else { continue };
             let color_in = inputs.iter().find(|i| i.attribute("semantic") == Some("COLOR"));
-            let colors_src = color_in.and_then(|c| self.source(*c).map(|s| (s, offset(c)))).or_else(|| vertex_colors.clone().map(|s| (s, offset(vin))));
+            let own_colors = color_in.map(|c| self.source(*c, g, &mut read)).transpose()?.flatten();
+            let colors_src = own_colors.zip(color_in.map(offset)).or_else(|| vertex_colors.clone().map(|s| (s, offset(vin))));
             let (material, tex) = prim.attribute("material").and_then(|s| bound.get(s)).copied().unwrap_or_default();
-            let coords = inputs.iter().find(|i| i.attribute("semantic") == Some("TEXCOORD")).filter(|_| tex > 0).and_then(|c| self.source(*c).map(|s| (s, offset(c))));
+            let coords_in = inputs.iter().find(|i| i.attribute("semantic") == Some("TEXCOORD")).filter(|_| tex > 0);
+            let coords = coords_in.map(|c| self.source(*c, g, &mut read)).transpose()?.flatten().zip(coords_in.map(offset));
             for (corners, idx) in polygons(prim, step) {
                 let at = |k: usize, off: usize| idx.get(k * step + off).copied().unwrap_or(u32::MAX);
                 for t in corners {
                     tris.push(t.map(|k| at(k, offset(vin))));
-                    let vc = colors_src.as_ref().and_then(|((c, s), off)| average(c, *s, t.map(|k| at(k, *off))));
+                    let vc = colors_src.as_ref().and_then(|(c, off)| average(&c.0, c.1, t.map(|k| at(k, *off))));
                     colors.push(vc.or(material));
-                    uv.push(coords.as_ref().and_then(|((c, s), off)| place(c, *s, t.map(|k| at(k, *off)))).map(|p| (p, tex)));
+                    uv.push(coords.as_ref().and_then(|(c, off)| place(&c.0, c.1, t.map(|k| at(k, *off)))).map(|p| (p, tex)));
                 }
             }
         }
@@ -219,6 +263,8 @@ impl<'d> Dae<'_, 'd> {
 fn polygons(prim: Node, step: usize) -> Vec<(Vec<[usize; 3]>, Vec<u32>)> {
     let kind = prim.tag_name().name();
     let fan = |n: usize, first: usize| (1..n.saturating_sub(1)).map(move |k| [first, first + k, first + k + 1]);
+    // Read once for all the <p> (audit 27/11, D.6).
+    let counts = if kind == "polylist" { tagged(prim, "vcount").next().map(ints).unwrap_or_default() } else { Vec::new() };
     tagged(prim, "p")
         .map(|p| {
             let idx = ints(p);
@@ -226,7 +272,6 @@ fn polygons(prim: Node, step: usize) -> Vec<(Vec<[usize; 3]>, Vec<u32>)> {
             let tris: Vec<[usize; 3]> = match kind {
                 "triangles" => (0..n / 3).map(|t| [t * 3, t * 3 + 1, t * 3 + 2]).collect(),
                 "polylist" => {
-                    let counts = tagged(prim, "vcount").next().map(ints).unwrap_or_default();
                     let mut first = 0;
                     // Each polygon only over the corners that are there: the counts are the file's word.
                     counts.iter().flat_map(|&c| { let f = fan((c as usize).min(n.saturating_sub(first)), first); first = first.saturating_add(c as usize); f }).collect()
@@ -286,6 +331,43 @@ mod tests {
         let m = read(textured.as_bytes(), false, &next, &Default::default()).unwrap();
         assert_eq!((m.tex.clone(), m.colors[0]), (vec![1, 1], [255; 3]));
         assert_eq!(m.uv[0][1], [1.0, 1.0]);
+    }
+
+    /// Audit 27/11, D.6: the cap of the visits counts the placements, not the work of each: a
+    /// geometry whose positions are 8000 spaces, placed by 1000 nodes, had them read again at each
+    /// one (8 million bytes for no point or triangle offered). Scaled: a cap of 100 triangles. A
+    /// triangle placed 20 times opens within the same cap.
+    #[test]
+    fn audit_d6_work_of_each_instance_counted() {
+        let cap = crate::model_limit::Limit { max: 100, format: "collada" };
+        let dae = |numbers: &str, p: &str, n: usize| {
+            let nodes = r##"<node><instance_geometry url="#g"/></node>"##.repeat(n);
+            format!(r##"<COLLADA><library_geometries><geometry id="g"><mesh>
+              <source id="p"><float_array>{numbers}</float_array><technique_common><accessor stride="3"/></technique_common></source>
+              <vertices id="v"><input semantic="POSITION" source="#p"/></vertices>
+              <triangles><input semantic="VERTEX" source="#v" offset="0"/><p>{p}</p></triangles>
+            </mesh></geometry></library_geometries>
+            <library_visual_scenes><visual_scene id="s">{nodes}</visual_scene></library_visual_scenes>
+            <scene><instance_visual_scene url="#s"/></scene></COLLADA>"##)
+        };
+        let r = read_up_to(dae(&" ".repeat(8000), "", 1000).as_bytes(), false, &|_| None, &Default::default(), cap).map(|m| m.tris.len());
+        assert!(r.as_ref().is_err_and(|e| e.starts_with("error-model-takes-too-long")), "{r:?}");
+        let one = dae("0 0 0 1 0 0 0 1 0", "0 1 2", 20);
+        assert_eq!(read_up_to(one.as_bytes(), false, &|_| None, &Default::default(), cap).map(|m| m.tris.len()), Ok(20));
+    }
+
+    /// Audit 27/11, D.6, the skin: a geometry of 2000 elements of nothing and a skin of no mesh,
+    /// placed by 1000 nodes, was searched for its skin at each one (2 million nodes). Scaled as
+    /// above.
+    #[test]
+    fn audit_d6_work_of_each_skin_counted() {
+        let cap = crate::model_limit::Limit { max: 100, format: "collada" };
+        let nodes = r##"<node><instance_geometry url="#g"/></node>"##.repeat(1000);
+        let dae = format!(r##"<COLLADA><library_geometries><geometry id="g">{}<skin source="#none"/></geometry></library_geometries>
+            <library_visual_scenes><visual_scene id="s">{nodes}</visual_scene></library_visual_scenes>
+            <scene><instance_visual_scene url="#s"/></scene></COLLADA>"##, "<a/>".repeat(2000));
+        let r = read_up_to(dae.as_bytes(), false, &|_| None, &Default::default(), cap).map(|m| m.tris.len());
+        assert!(r.as_ref().is_err_and(|e| e.starts_with("error-model-takes-too-long")), "{r:?}");
     }
 
     /// Audit 6.6: a chain of 60 nodes, each one instancing the next twice, the last one empty:
