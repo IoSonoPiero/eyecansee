@@ -168,7 +168,7 @@ pub fn decode_full_with(bytes: &[u8], name: &str, sibling: crate::model::Sibling
         return model_picture_with(bytes, name, 1920, 1440, sibling);
     }
     if crate::cad::is_cad(name) {
-        return Ok(DynamicImage::ImageRgba8(cad_render(&crate::cad::read_with(bytes, name, sibling)?, CAD_SIDE, None)?));
+        return Ok(DynamicImage::ImageRgba8(cad_render(&crate::cad::read_model(bytes, name, sibling)?, CAD_SIDE, None)?));
     }
     decode_full(bytes, name)
 }
@@ -490,7 +490,7 @@ fn svg(bytes: &[u8]) -> Result<DynamicImage> {
 
 /// A CAD drawing (`cad`) as a picture whose long side is `side`.
 pub fn cad_picture(bytes: &[u8], name: &str, side: u32) -> std::result::Result<DynamicImage, String> {
-    Ok(DynamicImage::ImageRgba8(cad_render(&crate::cad::read(bytes, name)?, side, None)?))
+    Ok(DynamicImage::ImageRgba8(cad_render(&crate::cad::read_model(bytes, name, &crate::cad_image::none)?, side, None)?))
 }
 
 /// The drawing as a picture whose long side is `side` pixels, or only its part `region`
@@ -502,7 +502,7 @@ pub fn cad_render(d: &crate::cad::Drawing, side: u32, region: Option<([f32; 4], 
         return Ok(img.into_rgba8());
     };
     let (sx, sy) = (ow as f32 / w.max(f32::MIN_POSITIVE), oh as f32 / h.max(f32::MIN_POSITIVE));
-    let tree = usvg::Tree::from_data(d.svg(side, 1.0 / sx)?.as_bytes(), &usvg_options()).map_err(|e| e.to_string())?;
+    let tree = usvg::Tree::from_data(d.svg_part(side, 1.0 / sx, Some([x, y, w, h].map(f64::from)))?.as_bytes(), &usvg_options()).map_err(|e| e.to_string())?;
     let mut pixmap = tiny_skia::Pixmap::new(ow.max(1), oh.max(1)).ok_or("CAD: invalid dimensions")?;
     resvg::render(&tree, tiny_skia::Transform::from_row(sx, 0.0, 0.0, sy, -x * sx, -y * sy), &mut pixmap.as_mut());
     Ok(pixmap_rgba(&pixmap))

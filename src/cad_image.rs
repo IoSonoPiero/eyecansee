@@ -19,9 +19,19 @@ pub(crate) fn none(_: &str) -> Option<Vec<u8>> {
     None
 }
 
-/// The picture of `r` as a base64 PNG, if its file is found and can be read.
-pub(crate) fn picture(doc: &CadDocument, r: &RasterImage, sibling: Sibling) -> Option<String> {
-    let ObjectType::ImageDefinition(def) = doc.objects.get(&r.definition_handle?)? else { return None };
+/// The pictures of a drawing made so far, by their definition: one placed several times (a logo
+/// in a block) is read, decoded and made PNG once (audit 6.13).
+pub(crate) type Pictures = std::collections::HashMap<acadrust::types::Handle, Option<String>>;
+
+/// The picture of `r` as a base64 PNG, if its file is found and can be read; once for each
+/// definition (`seen`).
+pub(crate) fn picture(doc: &CadDocument, r: &RasterImage, sibling: Sibling, seen: &mut Pictures) -> Option<String> {
+    let handle = r.definition_handle?;
+    seen.entry(handle).or_insert_with(|| made(doc, handle, sibling)).clone()
+}
+
+fn made(doc: &CadDocument, handle: acadrust::types::Handle, sibling: Sibling) -> Option<String> {
+    let ObjectType::ImageDefinition(def) = doc.objects.get(&handle)? else { return None };
     let name = def.file_name.trim();
     let bare = name.rsplit(['/', '\\']).next()?;
     let relative = !(name.starts_with(['/', '\\']) || name.contains(':'));
@@ -47,6 +57,36 @@ pub(crate) fn corners(r: &RasterImage) -> [P; 4] {
 
 #[cfg(test)]
 mod tests {
+    /// Audit 6.13: a picture placed several times (a logo in a block) was read, decoded and made
+    /// PNG again for each place. Three places of one picture: one read of its file.
+    #[test]
+    fn audit_6_13_picture_read_once() {
+        use acadrust::entities::{EntityType, RasterImage};
+        use acadrust::objects::{ImageDefinition, ObjectType};
+        let mut doc = acadrust::CadDocument::new();
+        let h = doc.allocate_handle();
+        let mut def = ImageDefinition::new("logo.png");
+        def.handle = h;
+        doc.objects.insert(h, ObjectType::ImageDefinition(def));
+        for i in 0..3 {
+            let mut r = RasterImage::new("logo.png", acadrust::types::Vector3::new(f64::from(i) * 20.0, 0.0, 0.0), 10.0, 10.0);
+            r.definition_handle = Some(h);
+            doc.add_entity(EntityType::RasterImage(r)).unwrap();
+        }
+        let dxf = acadrust::DxfWriter::new(&doc).write_to_vec().unwrap();
+        let mut png = Vec::new();
+        image::RgbaImage::new(2, 2).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let asked = std::cell::Cell::new(0);
+        let next = |n: &str| {
+            let logo = n == "logo.png";
+            asked.set(asked.get() + usize::from(logo));
+            logo.then(|| png.clone())
+        };
+        let d = crate::cad::read_with(&dxf, "a.dxf", &next).unwrap();
+        assert_eq!(d.items.iter().filter(|i| matches!(i, crate::cad::Item::Image { .. })).count(), 3);
+        assert_eq!(asked.get(), 1, "reads of a picture placed three times");
+    }
+
     #[test]
     fn the_unit_square_lands_on_the_corners() {
         // A picture from (10, 50) to (30, 40) in pixels (y down): top-left (10, 40).

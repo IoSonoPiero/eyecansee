@@ -290,7 +290,8 @@ async fn generate(op: &Store, base: &str, file: File, wanted: impl Fn() -> bool)
         let img = if crate::model::is_model(&file.path) {
             crate::occt::from_file(local, || decode::model_picture_with(&bytes, &file.path, THUMB_SIDE, THUMB_SIDE * 3 / 4, &sibling))?
         } else if crate::cad::is_cad(&file.path) {
-            let d = crate::cad::read_with(&bytes, &file.path, &sibling)?;
+            let missed = missed(&base);
+            let d = crate::cad::read_model(&bytes, &file.path, &crate::cad_text::remembering(&missed, &file.path, &sibling))?;
             // Its number and revision kept with it, for the line under it (#144).
             thumbcache::save_info(&base, &file, &crate::thumb_details::Info { drawing: d.summary.clone(), ..Default::default() });
             image::DynamicImage::ImageRgba8(decode::cad_render(&d, THUMB_SIDE, None)?)
@@ -323,6 +324,19 @@ fn reading(base: &str) -> Arc<Budget> {
     let budget = Arc::new(Budget::shared_by_reads(1 << 30));
     all.push((base.to_string(), budget.clone()));
     budget
+}
+
+/// The files next to drawings that the source `base` did not have (`cad_text::Missed`), shared
+/// by the thumbnails of its drawings.
+fn missed(base: &str) -> Arc<crate::cad_text::Missed> {
+    static MISSED: Mutex<Vec<(String, Arc<crate::cad_text::Missed>)>> = Mutex::new(Vec::new());
+    let mut all = MISSED.lock().unwrap();
+    if let Some((_, m)) = all.iter().find(|(b, _)| b == base) {
+        return m.clone();
+    }
+    let m = Arc::new(crate::cad_text::Missed::default());
+    all.push((base.to_string(), m.clone()));
+    m
 }
 
 /// `read`, left as soon as the thumbnail is no longer wanted (`wanted`, looked at every 100 ms):

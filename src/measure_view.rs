@@ -29,6 +29,8 @@ pub(crate) struct State {
     pub(crate) pts3: Vec<[f32; 3]>,
     /// The sizes of the models, measured in the background.
     pub(crate) sizes: crate::model_measure::Memo,
+    /// The points a drawing's points snap to (`cad_measure::Snapper`).
+    snapper: crate::cad_measure::Snapper,
     /// What the status bar shows, set by the viewer at every frame while measuring.
     pub(crate) shown: Option<Shown>,
 }
@@ -191,7 +193,7 @@ impl App {
         };
         // Drawing units in a point of the screen.
         let per_point = f64::from(uv.width()) * place.size[0] / place.scale / f64::from(dest.width().max(1.0));
-        let hover = response.hover_pos().map(|p| crate::cad_measure::snap(&d, to_drawing(p), f64::from(SNAP) * per_point));
+        let hover = response.hover_pos().map(|p| m.snapper.snap(&d, to_drawing(p), f64::from(SNAP) * per_point));
         if response.clicked()
             && let Some((p, _)) = hover
         {

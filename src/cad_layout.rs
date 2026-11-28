@@ -42,6 +42,12 @@ fn viewport(e: &EntityType) -> Option<&Viewport> {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Layouts drawn on this thread (audit 6.14).
+    pub(crate) static DRAWN: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 fn sheet(doc: &CadDocument, l: &Layout, sibling: crate::model::Sibling, fonts: &Fonts, layers: Layers, spent: &mut Spent) -> Option<Drawing> {
     let name = &doc.block_records.iter().find(|b| b.handle == l.block_record)?.name;
     let entities: Vec<&EntityType> = doc.entities_in_block(name).collect();
@@ -49,6 +55,8 @@ fn sheet(doc: &CadDocument, l: &Layout, sibling: crate::model::Sibling, fonts: &
     if entities.iter().all(|e| viewport(e).is_some_and(|v| v.id == SHEET_VIEWPORT)) {
         return None;
     }
+    #[cfg(test)]
+    DRAWN.with(|n| n.set(n.get() + 1));
     let mut d = Drawing { layers: layers.0.to_vec(), ..Default::default() };
     let mut walk = Walk::new(doc, &mut d).after(*spent);
     walk.sibling = sibling;

@@ -2,6 +2,8 @@
 //! centre of a circle or arc, where two lines cross), and what is measured from the points
 //! clicked: a distance, an area with its perimeter, an angle. In the drawing's units, Y up.
 
+use std::sync::{Arc, Weak};
+
 use crate::cad::{Drawing, Item};
 use crate::cad_geom::P;
 
@@ -19,9 +21,20 @@ pub enum Snap {
 /// Lines met near the pointer whose crossings are tried; beyond, too dense to choose among.
 const CROSS_MAX: usize = 400;
 
+#[cfg(test)]
+thread_local! {
+    /// Segments looked at by `snap` on this thread (audit 6.15 c).
+    static EXAMINED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// The point to snap to within `radius` of `at`, the closest; ends and centres before middles,
 /// middles before crossings, as CAD programs order them when they are equally close.
 pub fn snap(d: &Drawing, at: P, radius: f64) -> (P, Snap) {
+    snap_among(d, at, radius, None)
+}
+
+/// `snap` looking only at the segments of `runs` (`Grid::near`), or at all.
+fn snap_among(d: &Drawing, at: P, radius: f64, runs: Option<&[(u32, u32)]>) -> (P, Snap) {
     let near = |p: P| (p[0] - at[0]).hypot(p[1] - at[1]) <= radius;
     let mut best: Option<(f64, u8, P, Snap)> = None;
     let mut offer = |p: P, kind: Snap, rank: u8| {
@@ -39,23 +52,31 @@ pub fn snap(d: &Drawing, at: P, radius: f64) -> (P, Snap) {
     for c in d.shown_centres() {
         offer(c, Snap::Centre, 0);
     }
-    for item in d.shown_items() {
-        let Item::Line { pts, .. } = item else { continue };
-        for seg in pts.windows(2) {
-            let (a, b) = (seg[0], seg[1]);
-            if a[0].is_nan() || b[0].is_nan() {
-                continue;
-            }
-            if !box_near([a, b], at, radius) {
-                continue;
-            }
-            offer(a, Snap::End, 0);
-            offer(b, Snap::End, 0);
-            offer([(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0], Snap::Middle, 1);
-            if close.len() < CROSS_MAX {
-                close.push([a, b]);
-            }
+    let mut look = |seg: &[P]| {
+        let (a, b) = (seg[0], seg[1]);
+        #[cfg(test)]
+        EXAMINED.with(|n| n.set(n.get() + 1));
+        if a[0].is_nan() || b[0].is_nan() || !box_near([a, b], at, radius) {
+            return;
         }
+        offer(a, Snap::End, 0);
+        offer(b, Snap::End, 0);
+        offer([(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0], Snap::Middle, 1);
+        if close.len() < CROSS_MAX {
+            close.push([a, b]);
+        }
+    };
+    match runs {
+        None => d.shown_items().for_each(|item| {
+            if let Item::Line { pts, .. } = item {
+                pts.windows(2).for_each(&mut look);
+            }
+        }),
+        Some(runs) => runs.iter().for_each(|&(i, k)| {
+            if let Some(Item::Line { pts, .. }) = d.items.get(i as usize) {
+                run(pts, k as usize).windows(2).for_each(&mut look);
+            }
+        }),
     }
     for (i, s) in close.iter().enumerate() {
         for t in &close[i + 1..] {
@@ -65,6 +86,139 @@ pub fn snap(d: &Drawing, at: P, radius: f64) -> (P, Snap) {
         }
     }
     best.map_or((at, Snap::Free), |b| (b.2, b.3))
+}
+
+/// `snap` with the drawing's `Grid`, made at its first point and kept while that drawing is the
+/// one drawn (known by its place, as `model_measure::Memo`).
+#[derive(Default)]
+pub(crate) struct Snapper {
+    grid: Option<(Weak<Drawing>, Grid)>,
+}
+
+impl Snapper {
+    pub(crate) fn snap(&mut self, d: &Arc<Drawing>, at: P, radius: f64) -> (P, Snap) {
+        if !self.grid.as_ref().is_some_and(|(of, _)| std::ptr::eq(of.as_ptr(), Arc::as_ptr(d))) {
+            self.grid = Some((Arc::downgrade(d), Grid::new(d)));
+        }
+        match self.grid.as_ref().and_then(|(_, g)| g.near([at[0] - radius, at[1] - radius, at[0] + radius, at[1] + radius])) {
+            Some(runs) => snap_among(d, at, radius, Some(&runs)),
+            None => snap(d, at, radius),
+        }
+    }
+}
+
+/// Segments of a line placed in the grid together (`Grid`).
+const RUN: usize = 64;
+/// At most this many cells along each side of the grid.
+const CELLS: usize = 1024;
+/// A run of segments over more cells than this is looked at for every point instead.
+const WIDE: usize = 64;
+
+/// The lines shown, in runs of `RUN` segments (item, run), by the cells of a grid over the
+/// drawing (audit 6.15 c): made once for each drawing drawn, where `snap` looked at every
+/// segment at every frame with the pointer over the drawing.
+struct Grid {
+    lo: P,
+    cell: [f64; 2],
+    side: usize,
+    /// Where each cell's runs start in `runs`, cell after cell, and where the last ends.
+    starts: Vec<u32>,
+    runs: Vec<(u32, u32)>,
+    wide: Vec<(u32, u32)>,
+}
+
+/// The box around the points, the gaps of filled areas left out.
+fn bounds(pts: &[P]) -> Option<[f64; 4]> {
+    let mut b = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
+    for p in pts.iter().filter(|p| !p[0].is_nan()) {
+        b = [b[0].min(p[0]), b[1].min(p[1]), b[2].max(p[0]), b[3].max(p[1])];
+    }
+    (b[0] <= b[2] && b[1] <= b[3]).then_some(b)
+}
+
+/// The runs of the lines shown (item, run) and their boxes.
+fn boxes(d: &Drawing) -> impl Iterator<Item = ((u32, u32), [f64; 4])> + '_ {
+    d.shown_indexed().flat_map(|(i, item)| {
+        let pts: &[P] = match item {
+            Item::Line { pts, .. } => pts,
+            _ => &[],
+        };
+        (0..pts.len().saturating_sub(1).div_ceil(RUN)).filter_map(move |k| bounds(run(pts, k)).map(|b| ((i as u32, k as u32), b)))
+    })
+}
+
+/// The points of the run `k` of a line: its segments and the point after the last.
+fn run(pts: &[P], k: usize) -> &[P] {
+    &pts[(k * RUN).min(pts.len())..((k + 1) * RUN + 1).min(pts.len())]
+}
+
+impl Grid {
+    /// Made in three passes over the lines, without keeping their boxes: a drawing at its
+    /// largest has 10 million runs.
+    fn new(d: &Drawing) -> Grid {
+        let (mut all, mut count) = ([f64::MAX, f64::MAX, f64::MIN, f64::MIN], 0);
+        for (_, b) in boxes(d) {
+            all = [all[0].min(b[0]), all[1].min(b[1]), all[2].max(b[2]), all[3].max(b[3])];
+            count += 1;
+        }
+        let side = ((count as f64).sqrt().ceil() as usize).clamp(1, CELLS);
+        let (lo, cell) = if count == 0 { ([0.0; 2], [1.0; 2]) } else { ([all[0], all[1]], [0, 1].map(|k| ((all[k + 2] - all[k]) / side as f64).max(f64::MIN_POSITIVE))) };
+        let mut g = Grid { lo, cell, side, starts: vec![0; side * side + 1], runs: Vec::new(), wide: Vec::new() };
+        // Counted first, then placed.
+        let narrow = |r: [usize; 4]| (r[1] - r[0] + 1) * (r[3] - r[2] + 1) <= WIDE;
+        for (id, b) in boxes(d) {
+            let r = g.range(b);
+            if narrow(r) {
+                Grid::each(side, r, |c| g.starts[c + 1] += 1);
+            } else {
+                g.wide.push(id);
+            }
+        }
+        for c in 0..side * side {
+            g.starts[c + 1] += g.starts[c];
+        }
+        let mut next: Vec<u32> = g.starts[..side * side].to_vec();
+        let mut runs = vec![(0, 0); g.starts[side * side] as usize];
+        for (id, b) in boxes(d) {
+            let r = g.range(b);
+            if narrow(r) {
+                Grid::each(side, r, |c| {
+                    runs[next[c] as usize] = id;
+                    next[c] += 1;
+                });
+            }
+        }
+        g.runs = runs;
+        g
+    }
+
+    /// The cells under the box `b` (x from, x to, y from, y to), within the grid.
+    fn range(&self, b: [f64; 4]) -> [usize; 4] {
+        let at = |v: f64, k: usize| (((v - self.lo[k]) / self.cell[k]).floor().max(0.0) as usize).min(self.side - 1);
+        [at(b[0], 0), at(b[2], 0), at(b[1], 1), at(b[3], 1)]
+    }
+
+    fn each(side: usize, r: [usize; 4], mut f: impl FnMut(usize)) {
+        for y in r[2]..=r[3] {
+            for x in r[0]..=r[1] {
+                f(y * side + x);
+            }
+        }
+    }
+
+    /// The runs whose cells the box `b` reaches, in the drawing's order; `None` when it covers
+    /// a quarter of the grid or more, where looking at every segment costs no more.
+    fn near(&self, b: [f64; 4]) -> Option<Vec<(u32, u32)>> {
+        let r = self.range(b);
+        if (r[1] - r[0] + 1) * (r[3] - r[2] + 1) * 4 > self.side * self.side && self.side > 1 {
+            return None;
+        }
+        let mut out = self.wide.clone();
+        Grid::each(self.side, r, |c| out.extend_from_slice(&self.runs[self.starts[c] as usize..self.starts[c + 1] as usize]));
+        out.sort_unstable();
+        out.dedup();
+        Some(out)
+    }
 }
 
 /// Whether the segment's box comes within `r` of `p`.
@@ -199,6 +353,79 @@ mod tests {
         // On a diagonal, far from its ends and from the circle: the point itself.
         let (p, k) = snap(&d, [30.0, 70.0], 2.0);
         assert!(close(p, [30.0, 70.0]) && k == Snap::Free, "{p:?} {k:?}");
+    }
+
+    fn line(pts: Vec<P>) -> Item {
+        Item::Line { pts, color: [200; 3], fill: None, stroke: crate::cad::Stroke::default() }
+    }
+
+    /// A grid of `n` × `n` short lines, 10 units apart, and a long one across it.
+    fn lines(n: usize) -> Drawing {
+        let mut items: Vec<Item> = (0..n * n).map(|i| line(vec![[(i % n) as f64 * 10.0, (i / n) as f64 * 10.0], [(i % n) as f64 * 10.0 + 5.0, (i / n) as f64 * 10.0 + 3.0]])).collect();
+        items.push(line((0..=n * 10).map(|k| [k as f64, 501.0 + (k % 7) as f64 * 0.3]).collect()));
+        Drawing { items, ..Default::default() }
+    }
+
+    /// Audit 6.15 (c): the point the pointer snaps to was looked for among all the segments of
+    /// the drawing at every frame with the pointer over it: 100 frames on 10 000 lines looked at
+    /// a million segments.
+    #[test]
+    fn audit_6_15_c_snap_looks_near() {
+        let d = std::sync::Arc::new(lines(100));
+        let mut snapper = Snapper::default();
+        EXAMINED.with(|n| n.set(0));
+        for k in 0..100 {
+            snapper.snap(&d, [k as f64 * 9.7, 503.0], 2.0);
+        }
+        let examined = EXAMINED.with(|n| n.get());
+        println!("{examined} segments looked at for 100 frames");
+        assert!(examined < 100 * 1000, "segments looked at for 100 frames: {examined}");
+    }
+
+    /// Audit 6.15 (c): the grid is made at the first point, on the window's thread: its time and
+    /// memory for 2 million lines of one segment (each its own run, the most there can be), and
+    /// the segments looked at for a point then. `--release`.
+    #[test]
+    #[ignore]
+    fn audit_6_15_c_grid_time() {
+        let d = std::sync::Arc::new(lines(1415));
+        let t = std::time::Instant::now();
+        let (grid, peak) = crate::test_alloc::peak(|| Grid::new(&d));
+        println!("{} lines: grid in {:.0?}, {} MB at most while made, {} MB kept", d.items.len(), t.elapsed(), peak >> 20, (grid.runs.len() * 8 + grid.starts.len() * 4) >> 20);
+        let mut snapper = Snapper { grid: Some((std::sync::Arc::downgrade(&d), grid)) };
+        EXAMINED.with(|n| n.set(0));
+        let t = std::time::Instant::now();
+        snapper.snap(&d, [7000.0, 7000.0], 2.0);
+        println!("one point: {} segments looked at, {:.2?}", EXAMINED.with(|n| n.get()), t.elapsed());
+        let t = std::time::Instant::now();
+        snap(&d, [7000.0, 7000.0], 2.0);
+        println!("one point among all the segments: {:.2?}", t.elapsed());
+    }
+
+    /// Audit 6.15 (c): with the grid, the point found is the one found among all the segments:
+    /// ends, middles and crossings, long lines and areas with gaps, near and far, with a small and
+    /// a large radius; and a drawing drawn anew (other layers) gets its own grid.
+    #[test]
+    fn audit_6_15_c_snap_as_before() {
+        let mut d = lines(40);
+        d.items.push(line(vec![[0.0, 0.0], [400.0, 400.0]]));
+        d.items.push(line(vec![[0.0, 400.0], [400.0, 0.0], [f64::NAN, f64::NAN], [100.0, 100.0], [300.0, 120.0], [200.0, 330.0], [100.0, 100.0]]));
+        d.items.push(line((0..2000).map(|k| [200.0 + 150.0 * (k as f64 / 300.0).cos(), 200.0 + 150.0 * (k as f64 / 300.0).sin()]).collect()));
+        d.centres.push(([200.0, 200.0], 0));
+        let mut snapper = Snapper::default();
+        let mut seed: u64 = 7;
+        let mut next = || {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            (seed >> 11) as f64 / (1u64 << 53) as f64
+        };
+        for round in 0..2 {
+            let d = std::sync::Arc::new(Drawing { items: d.items.clone(), centres: d.centres.clone(), ..Default::default() });
+            for i in 0..3000 {
+                let at = [next() * 460.0 - 30.0, next() * 460.0 - 30.0];
+                let radius = [0.5, 2.0, 8.0, 50.0, 500.0][i % 5];
+                assert_eq!(snapper.snap(&d, at, radius), snap(&d, at, radius), "round {round}, point {i} at {at:?}, radius {radius}");
+            }
+        }
     }
 
     #[test]

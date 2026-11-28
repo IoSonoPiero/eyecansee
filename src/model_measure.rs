@@ -134,35 +134,38 @@ fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
-/// Where the ray from `origin` along `dir` (model coordinates) first meets the model.
+/// Where the ray from `origin` along `dir` (model coordinates) first meets the model. On all the
+/// cores: it is looked for at every move of the pointer, and on one core it took 10 ms on 2
+/// million triangles (audit 6.15 b).
 pub fn hit(mesh: &Mesh, origin: [f32; 3], dir: [f32; 3]) -> Option<[f32; 3]> {
+    use rayon::prelude::*;
     let (o, d) = (origin.map(f64::from), dir.map(f64::from));
-    let mut best: Option<f64> = None;
-    for t in &mesh.tris {
-        let [a, b, c] = t.map(|i| mesh.pos[i as usize].map(f64::from));
-        // Möller–Trumbore, both faces.
-        let (e1, e2) = (sub(b, a), sub(c, a));
-        let p = cross(d, e2);
-        let det = dot(e1, p);
-        if det.abs() < 1e-18 {
-            continue;
-        }
-        let s = sub(o, a);
-        let u = dot(s, p) / det;
-        if !(0.0..=1.0).contains(&u) {
-            continue;
-        }
-        let q = cross(s, e1);
-        let v = dot(d, q) / det;
-        if v < 0.0 || u + v > 1.0 {
-            continue;
-        }
-        let k = dot(e2, q) / det;
-        if k > 0.0 && best.is_none_or(|b| k < b) {
-            best = Some(k);
-        }
-    }
+    let best = mesh.tris.par_iter().filter_map(|t| along(mesh, t, o, d)).min_by(f64::total_cmp);
     best.map(|k| [0, 1, 2].map(|i| (o[i] + d[i] * k) as f32))
+}
+
+/// How far along the ray from `o` along `d` it meets the triangle `t`, in front of `o`.
+fn along(mesh: &Mesh, t: &[u32; 3], o: [f64; 3], d: [f64; 3]) -> Option<f64> {
+    let [a, b, c] = t.map(|i| mesh.pos[i as usize].map(f64::from));
+    // Möller–Trumbore, both faces.
+    let (e1, e2) = (sub(b, a), sub(c, a));
+    let p = cross(d, e2);
+    let det = dot(e1, p);
+    if det.abs() < 1e-18 {
+        return None;
+    }
+    let s = sub(o, a);
+    let u = dot(s, p) / det;
+    if !(0.0..=1.0).contains(&u) {
+        return None;
+    }
+    let q = cross(s, e1);
+    let v = dot(d, q) / det;
+    if v < 0.0 || u + v > 1.0 {
+        return None;
+    }
+    let k = dot(e2, q) / det;
+    (k > 0.0).then_some(k)
 }
 
 
@@ -250,6 +253,74 @@ mod tests {
         assert_eq!((s.open_edges, s.volume, s.flipped), (0, None, 4), "{s:?}");
         let whole = sizes(&cube(false));
         assert_eq!((whole.flipped, whole.volume.is_some()), (0, true));
+    }
+
+    /// Audit 6.15 (b): the point under the pointer on a model of 2 million triangles (a grid of
+    /// 1000 × 1000 squares), looked for at every move of the pointer: ms for each. `--release`.
+    #[test]
+    #[ignore]
+    fn audit_6_15_b_hit_time() {
+        use std::fmt::Write;
+        let n = 1000;
+        let mut obj = String::new();
+        for y in 0..=n {
+            for x in 0..=n {
+                let _ = writeln!(obj, "v {x} {y} 0");
+            }
+        }
+        for y in 0..n {
+            for x in 0..n {
+                let (a, c) = (y * (n + 1) + x + 1, (y + 1) * (n + 1) + x + 1);
+                let _ = writeln!(obj, "f {a} {} {}\nf {a} {} {c}", a + 1, c + 1, c + 1);
+            }
+        }
+        let m = crate::model::parse(obj.as_bytes(), "g.obj").unwrap();
+        let rays = 50;
+        let t = std::time::Instant::now();
+        for k in 0..rays {
+            assert!(hit(&m, [k as f32 * 10.0 + 0.3, 500.6, 10.0], [0.0, 0.0, -1.0]).is_some());
+        }
+        println!("{} triangles: {:.1} ms for each point", m.tris.len(), t.elapsed().as_secs_f64() * 1000.0 / f64::from(rays));
+    }
+
+    /// Audit 6.15 (b): on all the cores, the point found is the one found on one, ray by ray,
+    /// with triangles one behind the other and touching.
+    #[test]
+    fn audit_6_15_b_hit_as_on_one_core() {
+        let mut obj = String::new();
+        for z in 0..20 {
+            for x in 0..30 {
+                for y in 0..30 {
+                    let h = f64::from(z) * 0.5 + f64::from((x * 7 + y * 3) % 5) * 0.1;
+                    obj += &format!("v {x} {y} {h}\nv {} {y} {h}\nv {x} {} {}\n", x + 1, y + 1, h + 0.05);
+                }
+            }
+        }
+        for i in 0..20 * 30 * 30 {
+            obj += &format!("f {} {} {}\n", 3 * i + 1, 3 * i + 2, 3 * i + 3);
+        }
+        let m = crate::model::parse(obj.as_bytes(), "t.obj").unwrap();
+        let one = |o: [f32; 3], d: [f32; 3]| {
+            let (of, df) = (o.map(f64::from), d.map(f64::from));
+            let mut best: Option<f64> = None;
+            for t in &m.tris {
+                if let Some(k) = along(&m, t, of, df)
+                    && best.is_none_or(|b| k < b)
+                {
+                    best = Some(k);
+                }
+            }
+            best.map(|k| [0, 1, 2].map(|i| (of[i] + df[i] * k) as f32))
+        };
+        let mut met = 0;
+        for i in 0..400 {
+            let (x, y) = ((i % 20) as f32 * 1.55 + 0.1, (i / 20) as f32 * 1.5 + 0.2);
+            let (o, d) = ([x, y, 30.0], [0.01 * (i % 3) as f32, -0.01, -1.0]);
+            let found = hit(&m, o, d);
+            assert_eq!(found, one(o, d), "ray {i}");
+            met += usize::from(found.is_some());
+        }
+        assert!(met > 100, "{met}");
     }
 
     #[test]

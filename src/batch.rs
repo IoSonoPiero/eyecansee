@@ -349,12 +349,12 @@ fn drawing(bytes: &[u8], name: &str, job: &Job, drawn: Drawn, sibling: crate::mo
             };
         }
         Drawn::Svg => {
-            let d = shown(crate::cad::read_with(bytes, name, sibling).map_err(|e| crate::fault::not_opened(name, e))?, job);
+            let d = shown(crate::cad::read_model(bytes, name, sibling).map_err(|e| crate::fault::not_opened(name, e))?, job);
             return Ok((ext(name, "svg"), d.svg(crate::decode::CAD_SIDE, 1.0).map_err(failed)?.into_bytes()));
         }
         Drawn::Side(side) => side,
     };
-    let d = shown(crate::cad::read_with(bytes, name, sibling).map_err(|e| crate::fault::not_opened(name, e))?, job);
+    let d = shown(crate::cad::read_model(bytes, name, sibling).map_err(|e| crate::fault::not_opened(name, e))?, job);
     let image = image::DynamicImage::ImageRgba8(crate::decode::cad_render(&d, side, None).map_err(failed)?);
     let format = job.format.unwrap_or(Format::Png);
     let options = Options { format, turn: Turn::default(), ..job.options };

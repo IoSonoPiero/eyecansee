@@ -133,6 +133,17 @@ pub fn read(bytes: &[u8], name: &str) -> Result<Drawing, String> {
 
 /// Like `read`, with the pictures attached to the drawing read through `sibling`.
 pub fn read_with(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> Result<Drawing, String> {
+    read_as(bytes, name, sibling, true)
+}
+
+/// Like `read_with`, without the layouts: a picture of the drawing (thumbnail, Save as…, Convert
+/// and resize) shows its model space only, and each window of a layout goes over the whole model
+/// again (audit 6.14).
+pub fn read_model(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> Result<Drawing, String> {
+    read_as(bytes, name, sibling, false)
+}
+
+fn read_as(bytes: &[u8], name: &str, sibling: crate::model::Sibling, layouts: bool) -> Result<Drawing, String> {
     let lower = name.to_lowercase();
     if [".plt", ".hpgl", ".hpg", ".hgl"].iter().any(|e| lower.ends_with(e)) {
         return crate::cad_hpgl::read(bytes);
@@ -162,7 +173,9 @@ pub fn read_with(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> Re
     if d.items.is_empty() {
         return Err("nothing to draw in the model space".into());
     }
-    d.sheets = crate::cad_layout::sheets(&doc, sibling, &fonts, (&layers[..], &index), &mut spent);
+    if layouts {
+        d.sheets = crate::cad_layout::sheets(&doc, sibling, &fonts, (&layers[..], &index), &mut spent);
+    }
     Ok(d)
 }
 
@@ -238,6 +251,8 @@ pub(crate) struct Walk<'a> {
     hatch_work: usize,
     /// What the pens of the SHX texts may still do (`cad_text::strokes`), for the whole drawing.
     pen_work: usize,
+    /// The pictures made so far (`cad_image::Pictures`).
+    pictures: crate::cad_image::Pictures,
     /// What the sheets of the file drawn before this one spent (`after`).
     before: Spent,
 }
@@ -262,7 +277,7 @@ pub(crate) fn n3(v: &Vector3) -> [f64; 3] {
 
 impl<'a> Walk<'a> {
     pub(crate) fn new(doc: &'a CadDocument, out: &'a mut Drawing) -> Self {
-        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default(), index: Default::default(), sets: Default::default(), set: 0, placed: 0, met: 0, hatch_work: MAX_HATCH_WORK, pen_work: MAX_POINTS, before: Spent::default() }
+        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default(), index: Default::default(), sets: Default::default(), set: 0, placed: 0, met: 0, hatch_work: MAX_HATCH_WORK, pen_work: MAX_POINTS, pictures: Default::default(), before: Spent::default() }
     }
 
     /// A walk of one more sheet of a file whose sheets drawn before spent `before`.
@@ -474,7 +489,7 @@ impl<'a> Walk<'a> {
                 }
             }
             // Out of a layout's viewports, cutting a picture is not done: then its frame.
-            EntityType::RasterImage(r) if self.clip.is_none() && let Some(png) = crate::cad_image::picture(self.doc, r, self.sibling) => {
+            EntityType::RasterImage(r) if self.clip.is_none() && let Some(png) = crate::cad_image::picture(self.doc, r, self.sibling, &mut self.pictures) => {
                 let corners = crate::cad_image::corners(r).map(|p| t.apply(p));
                 self.out.points += 4;
                 self.put(Item::Image { corners, png });
@@ -861,6 +876,21 @@ mod tests {
         // Under the cap of the file, every layout is drawn.
         let d = read(&placed_with_layouts(1000, &["A", "B", "C"]), "a.dxf").unwrap();
         assert_eq!(d.sheets.len(), 3);
+    }
+
+    /// Audit 6.14: the picture of a drawing (thumbnail, Save as…, Convert and resize) shows its
+    /// model space, but every layout was drawn too, each window going over the whole model again.
+    #[test]
+    fn audit_6_14_no_layouts_for_a_picture() {
+        let dxf = placed_with_layouts(10, &["A", "B", "C"]);
+        let drawn = || crate::cad_layout::DRAWN.with(|n| n.replace(0));
+        drawn();
+        crate::decode::decode_full_with(&dxf, "a.dxf", &crate::cad_image::none).unwrap();
+        crate::decode::cad_picture(&dxf, "a.dxf", 256).unwrap();
+        assert_eq!(drawn(), 0, "layouts drawn for two pictures of the model");
+        // The viewer has them.
+        assert_eq!(read(&dxf, "a.dxf").unwrap().sheets.len(), 3);
+        assert_eq!(drawn(), 3);
     }
 
     /// Audit 27/11, D.3: every DWG and DXF under `EYECANSEE_CAD` (and its folders), read: whether
