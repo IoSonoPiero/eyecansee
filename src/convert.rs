@@ -885,6 +885,53 @@ mod tests {
         assert!(dir.join("a (2).jpg").is_file(), "the new file not beside it: {:?}", std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name()).collect::<Vec<_>>());
     }
 
+    /// Audit 3.10: the name the new file gets was worked out at every frame from a set of every
+    /// name of the folder, made again each time, one string per file: with thousands of files,
+    /// megabytes asked for at every movement of the mouse. Nothing as large as the folder now, and
+    /// the name is the same (upper and lower case alike, as `free_name`).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn the_name_shown_does_not_copy_the_folder() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("convert::tests::the_name_shown_does_not_copy_the_folder") {
+            return;
+        }
+        let dir = folder("save-as-names", &["a.jpg"]);
+        let mut h = Harness::new(&dir);
+        let a = h.app.files()[0].path.clone();
+        let parent = crate::source::parent(&a);
+        h.app.open_convert(Some(a));
+        let Some(Ok(l)) = h.app.listings.get_mut(&parent) else { panic!("no listing of {parent:?}") };
+        let file = |name: String| crate::source::File { path: format!("{parent}{name}"), size: 1, modified: String::new() };
+        l.files.extend((0..20_000).map(|i| file(format!("photo {i:05}.jpg"))));
+        l.files.push(file("A (2).JPG".into()));
+        let w = h.app.convert.take().unwrap();
+        let ((_, name), most) = crate::test_alloc::peak(|| h.app.convert_dest(&w));
+        println!("convert_dest with 20 002 names: {most} bytes at most");
+        assert_eq!(name, "a (3).jpg");
+        assert!(most < 64 << 10, "{most} bytes asked for to name the file in a folder of 20 002");
+    }
+
+    /// Audit 3.10: the halved copies of the original and of the file encoded (`picture_halves`)
+    /// were made on the window's thread, when each arrived: at every change of quality. Now in
+    /// the threads that read and encode, sent with the picture.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn the_halves_are_not_made_on_the_window_thread() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("convert::tests::the_halves_are_not_made_on_the_window_thread") {
+            return;
+        }
+        let dir = folder("save-as-halves", &["a.jpg"]);
+        let mut h = Harness::new(&dir);
+        let a = h.app.files()[0].path.clone();
+        let before = crate::mipmap::halves_made_here();
+        h.app.open_convert(Some(a));
+        h.until(|app| app.convert.as_ref().is_some_and(|w| matches!(w.result, Some(Ok(_))) && !w.busy), "the picture encoded");
+        let made = crate::mipmap::halves_made_here() - before;
+        assert_eq!(made, 0, "halved copies made {made} times on the window's thread");
+    }
+
     /// #366: a picture opened from outside (a double click in the file manager) while the Save as
     /// page is open was opened at once behind it: viewer and folder changed unseen, and the message
     /// after Save said the picture shown was the original. Held, as with the editor open, and

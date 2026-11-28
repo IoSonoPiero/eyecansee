@@ -50,6 +50,8 @@ pub(crate) fn half_raw(size: [usize; 2], src: &[u8]) -> ([usize; 2], Vec<u8>) {
 /// `smallest`. Its bytes are premultiplied: averaged as they are, a transparent pixel does not
 /// darken its neighbours.
 pub(crate) fn halves(img: &ColorImage, smallest: usize) -> Vec<ColorImage> {
+    #[cfg(test)]
+    MADE_HERE.with(|n| n.set(n.get() + 1));
     let mut out: Vec<ColorImage> = Vec::new();
     loop {
         let last = out.last().unwrap_or(img);
@@ -59,6 +61,17 @@ pub(crate) fn halves(img: &ColorImage, smallest: usize) -> Vec<ColorImage> {
         let (size, raw) = half_raw(last.size, last.as_raw());
         out.push(ColorImage::from_rgba_premultiplied(size, &raw));
     }
+}
+
+/// Tests only: how many times `halves` ran on this thread (audit 3.10: on the window's).
+#[cfg(test)]
+thread_local! {
+    static MADE_HERE: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn halves_made_here() -> usize {
+    MADE_HERE.with(std::cell::Cell::get)
 }
 
 /// `halves` for a picture of the viewer, the editor or "Save in another format".
