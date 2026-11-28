@@ -137,6 +137,12 @@ fn writer() -> Option<&'static Sender<Write>> {
     .as_ref()
 }
 
+#[cfg(test)]
+thread_local! {
+    /// VACUUMs of the writer (`write_loop`) on this thread: each writes the whole file again.
+    static VACUUMS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// Everything that arrived in the meantime goes into a single transaction.
 // ponytail: writes still queued when the app closes are lost; they are regenerated on the next opening
 fn write_loop(mut conn: Connection, rx: Receiver<Write>) {
@@ -182,6 +188,8 @@ fn write_loop(mut conn: Connection, rx: Receiver<Write>) {
         done.into_iter().for_each(|d| d());
         // Without VACUUM the file does not shrink: the freed space would only be reusable.
         if committed && trimmed > 0 {
+            #[cfg(test)]
+            VACUUMS.with(|n| n.set(n.get() + 1));
             let _ = conn.execute_batch("VACUUM");
         }
     }
@@ -609,5 +617,41 @@ mod tests {
         assert_eq!(trim_rows(&conn, 25).unwrap(), 0);
         // Zero limit = complete emptying (`purge`).
         assert_eq!(trim_rows(&conn, 0).unwrap(), 2);
+    }
+
+    /// Audit 2.27: with the cache at its limit, every maintenance (each start, each new source)
+    /// cut a row or two and ran VACUUM, which writes the whole file again (about 1 GB). Thirty
+    /// sessions that each add a thumbnail to a cache at its limit write it again never, and the
+    /// file does not grow: the space freed is reused. Emptying it (`purge`) still gives it back.
+    #[test]
+    fn audit_2_27_full_cache_not_rewritten_at_each_maintenance() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-2-27-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("thumbs.db");
+        let (row, rows) = (1000, 200);
+        let limit = (row * rows) as u64;
+        let session = |writes: Vec<Write>| {
+            let conn = Connection::open(&db).unwrap();
+            create(&conn).unwrap();
+            let (tx, rx) = channel();
+            writes.into_iter().for_each(|w| tx.send(w).unwrap());
+            drop(tx);
+            write_loop(conn, rx);
+        };
+        let save = |i: usize| Write::Save { source: "s".into(), file: File { path: format!("{i}.jpg"), size: 1, modified: String::new() }, data: vec![1; row] };
+        session((0..rows).map(save).collect());
+        let full = std::fs::metadata(&db).unwrap().len();
+        VACUUMS.with(|n| n.set(0));
+        for s in 0..30 {
+            session(vec![save(rows + s), Write::Trim { limit }]);
+        }
+        let at_limit = VACUUMS.with(|n| n.get());
+        let grown = std::fs::metadata(&db).unwrap().len() as f64 / full as f64;
+        session(vec![Write::Trim { limit: 0 }]);
+        let emptied = VACUUMS.with(|n| n.get()) - at_limit;
+        assert_eq!((at_limit, emptied), (0, 1), "VACUUMs at the limit, then emptied");
+        assert!(grown <= 1.1, "the file grew {grown:.2} times");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
