@@ -241,6 +241,7 @@ fn left_below(src: &str, p: &Progress) -> bool {
 /// What is left to copy.
 async fn renames(clip: &Clip, (to, to_dir, same): (&Store, &str, bool), plan: Vec<Planned>, p: &Progress, gone: &mut Vec<String>) -> Result<Vec<Planned>, Error> {
     let mut copies = Vec::new();
+    let mut told = HashSet::new();
     let renamed = |e: &Planned| clip.cut && same && !(e.2 && e.1.ends_with('/'));
     let phone = matches!(to, Store::Mtp(_));
     // All the sizes first, so the total is right from the start (it grew file by file). A big
@@ -267,7 +268,7 @@ async fn renames(clip: &Clip, (to, to_dir, same): (&Store, &str, bool), plan: Ve
             *p.current.lock().unwrap() = name(&src).to_string();
             let made = (!src.is_empty()).then(|| dest.clone());
             let folder = src.ends_with('/');
-            match renamed_on_device(clip, to, to_dir, (src, dest, exists, sides), gone).await? {
+            match renamed_on_device(clip, (to, to_dir, &mut told), (src, dest, exists, sides), gone).await? {
                 Some(entry) => {
                     p.total.fetch_sub(size, Ordering::Relaxed);
                     p.files_total.fetch_sub(1, Ordering::Relaxed);
@@ -469,8 +470,10 @@ fn skips(clip: &Clip, here: &HashSet<String>, choices: &HashMap<String, Choice>)
 
 /// A move on the same device, as a rename, the photo's sidecars after it (`paste`). What a rename
 /// cannot move is returned to be copied and deleted: the photo with its sidecars, or the sidecars
-/// alone once the photo moved.
-async fn renamed_on_device(clip: &Clip, to: &Store, to_dir: &str, (src, dest, mut exists, sides): Planned, gone: &mut Vec<String>) -> Result<Option<Planned>, Error> {
+/// alone once the photo moved. `told`: the folders of the files already told apart from `to_dir`
+/// (`originals::not_the_same`), once per folder: whether `to_dir` is the folder of a file reached
+/// through a link does not change from one file to the next.
+async fn renamed_on_device(clip: &Clip, (to, to_dir, told): (&Store, &str, &mut HashSet<String>), (src, dest, mut exists, sides): Planned, gone: &mut Vec<String>) -> Result<Option<Planned>, Error> {
     // Phones, servers and gvfs rename only onto a free name: what is there goes first.
     let overwrites = |d: &str| to.local_file(d).is_none() || to.gvfs(d);
     // On this computer a rename replaces a file: one not seen as there, as one with other capitals
@@ -481,7 +484,7 @@ async fn renamed_on_device(clip: &Clip, to: &Store, to_dir: &str, (src, dest, mu
     }
     if exists && overwrites(&dest) {
         // On FTP the item there may be the original itself, through a link (audit F.1 of 27/11).
-        if originals::places_unknown(to) {
+        if originals::places_unknown(to) && told.insert(parent(&src)) {
             originals::not_the_same(&clip.op, &src, to, &dest).await?;
         }
         to.delete(&dest, Deletion::Permanent).await?;
@@ -1343,7 +1346,7 @@ mod tests {
             assert_eq!(e.0, "error-exists");
             let clip = Clip { op: op.clone(), base: "test-claim://".into(), paths: vec!["a/x.jpg".into()], cut: true, text: String::new() };
             let planned = ("a/x.jpg".to_string(), "b/x.jpg".to_string(), false, Vec::new());
-            let e = renamed_on_device(&clip, &op, "b/", planned, &mut Vec::new()).await.unwrap_err();
+            let e = renamed_on_device(&clip, (&op, "b/", &mut HashSet::new()), planned, &mut Vec::new()).await.unwrap_err();
             assert_eq!(e.0, "error-exists");
         });
         assert_eq!(std::fs::read(dir.join("b/x.jpg")).unwrap(), b"there");
