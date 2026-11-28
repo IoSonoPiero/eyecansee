@@ -67,4 +67,23 @@ mod tests {
         assert!(left_behind(dir, names()).is_some(), "the copy ended");
         assert_eq!(left_behind(dir, ["a.jpg"].into_iter()), None);
     }
+
+    /// Audit 2.26: a copy into another folder of the phone listed that folder whole for every
+    /// file, to find a name that differs only by case, though `taken` had just read it whole
+    /// (500 photos into a folder of 5,000 files: 500 listings of 5,000 objects). A folder read
+    /// whole answers from what the phone remembers: no listing, no phone (none here).
+    #[test]
+    fn audit_2_26_case_clash_from_a_folder_read_whole() {
+        use mtp_rs::mtp::ObjectHandle;
+        let phone = Phone::new("eyecansee-test-no-phone");
+        let known = ["S/DCIM/a.jpg", "S/DCIM/b.jpg", "S/Pictures/", "S/Pictures/B.JPG", "S/Pictures/old/"];
+        phone.handles.lock().unwrap().extend(known.iter().enumerate().map(|(i, p)| (p.to_string(), ObjectHandle(i as u64 + 1))));
+        phone.complete.lock().unwrap().insert("S/Pictures/".to_string());
+        super::super::cache::LISTED.with(|n| n.set(0));
+        let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+        let clash = |path: &str, dir: &str| rt.block_on(phone.clash(path, dir));
+        let found = [clash("S/DCIM/a.jpg", "S/Pictures/"), clash("S/DCIM/b.jpg", "S/Pictures/"), clash("S/DCIM/a.jpg", "S/DCIM/")];
+        assert_eq!(found, [Ok(false), Ok(true), Ok(true)], "free; B.JPG there; its own folder");
+        assert_eq!(super::super::cache::LISTED.with(|n| n.get()), 0, "folders listed");
+    }
 }

@@ -10,6 +10,12 @@ use crate::source;
 
 pub(super) type Handles = HashMap<String, ObjectHandle>;
 
+#[cfg(test)]
+thread_local! {
+    /// Folders of a phone listed whole (`Phone::kinds`) on this thread.
+    pub(super) static LISTED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// The path of `name` in `dir`.
 pub(super) fn child(dir: &str, name: &str, folder: bool) -> String {
     format!("{dir}{name}{}", if folder { "/" } else { "" })

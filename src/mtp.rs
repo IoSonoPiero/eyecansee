@@ -439,6 +439,8 @@ impl Phone {
 
     /// `names`, each with whether it is a folder, from the same listing (`Store::entries`).
     pub async fn kinds(&self, dir: &str) -> Result<Vec<(String, bool)>, Error> {
+        #[cfg(test)]
+        cache::LISTED.with(|n| n.set(n.get() + 1));
         if dir.is_empty() {
             return Ok(self.storages().await?.iter().map(|(n, _)| (n.clone(), true)).collect());
         }
