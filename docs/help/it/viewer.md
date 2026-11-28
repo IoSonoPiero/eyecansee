@@ -30,7 +30,7 @@ Un'immagine più grande di 8192 pixel sul lato lungo viene mostrata ridotta a 81
 
 Le immagini animate GIF, WebP e PNG (APNG) si muovono nel visore, ripetendosi. **Spazio** le mette in pausa e le fa ripartire, come il pulsante nella piccola barra in fondo all'immagine, che mostra anche il fotogramma (per esempio Fotogramma 3 / 20, anche nella barra di stato). L'animazione si ferma quando passi a un'altra immagine e riparte dal primo fotogramma quando torni. Un'animazione molto lunga o molto grande (più di 256 MB una volta decodificata) non viene riprodotta: il visore mostra il primo fotogramma e dice perché.
 
-Un TIFF con più pagine (un documento scansionato, un fax) si apre sulla prima pagina. **Pag↓** e **Pag↑** sfogliano le pagine, come le frecce nella barra in fondo, che mostra la pagina (per esempio Pagina 2 / 5, anche nella barra di stato); dopo l'ultima pagina Pag↓ passa al file successivo, e prima della prima Pag↑ al precedente. Ogni pagina viene adattata alla finestra.
+Un TIFF con più pagine (un documento scansionato, un fax) si apre sulla prima pagina. **Pag↓** e **Pag↑** sfogliano le pagine, come le frecce nella barra in fondo, che mostra la pagina (per esempio Pagina 2 / 5, anche nella barra di stato); dopo l'ultima pagina Pag↓ passa al file successivo, e prima della prima Pag↑ al precedente. Ogni pagina viene adattata alla finestra. Un TIFF con più di 1000 pagine, o più grande di 256 MB una volta decodificato, mostra solo la prima pagina, e il visore dice perché.
 
 ## Foto in movimento
 
