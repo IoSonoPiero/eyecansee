@@ -140,6 +140,8 @@ fn at_page(bytes: &[u8], offset: u64) -> Option<Vec<u8>> {
     };
     let magic = if little { u16::from_le_bytes([bytes[2], bytes[3]]) } else { u16::from_be_bytes([bytes[2], bytes[3]]) };
     let mut out = bytes.to_vec();
+    #[cfg(test)]
+    COPIED.with(|c| c.set(c.get() + bytes.len()));
     match magic {
         42 => {
             let o = u32::try_from(offset).ok()?;
@@ -149,6 +151,12 @@ fn at_page(bytes: &[u8], offset: u64) -> Option<Vec<u8>> {
         _ => return None,
     }
     Some(out)
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Tests only: bytes of the file copied on this thread to read its pages (audit 3.12).
+    static COPIED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 #[cfg(test)]
@@ -236,6 +244,62 @@ mod tests {
         b.extend([0; 8]);
         assert_eq!(&at_page(&b, 0x0102_0304).unwrap()[4..8], &[1, 2, 3, 4]);
         assert!(at_page(b"XX\0\0", 8).is_none());
+    }
+
+    /// Audit 3.12: the whole file was copied for each page, only to point its header at that
+    /// page (a scan of 200 pages in 300 MB: 60 GB copied). Now once for all of them.
+    #[test]
+    fn tiff_copied_once_for_all_its_pages() {
+        let bytes = tiff_pages(&[(4, 3, 10); 20]);
+        let before = COPIED.with(std::cell::Cell::get);
+        let Some(Sequence::Pages(p)) = read(&bytes, "scan.tif") else { panic!("not pages") };
+        assert_eq!(p.len(), 20);
+        let copied = COPIED.with(std::cell::Cell::get) - before;
+        assert!(copied <= bytes.len(), "{copied} bytes copied for a file of {}: {:.0} times", bytes.len(), copied as f64 / bytes.len() as f64);
+    }
+
+    /// Audit 3.12: no ceiling on the pages: a small file of thousands of empty-ish pages kept a
+    /// thread reading and decoding every one of them. Past the ceiling (1000 pages) no more
+    /// directories are read, and the viewer shows the first page with its note.
+    #[test]
+    fn tiff_pages_have_a_ceiling() {
+        let bytes = tiff_pages(&[(1, 1, 10); 3000]);
+        let read_dirs = page_offsets(&bytes).unwrap().len();
+        assert!(read_dirs <= 1001, "{read_dirs} directories read");
+        assert!(matches!(read(&bytes, "many.tif"), Some(Sequence::TooLarge)));
+    }
+
+    /// Audit 3.12: the ceiling on the pages turns down no TIFF of the test files (any file with a
+    /// TIFF header, RAW ones too): `EYECANSEE_TIFF_SAMPLES=notes/test-files cargo test --release
+    /// tiff_pages_of_the_samples -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn tiff_pages_of_the_samples() {
+        let root = std::path::PathBuf::from(std::env::var_os("EYECANSEE_TIFF_SAMPLES").expect("EYECANSEE_TIFF_SAMPLES"));
+        let (mut seen, mut most) = (0, (0, String::new()));
+        let mut dirs = vec![root];
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    dirs.push(path);
+                    continue;
+                }
+                let Ok(bytes) = std::fs::read(&path) else { continue };
+                if !(bytes.starts_with(b"II*\0") || bytes.starts_with(b"MM\0*") || bytes.starts_with(b"II+\0") || bytes.starts_with(b"MM\0+")) {
+                    continue;
+                }
+                let Ok(offsets) = page_offsets(&bytes) else { continue };
+                seen += 1;
+                println!("{}: {} pages", path.display(), offsets.len());
+                if offsets.len() > most.0 {
+                    most = (offsets.len(), path.display().to_string());
+                }
+                assert!(offsets.len() <= 1000, "{}: {} pages, past the ceiling", path.display(), offsets.len());
+            }
+        }
+        println!("{seen} TIFF files, the most pages {} in {}", most.0, most.1);
+        assert!(seen > 0);
     }
 
     /// Audit 3.4: a GIF of 86 bytes whose screen is 65535 x 65535 does not have its first canvas
