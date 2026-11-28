@@ -748,6 +748,26 @@ mod tests {
     use super::{engine_sign, thumb_order, too_large_sign};
     use crate::icons::Icon;
 
+    /// Audit 1.9: a row scrolled rewrites the thumbnail queue with the positions only: it held a
+    /// copy of the file (path, size, date) of nearly every file of the folder, at every row.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn thumbnail_queue_without_copies_of_the_files() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("grid::tests::thumbnail_queue_without_copies_of_the_files") {
+            return;
+        }
+        const N: usize = 3000;
+        let names: Vec<String> = (0..N).map(|i| format!("a-photo-with-the-long-name-a-camera-gives-it-{i:05}.png")).collect();
+        let mut h = Harness::new(&folder("queue-copies", &names.iter().map(String::as_str).collect::<Vec<_>>()));
+        h.until(|app| app.files().len() == N && app.listing_pending.is_empty(), "the folder listed");
+        h.frame(Vec::new());
+        h.app.prefetch_thumbs(10..14, 8, 1, 0, N);
+        let ((), held) = crate::test_alloc::peak(|| h.app.prefetch_thumbs(20..24, 8, 1, 0, N));
+        let per_file = held / N;
+        assert!(per_file < 64, "{held} bytes held to queue {N} thumbnails: {per_file} a file");
+    }
+
     #[test]
     fn engine_sign_audio() {
         // An audio file without the video engine: the note with the download arrow, as a video.
