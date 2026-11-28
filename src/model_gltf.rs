@@ -804,6 +804,72 @@ mod tests {
         }
     }
 
+    /// Audit 27/11, D.1, what was left (#178): every accessor within what a model may bring, a
+    /// primitive whose points, normals, colours and coordinates are all "sparse" without data
+    /// behind them collected some 3.5 GB of zeros from a .gltf of 1 KB, and opened. Scaled: a cap
+    /// of 200 000 triangles (800 000 points offered), accessors of 799 000. The same counts with
+    /// their data in the file still open; with more indices than the model may then bring, they
+    /// are refused before they are read, not after.
+    #[test]
+    fn audit_d1_sparse_attributes_together() {
+        let n = 799_000usize;
+        let limit = crate::model_limit::Limit { max: 200_000, format: "gltf" };
+        // Sparse index 0 (4 bytes), its value (12 bytes), then the triangle's indices 0 1 2.
+        let small: Vec<u8> = [0u32.to_le_bytes(), 0f32.to_le_bytes(), 0f32.to_le_bytes(), 0f32.to_le_bytes(), 0u32.to_le_bytes(), 1u32.to_le_bytes(), 2u32.to_le_bytes()].concat();
+        let data = base64::engine::general_purpose::STANDARD.encode(&small);
+        let attributes = [("POSITION", "VEC3", 12), ("NORMAL", "VEC3", 12), ("COLOR_0", "VEC3", 12), ("TEXCOORD_0", "VEC2", 8)];
+        let min_max = |k: usize| if k == 0 { r#","min":[0,0,0],"max":[0,0,0]"# } else { "" };
+        // `backed`: the attributes' data in data.bin (and the indices, `indices` of them).
+        let gltf = |backed: bool, indices: usize| {
+            let mut views = vec![r#"{"buffer":0,"byteLength":4}"#.to_string(), r#"{"buffer":0,"byteOffset":4,"byteLength":12}"#.to_string(), r#"{"buffer":0,"byteOffset":16,"byteLength":12}"#.to_string()];
+            let mut accessors = Vec::new();
+            let mut at = 0;
+            for (k, (_, ty, size)) in attributes.iter().enumerate() {
+                if backed {
+                    views.push(format!(r#"{{"buffer":1,"byteOffset":{at},"byteLength":{}}}"#, n * size));
+                    accessors.push(format!(r#"{{"bufferView":{},"componentType":5126,"type":"{ty}","count":{n}{}}}"#, views.len() - 1, min_max(k)));
+                    at += n * size;
+                } else {
+                    accessors.push(format!(r#"{{"componentType":5126,"type":"{ty}","count":{n}{},"sparse":{{"count":1,"indices":{{"bufferView":0,"componentType":5125}},"values":{{"bufferView":1}}}}}}"#, min_max(k)));
+                }
+            }
+            if indices > 3 {
+                views.push(format!(r#"{{"buffer":1,"byteOffset":{at},"byteLength":{}}}"#, 4 * indices));
+                at += 4 * indices;
+            }
+            let view = if indices > 3 { views.len() - 1 } else { 2 };
+            accessors.push(format!(r#"{{"bufferView":{view},"componentType":5125,"type":"SCALAR","count":{indices}}}"#));
+            let names: Vec<String> = attributes.iter().enumerate().map(|(k, (name, _, _))| format!(r#""{name}":{k}"#)).collect();
+            let bin = if at > 0 { format!(r#",{{"uri":"data.bin","byteLength":{at}}}"#) } else { String::new() };
+            let json = format!(
+                r#"{{"asset":{{"version":"2.0"}},"buffers":[{{"uri":"data:application/octet-stream;base64,{data}","byteLength":28}}{bin}],"bufferViews":[{}],"accessors":[{}],"meshes":[{{"primitives":[{{"attributes":{{{}}},"indices":{}}}]}}],"nodes":[{{"mesh":0}}],"scenes":[{{"nodes":[0]}}],"scene":0}}"#,
+                views.join(","),
+                accessors.join(","),
+                names.join(","),
+                attributes.len()
+            );
+            (json, vec![0u8; at])
+        };
+        let mut wrong = Vec::new();
+        for (what, backed, indices) in [("zeros", false, 3), ("backed", true, 3), ("backed, more indices", true, 3 * limit.max)] {
+            let (json, bin) = gltf(backed, indices);
+            assert!(gltf::Gltf::from_slice(json.as_bytes()).is_ok(), "{what}: the library takes it");
+            let sibling = |uri: &str| (uri == "data.bin").then(|| bin.clone());
+            let (r, peak) = crate::test_alloc::peak(|| super::read_plain(json.as_bytes(), &sibling, limit).map(|m| m.tris.len()));
+            println!("{what}: {r:?}, {peak} bytes ({} of data.bin)", bin.len());
+            let right = match what {
+                "zeros" => r.as_ref().is_err_and(|e| e.starts_with("error-model-needs-too-much-memory")) && peak < 1 << 20,
+                "backed" => r.is_ok(),
+                // Only the copy of data.bin the reading is given, and the one it keeps.
+                _ => r.as_ref().is_err_and(|e| e.starts_with("error-model-needs-too-much-memory")) && peak < 2 * bin.len() + (1 << 20),
+            };
+            if !right {
+                wrong.push(format!("{what}: {r:?}, {peak} bytes"));
+            }
+        }
+        assert!(wrong.is_empty(), "{wrong:?}");
+    }
+
     /// Audit 27/11, S.10 a (#178): the pictures of the materials were all read and decoded at
     /// once (in parallel, up to 512 MB each) before the cap of `MAX_TEXTURES` left out those
     /// beyond. A .gltf with 66 pictures in the files next to it: no more than 64 are read.
