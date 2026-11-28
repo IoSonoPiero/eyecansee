@@ -24,6 +24,12 @@ const MAX_RATIO: u64 = 100;
 /// What any file may unpack before `MAX_RATIO` is asked: a small file that packs well opens.
 const RATIO_FREE: u64 = 16 << 20;
 
+/// What a file holding `held` bytes may unpack to, by `MAX_RATIO` and `RATIO_FREE` (also the
+/// zeros a glTF's accessors make without data behind them, `model_gltf::reading_fits`).
+pub(crate) fn may_unpack(held: u64) -> u64 {
+    RATIO_FREE.max(held.saturating_mul(MAX_RATIO))
+}
+
 /// What one file being opened has unpacked, against `MAX_UNPACKED` and `MAX_RATIO`, shared by the
 /// formats it holds. Counted in bytes that come out, against bytes really read: the sizes a zip
 /// declares are not trusted.

@@ -150,6 +150,7 @@ fn read_plain(bytes: &[u8], sibling: Sibling, limit: crate::model_limit::Limit) 
     if let Some(b) = g.document.buffers().find(|b| data(b.clone()).is_none()) {
         return Err(unread_buffer(b.source()));
     }
+    reading_fits(&g.document, limit, bytes.len() + inside.iter().flatten().map(Vec::len).sum::<usize>())?;
     let mut b = Builder::up_to(limit);
     let mut extra: Extra = (Vec::new(), Vec::new(), HashMap::new(), HashSet::new(), 0);
     // The materials' pictures, read once: in the file, in base64, or next to it; decoded in
@@ -275,6 +276,61 @@ fn accessors_fit(doc: &gltf::Document, limit: crate::model_limit::Limit) -> Resu
     let most = limit.offered();
     let too_many = doc.meshes().flat_map(|m| m.primitives().collect::<Vec<_>>()).any(|p| p.attributes().map(|(_, a)| a).chain(p.indices()).any(|a| a.count() > most));
     if too_many { Err(crate::model_limit::too_many(crate::model_limit::OFFERED, most)) } else { Ok(()) }
+}
+
+/// The most bytes the reading of one primitive may collect, a point (`Limit::offered`) with its
+/// normal, colour and coordinates: 44 bytes (`collected`). What `Builder` takes of a primitive
+/// stays within it (its points and triangles together within `offered`, a triangle's three
+/// indices 36 bytes); a model at the cap of its format with three points of its own for each
+/// triangle and every attribute collects 56 bytes a point, 3.4 GB for a GLB of 20 million
+/// triangles, within the 3.5 GB of this, and its peak within the 8 GB of the caps (D1).
+const BYTES_A_POINT: usize = 44;
+
+/// The bytes the reading of one primitive collects (`gltf_mesh`), each accessor at its own
+/// count: a point, a normal and a colour 12 bytes, coordinates 8 (the set of the base colour's
+/// picture, `coords_set`), an index 4 with the triangles it makes (`tris` and its copy for
+/// `Builder`): 8 more for triangles, 24 for strips, fans, lines and points; without indices, the
+/// points' own. Apart, of these bytes, the zeros of the accessors "sparse" without a bufferView,
+/// which the file does not hold.
+fn collected(prim: &gltf::Primitive) -> (usize, usize) {
+    use gltf::mesh::Mode;
+    let (mut all, mut zeros) = (0usize, 0usize);
+    let mut charge = |a: Option<gltf::Accessor>, each: usize| {
+        let Some(a) = a else { return };
+        let bytes = a.count().saturating_mul(each);
+        all = all.saturating_add(bytes);
+        if a.view().is_none() {
+            zeros = zeros.saturating_add(bytes);
+        }
+    };
+    let index = if prim.mode() == Mode::Triangles { 12 } else { 28 };
+    let indices = prim.indices();
+    charge(prim.get(&gltf::Semantic::Positions), 12 + if indices.is_none() { index } else { 0 });
+    charge(indices, index);
+    if matches!(prim.mode(), Mode::Triangles | Mode::TriangleStrip | Mode::TriangleFan) {
+        charge(prim.get(&gltf::Semantic::Normals), 12);
+        charge(prim.get(&gltf::Semantic::Colors(0)), 12);
+        charge(prim.get(&gltf::Semantic::TexCoords(coords_set(prim))), 8);
+    }
+    (all, zeros)
+}
+
+/// The memory the reading of each primitive will ask for, all its accessors together, before
+/// any is read (audit 27/11, D.1, what was left: four "sparse" attributes, each within what a
+/// model may bring, collected 3.5 GB from a .gltf of 1 KB): within `BYTES_A_POINT` for each
+/// point a model may bring, and the zeros without data behind them within what the `held` bytes
+/// of the file and its buffers may unpack to (`model_3mf::may_unpack`), as they are made from
+/// nothing the file holds. Refused with `MEMORY`.
+fn reading_fits(doc: &gltf::Document, limit: crate::model_limit::Limit, held: usize) -> Result<(), String> {
+    let most = limit.offered().saturating_mul(BYTES_A_POINT);
+    let zeros_most = usize::try_from(crate::model_3mf::may_unpack(held as u64)).unwrap_or(usize::MAX);
+    for prim in doc.meshes().flat_map(|m| m.primitives().collect::<Vec<_>>()) {
+        let (all, zeros) = collected(&prim);
+        if all > most || zeros > zeros_most {
+            return Err(crate::model_limit::too_many(crate::model_limit::MEMORY, all));
+        }
+    }
+    Ok(())
 }
 
 /// Line segments and points of a glTF, made solid at the end (`model_lines`), the number of
@@ -414,7 +470,7 @@ fn texture_coords<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s 
     let info = base(&prim.material()).0;
     let k = info.as_ref().and_then(|i| tex.get(&i.texture().source().index()).copied()).unwrap_or(0);
     let transform = info.as_ref().and_then(|i| i.texture_transform());
-    let set = transform.as_ref().and_then(|t| t.tex_coord()).or(info.as_ref().map(|i| i.tex_coord())).unwrap_or(0);
+    let set = coords_set(prim);
     let Some(coords) = r.read_tex_coords(set) else { return (0, Vec::new(), set) };
     let fix = |uv: [f32; 2]| match &transform {
         Some(t) => {
@@ -425,6 +481,13 @@ fn texture_coords<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s 
         None => uv,
     };
     (k, coords.into_f32().map(fix).collect(), set)
+}
+
+/// The set of texture coordinates the base colour's picture is read on (`texture_coords`): its
+/// texture's, or its transform's (KHR_texture_transform).
+fn coords_set(prim: &gltf::Primitive) -> u32 {
+    let info = base(&prim.material()).0;
+    info.as_ref().and_then(|i| i.texture_transform()).and_then(|t| t.tex_coord()).or(info.as_ref().map(|i| i.tex_coord())).unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -870,6 +933,45 @@ mod tests {
         assert!(wrong.is_empty(), "{wrong:?}");
     }
 
+    /// `reading_fits` refuses no model at the cap of its format (headers alone, no data read):
+    /// 20 million triangles with three points of their own each, or with shared points and
+    /// indices, every attribute read, as a .gltf and as a GLB; nor a strip of as many.
+    #[test]
+    fn reading_fits_models_at_the_cap() {
+        let doc = |points: usize, indices: Option<usize>, mode: u32| {
+            let attributes = [("POSITION", "VEC3", 12), ("NORMAL", "VEC3", 12), ("COLOR_0", "VEC3", 12), ("TEXCOORD_0", "VEC2", 8)];
+            let mut views = Vec::new();
+            let mut accessors = Vec::new();
+            let mut at = 0;
+            for (k, (_, ty, size)) in attributes.iter().enumerate() {
+                views.push(format!(r#"{{"buffer":0,"byteOffset":{at},"byteLength":{}}}"#, points * size));
+                let min_max = if k == 0 { r#","min":[0,0,0],"max":[1,1,1]"# } else { "" };
+                accessors.push(format!(r#"{{"bufferView":{k},"componentType":5126,"type":"{ty}","count":{points}{min_max}}}"#));
+                at += points * size;
+            }
+            let indices = indices.map_or(String::new(), |n| {
+                views.push(format!(r#"{{"buffer":0,"byteOffset":{at},"byteLength":{}}}"#, 4 * n));
+                accessors.push(format!(r#"{{"bufferView":4,"componentType":5125,"type":"SCALAR","count":{n}}}"#));
+                at += 4 * n;
+                r#","indices":4"#.to_string()
+            });
+            let json = format!(
+                r#"{{"asset":{{"version":"2.0"}},"buffers":[{{"uri":"data.bin","byteLength":{at}}}],"bufferViews":[{}],"accessors":[{}],"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0,"NORMAL":1,"COLOR_0":2,"TEXCOORD_0":3}}{indices},"mode":{mode}}}]}}],"nodes":[{{"mesh":0}}],"scenes":[{{"nodes":[0]}}],"scene":0}}"#,
+                views.join(","),
+                accessors.join(",")
+            );
+            (gltf::Gltf::from_slice(json.as_bytes()).unwrap().document, json.len() + at)
+        };
+        let n = crate::model_limit::GLTF.max;
+        for limit in [crate::model_limit::GLTF, crate::model_limit::GLB] {
+            for (what, points, indices, mode) in [("points of their own", 3 * n, None, 4), ("shared points", n / 2, Some(3 * n), 4), ("strip", n + 2, None, 5)] {
+                let (doc, held) = doc(points, indices, mode);
+                assert_eq!(super::counts_fit(&doc, limit), Ok(()), "{what}");
+                assert_eq!(super::reading_fits(&doc, limit, held), Ok(()), "{what}");
+            }
+        }
+    }
+
     /// Audit 27/11, S.10 a (#178): the pictures of the materials were all read and decoded at
     /// once (in parallel, up to 512 MB each) before the cap of `MAX_TEXTURES` left out those
     /// beyond. A .gltf with 66 pictures in the files next to it: no more than 64 are read.
@@ -965,7 +1067,10 @@ mod tests {
                 let sibling = move |uri: &str| std::fs::read(folder.join(crate::model::percent_decoded(uri).unwrap_or_else(|| uri.to_string()))).ok();
                 let plain = crate::model_gltf_unpack::plain(&bytes, &sibling, &Default::default()).ok().flatten().unwrap_or_else(|| bytes.clone());
                 let Ok(g) = gltf::Gltf::from_slice(&plain) else { continue };
-                let read = super::read(&bytes, &sibling, &Default::default()).map_or(0, |m| m.tris.len());
+                let read = super::read(&bytes, &sibling, &Default::default()).map(|m| m.tris.len());
+                // Audit 27/11, D.1: the memory of the reading counted before refuses no real file.
+                assert!(!read.as_ref().is_err_and(|e| e.starts_with(crate::model_limit::MEMORY)), "{}: {read:?}", path.display());
+                let read = read.unwrap_or(0);
                 let counted = super::triangles(&g.document);
                 println!("{}: counted {counted}, read {read}", path.display());
                 // Lines and points are made solid too, under a cap of their own (`model_lines::fits`).
