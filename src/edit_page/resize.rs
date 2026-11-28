@@ -162,3 +162,38 @@ fn size_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
     });
     ui.end_row();
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::super::{Tool, Window};
+    use crate::edit::resize::{RESAMPLES, Scale};
+    use eframe::egui;
+
+    /// A page on a photo of 400 × 300, read.
+    pub(in crate::edit_page) fn read(ctx: &egui::Context) -> Window {
+        let mut w = Window::new("p/a.png".into(), Default::default(), Tool::Select);
+        let photo = Arc::new(crate::encode::Original::with_meta(image::DynamicImage::new_rgb8(400, 300), &[]));
+        let tex = crate::mipmap::Picture::now(ctx, "test", crate::decode::preview(&photo.image), crate::mipmap::SMALLEST_PICTURE);
+        w.full = Some(photo.clone());
+        w.original = Some(Ok((photo, tex, 0)));
+        w.doc = crate::edit::doc::Doc::new(400, 300, None);
+        w
+    }
+
+    /// Audit 5.14 (#295): after Resize, and Undo or Redo across it, the frame resampled the whole
+    /// photo (up to 20 000 pixels a side) and made its preview: the window stood still meanwhile.
+    /// The frame only asks; a thread aside resamples.
+    #[test]
+    fn the_photo_is_resampled_aside() {
+        let ctx = egui::Context::default();
+        let mut w = read(&ctx);
+        w.doc.scale = Some(Scale { w: 200, h: 150, filter: crate::batch::Filter::Lanczos3 });
+        RESAMPLES.with(|n| n.set(0));
+        w.follow_size(&ctx);
+        let n = RESAMPLES.with(|n| n.get());
+        eprintln!("photos resampled in the frame: {n}");
+        assert_eq!(n, 0, "the photo resampled in the frame");
+    }
+}

@@ -78,9 +78,17 @@ pub struct Scale {
     pub filter: Filter,
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Photos resampled on this thread (`resample`): the editor's frame asks, a thread aside does it (audit 5.14).
+    pub static RESAMPLES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// The original resampled as `scale` says, its metadata kept (the sizes in them are set when the
 /// file is written, `Original::encode`).
 pub fn resample(original: &Original, scale: Scale) -> Original {
+    #[cfg(test)]
+    RESAMPLES.with(|n| n.set(n.get() + 1));
     original.with_image(original.image.resize_exact(scale.w, scale.h, scale.filter.kind()))
 }
 
