@@ -463,7 +463,15 @@ impl App {
     pub(crate) fn keys_rows(&self, ids: &[&str]) -> Vec<(String, String)> {
         let double = self.i18n.t(double_keys(self.settings.double_click_full));
         let text = ids.iter().map(|id| self.i18n.t_args(id, &[("double", &double)])).collect::<Vec<_>>().join(" | ");
-        key_rows(&text).into_iter().map(|(k, w)| (k.to_string(), w.to_string())).collect()
+        // Not while the file is still read (or could not be shown): nothing there to click (DC of 28/11).
+        let clicks = self.viewing.is_none_or(|i| self.viewer_clickable(i));
+        key_rows(&text).into_iter().filter(|(_, w)| clicks || *w != double).map(|(k, w)| (k.to_string(), w.to_string())).collect()
+    }
+
+    /// Whether the viewer shows something a double click reaches: a video, a motion photo playing,
+    /// a 3D model or a picture (a drawing's too). "Loading…" and the cards of an error are not.
+    pub(crate) fn viewer_clickable(&self, current: usize) -> bool {
+        self.viewing_video() || self.playing_motion() || self.viewed_mesh().is_some() || matches!(self.full.get(&current), Some(Ok(_)))
     }
 
     /// The keys of the file shown (a 3D model, a CAD drawing, a video or sound, an image): the
