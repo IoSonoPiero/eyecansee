@@ -53,6 +53,13 @@ fn runs(mut a: &str, mut b: &str) -> Ordering {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Files whose kind `Listing::played` looked at on this thread (audit 1.9: every file of the
+    /// folder at every pass of the status bar).
+    pub static KINDS_LOOKED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 #[derive(Default, Clone)]
 pub struct Listing {
     pub dirs: Vec<String>,
@@ -112,6 +119,8 @@ impl Listing {
 
     /// How many of the files are videos, and how many audio files (the status bar).
     pub fn played(&self) -> (usize, usize) {
+        #[cfg(test)]
+        KINDS_LOOKED.with(|n| n.set(n.get() + self.files.len()));
         let videos = self.files.iter().filter(|f| crate::decode::is_video(&f.path)).count();
         let audio = self.files.iter().filter(|f| crate::decode::is_audio(&f.path)).count();
         (videos, audio)
@@ -189,6 +198,34 @@ mod tests {
         assert_eq!(names(&l), ["b.png", "c.jpg", "A.jpg"]);
         l.sort_files(SortBy::Type, false);
         assert_eq!(names(&l), ["A.jpg", "c.jpg", "b.png"]);
+    }
+
+    /// Audit 1.9: the status bar counts the videos and the audio files of the folder once, not
+    /// at every pass; a file renamed into another kind is counted as such.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn kinds_counted_once() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("source::listing::tests::kinds_counted_once") {
+            return;
+        }
+        const N: usize = 300;
+        let mut names: Vec<String> = (0..N).map(|i| format!("p{i:03}.png")).collect();
+        names.extend(["v.mp4", "s.mp3"].map(String::from));
+        let mut h = Harness::new(&folder("kinds-once", &names.iter().map(String::as_str).collect::<Vec<_>>()));
+        h.until(|app| app.files().len() == N + 2 && app.listing_pending.is_empty(), "the folder listed");
+        h.frame(Vec::new());
+        KINDS_LOOKED.with(|n| n.set(0));
+        h.frame(Vec::new());
+        h.frame(Vec::new());
+        let looked = KINDS_LOOKED.with(|n| n.get());
+        assert_eq!(looked, 0, "the kinds of {} files looked at {looked} times in two frames", N + 2);
+        let Some(Ok(l)) = h.app.listings.get(&h.app.dir) else { panic!("no listing") };
+        assert_eq!(l.played(), (1, 1));
+        let old = format!("{}p000.png", h.app.dir);
+        h.app.renamed(&old, &format!("{}p000.mov", h.app.dir));
+        let Some(Ok(l)) = h.app.listings.get(&h.app.dir) else { panic!("no listing") };
+        assert_eq!(l.played(), (2, 1), "renamed into a video");
     }
 
     /// Audit 2.28: sorted by date, each file's date is read once, not twice for each comparison
