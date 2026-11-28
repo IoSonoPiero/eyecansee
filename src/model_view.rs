@@ -108,6 +108,12 @@ impl App {
         Some((path, mesh))
     }
 
+    /// Whether the graphics card lets go of the model it holds and of the picture it draws it
+    /// into (`Gpu::forget`): today never, until another model is drawn.
+    pub(crate) fn card_lets_go(&self) -> bool {
+        false
+    }
+
     /// Keys of the viewer on a model: arrows turn it (held: it keeps turning), + − and 0 zoom,
     /// Ctrl+Shift+S saves the picture. The other keys move among the files as for images.
     pub(crate) fn model_keys(&mut self, ctx: &egui::Context) {
@@ -498,6 +504,37 @@ fn axes_corner(painter: &egui::Painter, rect: egui::Rect, axes: [[f32; 3]; 3]) {
 mod tests {
     use super::*;
     use crate::i18n::I18n;
+
+    /// Audit 4.7: the card lets go of the model and of its picture (colour, depth and the
+    /// picture shown: about 130 MB at 2560 × 1440) as soon as the viewer shows no model: another
+    /// file, or the grid. It kept them until another model was drawn, the picture for the whole
+    /// session.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn the_card_lets_go_without_a_model_4_7() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("model_view::tests::the_card_lets_go_without_a_model_4_7") {
+            return;
+        }
+        let mut h = Harness::new(&folder("card-4-7", &["a.stl", "b.png"]));
+        let names: Vec<&str> = h.app.files().iter().map(|f| crate::source::name(&f.path)).collect();
+        assert_eq!(names, ["a.stl", "b.png"]);
+        let mut stl = vec![0u8; 84];
+        stl[80] = 1;
+        for v in [[0.0f32; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]] {
+            stl.extend(v.iter().flat_map(|c| c.to_le_bytes()));
+        }
+        stl.extend([0, 0]);
+        let path = h.app.files()[0].path.clone();
+        h.app.model.meshes.insert(path, Arc::new(crate::model::parse(&stl, "a.stl").unwrap()));
+        h.app.viewing = Some(0);
+        assert!(!h.app.card_lets_go(), "the model shown");
+        h.app.viewing = Some(1);
+        assert!(h.app.card_lets_go(), "a picture shown after the model");
+        h.app.viewing = Some(0);
+        h.app.close_viewer();
+        assert!(h.app.card_lets_go(), "the viewer closed on the model");
+    }
 
     /// #312: while models are exported a box in the corner says so, with its Cancel among the
     /// controls of the boxes (F6, Tab), as a copy's; it stays until the last model is done.
