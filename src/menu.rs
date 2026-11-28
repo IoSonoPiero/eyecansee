@@ -325,11 +325,11 @@ impl App {
             if videos > 0 {
                 ui.label(self.i18n.t_args("status-videos", &[("n", &videos.to_string())]));
             }
-            let marked = self.marked_paths();
-            if !marked.is_empty() {
+            let (marked, size) = self.marked_weight();
+            if marked > 0 {
                 ui.separator();
-                let size = self.human_size(self.images_size(&marked));
-                ui.label(self.i18n.t_args("status-marked", &[("n", &marked.len().to_string()), ("size", &size)]));
+                let size = self.human_size(size);
+                ui.label(self.i18n.t_args("status-marked", &[("n", &marked.to_string()), ("size", &size)]));
                 return;
             }
             if !self.cursor {

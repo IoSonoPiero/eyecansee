@@ -160,7 +160,7 @@ impl App {
 
     /// Save as…: in the grid one picture, in the viewer what is shown (of a video, its frame).
     pub(crate) fn save_as_off(&self) -> Option<String> {
-        let files = self.files_chosen(None);
+        let files = self.files_chosen_now();
         let saved = files.iter().filter(|p| SAVED_AS.contains(&kind(p))).count();
         let frame = self.viewing.and_then(|i| self.files().get(i)).is_some_and(|f| self.player_of(&f.path).is_some());
         self.trash_off().or_else(|| self.off(save_as_id(self.shown(), saved, frame)))
@@ -179,13 +179,13 @@ impl App {
 
     pub(crate) fn rename_off(&self) -> Option<String> {
         let trash = self.chosen_in_trash().then_some("off-trash-rename");
-        self.off(trash.or_else(|| rename_id(self.chosen(None).len(), self.target().is_some())))
+        self.off(trash.or_else(|| rename_id(self.chosen_now().len(), self.target().is_some())))
     }
 
     /// Something chosen (or the file in the viewer) is inside a trash: it can be looked at, put
     /// back or deleted for good, nothing else.
     pub(crate) fn chosen_in_trash(&self) -> bool {
-        self.chosen(None).iter().any(|p| crate::source::in_trash(p))
+        self.chosen_now().iter().any(|p| crate::source::in_trash(p))
     }
 
     /// Why what changes the file chosen (turns, the editor, Save, Save as…) is off in a trash.
@@ -208,7 +208,7 @@ impl App {
     /// Cut and Copy.
     pub(crate) fn clip_off(&self) -> Option<String> {
         let trash = self.chosen_in_trash().then_some("off-trash-clip");
-        self.off(trash.or_else(|| nothing_id(self.chosen(None).len())))
+        self.off(trash.or_else(|| nothing_id(self.chosen_now().len())))
     }
 
     pub(crate) fn paste_off(&self) -> Option<String> {
@@ -246,13 +246,14 @@ impl App {
 
     /// Redo thumbnails: the files chosen (not the folders).
     pub(crate) fn redo_thumbs_off(&self) -> Option<String> {
-        let files = self.chosen(None).iter().filter(|p| !p.ends_with('/')).count();
+        let files = self.chosen_now().iter().filter(|p| !p.ends_with('/')).count();
         self.off((files == 0).then_some("off-no-file"))
     }
 
     /// A flip or a turn (`turn_fits`): where it is off, why, by the kind of the files.
     pub(crate) fn turn_op_off(&self, op: crate::transform::Op) -> Option<String> {
-        let videos: Vec<String> = self.files_chosen(None).into_iter().filter(|p| crate::decode::is_video(p)).collect();
+        let files = self.files_chosen_now();
+        let videos: Vec<&String> = files.iter().filter(|p| crate::decode::is_video(p)).collect();
         let video = (!videos.is_empty()).then(|| videos.iter().any(|p| crate::video_turn::holds_rotation(p)));
         let id = turn_id(crate::video_turn::turns_videos(op), self.turn_fits(op).is_some(), self.shown(), video);
         self.trash_off().or_else(|| self.off(id))
