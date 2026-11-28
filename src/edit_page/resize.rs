@@ -50,6 +50,15 @@ impl Window {
         });
     }
 
+    /// The photo the document is drawn on, for what is made from it (Save, Copy, Save as…): the
+    /// one shown, or while that is being resampled the original, which `resize::at_size` takes
+    /// to the document's size (the one shown would give the size before: a Save right after Undo
+    /// of a Resize wrote the file at the size undone).
+    pub(super) fn photo(&self) -> Option<Arc<crate::encode::Original>> {
+        let Some(Ok((shown, ..))) = &self.original else { return None };
+        Some(if self.doc.scale == self.scaled { shown.clone() } else { self.full.clone().unwrap_or_else(|| shown.clone()) })
+    }
+
     /// The photo at `scale` resampled (`follow_size`): shown, unless the document went to another
     /// size meanwhile. The next objects' widths and the view follow it.
     pub(super) fn photo_arrived(&mut self, ctx: &egui::Context, scale: Option<resize::Scale>, photo: Arc<crate::encode::Original>, (preview, halves): (egui::ColorImage, Vec<egui::ColorImage>)) {
@@ -227,6 +236,30 @@ mod tests {
         }
         let Some(Ok((photo, ..))) = &w.original else { panic!() };
         assert_eq!((photo.image.width(), photo.image.height(), w.scaled), (200, 150, w.doc.scale));
+    }
+
+    /// While the photo is resampled, what is made from it starts from the original (taken to the
+    /// document's size by `at_size`), not from the photo shown, of the size before.
+    #[test]
+    fn made_from_the_original_while_resampled() {
+        let ctx = egui::Context::default();
+        let mut w = read(&ctx);
+        let shown = |w: &Window| if let Some(Ok((o, ..))) = &w.original { o.clone() } else { panic!() };
+        assert!(Arc::ptr_eq(&w.photo().unwrap(), &shown(&w)));
+        w.doc.scale = Some(Scale { w: 200, h: 150, filter: crate::batch::Filter::Nearest });
+        w.follow_size(&ctx);
+        assert!(Arc::ptr_eq(&w.photo().unwrap(), w.full.as_ref().unwrap()));
+        let start = std::time::Instant::now();
+        while w.working() {
+            assert!(start.elapsed().as_secs() < 10, "the photo never came");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            w.arrived(&ctx);
+        }
+        assert!(Arc::ptr_eq(&w.photo().unwrap(), &shown(&w)));
+        // Undo: the original's size, the photo shown still of the other.
+        w.doc.scale = None;
+        let made = w.photo().unwrap();
+        assert_eq!((made.image.width(), made.image.height()), (400, 300));
     }
 
     /// Resize, then Undo before the photo comes, then Redo: one photo made, the one asked last

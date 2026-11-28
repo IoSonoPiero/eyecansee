@@ -408,9 +408,9 @@ impl App {
     /// picture alone, but an Ultra HDR photo saved there as JPEG stays one, its gain map edited
     /// as the photo (#66): for that the file is read, if no save read it yet.
     pub(super) fn rotate_save_as(&mut self, ctx: &egui::Context, w: &Window) -> bool {
-        let Some(Ok((original, _, size))) = &w.original else { return false };
+        let (Some(original), Some(Ok((_, _, size)))) = (w.photo(), &w.original) else { return false };
         let convert = w.save_as_page(self.viewing.is_some());
-        let (original, doc, size, tx, ctx, asked) = (original.clone(), w.doc.clone(), *size, self.tx.clone(), ctx.clone(), convert.asked);
+        let (doc, size, tx, ctx, asked) = (w.doc.clone(), *size, self.tx.clone(), ctx.clone(), convert.asked);
         let jpeg = crate::encode::Format::of_file(&w.path) == Some(crate::encode::Format::Jpeg);
         let (store, path, bytes) = (w.place.as_ref().map(|p| p.store.clone()).filter(|_| jpeg), w.path.clone(), w.bytes.clone());
         self.rt.spawn(async move {
@@ -499,8 +499,8 @@ impl Window {
     /// The save of the page (`over`: over the original), prepared where its image is (`Place`),
     /// never in the place the grid shows now; `None` before the image is read.
     fn prepare_save(&self, over: bool, word: String) -> Option<impl Future<Output = Result<Prepared, source::Error>> + use<>> {
-        let (Some(place), Some(Ok((original, ..)))) = (&self.place, &self.original) else { return None };
-        let (store, path, doc, original) = (place.store.clone(), self.path.clone(), self.doc.clone(), original.clone());
+        let (Some(place), Some(original)) = (&self.place, self.photo()) else { return None };
+        let (store, path, doc) = (place.store.clone(), self.path.clone(), self.doc.clone());
         let (bytes, written) = (self.bytes.clone(), if over { &self.overwritten } else { &self.copy }.done.clone());
         log!("edit: prepare {path:?}, over {over}, after {written:?}");
         let keep = self.keep;

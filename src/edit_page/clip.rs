@@ -17,12 +17,12 @@ impl App {
             return;
         }
         let Some(w) = &mut self.editor else { return };
-        let Some(Ok((original, ..))) = &w.original else { return };
+        let Some(original) = w.photo() else { return };
         if w.copying {
             return;
         }
         w.copying = true;
-        let (doc, original, tx, ctx) = (w.doc.clone(), original.clone(), self.tx.clone(), ctx.clone());
+        let (doc, tx, ctx) = (w.doc.clone(), self.tx.clone(), ctx.clone());
         let size = watch_size(w);
         crate::logging::spawn_named("edit-copy", move || {
             // A fault while it is made is said, not a Copy greyed out for ever (audit 5.15).
@@ -69,15 +69,16 @@ impl App {
     /// clipboard and Paste have it once it comes (`part_copied`). `false` when there is none.
     fn copy_part(&mut self, ctx: &egui::Context) -> bool {
         let Some(w) = &mut self.editor else { return false };
-        let (Some(area), Some(Ok((original, ..)))) = (w.marquee, &w.original) else { return false };
-        let photo = original.clone();
-        let (area, doc) = (w.doc.on_pixels(area, w.upright()), w.doc.clone());
+        let (Some(area), Some(photo)) = (w.marquee, w.photo()) else { return false };
+        let (area, mut doc) = (w.doc.on_pixels(area, w.upright()), w.doc.clone());
         let size = watch_size(w);
         w.aside.copying_part = true;
         w.aside(ctx, "edit-copy-part", move || {
             use crate::edit::doc::{Pixels, Preview};
-            // The photo at the document's size, also while it is resampled (`follow_size`).
+            // The photo at the document's size, also while it is resampled (`follow_size`), and
+            // the previews of the filters and highlighters that waited for it, as the page makes them.
             let photo = crate::edit::resize::at_size(&photo, doc.scale);
+            crate::edit::photo::refresh_layers(&mut doc, &photo.image, |s| if matches!(s, Shape::Highlight { .. }) { 3000.0 } else { 1200.0 });
             let filtered: Vec<crate::edit::photo::Filtered> = doc.objects.iter().filter_map(|f| if let Shape::Filter { preview: Preview(Some((a, _, p))), .. } = &f.shape { Some((*a, p.image())) } else { None }).collect();
             let fonts = crate::decode::usvg_options();
             let pixels = Pixels::new(crate::edit::photo::lens(&doc, &photo.image, &area, (1.0, 8000), &filtered, Some((&doc.objects, &fonts))));
