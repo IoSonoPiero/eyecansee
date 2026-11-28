@@ -346,4 +346,23 @@ mod tests {
         h.frame(Vec::new());
         assert!(h.app.model.measure.on, "Measure went off while the drawing was read");
     }
+    /// #367: Measure turned on could hardly be seen, a line of the status bar like the others.
+    /// Its line says Measure first (and is a yellow label), on a drawing and on a model; M again
+    /// turns it off and the line goes.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn measure_says_itself_in_the_status_bar() {
+        if own_folder("measure_view::tests::measure_says_itself_in_the_status_bar") {
+            return;
+        }
+        let mut h = measuring("measure-367", "c.dxf");
+        let line = |h: &Harness| h.app.measure_status().map(|(t, _)| t);
+        let (title, distance) = (h.app.i18n.t("measure-title"), h.app.i18n.t("measure-distance"));
+        assert!(line(&h).is_some_and(|t| t.starts_with(&format!("{title} · {distance}: "))), "the drawing's line: {:?}", line(&h));
+        open(&mut h, "a.obj");
+        assert!(line(&h).is_some_and(|t| t.starts_with(&title)), "the model's line: {:?}", line(&h));
+        h.key(Key::M);
+        h.frame(Vec::new());
+        assert_eq!(line(&h), None, "M again left the line");
+    }
 }
