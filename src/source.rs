@@ -58,6 +58,9 @@ thread_local! {
     /// Folders listed whole (`Store::list_once`) on this thread: each is a round trip, long on a
     /// phone or a server.
     pub static LISTINGS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Questions "is this a folder?" (`Store::is_dir`) on this thread: on a phone, asked of a
+    /// file, each is a listing of its folder (`Phone::locate`).
+    pub static DIRS_ASKED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     /// Bytes `Store::read` and `Store::read_range` gave on this thread: a picture too large for the
     /// memory is told from its start, not read whole (#177).
     pub static BYTES_READ: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
@@ -358,6 +361,8 @@ impl Store {
     }
 
     pub(crate) async fn is_dir(&self, dir: &str) -> bool {
+        #[cfg(test)]
+        DIRS_ASKED.with(|n| n.set(n.get() + 1));
         match self {
             Store::Dal(op) => op.stat(dir).await.is_ok_and(|m| m.is_dir()),
             Store::Mtp(phone) => phone.check_dir(dir).await.is_ok(),

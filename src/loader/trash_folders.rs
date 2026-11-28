@@ -89,4 +89,34 @@ mod tests {
         assert!(!p.join(TRASH_DIR).exists() && matches!(deleted, Msg::Deleted(t, _, Ok(())) if t == trash));
         std::fs::remove_dir_all(&dir).unwrap();
     }
+
+    /// Audit 2.25: Restore all asked after every item whether the trash was left empty, a
+    /// listing of the trash each time; after the last item is enough. What stays for each item:
+    /// the trash read for the photo's sidecars and the folder it goes back to read for its name.
+    #[test]
+    fn audit_2_25_restore_all_checks_the_trash_once() {
+        use crate::source::{Conflict, FOLDERS_READ, LISTINGS};
+        let dir = std::env::temp_dir().join(format!("eyecansee-2-25-all-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let trash = dir.join("p").join(TRASH_DIR);
+        std::fs::create_dir_all(&trash).unwrap();
+        let names = ["a.jpg", "b.jpg", "c.jpg"];
+        for n in names {
+            std::fs::write(trash.join(n), b"x").unwrap();
+        }
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let mut reads = Vec::new();
+        for n in names {
+            (FOLDERS_READ.with(|c| c.set(0)), LISTINGS.with(|c| c.set(0)));
+            rt.block_on(restore_item(&op, "test://", format!("p/{TRASH_DIR}/{n}"), Conflict::Ask, &tx));
+            reads.push(FOLDERS_READ.with(|c| c.get()) + LISTINGS.with(|c| c.get()));
+        }
+        assert!(names.iter().all(|n| dir.join("p").join(n).exists()) && !trash.exists(), "all back, the trash gone");
+        // Folders read for each item: the trash (sidecars), the folder it goes back to; after the
+        // last, the trash again, its folder (Android's trashed files) and that folder's trash.
+        assert_eq!(reads, [2, 2, 5]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }

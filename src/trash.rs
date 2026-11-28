@@ -786,4 +786,45 @@ mod tests {
         }
         assert_eq!((first, first_in.as_deref()), (Ok(()), Some(&b"no trash here"[..])));
     }
+
+    /// Audit 2.25: Restore all and a merge asked "is it a folder?" of every name (on a phone a
+    /// listing of the whole folder each time) and read both folders again for every file whose
+    /// name was taken. The trash and the two folders of a merge are read once each.
+    #[test]
+    fn audit_2_25_restore_all_and_merge_read_each_folder_once() {
+        use crate::source::{DIRS_ASKED, FOLDERS_READ};
+        let dir = std::env::temp_dir().join(format!("eyecansee-2-25-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let trash = dir.join("d").join(TRASH_DIR);
+        std::fs::create_dir_all(trash.join("sub")).unwrap();
+        std::fs::create_dir_all(dir.join("d/sub")).unwrap();
+        for i in 0..5 {
+            std::fs::write(trash.join(format!("f{i}.jpg")), b"f").unwrap();
+        }
+        for i in 0..4 {
+            std::fs::write(trash.join(format!("sub/s{i}.jpg")), b"trashed").unwrap();
+            std::fs::write(dir.join(format!("d/sub/s{i}.jpg")), b"there").unwrap();
+        }
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let counted = |f: &mut dyn FnMut()| {
+            (FOLDERS_READ.with(|n| n.set(0)), DIRS_ASKED.with(|n| n.set(0)));
+            f();
+            (FOLDERS_READ.with(|n| n.get()), DIRS_ASKED.with(|n| n.get()))
+        };
+        let t = format!("d/{TRASH_DIR}/");
+        let mut items = Vec::new();
+        let all = counted(&mut || items = rt.block_on(op.children(&t)).unwrap());
+        items.sort();
+        assert_eq!(items.len(), 6);
+        assert_eq!(items[5], format!("{t}sub/"));
+        let merge = counted(&mut || assert_eq!(rt.block_on(op.restore(&format!("{t}sub/"), Conflict::Merge)).unwrap(), "d/sub/"));
+        let mut there: Vec<String> = std::fs::read_dir(dir.join("d/sub")).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        there.sort();
+        assert_eq!(there, ["s0 (2).jpg", "s0.jpg", "s1 (2).jpg", "s1.jpg", "s2 (2).jpg", "s2.jpg", "s3 (2).jpg", "s3.jpg"]);
+        // (folders read, "is it a folder?"): Restore all lists the trash; the merge reads the
+        // folder it goes back to (`restore`), then the two folders it merges.
+        assert_eq!([all, merge], [(1, 0), (3, 0)]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }
