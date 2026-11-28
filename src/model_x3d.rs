@@ -86,6 +86,8 @@ impl Walk<'_, '_> {
     }
 
     fn inline(&mut self, n: &SceneNode, m: &Mat4, inline: u32) -> Result<(), String> {
+        // Its addresses are copied and looked up at each use (audit 27/11, D.6).
+        self.b.work(n.strs("url").iter().map(|u| u.len() + 1).sum())?;
         let urls = n.strs("url").to_vec();
         let scene = match self.inlined.get(&urls) {
             Some(scene) => scene.clone(),

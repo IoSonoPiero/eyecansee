@@ -133,10 +133,8 @@ impl<'d> Dae<'_, 'd> {
                 }
                 "instance_geometry" | "instance_controller" => {
                     let mut g = self.target(c, "url", if c.tag_name().name() == "instance_geometry" { "geometry" } else { "controller" });
+                    let target = g;
                     let mut place = m;
-                    if let Some(g) = g.filter(|g| g.tag_name().name() == "controller") {
-                        self.b.work(g.range().len())?;
-                    }
                     // A skin names the mesh it deforms, placed first by its bind shape matrix
                     // (the rest pose, with the skeleton as it was bound).
                     if let Some(skin) = g.and_then(|g| g.descendants().find(|s| s.has_tag_name_local("skin"))) {
@@ -144,6 +142,10 @@ impl<'d> Dae<'_, 'd> {
                         if let Some(bind) = tagged(skin, "bind_shape_matrix").next().and_then(|b| transform_named(b, "matrix")) {
                             place = mul(&m, &bind);
                         }
+                    }
+                    // Searched for its skin at each placement: counted here when `geometry` does not.
+                    if let Some(t) = target.filter(|t| g.map(|g| g.id()) != Some(t.id())) {
+                        self.b.work(t.range().len())?;
                     }
                     if let Some(g) = g {
                         let bound = self.bound_looks(c)?;

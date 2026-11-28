@@ -95,6 +95,8 @@ impl Amf<'_, '_> {
         if depth > MAX_DEPTH {
             return Err("constellations nested too deep".into());
         }
+        // Its children and instances are gone over again at each placement (audit 27/11, D.6).
+        self.b.work(c.range().len())?;
         for i in c.children().filter(|n| n.has_tag_name("instance")) {
             self.b.visit()?;
             let id = i.attribute("objectid").unwrap_or("");

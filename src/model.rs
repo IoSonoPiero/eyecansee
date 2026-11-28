@@ -20,7 +20,7 @@ pub(crate) const MAX_VISITS: usize = 1_000_000;
 /// go over up to 330 bytes a triangle (AMF; 3MF 125, Collada 200), so some 220 a point or
 /// triangle offered: a part placed again and again up to the offered cap stays within 256 times.
 /// The most of them takes 0.9 times the offered cap (`audit_d6_work_live`, 28/11/2026). At the
-/// cap, 10 to 20 GB gone over: seconds, not hours.
+/// cap, 10 to 20 GB gone over: at a few GB a second, seconds instead of hours (not measured).
 pub(crate) const WORK_TIMES: usize = 256;
 /// The error of a model whose points are too far apart to be drawn (`Builder::finish`).
 pub(crate) const TOO_FAR: &str = "points too far apart to be drawn";
