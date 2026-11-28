@@ -1,6 +1,7 @@
 # Clippy (with a limit of 80 lines per function, clippy.toml) and the tests at every push and pull
 # request on main, at every push on a release branch (release-<version>, made at the Thursday
-# freeze) and on a branch of a wave of fixes (ondata-<n>, checked before it goes to main), with the same C libraries as the AppImage (tools/build-appimage.sh --check), plus a
+# freeze), on a branch of a wave of fixes (ondata-<n>, checked before it goes to main) and on the
+# work branch of the next version (lavoro-<version>, kept off main until the freeze), with the same C libraries as the AppImage (tools/build-appimage.sh --check), plus a
 # warning for files over 800 lines; the same on Windows, with the libraries of the Windows release
 # (the code under #[cfg(windows)] is compiled only there). rustfmt is not used: the code does not
 # follow its style.
@@ -9,7 +10,7 @@ name: check
 # A commit that changes only the README is not checked: nothing built comes from it.
 on:
   push:
-    branches: [main, "release-*", "ondata-*"]
+    branches: [main, "release-*", "ondata-*", "lavoro-*"]
     paths-ignore: [README.md]
   pull_request:
     branches: [main]
