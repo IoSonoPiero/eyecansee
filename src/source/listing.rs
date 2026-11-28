@@ -110,6 +110,13 @@ impl Listing {
         }
     }
 
+    /// How many of the files are videos, and how many audio files (the status bar).
+    pub fn played(&self) -> (usize, usize) {
+        let videos = self.files.iter().filter(|f| crate::decode::is_video(&f.path)).count();
+        let audio = self.files.iter().filter(|f| crate::decode::is_audio(&f.path)).count();
+        (videos, audio)
+    }
+
     /// Folders and files by name (`natural`). Also takes the trash folder out of `dirs`, into
     /// `trash`.
     pub fn sort(&mut self) {

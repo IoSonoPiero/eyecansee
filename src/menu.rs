@@ -314,8 +314,7 @@ impl App {
                 ui.separator();
             }
             ui.label(self.i18n.t_args("status-folders", &[("n", &l.dirs.len().to_string())]));
-            let videos = l.files.iter().filter(|f| crate::decode::is_video(&f.path)).count();
-            let audio = l.files.iter().filter(|f| crate::decode::is_audio(&f.path)).count();
+            let (videos, audio) = l.played();
             if videos + audio < l.files.len() {
                 ui.label(self.i18n.t_args("status-images", &[("n", &(l.files.len() - videos - audio).to_string())]));
             }
