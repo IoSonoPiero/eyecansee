@@ -165,7 +165,7 @@ impl App {
                 let mut f = AddressForm::manager();
                 f.choose(f.servers.iter().position(|s| crate::servers::find(&address).is_some_and(|found| found == *s)));
                 *id = "error-key-failed-open";
-                f.key_problem = f.chosen.map(|i| (i, self.i18n.t_args(id, &[("detail", detail.as_str())])));
+                f.key_problem = f.chosen.map(|i| (i, self.i18n.error(id, detail)));
                 self.server_manager = Some(f);
                 self.lasting_closed = Some(self.i18n.error(id, detail));
             }

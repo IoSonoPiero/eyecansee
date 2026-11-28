@@ -139,7 +139,7 @@ mod tests {
             }
         }
         assert!(missing.is_empty(), "error ids without a message: {missing:?}");
-        assert!(I18n::new("it").t_args(crate::source::SILENT, &[("detail", "nas")]).starts_with("Il server nas non risponde"));
+        assert!(I18n::new("it").error(crate::source::SILENT, "nas").starts_with("Il server nas non risponde"));
     }
 
     /// Every language has the same messages as English.

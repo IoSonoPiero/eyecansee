@@ -40,30 +40,30 @@ video-frame-back-busy = Preparing the previous frame…
 video-stalled =
     No data for 20 seconds: the phone or the server is not answering.
     The video will start as soon as it answers. Press Enter to go back to the thumbnails.
-error-unsupported = Unsupported protocol: { $detail }
-error-no-host = The address has no host: { $detail }
-error-path = Cannot open { $detail }
+error-unsupported = Unsupported protocol: **{ $detail }**
+error-no-host = The address has no host: **{ $detail }**
+error-path = Cannot open **{ $detail }**
 error-source = Cannot connect to the source: { $detail }
 error-detail = { $detail }
 error-login = The server refused the login: wrong user name or password.
-error-login-ssh = The server { $detail } refused the login.
+error-login-ssh = The server **{ $detail }** refused the login.
     It accepted none of your SSH keys and no password was given, or the password is wrong.
-error-key-failed = The saved key of { $detail } could not be opened: wrong passphrase, or the file is missing or is not a key.
+error-key-failed = The saved key of **{ $detail }** could not be opened: wrong passphrase, or the file is missing or is not a key.
     Fix it in File > Server manager.
-error-key-failed-open = The saved key of { $detail } could not be opened: wrong passphrase, or the file is missing or is not a key.
+error-key-failed-open = The saved key of **{ $detail }** could not be opened: wrong passphrase, or the file is missing or is not a key.
     Fix it in the Server manager, open on this server.
 error-permission = Permission denied: { $detail }
 error-no-sftp = The server answers over SSH but has no SFTP service.
     On a NAS, turn SFTP on in its settings.
     ({ $detail })
-error-host-unknown = { $detail } has never been used from this computer: confirm its key to connect.
-error-cert-unknown = The certificate of { $detail } is not signed by a known authority: confirm it to connect.
-error-ftp-listing-too-big = The server sent a listing of { $detail } larger than 64 MB: EyeCanSee stopped reading it.
-error-host-changed = The key of { $detail } has changed: it is not the one recorded in ~/.ssh/known_hosts, so EyeCanSee does not connect.
+error-host-unknown = **{ $detail }** has never been used from this computer: confirm its key to connect.
+error-cert-unknown = The certificate of **{ $detail }** is not signed by a known authority: confirm it to connect.
+error-ftp-listing-too-big = The server sent a listing of **{ $detail }** larger than 64 MB: EyeCanSee stopped reading it.
+error-host-changed = The key of **{ $detail }** has changed: it is not the one recorded in ~/.ssh/known_hosts, so EyeCanSee does not connect.
     Someone may be pretending to be that server.
     If the server was reinstalled, remove its old line from known_hosts.
-error-server-silent = The server { $detail } does not answer: check that it is on and reachable, then try again.
-error-server-cut = The server stopped sending "{ $name }" before its end.
+error-server-silent = The server **{ $detail }** does not answer: check that it is on and reachable, then try again.
+error-server-cut = The server stopped sending **"{ $name }"** before its end.
 error-server-cut-brief = the server stopped sending it before its end
 host-ask =
     { "**" }First connection to { $host }.**
@@ -101,8 +101,8 @@ sftp-rsa-key = **{ $host }** opened with an RSA key.
     This warning appears once per server each time EyeCanSee starts.
 error-trash-failed = The original could not be moved to the trash: the original is unchanged.
     ({ $detail })
-error-not-found = Not found: { $detail }
-error-bad-name = The name of "{ $detail }" cannot be read (it is not valid UTF-8).
+error-not-found = Not found: **{ $detail }**
+error-bad-name = The name of **"{ $detail }"** cannot be read (it is not valid UTF-8).
     Rename it in the file manager to open it.
 error-image-too-large = The picture is too large: { $detail } pixels, while EyeCanSee opens pictures of up to 512 megapixels.
 view-too-large-title = Picture too large for the memory
@@ -273,7 +273,7 @@ error-move-same-item = What it would replace is this same item, reached in anoth
     The move stopped, and the item stayed as it was.
 error-move-not-told = It cannot be told whether what it would replace is this same item: **{ $detail }**
     The move stopped before deleting it: it was copied, and it also stayed where it was.
-error-paste-inside = A folder cannot go inside itself: { $detail }
+error-paste-inside = A folder cannot go inside itself: **{ $detail }**
 error-name-too-long = The name is too long for the phone: { $detail } characters, while a phone takes at most 254 (an emoji counts as two).
     Shorten it and try again; nothing was copied.
 name-refused-heading = { $n ->
@@ -309,16 +309,16 @@ list-more-images = { $n ->
     [one] and 1 more
    *[other] and { $n } more
 }
-error-phone-left = EyeCanSee stopped waiting for the phone, which was still working on { $detail }. If the phone finishes by itself, the copy may stay on the phone. It answers nothing until it is done.
-error-phone-copy-unseen = The phone copied { $detail }, but it took longer than Windows waits, and Windows does not show the copy. Unplug the phone and plug it in again, then check whether the copy is there: if it is missing, copy it again.
-error-phone-copy-lost = The phone took longer to copy { $detail } than Windows waits, and Windows does not show what the phone does. Wait a few minutes, unplug the phone and plug it in again, then check whether the copy is there: if it is missing, copy it again.
-error-copy-not-made = The phone did not make the copy of { $detail }: the original was left as it was.
-error-copy-not-whole = The copy of { $detail } did not arrive whole: the original was left as it was.
-error-pc-space = Not enough free space on this computer for { $detail }: a big file inside the phone goes through it. Free some space and try again.
+error-phone-left = EyeCanSee stopped waiting for the phone, which was still working on **{ $detail }**. If the phone finishes by itself, the copy may stay on the phone. It answers nothing until it is done.
+error-phone-copy-unseen = The phone copied **{ $detail }**, but it took longer than Windows waits, and Windows does not show the copy. Unplug the phone and plug it in again, then check whether the copy is there: if it is missing, copy it again.
+error-phone-copy-lost = The phone took longer to copy **{ $detail }** than Windows waits, and Windows does not show what the phone does. Wait a few minutes, unplug the phone and plug it in again, then check whether the copy is there: if it is missing, copy it again.
+error-copy-not-made = The phone did not make the copy of **{ $detail }**: the original was left as it was.
+error-copy-not-whole = The copy of **{ $detail }** did not arrive whole: the original was left as it was.
+error-pc-space = Not enough free space on this computer for **{ $detail }**: a big file inside the phone goes through it. Free some space and try again.
 error-phone-full = The phone did not take the file: its storage is full, or the file is too big for it (on a FAT32 memory card a file must stay under 4 GB).
-error-phone-space = Not enough free space on the phone for { $detail }.
+error-phone-space = Not enough free space on the phone for **{ $detail }**.
 error-cancelled = Cancelled.
-error-too-deep = Too many folders one inside another, so the copy stopped: { $detail }
+error-too-deep = Too many folders one inside another, so the copy stopped: **{ $detail }**
 menu-about = About EyeCanSee
 menu-meta = Metadata boxes
 about-tagline = Viewer, manager and editor for photos, videos, 3D models and CAD drawings, for Linux and Windows
@@ -578,7 +578,7 @@ rename-title = New name
 rename-ok = Rename
 rename-bad = Not a valid name
 rename-taken = There is already an item with this name in the folder
-error-exists = There is already an item with this name: { $detail }
+error-exists = There is already an item with this name: **{ $detail }**
 error-save-temp-copy = Not saved over itself: this file is a temporary copy made by Windows, not the original (for example the photo on the phone).
     ({ $detail })
 error-save-gvfs = Not saved over itself: this folder was opened through the file manager (gvfs), where replacing a file can lose the original.
@@ -730,9 +730,9 @@ convert-turned = { $turn ->
 model-triangles = { $n } triangles
 model-node-again = A part of the model is placed more than once in its hierarchy, which glTF does not allow: shown once
 model-node-again-saved = { $name }: a part of the model appeared more than once in its hierarchy; the new file has it only once
-error-gltf-bin-missing = The file with the model's data is missing: { $detail }
+error-gltf-bin-missing = The file with the model's data is missing: **{ $detail }**
 error-gltf-bin-outside = The file with the model's data is not read: EyeCanSee does not read files outside the model's folder or from the internet.
-    { $detail }
+    { "**" }{ $detail }**
 # { $detail }: empty, or the model's name in brackets (Convert).
 error-gltf-data-damaged = The model's data written inside the file is damaged{ $detail }
 error-glb-incomplete = The file is incomplete: the block with the model's data is missing{ $detail }
@@ -1468,41 +1468,41 @@ save-yes = Save
 save-failed = Cannot save: { $detail }
 ## Errors said plainly (src/fault.rs). $known is "yes" when the file's name is known, then in $name.
 fault-denied = { $known ->
-    [yes] Access denied to "{ $name }": the folder or the file is protected, and your user cannot write or read it there.
+    [yes] Access denied to **"{ $name }"**: the folder or the file is protected, and your user cannot write or read it there.
    *[no] Access denied: the folder or the file is protected, and your user cannot write or read it there.
 }
 fault-read-only = { $known ->
-    [yes] The disk or the folder is read-only: "{ $name }" cannot be written there.
+    [yes] The disk or the folder is read-only: **"{ $name }"** cannot be written there.
    *[no] The disk or the folder is read-only: nothing can be written there.
 }
 fault-no-space = { $known ->
-    [yes] There is no space left on the disk for "{ $name }": free some space and try again.
+    [yes] There is no space left on the disk for **"{ $name }"**: free some space and try again.
    *[no] There is no space left on the disk: free some space and try again.
 }
 fault-no-space-replace = { $known ->
-    [yes] There is not enough space on the disk to replace "{ $name }": while it is being replaced, the disk needs room for a second copy of the file.
+    [yes] There is not enough space on the disk to replace **"{ $name }"**: while it is being replaced, the disk needs room for a second copy of the file.
         Free some space and try again.
    *[no] There is not enough space on the disk to replace the file: while it is being replaced, the disk needs room for a second copy of it.
         Free some space and try again.
 }
 fault-too-large = { $known ->
-    [yes] "{ $name }" is too large for this disk: FAT32 disks take files of at most 4 GB.
+    [yes] **"{ $name }"** is too large for this disk: FAT32 disks take files of at most 4 GB.
    *[no] The file is too large for this disk: FAT32 disks take files of at most 4 GB.
 }
 fault-not-found = { $known ->
-    [yes] "{ $name }" is not there any more: it may have been moved, renamed or deleted.
+    [yes] **"{ $name }"** is not there any more: it may have been moved, renamed or deleted.
    *[no] The file or folder is not there any more: it may have been moved, renamed or deleted.
 }
 fault-exists = { $known ->
-    [yes] There is already an item named "{ $name }" there.
+    [yes] There is already an item named **"{ $name }"** there.
    *[no] There is already an item with this name there.
 }
 fault-in-use = { $known ->
-    [yes] "{ $name }" is in use by another program: close it and try again.
+    [yes] **"{ $name }"** is in use by another program: close it and try again.
    *[no] The file is in use by another program: close it and try again.
 }
 fault-bad-name = { $known ->
-    [yes] The name "{ $name }" is not accepted there: it is too long, or has characters this disk does not allow.
+    [yes] The name **"{ $name }"** is not accepted there: it is too long, or has characters this disk does not allow.
    *[no] The name is not accepted there: it is too long, or has characters this disk does not allow.
 }
 # As the sentences above, in a few words after a file's name in the list of a message.

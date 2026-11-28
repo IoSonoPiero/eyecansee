@@ -564,11 +564,14 @@ mod tests {
         let denied = "PermissionDenied (permanent) at write, context: { service: fs, path: a/b_c*.jpg } => permission denied, source: Permission denied (os error 13)";
         for lang in ["en", "it"] {
             let i18n = I18n::new(lang);
-            let bold = |id: &str, detail: &str, name: &str| {
+            // The name in bold, alone or with its quotation marks.
+            let bold_as = |id: &str, detail: &str, want: String| {
                 let text = i18n.error_md(id, detail);
-                assert!(text.contains(&format!("**{}**", md(name))), "{lang} {id}: {name} not in bold: {text}");
+                assert!(text.contains(&want), "{lang} {id}: {want} not there: {text}");
                 assert!(!i18n.error(id, detail).contains("**"), "{lang} {id}");
             };
+            let bold = |id: &str, detail: &str, name: &str| bold_as(id, detail, format!("**{}**", md(name)));
+            let quoted = |id: &str, detail: &str, name: &str| bold_as(id, detail, format!("**\"{}\"**", md(name)));
             for id in ["error-server-silent", "error-login-ssh", "error-host-unknown", "error-host-changed", "error-key-failed", "error-key-failed-open", "error-cert-unknown"] {
                 bold(id, "nas_1.lan", "nas_1.lan");
             }
@@ -578,11 +581,11 @@ mod tests {
             for id in ["error-phone-left", "error-phone-copy-unseen", "error-phone-copy-lost", "error-copy-not-made", "error-copy-not-whole", "error-pc-space", "error-phone-space", crate::model_gltf::MISSING_BIN, crate::model_gltf::OUTSIDE_BIN] {
                 bold(id, "v*d_1.mp4", "v*d_1.mp4");
             }
-            bold(source::BAD_NAME, "x_y*.jpg", "\"x_y*.jpg\"");
-            bold(SERVER_CUT, "c*d.jpg\u{1}550 read error", "\"c*d.jpg\"");
+            quoted(source::BAD_NAME, "x_y*.jpg", "x_y*.jpg");
+            quoted(SERVER_CUT, "c*d.jpg\u{1}550 read error", "c*d.jpg");
             // What the system said, with the file's name: inside another error's sentence too.
-            bold("error-detail", denied, "\"b_c*.jpg\"");
-            bold("error-trash-failed", denied, "\"b_c*.jpg\"");
+            quoted("error-detail", denied, "b_c*.jpg");
+            quoted("error-trash-failed", denied, "b_c*.jpg");
         }
     }
 }
