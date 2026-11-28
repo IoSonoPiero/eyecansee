@@ -32,8 +32,8 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Mesh, String> {
     binary(bytes, z_up).unwrap_or_else(|| parsed(bytes, z_up))
 }
 
-/// The file read by the parser of `ply-rs-bw`: about 320 bytes for each point and face while
-/// it is read (#191), so only for ASCII files and the headers `binary` leaves to it.
+/// The file read by the parser of `ply-rs-bw`, into `Row`s (audit 6.11: its own rows took about
+/// 320 bytes for each point and face, #191): for ASCII files and the headers `binary` leaves to it.
 fn parsed(bytes: &[u8], z_up: bool) -> Result<Mesh, String> {
     let limit = parsed_limit(bytes);
     // Counted before the parser reads it all (`model_limit`).
