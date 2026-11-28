@@ -73,6 +73,19 @@ pub struct Show {
     /// The last picture passed over, and when: said small in a corner for a few seconds
     /// (`SKIPPED_SECS`). The error bar over the pictures covered them (Piero, 20/11).
     skipped: Option<(String, f64)>,
+    /// Where its images are in the folder's listing (`Places`).
+    places: Places,
+}
+
+/// Where the images of the slideshow are in the folder's listing, looked for at every frame.
+#[derive(Default)]
+pub(crate) struct Places;
+
+impl Places {
+    /// Where `path` is among `n` files, `at(i)` the path of the `i`-th.
+    pub(crate) fn find<'a>(&self, path: &str, n: usize, at: impl Fn(usize) -> &'a str) -> Option<usize> {
+        (0..n).position(|i| at(i) == path)
+    }
 }
 
 /// The next position after `at` among `n` (backwards when `!forward`); `None` past the end
@@ -225,14 +238,15 @@ impl App {
         }
         let now = ctx.input(|i| i.time);
         let from_viewer = self.viewing.is_some();
-        self.show = Some(Show { paths, at, since: now, from: None, back: false, paused: false, was_full, from_viewer, started: now, unreadable: HashSet::new(), shown: false, skipped: None });
+        self.show = Some(Show { paths, at, since: now, from: None, back: false, paused: false, was_full, from_viewer, started: now, unreadable: HashSet::new(), shown: false, skipped: None, places: Places::default() });
         self.viewing = None;
     }
 
     fn end_show(&mut self, ctx: &egui::Context) {
         let Some(s) = self.show.take() else { return };
         ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(s.was_full));
-        let index = self.files().iter().position(|f| f.path == s.paths[s.at]);
+        let files = self.files();
+        let index = s.places.find(&s.paths[s.at], files.len(), |i| &files[i].path);
         if let (Some(i), Some(Ok(l))) = (index, self.listings.get(&self.dir)) {
             if s.from_viewer {
                 self.viewing = Some(i);
@@ -255,7 +269,8 @@ impl App {
         self.show_pass_unreadable(&ctx, now);
         let Some(s) = &self.show else { return };
         let secs = f64::from(self.settings.slideshow_secs.max(1.0));
-        let index = |p: &String| self.files().iter().position(|f| f.path == *p);
+        let files = self.files();
+        let index = |p: &String| s.places.find(p, files.len(), |i| &files[i].path);
         let (cur, from) = (index(&s.paths[s.at]), s.from.as_ref().and_then(index));
         let bad = |i: usize| s.unreadable.contains(&s.paths[i]);
         let near = |forward| next_shown(s.at, s.paths.len(), forward, self.settings.slideshow_loop, bad).and_then(|n| index(&s.paths[n]));
