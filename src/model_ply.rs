@@ -912,6 +912,24 @@ mod tests {
         }
     }
 
+    /// Audit 6.11: a PLY in text is read by the parser of `ply-rs-bw`, which kept each point and
+    /// face as a table of named values (about 340 bytes a row). The grid of
+    /// `peak_per_triangle_191` in text, read on this thread: the peak per triangle.
+    #[test]
+    fn audit_6_11_text_peak_per_triangle() {
+        let binary = grid(317, false);
+        let end = binary.windows(11).position(|w| w == b"end_header\n").unwrap() + 11;
+        let m = read(&binary).unwrap();
+        let mut text = String::from_utf8_lossy(&binary[..end]).replace("binary_little_endian", "ascii").into_bytes();
+        m.pos.iter().for_each(|p| text.extend(format!("{} {} {}\n", p[0], p[1], p[2]).bytes()));
+        m.tris.iter().for_each(|t| text.extend(format!("3 {} {} {}\n", t[0], t[1], t[2]).bytes()));
+        let (r, peak) = crate::test_alloc::peak(|| crate::model::parse(&text, "scan.ply").unwrap());
+        alike(&r, &m).unwrap();
+        let per = peak / r.tris.len();
+        println!("{} triangles, peak {} MB, {per} bytes a triangle", r.tris.len(), peak >> 20);
+        assert!(per < 250, "{per} bytes a triangle at the peak");
+    }
+
     /// #191: reading a binary PLY took about 870 bytes per triangle at its peak (Lucy, 28 million
     /// triangles: 21.9 GB), four times what the model keeps once open. A grid of 200 000
     /// triangles, read on this thread: the peak per triangle.
