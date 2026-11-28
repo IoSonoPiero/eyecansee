@@ -3,13 +3,12 @@
 //! both what gets saved and, decoded back, the preview: what the window shows is what the file
 //! will contain.
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
-use eframe::egui::{self, ColorImage};
+use eframe::egui;
 
 use crate::i18n::I18n;
-use crate::mipmap::Picture;
+use crate::mipmap::{Halved, Picture};
 use crate::batch::with_ext;
 use crate::encode::{Format, Options, Original};
 
@@ -162,7 +161,7 @@ impl crate::App {
         self.convert = Some(w);
     }
 
-    pub(crate) fn convert_original(&mut self, ctx: &egui::Context, r: Result<(Arc<Original>, ColorImage, u64), String>) {
+    pub(crate) fn convert_original(&mut self, ctx: &egui::Context, r: Result<(Arc<Original>, Halved, u64), String>) {
         let Some(w) = &mut self.convert else { return };
         if let Err(e) = &r {
             log!("{}", failed_line("save as: read", &w.path, "", e));
@@ -179,16 +178,15 @@ impl crate::App {
             w.name = with_ext(&w.name, w.options.format);
         }
         w.original = Some(r.map(|(original, preview, size)| {
-            w.pan = egui::vec2(preview.size[0] as f32, preview.size[1] as f32) / 2.0;
-            // Its halves here, once: shown fitted, smaller than its pixels (`mipmap`).
-            let halves = crate::mipmap::picture_halves(&preview);
-            (original, Picture::new(ctx, "convert-original", preview, halves), size)
+            w.pan = egui::vec2(preview.image.size[0] as f32, preview.image.size[1] as f32) / 2.0;
+            // With its halves, made where it was read: shown fitted, smaller than its pixels (`mipmap`).
+            (original, Picture::halved(ctx, "convert-original", preview), size)
         }));
     }
 
     /// A picture read for a page (`Msg::Original`): to the one that asked for it (`asked`), Save
     /// as… or the editor; one asked for a page closed since goes to none (#200).
-    pub(crate) fn on_original(&mut self, ctx: &egui::Context, asked: u64, r: Result<(Arc<Original>, ColorImage, u64), String>) {
+    pub(crate) fn on_original(&mut self, ctx: &egui::Context, asked: u64, r: Result<(Arc<Original>, Halved, u64), String>) {
         if self.convert.as_ref().is_some_and(|w| w.asked == asked) {
             self.convert_original(ctx, r);
         } else if self.editor.as_ref().is_some_and(|w| w.asked == asked) {
@@ -200,7 +198,7 @@ impl crate::App {
         }
     }
 
-    pub(crate) fn convert_encoded(&mut self, ctx: &egui::Context, generation: u64, r: Result<(Arc<Vec<u8>>, Option<ColorImage>), String>) {
+    pub(crate) fn convert_encoded(&mut self, ctx: &egui::Context, generation: u64, r: Result<(Arc<Vec<u8>>, Option<Halved>), String>) {
         let Some(w) = &mut self.convert else { return };
         if generation != w.generation {
             return;
@@ -213,10 +211,7 @@ impl crate::App {
             (Some(Ok((original, ..))), Some(o)) => left_out(original, &o),
             _ => Default::default(),
         };
-        w.result = Some(r.map(|(bytes, preview)| (bytes, preview.map(|p| {
-            let halves = crate::mipmap::picture_halves(&p);
-            Picture::new(ctx, "convert-result", p, halves)
-        }))));
+        w.result = Some(r.map(|(bytes, preview)| (bytes, preview.map(|p| Picture::halved(ctx, "convert-result", p)))));
     }
 
     pub(crate) fn convert_saved(&mut self, asked: &str, r: Result<String, crate::source::Error>) {
@@ -323,7 +318,8 @@ impl crate::App {
     /// free one beside it.
     fn convert_dest(&self, w: &Window) -> (String, String) {
         let dir = w.dest_dir();
-        let name = crate::source::free_name(&self.convert_taken(w, &dir).unwrap_or_default(), &crate::batch::typed_name(&w.name, w.options.format));
+        let typed = crate::batch::typed_name(&w.name, w.options.format);
+        let name = self.convert_free(w, &dir, &typed).unwrap_or(typed);
         (dir, name)
     }
 
@@ -333,7 +329,7 @@ impl crate::App {
         let (path, bytes) = (format!("{dir}{final_name}"), bytes.clone());
         let sent = match (w.dest_store(), &self.loader) {
             (Some(store), _) => self.save_in_place(ctx, store.clone(), path, bytes),
-            (None, Some(loader)) if self.convert_taken(w, dir).is_some() => {
+            (None, Some(loader)) if self.convert_free(w, dir, final_name).is_some() => {
                 loader.save(path, bytes);
                 true
             }
@@ -348,17 +344,22 @@ impl crate::App {
         }
     }
 
-    /// The names taken in `dir`, where the file goes: the grid's for its own place (`save_in_place`
-    /// checks them again elsewhere), those read in a folder chosen (`folder`). `None`: not known,
-    /// the grid has no good listing of that folder (gone, or in error).
-    fn convert_taken(&self, w: &Window, dir: &str) -> Option<HashSet<String>> {
+    /// `name` if free in `dir`, where the file goes, otherwise the first free one beside it, from
+    /// the names taken there: the grid's for its own place (`save_in_place` checks them again
+    /// elsewhere), those read in a folder chosen (`folder`). `None`: not known, the grid has no
+    /// good listing of that folder (gone, or in error). The names are looked through where they
+    /// are, not gathered in a set: this runs at every frame (audit 3.10).
+    fn convert_free(&self, w: &Window, dir: &str, name: &str) -> Option<String> {
         if let Some(f) = &w.folder {
-            return Some(f.taken());
+            return Some(f.free(name));
         }
         let here = w.dest_base(&self.base) == self.base;
         // What the grid does not show is taken too: a hidden "e (2).jpg" was overwritten.
         match self.listings.get(dir).filter(|_| here) {
-            Some(Ok(l)) => Some(l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/').to_string()).chain(l.unseen.iter().cloned()).collect()),
+            Some(Ok(l)) => {
+                let names = || l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/')).chain(l.unseen.iter().map(String::as_str));
+                Some(crate::source::free_name_by(|n| names().any(|t| crate::source::same_name(t, n)), name))
+            }
             _ => None,
         }
     }
@@ -392,7 +393,8 @@ impl crate::App {
             let (original, options, generation, tx, ctx2) = (original.clone(), w.options, w.generation, self.tx.clone(), ctx.clone());
             crate::logging::spawn_named("convert-preview", move || {
                 let r = encoded(&original, &options).map(|bytes| {
-                    let preview = crate::decode::decode(&bytes, &format!("x.{}", options.format.ext())).ok();
+                    // Its halves made here too, not on the window's thread (audit 3.10).
+                    let preview = crate::decode::decode(&bytes, &format!("x.{}", options.format.ext())).ok().map(Halved::of);
                     (Arc::new(bytes), preview)
                 });
                 if tx.send(crate::loader::Msg::Encoded(generation, r)).is_ok() {
@@ -883,6 +885,53 @@ mod tests {
         h.until(|app| app.convert.is_none(), "saved");
         assert_eq!(std::fs::read(dir.join("a.jpg")).unwrap(), before, "the original written over");
         assert!(dir.join("a (2).jpg").is_file(), "the new file not beside it: {:?}", std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name()).collect::<Vec<_>>());
+    }
+
+    /// Audit 3.10: the name the new file gets was worked out at every frame from a set of every
+    /// name of the folder, made again each time, one string per file: with thousands of files,
+    /// megabytes asked for at every movement of the mouse. Nothing as large as the folder now, and
+    /// the name is the same (upper and lower case alike, as `free_name`).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn the_name_shown_does_not_copy_the_folder() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("convert::tests::the_name_shown_does_not_copy_the_folder") {
+            return;
+        }
+        let dir = folder("save-as-names", &["a.jpg"]);
+        let mut h = Harness::new(&dir);
+        let a = h.app.files()[0].path.clone();
+        let parent = crate::source::parent(&a);
+        h.app.open_convert(Some(a));
+        let Some(Ok(l)) = h.app.listings.get_mut(&parent) else { panic!("no listing of {parent:?}") };
+        let file = |name: String| crate::source::File { path: format!("{parent}{name}"), size: 1, modified: String::new() };
+        l.files.extend((0..20_000).map(|i| file(format!("photo {i:05}.jpg"))));
+        l.files.push(file("A (2).JPG".into()));
+        let w = h.app.convert.take().unwrap();
+        let ((_, name), most) = crate::test_alloc::peak(|| h.app.convert_dest(&w));
+        println!("convert_dest with 20 002 names: {most} bytes at most");
+        assert_eq!(name, "a (3).jpg");
+        assert!(most < 64 << 10, "{most} bytes asked for to name the file in a folder of 20 002");
+    }
+
+    /// Audit 3.10: the halved copies of the original and of the file encoded (`picture_halves`)
+    /// were made on the window's thread, when each arrived: at every change of quality. Now in
+    /// the threads that read and encode, sent with the picture.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn the_halves_are_not_made_on_the_window_thread() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("convert::tests::the_halves_are_not_made_on_the_window_thread") {
+            return;
+        }
+        let dir = folder("save-as-halves", &["a.jpg"]);
+        let mut h = Harness::new(&dir);
+        let a = h.app.files()[0].path.clone();
+        let before = crate::mipmap::halves_made_here();
+        h.app.open_convert(Some(a));
+        h.until(|app| app.convert.as_ref().is_some_and(|w| matches!(w.result, Some(Ok(_))) && !w.busy), "the picture encoded");
+        let made = crate::mipmap::halves_made_here() - before;
+        assert_eq!(made, 0, "halved copies made {made} times on the window's thread");
     }
 
     /// #366: a picture opened from outside (a double click in the file manager) while the Save as

@@ -103,6 +103,18 @@ impl Turn {
         Turn { flip, quarter }
     }
 
+    /// `img` turned, made from it without a copy of it first (audit 3.11); `None`: no turn.
+    pub fn turned(self, img: &DynamicImage) -> Option<DynamicImage> {
+        let flipped = self.flip.then(|| img.fliph());
+        let from = flipped.as_ref().unwrap_or(img);
+        Some(match self.quarter {
+            1 => from.rotate90(),
+            2 => from.rotate180(),
+            3 => from.rotate270(),
+            _ => return flipped,
+        })
+    }
+
     pub fn apply(self, img: &mut DynamicImage) {
         if self.flip {
             *img = img.fliph();

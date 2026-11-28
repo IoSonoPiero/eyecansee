@@ -7,6 +7,7 @@ pub mod density;
 pub mod jfif;
 pub mod jpeg_quality;
 pub mod texts;
+use std::borrow::Cow;
 use std::io::Cursor;
 
 use image::codecs::{bmp, farbfeld, gif, hdr, ico, openexr, png, pnm, qoi, tga};
@@ -481,15 +482,9 @@ impl Original {
 
     /// The file as it would be saved.
     pub fn encode(&self, o: &Options) -> Result<Vec<u8>, String> {
-        let turned;
-        let image = if o.turn.is_none() {
-            &self.image
-        } else {
-            let mut img = self.image.clone();
-            o.turn.apply(&mut img);
-            turned = img;
-            &turned
-        };
+        // Turned from the picture itself, not from a copy of it (audit 3.11).
+        let turned = o.turn.turned(&self.image);
+        let image = turned.as_ref().unwrap_or(&self.image);
         let img = pixels(image, o.format);
         let mut b = self.blocks_turned(o.format, img.width(), img.height(), o);
         // The profile only with pixels of its colour space (#214): a CMYK JPEG is decoded to RGB,
@@ -560,21 +555,25 @@ pub(crate) fn profile_fits(icc: &[u8], grey: bool) -> bool {
 /// The largest side an ICO holds.
 pub const ICO_SIDE: u32 = 256;
 
-fn pixels(img: &DynamicImage, format: Format) -> DynamicImage {
+/// The picture itself when its pixels are already those (audit 3.11: a copy of a large picture
+/// for nothing), otherwise the pixels made.
+fn pixels(img: &DynamicImage, format: Format) -> Cow<'_, DynamicImage> {
+    use DynamicImage::*;
+    let made = |same: bool, make: &dyn Fn() -> DynamicImage| if same { Cow::Borrowed(img) } else { Cow::Owned(make()) };
     let alpha = img.color().has_alpha();
-    let deep = matches!(img, DynamicImage::ImageRgb16(_) | DynamicImage::ImageRgba16(_) | DynamicImage::ImageLuma16(_));
+    let deep = matches!(img, ImageRgb16(_) | ImageRgba16(_) | ImageLuma16(_));
     match format {
         // ICO holds at most 256 × 256 pixels: larger images are reduced (the page says so).
-        Format::Ico if img.width().max(img.height()) > ICO_SIDE => pixels(&img.resize(ICO_SIDE, ICO_SIDE, image::imageops::FilterType::Lanczos3), format),
+        Format::Ico if img.width().max(img.height()) > ICO_SIDE => Cow::Owned(pixels(&img.resize(ICO_SIDE, ICO_SIDE, image::imageops::FilterType::Lanczos3), format).into_owned()),
         // Always RGBA: readers of icons (`image` too) expect the PNG inside in RGBA.
-        Format::Ico => DynamicImage::ImageRgba8(img.to_rgba8()),
-        Format::Exr if alpha => DynamicImage::ImageRgba32F(img.to_rgba32f()),
-        Format::Exr => DynamicImage::ImageRgb32F(img.to_rgb32f()),
+        Format::Ico => made(matches!(img, ImageRgba8(_)), &|| ImageRgba8(img.to_rgba8())),
+        Format::Exr if alpha => made(matches!(img, ImageRgba32F(_)), &|| ImageRgba32F(img.to_rgba32f())),
+        Format::Exr => made(matches!(img, ImageRgb32F(_)), &|| ImageRgb32F(img.to_rgb32f())),
         // No transparency in HDR: on white, as JPEG.
-        Format::Hdr => DynamicImage::ImageRgb32F(pixels(img, Format::Jpeg).to_rgb32f()),
-        Format::Farbfeld => DynamicImage::ImageRgba16(img.to_rgba16()),
-        Format::Pnm if deep && alpha => DynamicImage::ImageRgba16(img.to_rgba16()),
-        Format::Pnm if deep => DynamicImage::ImageRgb16(img.to_rgb16()),
+        Format::Hdr => Cow::Owned(ImageRgb32F(pixels(img, Format::Jpeg).to_rgb32f())),
+        Format::Farbfeld => made(matches!(img, ImageRgba16(_)), &|| ImageRgba16(img.to_rgba16())),
+        Format::Pnm if deep && alpha => made(matches!(img, ImageRgba16(_)), &|| ImageRgba16(img.to_rgba16())),
+        Format::Pnm if deep => made(matches!(img, ImageRgb16(_)), &|| ImageRgb16(img.to_rgb16())),
         Format::Jpeg if alpha => {
             let mut rgba = img.to_rgba8();
             for p in rgba.pixels_mut() {
@@ -583,12 +582,12 @@ fn pixels(img: &DynamicImage, format: Format) -> DynamicImage {
                     p[c] = ((p[c] as u16 * a + 255 * (255 - a)) / 255) as u8;
                 }
             }
-            DynamicImage::ImageRgb8(DynamicImage::ImageRgba8(rgba).to_rgb8())
+            Cow::Owned(ImageRgb8(ImageRgba8(rgba).to_rgb8()))
         }
-        Format::Png | Format::Tiff if deep || matches!(img, DynamicImage::ImageLuma8(_)) => img.clone(),
-        Format::Png if matches!(img, DynamicImage::ImageLumaA8(_) | DynamicImage::ImageLumaA16(_)) => img.clone(),
-        _ if alpha && format != Format::Jpeg => DynamicImage::ImageRgba8(img.to_rgba8()),
-        _ => DynamicImage::ImageRgb8(img.to_rgb8()),
+        Format::Png | Format::Tiff if deep || matches!(img, ImageLuma8(_)) => Cow::Borrowed(img),
+        Format::Png if matches!(img, ImageLumaA8(_) | ImageLumaA16(_)) => Cow::Borrowed(img),
+        _ if alpha && format != Format::Jpeg => made(matches!(img, ImageRgba8(_)), &|| ImageRgba8(img.to_rgba8())),
+        _ => made(matches!(img, ImageRgb8(_)), &|| ImageRgb8(img.to_rgb8())),
     }
 }
 
@@ -645,6 +644,89 @@ pub(crate) mod tests {
     fn read_meta(bytes: &[u8]) -> (Option<Vec<u8>>, Option<Vec<u8>>) {
         let mut d = ImageReader::new(Cursor::new(bytes)).with_guessed_format().unwrap().into_decoder().unwrap();
         (d.exif_metadata().unwrap(), d.icc_profile().unwrap())
+    }
+
+    /// Audit 3.11: a large picture was copied two or three times on its way to the encoder
+    /// (`pixels` always, the encoder again, the viewer's turn on a clone, the preview of Save as…
+    /// on a clone, the PSD's check for transparency): with 100 megapixels, 0.6-1.2 GB more than
+    /// needed. Now no copy of pixels already as the format takes them, and with a turn only the
+    /// turned picture, beside what the encoder itself holds: nothing counted here for the C
+    /// libraries (libjpeg-turbo, libwebp, ImageMagick), what `tiff` and the PNG of `image` hold
+    /// on the same pixels when called directly.
+    #[test]
+    fn pictures_not_copied_on_their_way_to_the_encoder() {
+        use crate::transform::{Op, Turn};
+        let (w, h) = (1600, 1200);
+        let rgb = DynamicImage::ImageRgb8(image::RgbImage::from_pixel(w, h, image::Rgb([200, 120, 40])));
+        let rgba = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(w, h, image::Rgba([200, 120, 40, 100])));
+        let d = Options::default();
+        let cw = Turn::default().then(Op::Cw);
+        // What `tiff` holds itself on these pixels, with the compression and predictor of Save as….
+        let tiff_own = |img: &DynamicImage| {
+            use tiff::encoder::{Compression, Predictor, TiffEncoder, colortype};
+            let mut out = Cursor::new(Vec::new());
+            crate::test_alloc::peak(|| {
+                let mut e = TiffEncoder::new(&mut out).unwrap().with_compression(Compression::Lzw).with_predictor(Predictor::Horizontal);
+                match img {
+                    DynamicImage::ImageRgba8(i) => e.write_image::<colortype::RGBA8>(w, h, i.as_raw()).unwrap(),
+                    i => e.write_image::<colortype::RGB8>(w, h, i.as_rgb8().unwrap().as_raw()).unwrap(),
+                }
+            })
+            .1
+        };
+        // The picture, the options, how many copies of it are needed at most, and the encoder's own.
+        let cases = [
+            ("JPEG", &rgb, Options { format: Format::Jpeg, ..d }, 0, 0),
+            ("JPEG turned", &rgb, Options { format: Format::Jpeg, turn: cw, ..d }, 1, 0),
+            ("WebP", &rgb, Options { format: Format::Webp, ..d }, 0, 0),
+            ("WebP with transparency", &rgba, Options { format: Format::Webp, ..d }, 0, 0),
+            ("TIFF", &rgb, Options { format: Format::Tiff, ..d }, 0, tiff_own(&rgb)),
+            ("TIFF with transparency", &rgba, Options { format: Format::Tiff, ..d }, 0, tiff_own(&rgba)),
+        ];
+        let mut too_much = Vec::new();
+        for (what, img, o, copies, own) in cases {
+            let original = Original::with_meta(img.clone(), &[]);
+            let (r, most) = crate::test_alloc::peak(|| original.encode(&o).map(|f| f.len()));
+            r.unwrap();
+            let one = img.as_bytes().len();
+            println!("{what}: {most} bytes at most, {:.2} copies of the picture beside the encoder's own {own}", most.saturating_sub(own) as f64 / one as f64);
+            if most >= own + one * copies + one / 2 {
+                too_much.push(format!("{what}: {most} bytes, {copies} copies of {one} needed beside {own}"));
+            }
+        }
+        // The preview of Save as… and of the editor: its own pixels, no copy of the picture.
+        let (p, most) = crate::test_alloc::peak(|| crate::decode::preview(&rgb).size);
+        let shown = p[0] * p[1] * 4;
+        println!("preview: {most} bytes at most for {shown} shown");
+        if most >= shown + rgb.as_bytes().len() / 2 {
+            too_much.push(format!("preview: {most} bytes, {shown} needed"));
+        }
+        #[cfg(feature = "magick")]
+        {
+            // The PNG handed to ImageMagick is made by `image`, and counted.
+            let own = crate::test_alloc::peak(|| rgb.write_to(&mut Cursor::new(Vec::new()), image::ImageFormat::Png).unwrap()).1;
+            let (r, most) = crate::test_alloc::peak(|| crate::psd::encode(&rgb, &[]).map(|f| f.len()));
+            r.unwrap();
+            let one = rgb.as_bytes().len();
+            println!("PSD: {most} bytes at most, {:.2} copies of the picture beside the PNG's own {own}", most.saturating_sub(own) as f64 / one as f64);
+            if most >= own + one / 2 {
+                too_much.push(format!("PSD: {most} bytes, beside {own}"));
+            }
+        }
+        assert!(too_much.is_empty(), "{too_much:#?}");
+    }
+
+    /// AVIF (audit 3.11): rav1e holds much of its own, so only measured, in release:
+    /// `cargo test --release avif_peak -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn avif_peak() {
+        let img = DynamicImage::ImageRgb8(image::RgbImage::from_pixel(1600, 1200, image::Rgb([200, 120, 40])));
+        let original = Original::with_meta(img.clone(), &[]);
+        let o = Options { format: Format::Avif, avif_speed: 10, ..Options::default() };
+        let (r, most) = crate::test_alloc::peak(|| original.encode(&o).map(|f| f.len()));
+        r.unwrap();
+        println!("AVIF: {most} bytes at most, {:.2} copies of the picture", most as f64 / img.as_bytes().len() as f64);
     }
 
     /// Every format, with its main variants, encodes; what is written decodes back to the same

@@ -425,7 +425,7 @@ impl App {
                 o.image = image;
                 let mut o = o.alone();
                 o.hdr = file.and_then(|f| crate::ultrahdr::Source::of(f, vec![doc.edit()], holes)).map(|s| Arc::new(s.sized(doc.scale.map(|s| (s.w, s.h))).beside(o.sidecar.clone())));
-                let preview = crate::decode::preview(&o.image);
+                let preview = crate::mipmap::Halved::of(crate::decode::preview(&o.image));
                 (o, preview)
             });
             // A fault while it is made goes to the page as its error: it was left loading for

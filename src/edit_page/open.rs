@@ -4,7 +4,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use eframe::egui::{self, ColorImage};
+use eframe::egui;
 
 use super::{Place, Tool, Window};
 use crate::App;
@@ -131,11 +131,11 @@ impl App {
         w.styles = self.settings.edit_styles.clone();
         self.editor = Some(w);
         let original = Arc::new(Original::with_meta(image, &[]));
-        let preview = crate::decode::preview(&original.image);
+        let preview = crate::mipmap::Halved::of(crate::decode::preview(&original.image));
         self.editor_original(ctx, Ok((original, preview, 0)));
     }
 
-    pub(crate) fn editor_original(&mut self, ctx: &egui::Context, r: Result<(Arc<Original>, ColorImage, u64), String>) {
+    pub(crate) fn editor_original(&mut self, ctx: &egui::Context, r: Result<(Arc<Original>, crate::mipmap::Halved, u64), String>) {
         let Some(w) = &mut self.editor else { return };
         // Opened before it was known: off from now on.
         if r.as_ref().is_err_and(|e| e == super::ANIMATED) {
@@ -144,7 +144,7 @@ impl App {
         // The photo as read; at the document's size from the next frame (`follow_size`).
         w.full = r.as_ref().ok().map(|(original, ..)| original.clone());
         w.scaled = None;
-        w.original = Some(r.map(|(original, preview, size)| (original, crate::mipmap::Picture::now(ctx, "edit-original", preview, crate::mipmap::SMALLEST_PICTURE), size)));
+        w.original = Some(r.map(|(original, preview, size)| (original, crate::mipmap::Picture::halved(ctx, "edit-original", preview), size)));
         if w.history.is_some() {
             return;
         }

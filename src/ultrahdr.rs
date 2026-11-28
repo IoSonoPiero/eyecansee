@@ -246,8 +246,8 @@ impl Source {
     /// turned by `o.turn` (the viewer's; the editor's turn is in its edits), with the gain map
     /// done the same way.
     pub fn write(&self, image: &DynamicImage, o: &Options) -> Result<Vec<u8>, String> {
-        let mut image = image.clone();
-        o.turn.apply(&mut image);
+        // Turned from `image` itself, not from a copy of it (audit 3.11).
+        let image = o.turn.turned(image).unwrap_or_else(|| image.clone());
         let plain = Options { turn: Turn::default(), ..*o };
         let sidecar = self.sidecar.as_deref();
         if self.edits.is_empty() {

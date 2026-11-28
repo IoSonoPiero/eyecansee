@@ -2,17 +2,28 @@
 //! for AVIF, `tiff` for TIFF, with the metadata written into their containers. Split from
 //! `encode.rs` on 2026-11-04.
 
+use std::borrow::Cow;
 use std::io::Cursor;
 
-use image::DynamicImage;
+use image::{DynamicImage, RgbImage, RgbaImage};
 
 use crate::encode::{Blocks, Chroma, Options, TiffCompression};
 use crate::meta_write::{Dir, JPEG_PHOTOSHOP};
 use tiff::tags::Type;
 
 /// libjpeg-turbo; the metadata go in as APP segments, which it does not write.
+/// The RGB pixels of `img`: its own if it has them, without a copy (audit 3.11).
+fn rgb8(img: &DynamicImage) -> Cow<'_, RgbImage> {
+    img.as_rgb8().map_or_else(|| Cow::Owned(img.to_rgb8()), Cow::Borrowed)
+}
+
+/// `rgb8` with transparency.
+fn rgba8(img: &DynamicImage) -> Cow<'_, RgbaImage> {
+    img.as_rgba8().map_or_else(|| Cow::Owned(img.to_rgba8()), Cow::Borrowed)
+}
+
 pub(crate) fn jpeg(img: &DynamicImage, o: &Options, b: &Blocks) -> Result<Vec<u8>, String> {
-    let rgb = img.to_rgb8();
+    let rgb = rgb8(img);
     let (w, h) = (rgb.width() as usize, rgb.height() as usize);
     let tj = |e: turbojpeg::Error| e.to_string();
     let mut c = turbojpeg::Compressor::new().map_err(tj)?;
@@ -146,8 +157,6 @@ fn jpeg_meta(file: Vec<u8>, b: &Blocks) -> Vec<u8> {
 pub(crate) fn webp(img: &DynamicImage, o: &Options, b: &Blocks) -> Result<Vec<u8>, String> {
     let alpha = img.color().has_alpha();
     let (w, h) = (img.width(), img.height());
-    let raw = if alpha { img.to_rgba8().into_raw() } else { img.to_rgb8().into_raw() };
-    let encoder = if alpha { webp::Encoder::from_rgba(&raw, w, h) } else { webp::Encoder::from_rgb(&raw, w, h) };
     let mut config = webp::WebPConfig::new().map_err(|()| "WebPConfig".to_string())?;
     config.lossless = o.webp_lossless as i32;
     config.method = o.webp_effort as i32;
@@ -160,7 +169,8 @@ pub(crate) fn webp(img: &DynamicImage, o: &Options, b: &Blocks) -> Result<Vec<u8
         config.quality = o.webp_quality as f32;
         config.use_sharp_yuv = o.sharp_yuv as i32;
     }
-    let file = encoder.encode_advanced(&config).map_err(|e| format!("{e:?}"))?;
+    let file = if alpha { webp::Encoder::from_rgba(rgba8(img).as_raw(), w, h).encode_advanced(&config) } else { webp::Encoder::from_rgb(rgb8(img).as_raw(), w, h).encode_advanced(&config) };
+    let file = file.map_err(|e| format!("{e:?}"))?;
     Ok(webp_meta(&file, w, h, alpha, b))
 }
 
@@ -234,10 +244,11 @@ pub(crate) fn avif(img: &DynamicImage, o: &Options, b: &Blocks) -> Result<Vec<u8
     }
     let (w, h) = (img.width() as usize, img.height() as usize);
     let r = if img.color().has_alpha() {
-        let px: Vec<ravif::RGBA8> = img.to_rgba8().pixels().map(|p| ravif::RGBA8::new(p[0], p[1], p[2], p[3])).collect();
+        // Still one copy, in ravif's pixels: no way to lend ours without a crate more.
+        let px: Vec<ravif::RGBA8> = rgba8(img).pixels().map(|p| ravif::RGBA8::new(p[0], p[1], p[2], p[3])).collect();
         e.encode_rgba(ravif::Img::new(&px[..], w, h))
     } else {
-        let px: Vec<ravif::RGB8> = img.to_rgb8().pixels().map(|p| ravif::RGB8::new(p[0], p[1], p[2])).collect();
+        let px: Vec<ravif::RGB8> = rgb8(img).pixels().map(|p| ravif::RGB8::new(p[0], p[1], p[2])).collect();
         e.encode_rgb(ravif::Img::new(&px[..], w, h))
     };
     r.map(|r| r.avif_file).map_err(|e| e.to_string())
@@ -293,6 +304,7 @@ pub(crate) fn tiff(img: &DynamicImage, o: &Options, b: &Blocks, out: &mut Cursor
         DynamicImage::ImageLuma16(i) => write!(colortype::Gray16, i.as_raw()),
         DynamicImage::ImageLuma8(i) => write!(colortype::Gray8, i.as_raw()),
         DynamicImage::ImageRgba8(i) => write!(colortype::RGBA8, i.as_raw()),
+        DynamicImage::ImageRgb8(i) => write!(colortype::RGB8, i.as_raw()),
         i => write!(colortype::RGB8, i.to_rgb8().as_raw()),
     }
 }

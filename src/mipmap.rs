@@ -61,9 +61,37 @@ pub(crate) fn halves(img: &ColorImage, smallest: usize) -> Vec<ColorImage> {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Tests only: how many times `picture_halves` ran on this thread (audit 3.10: on the window's);
+    /// not `halves`, which thumbnails arriving meanwhile also call there.
+    static MADE_HERE: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn halves_made_here() -> usize {
+    MADE_HERE.with(std::cell::Cell::get)
+}
+
 /// `halves` for a picture of the viewer, the editor or "Save in another format".
 pub(crate) fn picture_halves(img: &ColorImage) -> Vec<ColorImage> {
+    #[cfg(test)]
+    MADE_HERE.with(|n| n.set(n.get() + 1));
     halves(img, SMALLEST_PICTURE)
+}
+
+/// A picture to show with its halved copies (`picture_halves`), made in the thread that makes the
+/// picture and sent with it: not on the window's thread when it arrives (audit 3.10).
+pub(crate) struct Halved {
+    pub image: ColorImage,
+    pub halves: Vec<ColorImage>,
+}
+
+impl Halved {
+    pub(crate) fn of(image: ColorImage) -> Self {
+        let halves = picture_halves(&image);
+        Self { image, halves }
+    }
 }
 
 /// Options > Look > Smooth pictures shown below 100% (#151), set at every frame (`set_smooth`):
@@ -127,6 +155,11 @@ impl Picture {
     pub(crate) fn new(ctx: &egui::Context, name: &str, image: ColorImage, halves: Vec<ColorImage>) -> Self {
         let halves = halves.into_iter().enumerate().map(|(i, h)| ctx.load_texture(format!("{name} 1/{}", 2 << i), h, TextureOptions::LINEAR)).collect();
         Self { tex: ctx.load_texture(name, image, TextureOptions::LINEAR), halves, version: 0 }
+    }
+
+    /// With the copies made with it (`Halved`).
+    pub(crate) fn halved(ctx: &egui::Context, name: &str, h: Halved) -> Self {
+        Self::new(ctx, name, h.image, h.halves)
     }
 
     /// With its copies made here: small pictures, or a picture opened once (the editor).

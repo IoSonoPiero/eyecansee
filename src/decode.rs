@@ -265,7 +265,16 @@ pub fn thumbnail_sized(bytes: &[u8], name: &str, side: u32) -> std::result::Resu
 
 /// For showing an image already decoded: scaled down only beyond the texture limit, as `decode`.
 pub fn preview(img: &DynamicImage) -> ColorImage {
-    if img.width().max(img.height()) > MAX_SIDE { to_color_image(DynamicImage::ImageRgba8(crate::reduce::fit(img, MAX_SIDE))) } else { to_color_image(img.clone()) }
+    if img.width().max(img.height()) > MAX_SIDE {
+        return to_color_image(DynamicImage::ImageRgba8(crate::reduce::fit(img, MAX_SIDE)));
+    }
+    // From the picture's own pixels, not a copy of it (audit 3.11).
+    let size = [img.width() as usize, img.height() as usize];
+    match img {
+        DynamicImage::ImageRgb8(rgb) => ColorImage::from_rgb(size, rgb.as_raw()),
+        DynamicImage::ImageRgba8(rgba) => ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()),
+        img => ColorImage::from_rgba_unmultiplied(size, img.to_rgba8().as_raw()),
+    }
 }
 
 /// Whole image, at full size and upright: for saving in another format.

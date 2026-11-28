@@ -97,7 +97,7 @@ fn dms(v: f64) -> Value {
 
 /// The frame `image` (sent by the player) with the metadata of the video `path`, as Save as…
 /// takes an original: the image, its preview and the video's size.
-pub(crate) async fn original(op: &Store, path: &str, at: f64, image: Receiver<RgbaImage>) -> Result<(Arc<crate::encode::Original>, eframe::egui::ColorImage, u64), String> {
+pub(crate) async fn original(op: &Store, path: &str, at: f64, image: Receiver<RgbaImage>) -> Result<(Arc<crate::encode::Original>, crate::mipmap::Halved, u64), String> {
     let size = op.size(path).await.map_err(|(_, detail)| detail)?;
     let input = crate::video_read::video_input(tokio::runtime::Handle::current(), op, path, size);
     let file = op.local_file(path);
@@ -117,7 +117,7 @@ pub(crate) async fn original(op: &Store, path: &str, at: f64, image: Receiver<Rg
         log!("frame at {at:.3} s of {path:?}: {}×{}, {meta:?}", image.width(), image.height());
         // Opaque: no note about transparency in Save as….
         let image = DynamicImage::ImageRgb8(DynamicImage::ImageRgba8(image).into_rgb8());
-        let preview = crate::decode::preview(&image);
+        let preview = crate::mipmap::Halved::of(crate::decode::preview(&image));
         Ok((Arc::new(crate::encode::Original::with_exif(image, exif(&meta))), preview, size))
     })
     .await

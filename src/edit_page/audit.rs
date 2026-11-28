@@ -130,7 +130,7 @@ fn audit_5_1_b_a_late_picture_goes_to_no_other_page() {
     let mut h = Harness::new(&dir);
     let red = || {
         let image = image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(8, 6, image::Rgb([255, 0, 0])));
-        let preview = crate::decode::preview(&image);
+        let preview = crate::mipmap::Halved::of(crate::decode::preview(&image));
         Ok((std::sync::Arc::new(crate::encode::Original::with_meta(image, &[])), preview, 0))
     };
     // The editor on a.png, closed, opened again on b.png; a.png's picture comes late.
