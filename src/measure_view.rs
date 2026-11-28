@@ -92,13 +92,16 @@ impl App {
     pub(crate) fn measure_status(&self) -> Option<(String, bool)> {
         // Not while the file is read: Measure stays on then (audit 27/11, D.7), its results are another file's.
         let s = self.model.measure.shown.as_ref().filter(|_| self.model.measure.on && self.measure_off().is_none())?;
+        // Measure said first, so that turned on it is seen (#367): a model's line is already "Measure".
+        let title = self.i18n.t("measure-title");
         if s.lines.is_empty() {
-            return Some((format!("{}: {}", s.what, s.hint), false));
+            let head = if s.what == title { title } else { format!("{title} · {}", s.what) };
+            return Some((format!("{head}: {}", s.hint), false));
         }
         let body = s.lines.iter().map(|(l, v)| format!("{l} {v}")).collect::<Vec<_>>().join(" · ");
         let unit = if s.no_unit { format!(" ({})", self.i18n.t("measure-no-unit")) } else { String::new() };
         let more = if s.more.is_empty() { String::new() } else { format!(" · {}", s.more) };
-        Some((body + &unit + &more, true))
+        Some((format!("{title} · {body}{unit}{more}"), true))
     }
 
     /// The results of the measure on the clipboard (Copy in the status bar, Ctrl+C).

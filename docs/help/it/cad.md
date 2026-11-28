@@ -37,7 +37,7 @@ Un blocco su un livello nascosto si nasconde tutto, anche le sue parti su altri 
 
 ## Misurare
 
-**M**, o **Visualizza > Misura**, accende lo strumento Misura. Niente copre il disegno: mentre fai clic il valore è scritto accanto al puntatore, e i risultati vanno nella barra di stato, che dice anche come andare avanti. Premi **D** (distanza), **A** (area) o **G** (angolo), poi fai clic sul disegno:
+**M**, o **Visualizza > Misura**, accende lo strumento Misura. Niente copre il disegno: mentre fai clic il valore è scritto accanto al puntatore, e i risultati vanno nella barra di stato, su un'etichetta gialla che comincia con **Misura** e dice anche come andare avanti; **M** di nuovo la spegne. Premi **D** (distanza), **A** (area) o **G** (angolo), poi fai clic sul disegno:
 
 - **Distanza**: due punti. La barra di stato mostra la distanza e quanto distano i punti lungo X e Y.
 - **Area**: gli angoli di una forma, uno dopo l'altro; **Invio** o un doppio clic la chiudono. La barra di stato mostra l'area e il perimetro, anche mentre fai clic.

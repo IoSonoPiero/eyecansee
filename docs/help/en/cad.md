@@ -37,7 +37,7 @@ A block on a hidden layer is hidden entirely, including its parts on other layer
 
 ## Measuring
 
-**M**, or **View > Measure**, turns on the Measure tool. Nothing covers the drawing: while you click, the value is written next to the pointer, and the results go to the status bar, which also says how to go on. Press **D** (distance), **A** (area) or **G** (angle), then click on the drawing:
+**M**, or **View > Measure**, turns on the Measure tool. Nothing covers the drawing: while you click, the value is written next to the pointer, and the results go to the status bar, on a yellow label that starts with **Measure** and also says how to go on; **M** again turns it off. Press **D** (distance), **A** (area) or **G** (angle), then click on the drawing:
 
 - **Distance**: two points. The status bar shows the distance and how far apart the points are along X and Y.
 - **Area**: the corners of a shape, one after the other; **Enter** or a double click closes it. The status bar shows the area and the perimeter, also while you click.

@@ -499,8 +499,10 @@ fn measure_fits_id() -> egui::Id {
 
 /// The measure's text in the bold font: `strong` only changes the colour, and the bar makes every
 /// text white.
+/// Measure's line in the status bar: a yellow label, as the other things under way (#367); before,
+/// white like the rest of the bar, it could hardly be seen.
 fn measure_text(text: &str) -> egui::RichText {
-    egui::RichText::new(text).family(egui::FontFamily::Name(crate::BOLD.into()))
+    crate::theme::alert(text.to_string()).family(egui::FontFamily::Name(crate::BOLD.into()))
 }
 
 /// Width of the note that stands for the boxes without data (two boxes and the gap between).
