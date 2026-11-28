@@ -17,6 +17,7 @@
 //!   that is no item after another, for `ENDLESS` bytes or until the client stops reading;
 //! - `/long/`, as a hostile server could send a file (audit 27/11 S.10): `declared.png`, whose
 //!   SIZE says 1 MiB, and any other name, with no SIZE; RETR sends 8 MiB of each;
+//! - `/disk/`: the files of a folder of this computer (`Seen::disk`), for the tests on real files;
 //! - for a move onto itself through a link (audit 27/11 F.1): `/photos/album/x.jpg`, `/desk/album`
 //!   (a link to `/photos/album/`), `/via` (a link to `/photos/album/` too), and another folder of
 //!   that name, `/other/album/y.jpg`.
@@ -118,6 +119,8 @@ pub struct Seen {
     pub stors: Mutex<Vec<String>>,
     /// The files sent and not deleted, by path, with what arrived of them.
     pub stored: Mutex<HashMap<String, Vec<u8>>>,
+    /// A folder of this computer whose files the server gives as `/disk/<name>` (SIZE, RETR).
+    pub disk: Mutex<Option<std::path::PathBuf>>,
 }
 
 impl Seen {
@@ -229,6 +232,15 @@ impl Seen {
     }
 
     /// The file an item is, a link to a file followed; `None`: not a file.
+    /// The bytes of a file: one of `ITEMS` (`content`) or one of `disk`.
+    fn bytes(&self, path: &str) -> Option<std::borrow::Cow<'static, [u8]>> {
+        if let Some(c) = self.content(path) {
+            return Some(c.into());
+        }
+        let name = path.trim_start_matches('/').strip_prefix("disk/")?;
+        std::fs::read(self.disk.lock().unwrap().as_ref()?.join(name)).ok().map(Into::into)
+    }
+
     fn content(&self, path: &str) -> Option<&'static [u8]> {
         let kind = self.split(path).and_then(|(dir, name)| self.item(&dir, name)).or_else(|| self.verbatim(path))?;
         match kind {
@@ -423,8 +435,8 @@ fn session(control: TcpStream, seen: &Seen) -> std::io::Result<()> {
                 }
                 _ => say("550 no such folder")?,
             },
-            "RETR" => match (seen.content(path), data.take()) {
-                (Some(content), Some(listener)) => send(&mut say, listener, content)?,
+            "RETR" => match (seen.bytes(path), data.take()) {
+                (Some(content), Some(listener)) => send(&mut say, listener, &content)?,
                 // SFTPGo: a folder read starts the transfer, sends nothing and then refuses.
                 (None, Some(listener)) if seen.folder(path).is_some() || seen.broken(path).is_some() => {
                     say("150 Using transfer connection")?;
@@ -446,7 +458,7 @@ fn session(control: TcpStream, seen: &Seen) -> std::io::Result<()> {
                 }
                 None => say("425 no data connection")?,
             },
-            "SIZE" => match seen.content(path).map(<[u8]>::len).or_else(|| seen.broken(path)).or_else(|| (path.trim_matches('/') == LONG).then_some(DECLARED)) {
+            "SIZE" => match seen.bytes(path).map(|b| b.len()).or_else(|| seen.broken(path)).or_else(|| (path.trim_matches('/') == LONG).then_some(DECLARED)) {
                 Some(size) => say(&format!("213 {size}"))?,
                 None => say("550 no such file")?,
             },

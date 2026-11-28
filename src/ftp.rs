@@ -1245,4 +1245,25 @@ pub(crate) mod tests {
         assert_eq!(super::read_limit(None, 16 * gib), 8 * gib);
         assert_eq!(super::read_limit(Some(u64::MAX), 16 * gib), u64::MAX);
     }
+
+    /// The limit of a file read whole (`read_limit`) on the big files of the collection
+    /// (`notes/test-files`, not in the CI): TIFF, PSD, PSB and videos, given by the fake server
+    /// with their true size, come whole. The collection: `notes/test-files` or `EYECANSEE_TEST_FILES`.
+    /// `cargo test ftp_read_real_files -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn ftp_read_real_files() {
+        let files = std::env::var_os("EYECANSEE_TEST_FILES").map_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("notes/test-files"), std::path::PathBuf::from);
+        let (target, seen) = fake::start();
+        let server = super::Server::shared(target);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        for f in ["formati/x.tif", "formati/x.tiff", "formati/x.psd", "formati/x.psb", "psd/layer_effects.psd", "generati/VID_verticale_prova.mp4", "foto-video/Ocean waves.mp4"] {
+            let file = files.join(f);
+            *seen.disk.lock().unwrap() = file.parent().map(std::path::Path::to_path_buf);
+            let name = file.file_name().unwrap().to_string_lossy().into_owned();
+            let read = rt.block_on(server.read(&format!("disk/{name}"))).unwrap();
+            println!("{f}: {} bytes read", read.len());
+            assert!(read == std::fs::read(&file).unwrap(), "{f}");
+        }
+    }
 }
