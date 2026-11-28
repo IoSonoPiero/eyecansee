@@ -202,6 +202,33 @@ mod tests {
     }
     use super::*;
 
+    /// Audit 4.9: the next frame of an animation, of the same size, is written into the textures
+    /// already on the card (`set_partial`), its own and its halved copies': given whole, each
+    /// time egui-wgpu made new ones and let the old go (33 MB of graphics memory a frame for a 4K
+    /// frame). Not drawn from its halved copies (the filter from the whole picture, or Mitchell),
+    /// none are made: they were made and sent to the card at every frame, on the window's thread.
+    #[test]
+    fn a_frame_of_the_same_size_goes_into_the_same_textures_4_9() {
+        let ctx = egui::Context::default();
+        let img = |v: u8| Arc::new(ColorImage::new([512, 256], vec![egui::Color32::from_gray(v); 512 * 256]));
+        let mut pic = Picture::now(&ctx, "frame", (*img(0)).clone(), SMALLEST_PICTURE);
+        assert_eq!(pic.halves.len(), 2);
+        ctx.tex_manager().write().take_delta().clear();
+        pic.set_with(&ctx, img(1), true);
+        let mut delta = ctx.tex_manager().write().take_delta();
+        let whole = delta.set.values().flatten().filter(|d| d.pos.is_none()).count();
+        let given = (delta.set.len(), whole);
+        delta.clear();
+        assert_eq!(given, (3, 0), "textures given a frame, of them given whole (made again)");
+        pic.set_with(&ctx, img(2), false);
+        let mut delta = ctx.tex_manager().write().take_delta();
+        let given = (delta.set.len(), pic.halves.len());
+        delta.clear();
+        assert_eq!(given, (1, 0), "textures given a frame not drawn from its copies, copies kept");
+        drop(pic);
+        ctx.tex_manager().write().take_delta().clear();
+    }
+
     /// `size` pixels, white where `white(x, y)`, black elsewhere.
     fn pattern(size: [usize; 2], white: impl Fn(usize, usize) -> bool) -> ColorImage {
         let pixels = (0..size[0] * size[1]).map(|i| if white(i % size[0], i / size[0]) { egui::Color32::WHITE } else { egui::Color32::BLACK }).collect();
