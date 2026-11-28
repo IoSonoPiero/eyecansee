@@ -378,10 +378,13 @@ mod tests {
         h.frame(Vec::new());
         MARKED_COPIED.with(|n| n.set(0));
         SIZE_COMPARED.with(|n| n.set(0));
+        // Counted by pass: egui runs a frame twice when a pass asks for it (a busy computer).
+        let pass = h.ctx.cumulative_pass_nr();
         h.frame(Vec::new());
-        let (copied, compared) = (MARKED_COPIED.with(|n| n.get()), SIZE_COMPARED.with(|n| n.get()));
-        eprintln!("one frame with {N} files marked: {copied} paths copied, {compared} files compared");
-        assert!(copied <= 3 * N, "{copied} paths copied in a frame: the marked list made {} times", copied / N);
+        let passes = (h.ctx.cumulative_pass_nr() - pass) as usize;
+        let (copied, compared) = (MARKED_COPIED.with(|n| n.get()) / passes, SIZE_COMPARED.with(|n| n.get()) / passes);
+        eprintln!("one pass with {N} files marked: {copied} paths copied, {compared} files compared");
+        assert!(copied <= 3 * N, "{copied} paths copied in a pass: the marked list made {} times", copied / N);
         assert!(compared <= N, "{compared} comparisons to weigh {N} files marked");
     }
 
