@@ -3,10 +3,9 @@
 //! their transforms; colours from base materials and colour groups, pictures from texture groups
 //! (Materials extension).
 
-use std::cell::{Cell, RefCell};
+use std::cell::{Cell, OnceCell, RefCell};
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
-use std::rc::Rc;
 
 use roxmltree::{Document, Node};
 
@@ -139,16 +138,16 @@ pub fn read(bytes: &[u8], unpacked: &Unpacked) -> Result<Mesh, String> {
         .ok()
         .and_then(|d| d.descendants().find(|n| n.attribute("Type").is_some_and(|t| t.ends_with("/3dmodel"))).and_then(|n| n.attribute("Target")).map(str::to_string))
         .unwrap_or_else(|| "/3D/3dmodel.model".into());
-    let mut files = Files { zip, unpacked, texts: HashMap::new(), pictures: HashMap::new(), written: 0, tree: Tree::of(crate::model_limit::THREE_MF), charged: HashMap::new() };
-    let text = files.text(&main)?;
-    let doc = files.parse(files.index(&main), &text)?;
+    let n = zip.len();
+    let (texts, docs, models) = (slots(n), slots(n), slots(n));
+    let loaded = Loaded { texts: &texts, docs: &docs, models: &models };
+    let mut files = Files { zip, unpacked, pictures: HashMap::new(), written: 0, tree: Tree::of(crate::model_limit::THREE_MF) };
+    let doc = loaded.model(&mut files, &main)?.doc;
     let mut b = Builder::up_to(crate::model_limit::THREE_MF);
-    let model = Model::new(&doc);
-    let open = [(files.index(&main), &model)];
     for item in doc.descendants().filter(|n| n.has_tag_name_local("item")) {
         let Some(id) = item.attribute("objectid") else { continue };
         let path = item.attribute_local("path").unwrap_or(&main).to_string();
-        place(&mut b, &mut files, &main, &model, &open, &path, id, &transform(item), 0)?;
+        place(&mut b, &mut files, &loaded, &path, id, &transform(item), 0)?;
     }
     files.unpacked.check()?;
     let mut mesh = b.finish(true)?;
@@ -156,20 +155,43 @@ pub fn read(bytes: &[u8], unpacked: &Unpacked) -> Result<Mesh, String> {
     Ok(mesh)
 }
 
+fn slots<T>(n: usize) -> Vec<OnceCell<T>> {
+    std::iter::repeat_with(OnceCell::new).take(n).collect()
+}
+
+/// The model files of the zip, by their place in it: each read, parsed and made a `Model` once,
+/// when it is first placed, however many components place it (audit 27/11, D.6 and 6.12: it was
+/// parsed again at each of them).
+struct Loaded<'m, 's, 'i> {
+    texts: &'i [OnceCell<String>],
+    docs: &'s [OnceCell<Box<Document<'i>>>],
+    models: &'m [OnceCell<Box<Model<'s, 'i>>>],
+}
+
+impl<'m, 's, 'i> Loaded<'m, 's, 'i> {
+    fn model(&self, files: &mut Files, path: &str) -> Result<&'m Model<'s, 'i>, String> {
+        let i = files.index(path).ok_or_else(|| format!("{path} missing in the file"))?;
+        if let Some(m) = self.models[i].get() {
+            return Ok(m);
+        }
+        let text = files.text(i, path)?;
+        let text = self.texts[i].get_or_init(|| text);
+        let doc = files.parse(text)?;
+        let doc = self.docs[i].get_or_init(|| Box::new(doc));
+        Ok(self.models[i].get_or_init(|| Box::new(Model::new(doc))))
+    }
+}
+
 /// The files of the zip, each read once however it is spelled (`/3D/a.model`, `//3D/a.model`).
 struct Files<'b, 'u> {
     zip: zip::ZipArchive<Cursor<&'b [u8]>>,
     unpacked: &'u Unpacked,
-    /// Texts and pictures by their place in the zip.
-    texts: HashMap<usize, Rc<String>>,
+    /// Pictures by their place in the zip.
     pictures: HashMap<usize, u16>,
     /// The triangles written in the texts read so far, counted before they are parsed (`model_limit`).
     written: usize,
-    /// What the trees of its model files may still take, all of them together (audit 27/11, D.4),
-    /// and what each file took the first time, by its place in the zip: a file parsed again
-    /// takes no more.
+    /// What the trees of its model files may still take, all of them together (audit 27/11, D.4).
     tree: Tree,
-    charged: HashMap<usize, Tree>,
 }
 
 impl Files<'_, '_> {
@@ -178,35 +200,22 @@ impl Files<'_, '_> {
         self.zip.index_for_name(path.trim_start_matches('/'))
     }
 
-    /// `text`, the file at `at` in the zip, parsed within the limit the model files share.
-    fn parse<'t>(&mut self, at: Option<usize>, text: &'t str) -> Result<Document<'t>, String> {
+    /// The text of a model file, within the limit the model files share.
+    fn parse<'t>(&mut self, text: &'t str) -> Result<Document<'t>, String> {
         #[cfg(test)]
         PARSES.with(|p| p.set(p.get() + 1));
-        let three_mf = crate::model_limit::THREE_MF;
-        if let Some(took) = at.and_then(|k| self.charged.get(&k)) {
-            return parse_within(text, three_mf, &mut Tree { nodes: took.nodes, attributes: took.attributes });
-        }
-        let before = Tree { nodes: self.tree.nodes, attributes: self.tree.attributes };
-        let doc = parse_within(text, three_mf, &mut self.tree)?;
-        if let Some(k) = at {
-            self.charged.insert(k, Tree { nodes: before.nodes - self.tree.nodes, attributes: before.attributes - self.tree.attributes });
-        }
-        Ok(doc)
+        parse_within(text, crate::model_limit::THREE_MF, &mut self.tree)
     }
 
-    fn text(&mut self, path: &str) -> Result<Rc<String>, String> {
-        let i = self.index(path).ok_or_else(|| format!("{path} missing in the file"))?;
-        if let Some(t) = self.texts.get(&i) {
-            return Ok(t.clone());
-        }
-        let t = Rc::new(utf8(self.unpacked.read(self.zip.by_index(i).map_err(|e| e.to_string())?)?, path)?);
+    /// The text of the file at `i` in the zip (named `path` in the model), its triangles counted.
+    fn text(&mut self, i: usize, path: &str) -> Result<String, String> {
+        let t = utf8(self.unpacked.read(self.zip.by_index(i).map_err(|e| e.to_string())?)?, path)?;
         self.written = self.written.saturating_add(crate::model_limit::xml_triangles(&t));
         crate::model_limit::THREE_MF.check(self.written)?;
-        self.texts.insert(i, t.clone());
         Ok(t)
     }
 
-    /// A picture of the zip, into the model once (`Builder::texture_file`).
+/// A picture of the zip, into the model once (`Builder::texture_file`).
     fn picture(&mut self, b: &mut Builder, path: &str) -> u16 {
         let Some(i) = self.index(path) else { return 0 };
         if let Some(&k) = self.pictures.get(&i) {
@@ -231,6 +240,7 @@ pub(crate) fn entry<R: Read + std::io::Seek>(zip: &mut zip::ZipArchive<R>, name:
 
 /// Objects and colours of one model file, by id.
 struct Model<'a, 'i> {
+    doc: &'a Document<'i>,
     objects: HashMap<&'a str, Node<'a, 'i>>,
     colors: HashMap<&'a str, Vec<[u8; 3]>>,
     /// Texture groups: their picture's path and their points on it (V downwards, as rows).
@@ -263,7 +273,7 @@ impl<'a, 'i> Model<'a, 'i> {
                 _ => {}
             }
         }
-        Model { objects, colors, textures }
+        Model { doc, objects, colors, textures }
     }
 
     fn color(&self, pid: Option<&str>, index: Option<&str>) -> Option<[u8; 3]> {
@@ -293,39 +303,21 @@ impl Local for Node<'_, '_> {
     }
 }
 
-/// The model files open up the stack of `place`, by their place in the zip, with their trees.
-type Open<'o, 'a, 'i> = [(Option<usize>, &'o Model<'a, 'i>)];
-
-/// Adds object `id` of the model file `path`, moved by `m`; `main` is the file of `model`, and
-/// `open` the files whose trees are open up the stack, `model`'s among them.
-#[allow(clippy::too_many_arguments)]
-fn place(b: &mut Builder, files: &mut Files, main: &str, model: &Model, open: &Open, path: &str, id: &str, m: &Transform, depth: u32) -> Result<(), String> {
+/// Adds object `id` of the model file `path`, moved by `m`.
+fn place(b: &mut Builder, files: &mut Files, loaded: &Loaded, path: &str, id: &str, m: &Transform, depth: u32) -> Result<(), String> {
     if depth > 32 {
         return Err("components nested too deep".into());
     }
     b.visit()?;
-    let at = files.index(path);
-    if at.is_none() || at != files.index(main) {
-        // A file whose tree is open up the stack is placed from it, not parsed again: each step
-        // into another file kept a tree of its own (audit 27/11, D.4).
-        if let Some(&(_, other)) = open.iter().find(|(k, _)| k.is_some() && *k == at) {
-            return place(b, files, path, other, open, path, id, m, depth + 1);
-        }
-        let text = files.text(path)?;
-        let doc = files.parse(at, &text)?;
-        let other = Model::new(&doc);
-        let mut more = open.to_vec();
-        more.push((at, &other));
-        return place(b, files, path, &other, &more, path, id, m, depth + 1);
-    }
+    let model = loaded.model(files, path)?;
     let Some(object) = model.objects.get(id) else { return Ok(()) };
     if let Some(mesh) = object.children().find(|n| n.has_tag_name_local("mesh")) {
         mesh_part(b, files, model, *object, mesh, m)?;
     }
     for c in object.descendants().filter(|n| n.has_tag_name_local("component")) {
         let Some(child) = c.attribute("objectid") else { continue };
-        let child_path = c.attribute_local("path").unwrap_or(main).to_string();
-        place(b, files, main, model, open, &child_path, child, &then(&transform(c), m), depth + 1)?;
+        let child_path = c.attribute_local("path").unwrap_or(path);
+        place(b, files, loaded, child_path, child, &then(&transform(c), m), depth + 1)?;
     }
     Ok(())
 }
