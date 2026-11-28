@@ -26,6 +26,15 @@ impl Default for Details {
     }
 }
 
+/// Which version of a file the details were read from: its path, size and modification date, as
+/// the thumbnail cache knows them. A file saved again under the same name (a photo of a server
+/// turned and saved) kept the pixels of the one before under its new thumbnail (P8 of 28/11).
+pub(crate) type Version = (String, u64, String);
+
+pub(crate) fn version(f: &crate::source::File) -> Version {
+    (f.path.clone(), 0, String::new())
+}
+
 /// Below this side the thumbnails are small: only the name stays under them.
 pub const MIN_SIDE: f32 = 128.0;
 
@@ -152,11 +161,11 @@ impl crate::App {
         }
         let Some(loader) = &self.loader else { return };
         let Some(Ok(listing)) = self.listings.get(&self.dir) else { return };
-        let wanted: Vec<_> = listing.files.get(files).unwrap_or_default().iter().filter(|f| !self.thumb_infos.contains_key(&f.path) && !self.info_asked.contains(&f.path)).cloned().collect();
+        let wanted: Vec<_> = listing.files.get(files).unwrap_or_default().iter().filter(|f| !self.thumb_infos.contains_key(&version(f)) && !self.info_asked.contains(&version(f))).cloned().collect();
         if wanted.is_empty() {
             return;
         }
-        self.info_asked.extend(wanted.iter().map(|f| f.path.clone()));
+        self.info_asked.extend(wanted.iter().map(version));
         loader.load_infos(self.generation, wanted);
     }
 
@@ -165,7 +174,7 @@ impl crate::App {
     /// comes: the modification date until the date taken is read.
     pub(crate) fn details_of(&self, file: &crate::source::File) -> (Option<String>, Option<(String, Option<String>)>) {
         let d = self.settings.thumb_details;
-        let info = self.thumb_infos.get(&file.path);
+        let info = self.thumb_infos.get(&version(file));
         let pixels = info.and_then(|i| i.pixels).map(|p| pixels_text(&self.i18n, p));
         let drawing = info.and_then(|i| i.drawing.clone());
         let measures = measures(&d, drawing, pixels, Some(self.human_size(file.size)));
@@ -280,5 +289,25 @@ mod tests {
                 assert!(tip.contains("14/11/2026") && !tip.contains("thumb-"), "{lang}: {tip}");
             }
         }
+    }
+
+    /// P8 of 28/11: a photo of a server turned and saved under the same name got its new thumbnail
+    /// (3000 × 1749) with the pixels of the one before under it (1920 × 1920). The details hold for
+    /// the version of the file they were read from: size and date.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn details_of_the_file_saved_again() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("thumb_details::tests::details_of_the_file_saved_again") {
+            return;
+        }
+        let dir = folder("details-version", &["a.png"]);
+        let mut h = Harness::new(&dir);
+        let before = h.app.files()[0].clone();
+        h.app.thumb_infos.insert(version(&before), Info { pixels: Some([1920, 1920]), ..Default::default() });
+        let pixels = |h: &Harness, f: &crate::source::File| h.app.details_of(f).0.unwrap_or_default();
+        assert!(pixels(&h, &before).contains("1920"), "the details of the file read: {}", pixels(&h, &before));
+        let saved = crate::source::File { size: before.size + 1000, modified: "later".into(), ..before.clone() };
+        assert!(!pixels(&h, &saved).contains("1920"), "the file saved again shows the pixels of the one before: {}", pixels(&h, &saved));
     }
 }

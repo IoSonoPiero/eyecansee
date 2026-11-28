@@ -25,9 +25,9 @@ impl App {
                 Msg::At(..) => {}
                 Msg::Loaded { generation, index, thumb, image, halves } if generation == self.generation => self.on_loaded(ctx, index, thumb, image, halves),
                 Msg::Meta { generation, index, meta } if generation == self.generation => self.on_meta(index, meta),
-                Msg::Info { generation, path, info } if generation == self.generation => {
+                Msg::Info { generation, file, info } if generation == self.generation => {
                     if let Some(info) = info {
-                        self.thumb_infos.insert(path, info);
+                        self.thumb_infos.insert(crate::thumb_details::version(&file), info);
                     }
                 }
                 Msg::Mesh { generation, index, mesh } if generation == self.generation => {
@@ -278,8 +278,10 @@ impl App {
         if thumb {
             self.generated.insert(index);
             // Its details are saved with it: asked again if they were not there before.
-            if !self.thumb_infos.contains_key(&name) {
-                self.info_asked.remove(&name);
+            if let Some(v) = self.files().get(index).map(crate::thumb_details::version)
+                && !self.thumb_infos.contains_key(&v)
+            {
+                self.info_asked.remove(&v);
             }
             // Generated in the background far from the screen: it stays on disk only.
             if self.thumb_keep.contains(&index) {

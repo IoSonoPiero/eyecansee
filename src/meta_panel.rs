@@ -232,7 +232,7 @@ impl App {
         let mut rows = file_hint(&self.i18n, f, meta);
         // What the grid read for the line under the thumbnail (#139): the size in pixels if the
         // metadata are not read yet, and the date inside the file beside the file's own date.
-        if let Some(info) = self.thumb_infos.get(&f.path) {
+        if let Some(info) = self.thumb_infos.get(&crate::thumb_details::version(f)) {
             let pixels = self.i18n.t("meta-pixels");
             if let Some([w, h]) = info.pixels.filter(|_| !rows.iter().any(|(l, _)| *l == pixels)) {
                 rows.push((pixels, format!("{w} × {h}")));

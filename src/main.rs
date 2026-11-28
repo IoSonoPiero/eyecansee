@@ -389,8 +389,8 @@ struct App {
     /// Thumbnails already done (on disk), not to be queued again for background generation.
     generated: HashSet<usize>,
     /// The details under the thumbnails (#139) that came, by path, and those asked meanwhile.
-    thumb_infos: HashMap<String, thumb_details::Info>,
-    info_asked: HashSet<String>,
+    thumb_infos: HashMap<thumb_details::Version, thumb_details::Info>,
+    info_asked: HashSet<thumb_details::Version>,
     /// Last queue sent to the loader: (visible images, selected, generation).
     thumb_queue_key: Option<(std::ops::Range<usize>, Option<usize>, u64)>,
     full: HashMap<usize, Result<mipmap::Picture, String>>,

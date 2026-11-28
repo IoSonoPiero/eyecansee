@@ -126,7 +126,7 @@ pub enum Msg {
     Meta { generation: u64, index: usize, meta: Result<Option<crate::meta::Meta>, String> },
     /// The details of a file for the line under its thumbnail (#139); `None`: not known yet (its
     /// thumbnail is still to be made, and with it they are saved).
-    Info { generation: u64, path: String, info: Option<crate::thumb_details::Info> },
+    Info { generation: u64, file: File, info: Option<crate::thumb_details::Info> },
 }
 
 /// The message at the end of a save over the original: `NotReplaced` when it failed with the new
@@ -614,7 +614,7 @@ impl Loader {
                     return;
                 }
                 let info = crate::thumb_queue::file_info(&op, &base, &file).await;
-                let _ = tx.send(Msg::Info { generation, path: file.path, info });
+                let _ = tx.send(Msg::Info { generation, file, info });
                 ctx.request_repaint();
             }
         });
