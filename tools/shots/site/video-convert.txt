@@ -10,5 +10,5 @@ open /home/demo/Desktop/Trip
 3 mark Earth from space.webm
 3 mark Flowers.webm
 4 act batch
-9 shot
-9.5 end
+25 shot
+25.5 end
