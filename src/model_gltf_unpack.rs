@@ -572,4 +572,22 @@ mod tests {
         }
         assert!(panicked.is_empty(), "a panic reading {panicked:?}");
     }
+
+    /// Draco in a debug build (#178): `three_ferrari.glb` of the collection (`EYECANSEE_FERRARI`,
+    /// the file's path) opens as in a release build, where the decoder's sums of the texture
+    /// coordinates wrap around: with the checks of the arithmetic on (debug and the tests) they
+    /// panicked, and the model was said damaged. `Cargo.toml` turns those checks off for the two
+    /// crates of the decoder, also for the tests.
+    #[test]
+    #[ignore]
+    fn draco_opens_in_debug_live() {
+        let Ok(path) = std::env::var("EYECANSEE_FERRARI") else { return };
+        let path = std::path::PathBuf::from(path);
+        let bytes = std::fs::read(&path).unwrap();
+        let folder = path.parent().unwrap().to_path_buf();
+        let sibling = move |uri: &str| std::fs::read(folder.join(uri)).ok();
+        let r = crate::model_gltf::read(&bytes, &sibling, &Default::default()).map(|m| m.tris.len());
+        println!("{}: {r:?}", path.display());
+        assert!(r.as_ref().is_ok_and(|&n| n > 0), "{}: {r:?}", path.display());
+    }
 }
