@@ -133,6 +133,17 @@ pub fn read(bytes: &[u8], name: &str) -> Result<Drawing, String> {
 
 /// Like `read`, with the pictures attached to the drawing read through `sibling`.
 pub fn read_with(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> Result<Drawing, String> {
+    read_as(bytes, name, sibling, true)
+}
+
+/// Like `read_with`, without the layouts: a picture of the drawing (thumbnail, Save as…, Convert
+/// and resize) shows its model space only, and each window of a layout goes over the whole model
+/// again (audit 6.14).
+pub fn read_model(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> Result<Drawing, String> {
+    read_as(bytes, name, sibling, false)
+}
+
+fn read_as(bytes: &[u8], name: &str, sibling: crate::model::Sibling, layouts: bool) -> Result<Drawing, String> {
     let lower = name.to_lowercase();
     if [".plt", ".hpgl", ".hpg", ".hgl"].iter().any(|e| lower.ends_with(e)) {
         return crate::cad_hpgl::read(bytes);
@@ -162,7 +173,9 @@ pub fn read_with(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> Re
     if d.items.is_empty() {
         return Err("nothing to draw in the model space".into());
     }
-    d.sheets = crate::cad_layout::sheets(&doc, sibling, &fonts, (&layers[..], &index), &mut spent);
+    if layouts {
+        d.sheets = crate::cad_layout::sheets(&doc, sibling, &fonts, (&layers[..], &index), &mut spent);
+    }
     Ok(d)
 }
 

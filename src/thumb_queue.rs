@@ -278,7 +278,7 @@ async fn generate(op: &Store, base: &str, file: File, wanted: impl Fn() -> bool)
             crate::occt::from_file(local, || decode::model_picture_with(&bytes, &file.path, THUMB_SIDE, THUMB_SIDE * 3 / 4, &sibling))?
         } else if crate::cad::is_cad(&file.path) {
             let missed = missed(&base);
-            let d = crate::cad::read_with(&bytes, &file.path, &crate::cad_text::remembering(&missed, &file.path, &sibling))?;
+            let d = crate::cad::read_model(&bytes, &file.path, &crate::cad_text::remembering(&missed, &file.path, &sibling))?;
             // Its number and revision kept with it, for the line under it (#144).
             thumbcache::save_info(&base, &file, &crate::thumb_details::Info { drawing: d.summary.clone(), ..Default::default() });
             image::DynamicImage::ImageRgba8(decode::cad_render(&d, THUMB_SIDE, None)?)

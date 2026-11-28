@@ -168,7 +168,7 @@ pub fn decode_full_with(bytes: &[u8], name: &str, sibling: crate::model::Sibling
         return model_picture_with(bytes, name, 1920, 1440, sibling);
     }
     if crate::cad::is_cad(name) {
-        return Ok(DynamicImage::ImageRgba8(cad_render(&crate::cad::read_with(bytes, name, sibling)?, CAD_SIDE, None)?));
+        return Ok(DynamicImage::ImageRgba8(cad_render(&crate::cad::read_model(bytes, name, sibling)?, CAD_SIDE, None)?));
     }
     decode_full(bytes, name)
 }
@@ -481,7 +481,7 @@ fn svg(bytes: &[u8]) -> Result<DynamicImage> {
 
 /// A CAD drawing (`cad`) as a picture whose long side is `side`.
 pub fn cad_picture(bytes: &[u8], name: &str, side: u32) -> std::result::Result<DynamicImage, String> {
-    Ok(DynamicImage::ImageRgba8(cad_render(&crate::cad::read(bytes, name)?, side, None)?))
+    Ok(DynamicImage::ImageRgba8(cad_render(&crate::cad::read_model(bytes, name, &crate::cad_image::none)?, side, None)?))
 }
 
 /// The drawing as a picture whose long side is `side` pixels, or only its part `region`
