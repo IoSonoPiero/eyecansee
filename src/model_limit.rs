@@ -89,7 +89,7 @@ pub(crate) const DRAWING_ENTITIES: &str = "error-drawing-too-many-entities";
 pub(crate) const DRAWING_PLACED: &str = "error-drawing-too-many-placed";
 /// A model refused before the cap of its triangles because its reading would take too much
 /// memory (#181): the tree of its XML (`model_3mf::parse_xml`), the rows of a PLY read by the
-/// parser (`model_ply`). Sent as `too_many`, its number for the log; said without it, as the
+/// parser (`model_ply`), the accessors of a glTF (`model_gltf::reading_fits`). Sent as `too_many`, its number for the log; said without it, as the
 /// number counts nodes or rows, not what the user knows of the model.
 pub(crate) const MEMORY: &str = "error-model-needs-too-much-memory";
 /// The rarer refusals said in millions (`said`); the others as their number is.

@@ -315,20 +315,21 @@ fn collected(prim: &gltf::Primitive) -> (usize, usize) {
     (all, zeros)
 }
 
-/// The memory the reading of each primitive will ask for, all its accessors together, before
-/// any is read (audit 27/11, D.1, what was left: four "sparse" attributes, each within what a
-/// model may bring, collected 3.5 GB from a .gltf of 1 KB): within `BYTES_A_POINT` for each
-/// point a model may bring, and the zeros without data behind them within what the `held` bytes
-/// of the file and its buffers may unpack to (`model_3mf::may_unpack`), as they are made from
-/// nothing the file holds. Refused with `MEMORY`.
+/// The memory the reading will ask for, all the accessors of a primitive together, before any
+/// is read (audit 27/11, D.1, what was left: four "sparse" attributes, each within what a model
+/// may bring, collected 3.5 GB from a .gltf of 1 KB): each primitive within `BYTES_A_POINT` for
+/// each point a model may bring, its vectors freed before the next; and the zeros without data
+/// behind them, at every placement as `Builder` keeps the points of each (`counted`), within what
+/// the `held` bytes of the file and its buffers may unpack to (`model_3mf::may_unpack`), as they
+/// are made from nothing the file holds. Refused with `MEMORY`.
 fn reading_fits(doc: &gltf::Document, limit: crate::model_limit::Limit, held: usize) -> Result<(), String> {
     let most = limit.offered().saturating_mul(BYTES_A_POINT);
-    let zeros_most = usize::try_from(crate::model_3mf::may_unpack(held as u64)).unwrap_or(usize::MAX);
-    for prim in doc.meshes().flat_map(|m| m.primitives().collect::<Vec<_>>()) {
-        let (all, zeros) = collected(&prim);
-        if all > most || zeros > zeros_most {
-            return Err(crate::model_limit::too_many(crate::model_limit::MEMORY, all));
-        }
+    if let Some(all) = doc.meshes().flat_map(|m| m.primitives().collect::<Vec<_>>()).map(|p| collected(&p).0).find(|&all| all > most) {
+        return Err(crate::model_limit::too_many(crate::model_limit::MEMORY, all));
+    }
+    let zeros = counted(doc, |p, _| collected(p).1);
+    if zeros as u64 > crate::model_3mf::may_unpack(held as u64) {
+        return Err(crate::model_limit::too_many(crate::model_limit::MEMORY, zeros));
     }
     Ok(())
 }
@@ -943,7 +944,7 @@ mod tests {
         let n = 1_300_000;
         let small: Vec<u8> = [0u32.to_le_bytes(), 0f32.to_le_bytes(), 0f32.to_le_bytes(), 0f32.to_le_bytes(), 0u32.to_le_bytes(), 1u32.to_le_bytes(), 2u32.to_le_bytes()].concat();
         let data = base64::engine::general_purpose::STANDARD.encode(&small);
-        let nodes = vec![r#"{"mesh":0}"#; 2].join(",");
+        let nodes = [r#"{"mesh":0}"#; 2].join(",");
         let json = format!(
             r#"{{"asset":{{"version":"2.0"}},"buffers":[{{"uri":"data:application/octet-stream;base64,{data}","byteLength":28}}],"bufferViews":[{{"buffer":0,"byteLength":4}},{{"buffer":0,"byteOffset":4,"byteLength":12}},{{"buffer":0,"byteOffset":16,"byteLength":12}}],"accessors":[{{"componentType":5126,"type":"VEC3","count":{n},"min":[0,0,0],"max":[0,0,0],"sparse":{{"count":1,"indices":{{"bufferView":0,"componentType":5125}},"values":{{"bufferView":1}}}}}},{{"bufferView":2,"componentType":5125,"type":"SCALAR","count":3}}],"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0}},"indices":1}}]}}],"nodes":[{nodes}],"scenes":[{{"nodes":[0,1]}}],"scene":0}}"#
         );

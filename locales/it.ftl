@@ -797,7 +797,7 @@ error-drawing-too-many-placed = Il disegno ripete i suoi blocchi più di { $max 
         [one] milione
        *[other] milioni
     } di volte, troppe per aprirlo.
-# A model refused before the cap of its triangles, because reading it would take too much memory (the tree of a 3MF or an AMF, the rows of a PLY in text): no number.
+# A model refused before the cap of its triangles, because reading it would take too much memory (the tree of a 3MF or an AMF, the rows of a PLY in text, the data a glTF makes from nothing): no number.
 error-model-needs-too-much-memory = Il file chiederebbe troppa memoria per essere aperto.
 # A few words after a file's name in the list of a message ("a.gltf: manca il file a.bin"): no capital, no full stop.
 error-gltf-bin-missing-brief = manca il file { $detail }

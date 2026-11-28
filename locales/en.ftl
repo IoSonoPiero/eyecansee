@@ -793,7 +793,7 @@ error-model-unpacks-too-many-times = Unpacked, the file would be more than { $ma
 error-drawing-too-many-points = The drawing has more than { $max } million points, too many to open.
 error-drawing-too-many-entities = The drawing has more than { $max } million elements, too many to open.
 error-drawing-too-many-placed = The drawing repeats its blocks more than { $max } million times, too many to open.
-# A model refused before the cap of its triangles, because reading it would take too much memory (the tree of a 3MF or an AMF, the rows of a PLY in text): no number.
+# A model refused before the cap of its triangles, because reading it would take too much memory (the tree of a 3MF or an AMF, the rows of a PLY in text, the data a glTF makes from nothing): no number.
 error-model-needs-too-much-memory = The file would take too much memory to open.
 # A few words after a file's name in the list of a message ("a.gltf: the file a.bin is missing"): no capital, no full stop.
 error-gltf-bin-missing-brief = the file { $detail } is missing
