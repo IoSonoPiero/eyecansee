@@ -171,6 +171,21 @@ mod tests {
         assert_eq!(names(&l), ["A.jpg", "c.jpg", "b.png"]);
     }
 
+    /// Audit 2.28: sorted by date, each file's date is read once, not twice for each comparison
+    /// (a phone's date without its zone is three `parse` and a change of zone each time).
+    #[test]
+    fn sort_by_date_reads_each_date_once() {
+        const N: usize = 1000;
+        let files = (0..N).map(|i| File { path: format!("p/{i:04}.jpg"), size: 1, modified: format!("2026-11-{:02}T10:{:02}:{:02}", 1 + i * 7 % 28, i * 13 % 60, i % 60) }).collect();
+        let mut l = Listing { files, ..Default::default() };
+        crate::human::PARSED.with(|n| n.set(0));
+        l.sort_files(SortBy::Date, false);
+        let parsed = crate::human::PARSED.with(|n| n.get());
+        let dates: Vec<_> = l.files.iter().map(|f| crate::human::parse_modified(&f.modified).unwrap()).collect();
+        assert!(dates.is_sorted(), "not by date");
+        assert!(parsed <= N, "{parsed} dates read to sort {N} files");
+    }
+
     /// Names as people read them (Piero, 21/11): numbers by their value, capitals and small
     /// letters together, a name before the same name with something added in front of its
     /// extension; whatever order they come in, also the names that differ only in capitals or in

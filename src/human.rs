@@ -42,8 +42,17 @@ pub(crate) fn parse_modified(modified: &str) -> Option<jiff::Timestamp> {
     parse_modified_in(modified, &jiff::tz::TimeZone::system())
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Dates read by `parse_modified_in` on this thread (audit 2.28: two for each comparison of a
+    /// sort by date).
+    pub(crate) static PARSED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// `parse_modified`, a date without a zone read in `tz`.
 pub(crate) fn parse_modified_in(modified: &str, tz: &jiff::tz::TimeZone) -> Option<jiff::Timestamp> {
+    #[cfg(test)]
+    PARSED.with(|n| n.set(n.get() + 1));
     if let Ok(secs) = modified.parse::<i64>() {
         return jiff::Timestamp::from_second(secs).ok();
     }
