@@ -8,6 +8,29 @@ use super::defects::{editor, white};
 use crate::audit_family_1::{Harness, own_folder};
 use crate::edit::doc::{Area, Obj, Pt, Shape, Style};
 
+/// Audit 5.14 (#295): an image pasted from another program (up to 200 megapixels) was turned
+/// into the patch's pixels inside the frame: 16 MB for one of 2000 × 2000. The frame asks; the
+/// pixels come from a thread aside, and the patch with them.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn audit_5_14_a_pasted_image_is_made_aside() {
+    if own_folder("edit_page::frame_work::audit_5_14_a_pasted_image_is_made_aside") {
+        return;
+    }
+    let mut h = Harness::new(&white("five-fourteen-paste"));
+    editor(&mut h, "a.png", Tool::Select);
+    for _ in 0..3 {
+        h.frame(Vec::new());
+    }
+    let img = std::sync::Arc::new(eframe::egui::ColorImage::filled([2000, 2000], eframe::egui::Color32::RED));
+    let ((), held) = crate::test_alloc::peak(|| h.frame(vec![eframe::egui::Event::PasteImage(img)]));
+    eprintln!("memory the frame of the paste held at most: {} MB", held >> 20);
+    assert!(held < 8 << 20, "the pasted image turned into pixels in the frame: {} MB", held >> 20);
+    h.until(|app| app.editor.as_ref().is_some_and(|w| w.doc.objects.iter().any(|o| matches!(o.shape, Shape::Patch { .. }))), "the patch");
+    let w = h.app.editor.as_ref().unwrap();
+    assert_eq!((w.selected, w.tool), (Some(w.doc.objects.len() - 1), Tool::Select));
+}
+
 /// Audit 5.13: with a document that stays as it is, a frame measured every word of every bubble
 /// (`bubble::fit`, an SVG read by `usvg` for each) and copied the whole document twice (the key
 /// of the objects' texture, `History::push`), every point of the strokes drawn by hand with it.
