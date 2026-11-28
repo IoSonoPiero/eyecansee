@@ -10,9 +10,21 @@ use crate::source;
 
 pub(super) type Handles = HashMap<String, ObjectHandle>;
 
+#[cfg(test)]
+thread_local! {
+    /// Folders of a phone listed whole (`Phone::kinds`) on this thread.
+    pub(super) static LISTED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// The path of `name` in `dir`.
 pub(super) fn child(dir: &str, name: &str, folder: bool) -> String {
     format!("{dir}{name}{}", if folder { "/" } else { "" })
+}
+
+/// Is there an item in `dir` named `name`, capitals and small letters alike?
+pub(super) fn same_name(handles: &Handles, dir: &str, name: &str) -> bool {
+    let name = name.to_lowercase();
+    handles.keys().any(|p| p.starts_with(dir) && source::parent(p) == dir && source::name(p).to_lowercase() == name)
 }
 
 /// `path` deleted, moved or renamed: forgotten, a folder with the paths below it. A file only

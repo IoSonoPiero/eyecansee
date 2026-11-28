@@ -2,7 +2,7 @@
 //! (`source::Store` methods and the name helpers they share). Local files go to the system trash
 //! (the `trash` crate); phones and servers use `.EyeCanSee-trash/` inside the folder.
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -145,6 +145,12 @@ fn owner(dir: &str, own: &str, names: &HashSet<String>) -> Option<String> {
     names.iter().chain(&saving).find(|n| hidden(n, end) == own).cloned()
 }
 
+/// Is the hidden file `file` of `dir` that of an image this process is saving (`SAVING`)?
+/// `Store::recover` leaves it alone, so a listing need not even look (audit 2.24).
+pub(crate) fn being_saved(dir: &str, file: &File) -> bool {
+    owner(dir, name(&file.path), &HashSet::new()).is_some_and(|image| SAVING.lock().unwrap().contains(&format!("{dir}{image}")))
+}
+
 /// What to do when an item put back from the trash finds its name taken (`Store::restore`).
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Conflict {
@@ -241,16 +247,18 @@ impl Store {
     /// copy is made again, or the new file takes the name if it is free. A file a paste put aside
     /// (`aside_name`) is an original too, and the one that gets the name back before an older
     /// original a save left; so is the original a move put aside (`moving_name`, audit F.7 of
-    /// 27/11), a file or a folder, which gets its name back when it is free.
-    pub(crate) async fn recover(&self, dir: &str, leftovers: &[File]) {
-        self.recover_at(dir, leftovers, Instant::now()).await;
+    /// 27/11), a file or a folder, which gets its name back when it is free. Whether it touched
+    /// anything: only then is the folder worth listing again (audit 2.24).
+    pub(crate) async fn recover(&self, dir: &str, leftovers: &[File]) -> bool {
+        self.recover_at(dir, leftovers, Instant::now()).await
     }
 
     /// `recover`, `now` by this computer's clock. On a server a new file may be another
     /// computer's save on its way (`SAVING` holds only this process's): it is touched only once
     /// it has stayed as it is for a while (`settled`), audit 2.29 (h).
-    pub(crate) async fn recover_at(&self, dir: &str, leftovers: &[File], now: Instant) {
-        let Ok(names) = self.names(dir).await else { return };
+    pub(crate) async fn recover_at(&self, dir: &str, leftovers: &[File], now: Instant) -> bool {
+        let Ok(names) = self.names(dir).await else { return false };
+        let mut touched = false;
         for file in leftovers {
             let (path, own) = (&file.path, name(&file.path));
             // An original a move put aside on a server may be another computer's move on its way.
@@ -263,6 +271,7 @@ impl Store {
                 if own.ends_with(NEW) && inner(own).is_some() {
                     let r = self.delete(path, Deletion::Permanent).await;
                     log!("recover {path:?}, its image unknown: {r:?}");
+                    touched = true;
                 }
                 continue;
             };
@@ -287,7 +296,9 @@ impl Store {
                 continue;
             };
             log!("recover {path:?}: {r:?}");
+            touched = true;
         }
+        touched
     }
 
     /// Whether a save's new file `file` may be touched: at once where only this computer writes
@@ -444,19 +455,22 @@ impl Store {
     }
 
     /// Moves the contents of folder `from` into folder `to`: folders on both sides merge, files
-    /// on both sides are both kept. Then `from`, now empty, goes.
+    /// on both sides are both kept. Then `from`, now empty, goes. Each folder is read once
+    /// (audit 2.25): a name given on the way is remembered with the names of both.
     async fn merge(&self, from: &str, to: &str) -> Result<(), Error> {
-        let present = self.names(to).await?;
-        for src in self.children(from).await? {
+        let present: HashMap<String, bool> = self.entries(to).await?.into_iter().collect();
+        let items = self.children(from).await?;
+        let mut taken: HashSet<String> = present.keys().cloned().chain(items.iter().map(|p| name(p).to_string())).collect();
+        for src in items {
             let (child, is_dir) = (name(&src).to_string(), src.ends_with('/'));
-            if !present.contains(&child) {
-                self.move_into(&src, to, &child).await?;
-            } else if is_dir && self.is_dir(&format!("{to}{child}/")).await {
-                Box::pin(self.merge(&src, &format!("{to}{child}/"))).await?;
-            } else {
-                let mut all = self.names(to).await?;
-                all.extend(self.names(from).await?.into_iter().filter(|n| *n != child));
-                self.move_into(&src, to, &free_name(&all, &child)).await?;
+            match present.get(&child) {
+                None => self.move_into(&src, to, &child).await.map(|_| ())?,
+                Some(true) if is_dir => Box::pin(self.merge(&src, &format!("{to}{child}/"))).await?,
+                Some(_) => {
+                    let free = free_name(&taken, &child);
+                    self.move_into(&src, to, &free).await?;
+                    taken.insert(free);
+                }
             }
         }
         self.delete(from, Deletion::Permanent).await
@@ -774,5 +788,47 @@ mod tests {
             assert_eq!(before, b"deleted before", "the file in the trash was replaced");
         }
         assert_eq!((first, first_in.as_deref()), (Ok(()), Some(&b"no trash here"[..])));
+    }
+
+    /// Audit 2.25: Restore all and a merge asked "is it a folder?" of every name (on a phone a
+    /// listing of the whole folder each time) and read both folders again for every file whose
+    /// name was taken. The trash and the two folders of a merge are read once each.
+    #[test]
+    fn audit_2_25_restore_all_and_merge_read_each_folder_once() {
+        use crate::source::{DIRS_ASKED, FOLDERS_READ};
+        let dir = std::env::temp_dir().join(format!("eyecansee-2-25-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let trash = dir.join("d").join(TRASH_DIR);
+        std::fs::create_dir_all(trash.join("sub")).unwrap();
+        std::fs::create_dir_all(dir.join("d/sub")).unwrap();
+        for i in 0..5 {
+            std::fs::write(trash.join(format!("f{i}.jpg")), b"f").unwrap();
+        }
+        for i in 0..4 {
+            std::fs::write(trash.join(format!("sub/s{i}.jpg")), b"trashed").unwrap();
+            std::fs::write(dir.join(format!("d/sub/s{i}.jpg")), b"there").unwrap();
+        }
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let counted = |f: &mut dyn FnMut()| {
+            FOLDERS_READ.with(|n| n.set(0));
+            DIRS_ASKED.with(|n| n.set(0));
+            f();
+            (FOLDERS_READ.with(|n| n.get()), DIRS_ASKED.with(|n| n.get()))
+        };
+        let t = format!("d/{TRASH_DIR}/");
+        let mut items = Vec::new();
+        let all = counted(&mut || items = rt.block_on(op.children(&t)).unwrap());
+        items.sort();
+        assert_eq!(items.len(), 6);
+        assert_eq!(items[5], format!("{t}sub/"));
+        let merge = counted(&mut || assert_eq!(rt.block_on(op.restore(&format!("{t}sub/"), Conflict::Merge)).unwrap(), "d/sub/"));
+        let mut there: Vec<String> = std::fs::read_dir(dir.join("d/sub")).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        there.sort();
+        assert_eq!(there, ["s0 (2).jpg", "s0.jpg", "s1 (2).jpg", "s1.jpg", "s2 (2).jpg", "s2.jpg", "s3 (2).jpg", "s3.jpg"]);
+        // (folders read, "is it a folder?"): Restore all lists the trash; the merge reads the
+        // folder it goes back to (`restore`), then the two folders it merges.
+        assert_eq!([all, merge], [(1, 0), (3, 0)]);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

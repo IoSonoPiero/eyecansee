@@ -92,7 +92,20 @@ fn create(conn: &Connection) -> rusqlite::Result<()> {
 }
 
 /// Keeps the most recently used thumbnails as long as the total fits in `limit` bytes.
+/// Over its limit, the cache is cut to this share of it: room for a while before the next cut,
+/// so that it is not cut, a row or two each time, at every maintenance (audit 2.27).
+const TRIM_TO_PERCENT: u64 = 90;
+
+/// The share of the file free (in pages) past which a cut gives the space back to the disk
+/// (VACUUM, which writes the whole file again); below it the free pages are reused.
+const VACUUM_FREE_PERCENT: i64 = 25;
+
+/// Over `limit` bytes of thumbnails, the least recently used go down to `TRIM_TO_PERCENT` of it.
 fn trim_rows(conn: &Connection, limit: u64) -> rusqlite::Result<usize> {
+    let total: i64 = conn.query_row("SELECT coalesce(sum(length(data)), 0) FROM thumbs", [], |r| r.get(0))?;
+    if total as u64 <= limit {
+        return Ok(0);
+    }
     conn.execute(
         "DELETE FROM thumbs WHERE rowid IN (
             SELECT rowid FROM (
@@ -100,8 +113,14 @@ fn trim_rows(conn: &Connection, limit: u64) -> rusqlite::Result<usize> {
                 FROM thumbs
             ) WHERE total > ?1
         )",
-        [limit as i64],
+        [(limit.saturating_mul(TRIM_TO_PERCENT) / 100) as i64],
     )
+}
+
+/// Is so much of the file free that it is worth giving back (`VACUUM_FREE_PERCENT`)?
+fn mostly_free(conn: &Connection) -> bool {
+    let pragma = |name: &str| conn.query_row(&format!("PRAGMA {name}"), [], |r| r.get::<_, i64>(0)).unwrap_or(0);
+    pragma("freelist_count") * 100 > pragma("page_count") * VACUUM_FREE_PERCENT
 }
 
 fn now() -> i64 {
@@ -137,12 +156,18 @@ fn writer() -> Option<&'static Sender<Write>> {
     .as_ref()
 }
 
+#[cfg(test)]
+thread_local! {
+    /// VACUUMs of the writer (`write_loop`) on this thread: each writes the whole file again.
+    static VACUUMS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// Everything that arrived in the meantime goes into a single transaction.
 // ponytail: writes still queued when the app closes are lost; they are regenerated on the next opening
 fn write_loop(mut conn: Connection, rx: Receiver<Write>) {
     while let Ok(first) = rx.recv() {
         let Ok(tx) = conn.transaction() else { continue };
-        let mut trimmed = 0;
+        let (mut trimmed, mut emptied) = (0, false);
         let mut done = Vec::new();
         for w in std::iter::once(first).chain(rx.try_iter()) {
             let _ = match w {
@@ -170,6 +195,7 @@ fn write_loop(mut conn: Connection, rx: Receiver<Write>) {
                 Write::Delete { source, path } => forget_row(&tx, &source, &path),
                 // Emptying the cache empties the metadata too.
                 Write::Trim { limit } => trim_rows(&tx, limit)
+                    .inspect(|_| emptied |= limit == 0)
                     .and_then(|n| if limit == 0 { tx.execute_batch("DELETE FROM meta; DELETE FROM info").map(|()| n) } else { Ok(n) })
                     .inspect(|n| trimmed += n),
                 Write::Forget { source, paths, done: d } => {
@@ -180,8 +206,12 @@ fn write_loop(mut conn: Connection, rx: Receiver<Write>) {
         }
         let committed = tx.commit().is_ok();
         done.into_iter().for_each(|d| d());
-        // Without VACUUM the file does not shrink: the freed space would only be reusable.
-        if committed && trimmed > 0 {
+        // Without VACUUM the file does not shrink: the freed space would only be reusable. That
+        // is enough after a cut at the limit; emptying the cache, or a much lower limit, gives it
+        // back to the disk.
+        if committed && trimmed > 0 && (emptied || mostly_free(&conn)) {
+            #[cfg(test)]
+            VACUUMS.with(|n| n.set(n.get() + 1));
             let _ = conn.execute_batch("VACUUM");
         }
     }
@@ -609,5 +639,45 @@ mod tests {
         assert_eq!(trim_rows(&conn, 25).unwrap(), 0);
         // Zero limit = complete emptying (`purge`).
         assert_eq!(trim_rows(&conn, 0).unwrap(), 2);
+    }
+
+    /// Audit 2.27: with the cache at its limit, every maintenance (each start, each new source)
+    /// cut a row or two and ran VACUUM, which writes the whole file again (about 1 GB). Thirty
+    /// sessions that each add a thumbnail to a cache at its limit write it again never, and the
+    /// file does not grow: the space freed is reused. A much lower limit and emptying it
+    /// (`purge`) still give the space back.
+    #[test]
+    fn audit_2_27_full_cache_not_rewritten_at_each_maintenance() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-2-27-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let db = dir.join("thumbs.db");
+        let (row, rows) = (1000, 200);
+        let limit = (row * rows) as u64;
+        let session = |writes: Vec<Write>| {
+            let conn = Connection::open(&db).unwrap();
+            create(&conn).unwrap();
+            let (tx, rx) = channel();
+            writes.into_iter().for_each(|w| tx.send(w).unwrap());
+            drop(tx);
+            write_loop(conn, rx);
+        };
+        let save = |i: usize| Write::Save { source: "s".into(), file: File { path: format!("{i}.jpg"), size: 1, modified: String::new() }, data: vec![1; row] };
+        session((0..rows).map(save).collect());
+        let full = std::fs::metadata(&db).unwrap().len();
+        VACUUMS.with(|n| n.set(0));
+        for s in 0..30 {
+            session(vec![save(rows + s), Write::Trim { limit }]);
+        }
+        let at_limit = VACUUMS.with(|n| n.get());
+        let grown = std::fs::metadata(&db).unwrap().len() as f64 / full as f64;
+        // A limit four times lower frees most of the file: it goes back to the disk.
+        session(vec![Write::Trim { limit: limit / 4 }]);
+        let lowered = VACUUMS.with(|n| n.get()) - at_limit;
+        session(vec![Write::Trim { limit: 0 }]);
+        let emptied = VACUUMS.with(|n| n.get()) - at_limit - lowered;
+        assert_eq!((at_limit, lowered, emptied), (0, 1, 1), "VACUUMs at the limit, with a lower limit, emptied");
+        assert!(grown <= 1.1, "the file grew {grown:.2} times");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

@@ -55,6 +55,12 @@ pub use crate::trash::{android_trashed, aside_name, free_name, in_trash, is_tras
 thread_local! {
     /// Folders read by `Store::names` on this thread: a paste must not read one per file (#90).
     pub static FOLDERS_READ: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Folders listed whole (`Store::list_once`) on this thread: each is a round trip, long on a
+    /// phone or a server.
+    pub static LISTINGS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Questions "is this a folder?" (`Store::is_dir`) on this thread: on a phone, asked of a
+    /// file, each is a listing of its folder (`Phone::locate`).
+    pub static DIRS_ASKED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     /// Bytes `Store::read` and `Store::read_range` gave on this thread: a picture too large for the
     /// memory is told from its start, not read whole (#177).
     pub static BYTES_READ: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
@@ -174,8 +180,9 @@ impl Store {
             return Ok(listing);
         }
         let mut listing = self.list_once(dir).await?;
-        if !listing.leftovers.is_empty() {
-            self.recover(dir, &listing.leftovers).await;
+        // The hidden files of a save on its way are left as they are: no need to read the names.
+        let waiting: Vec<File> = listing.leftovers.iter().filter(|f| !crate::trash::being_saved(dir, f)).cloned().collect();
+        if !waiting.is_empty() && self.recover(dir, &waiting).await {
             listing = self.list_once(dir).await?;
         }
         if !listing.trashed.is_empty() {
@@ -189,6 +196,8 @@ impl Store {
     }
 
     async fn list_once(&self, dir: &str) -> Result<Listing, Error> {
+        #[cfg(test)]
+        LISTINGS.with(|n| n.set(n.get() + 1));
         match self {
             Store::Dal(op) => list(op, dir).await,
             Store::Mtp(phone) => phone.list(dir).await,
@@ -289,6 +298,20 @@ impl Store {
         }
     }
 
+    /// Names of everything in a folder, of any type, each with whether it is a folder: one
+    /// listing, where asking `is_dir` of each name was one more per name, on a phone a listing
+    /// of the whole folder (audit 2.25).
+    pub async fn entries(&self, dir: &str) -> Result<Vec<(String, bool)>, Error> {
+        #[cfg(test)]
+        FOLDERS_READ.with(|n| n.set(n.get() + 1));
+        match self {
+            Store::Dal(op) => Ok(local_items(op, dir).await?.into_iter().map(|i| (i.1, i.2)).collect()),
+            Store::Mtp(phone) => phone.kinds(dir).await,
+            Store::Sftp(server) => server.kinds(dir).await,
+            Store::Ftp(server) => server.kinds(dir).await,
+        }
+    }
+
     /// Moves a file or folder (path ending in "/") into `to_dir`, created if missing, with the
     /// name `new_name`; returns the new path. The name must be free (`free_name`), except on this
     /// computer, where a file there is replaced (`local::rename`).
@@ -339,19 +362,21 @@ impl Store {
         if is_trash(dir) {
             paths.extend(self.list_once(&parent(dir)).await?.trashed.into_iter().map(|f| f.path));
         }
-        let names = match self.names(dir).await {
-            Ok(names) => names,
+        let entries = match self.entries(dir).await {
+            Ok(entries) => entries,
             Err(e) if paths.is_empty() => return Err(e),
-            Err(_) => HashSet::new(), // only Android's trash, no folder of ours
+            Err(_) => Vec::new(), // only Android's trash, no folder of ours
         };
-        for n in names {
-            let slash = if self.is_dir(&format!("{dir}{n}/")).await { "/" } else { "" };
-            paths.push(format!("{dir}{n}{slash}"));
-        }
+        paths.extend(entries.into_iter().map(|(n, folder)| format!("{dir}{n}{}", if folder { "/" } else { "" })));
+        // Two objects of one name (MTP allows it) are one path, as with `names`.
+        paths.sort();
+        paths.dedup();
         Ok(paths)
     }
 
     pub(crate) async fn is_dir(&self, dir: &str) -> bool {
+        #[cfg(test)]
+        DIRS_ASKED.with(|n| n.set(n.get() + 1));
         match self {
             Store::Dal(op) => op.stat(dir).await.is_ok_and(|m| m.is_dir()),
             Store::Mtp(phone) => phone.check_dir(dir).await.is_ok(),
@@ -700,6 +725,43 @@ mod tests {
         assert!(too_deep("top/", "top/").is_ok());
         assert!(too_deep("top/", &deep(MAX_DEPTH)).is_ok());
         assert_eq!(too_deep("top/", &deep(MAX_DEPTH + 1)), Err(("error-too-deep", deep(MAX_DEPTH + 1))));
+    }
+
+    /// Audit 2.24: a hidden file of a save in a folder makes a listing read it once more to tidy
+    /// up (`recover`), and again only when that changed something. The new file of a save on
+    /// its way (in `SAVING`) is not even looked at; an original that stays hidden (its image is
+    /// there) costs the read of the names, not a second listing.
+    #[test]
+    fn audit_2_24_hidden_file_of_a_save_read_once() {
+        let root = std::env::temp_dir().join(format!("eyecansee-2-24-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for d in ["saving-2-24", "aside-2-24", "cut-2-24"] {
+            std::fs::create_dir_all(root.join(d)).unwrap();
+        }
+        std::fs::write(root.join("saving-2-24/a.jpg"), b"a").unwrap();
+        std::fs::write(root.join("saving-2-24/.a.jpg.eyecansee-new"), b"writing").unwrap();
+        std::fs::write(root.join("aside-2-24/b.jpg"), b"b").unwrap();
+        std::fs::write(root.join("aside-2-24/.b.jpg.eyecansee-old"), b"b old").unwrap();
+        std::fs::write(root.join("cut-2-24/.c.jpg.eyecansee-old"), b"c").unwrap();
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&root.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let reads = |dir: &str| {
+            LISTINGS.with(|n| n.set(0));
+            FOLDERS_READ.with(|n| n.set(0));
+            let l = rt.block_on(op.list(dir)).unwrap();
+            (l.files.len(), LISTINGS.with(|n| n.get()) + FOLDERS_READ.with(|n| n.get()))
+        };
+        SAVING.lock().unwrap().insert("saving-2-24/a.jpg".into());
+        let saving = reads("saving-2-24/");
+        SAVING.lock().unwrap().remove("saving-2-24/a.jpg");
+        let aside = reads("aside-2-24/");
+        let cut = reads("cut-2-24/");
+        // (files, folder reads): a save on its way, one listing; an original left hidden, a
+        // listing and its names; an original whose image is missing takes its name back, and
+        // only then is the folder read again.
+        assert_eq!([saving, aside, cut], [(1, 1), (1, 2), (1, 3)]);
+        assert!(root.join("cut-2-24/c.jpg").exists() && root.join("saving-2-24/.a.jpg.eyecansee-new").exists());
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     /// The tests that take what `GONE` holds, one at a time.
