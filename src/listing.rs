@@ -19,27 +19,50 @@ impl App {
     /// trash folder next to it, whose button appears if it was not there (phones and servers have
     /// no watcher to tell).
     pub(crate) fn remove_item(&mut self, path: &str, to_trash: bool) {
-        self.marked.remove(path);
-        let trash = format!("{}{}/", source::parent(path), source::TRASH_DIR);
-        let dir = source::listed_in(path);
-        self.listings.retain(|k, _| !(path.ends_with('/') && k.starts_with(path)) && !(to_trash && *k == trash));
-        if left_inside(&self.dir, path) {
-            self.listings.remove(&dir);
-            self.set_dir(dir);
-            return;
+        self.remove_items(&[(path.to_string(), to_trash)]);
+    }
+
+    /// `remove_item` for each of `items` (`(path, to_trash)`), with the listing of each folder
+    /// rebuilt once for all its items: it was copied whole and swapped once for each file
+    /// deleted or moved away (audit 1.8).
+    pub(crate) fn remove_items(&mut self, items: &[(String, bool)]) {
+        let mut folders: Vec<(String, Vec<&(String, bool)>)> = Vec::new();
+        for item in items {
+            let (path, to_trash) = (&item.0, item.1);
+            self.marked.remove(path);
+            let trash = format!("{}{}/", source::parent(path), source::TRASH_DIR);
+            let dir = source::listed_in(path);
+            self.listings.retain(|k, _| !(path.ends_with('/') && k.starts_with(path.as_str())) && !(to_trash && *k == trash));
+            if left_inside(&self.dir, path) {
+                self.listings.remove(&dir);
+                self.set_dir(dir);
+                continue;
+            }
+            match folders.iter_mut().find(|(d, _)| *d == dir) {
+                Some((_, of_dir)) => of_dir.push(item),
+                None => folders.push((dir, vec![item])),
+            }
         }
-        let Some(Ok(l)) = self.listings.get(&dir) else { return };
-        #[cfg(test)]
-        REBUILT.with(|n| n.set(n.get() + 1));
-        let new = Listing {
-            dirs: l.dirs.iter().filter(|d| *d != path).cloned().collect(),
-            files: l.files.iter().filter(|f| f.path != path).cloned().collect(),
-            trash: if to_trash { Some(trash) } else { l.trash.clone().filter(|t| t != path) },
-            leftovers: Vec::new(),
-            trashed: l.trashed.iter().filter(|f| f.path != path).cloned().collect(),
-            unseen: l.unseen.clone(),
-        };
-        self.swap_listing(&dir, new);
+        for (dir, of_dir) in folders {
+            let Some(Ok(l)) = self.listings.get(&dir) else { continue };
+            #[cfg(test)]
+            REBUILT.with(|n| n.set(n.get() + 1));
+            let gone: HashSet<&str> = of_dir.iter().map(|(p, _)| p.as_str()).collect();
+            // In their order, as one at a time: the last moved into a trash names it.
+            let trash = of_dir.iter().fold(l.trash.clone(), |t, (path, to_trash)| match to_trash {
+                true => Some(format!("{}{}/", source::parent(path), source::TRASH_DIR)),
+                false => t.filter(|t| t != path),
+            });
+            let new = Listing {
+                dirs: l.dirs.iter().filter(|d| !gone.contains(d.as_str())).cloned().collect(),
+                files: l.files.iter().filter(|f| !gone.contains(f.path.as_str())).cloned().collect(),
+                trash,
+                leftovers: Vec::new(),
+                trashed: l.trashed.iter().filter(|f| !gone.contains(f.path.as_str())).cloned().collect(),
+                unseen: l.unseen.clone(),
+            };
+            self.swap_listing(&dir, new);
+        }
     }
 
     /// Item renamed: its folder is read again (its place in the order may change) and the item is
