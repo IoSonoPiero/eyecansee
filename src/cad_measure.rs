@@ -67,6 +67,16 @@ pub fn snap(d: &Drawing, at: P, radius: f64) -> (P, Snap) {
     best.map_or((at, Snap::Free), |b| (b.2, b.3))
 }
 
+/// `snap` for the drawing drawn, kept from frame to frame.
+#[derive(Default)]
+pub(crate) struct Snapper {}
+
+impl Snapper {
+    pub(crate) fn snap(&mut self, d: &std::sync::Arc<Drawing>, at: P, radius: f64) -> (P, Snap) {
+        snap(d, at, radius)
+    }
+}
+
 /// Whether the segment's box comes within `r` of `p`.
 fn box_near([a, b]: [P; 2], p: P, r: f64) -> bool {
     p[0] >= a[0].min(b[0]) - r && p[0] <= a[0].max(b[0]) + r && p[1] >= a[1].min(b[1]) - r && p[1] <= a[1].max(b[1]) + r
