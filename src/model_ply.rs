@@ -110,7 +110,7 @@ fn parser_may_read(header: &mut Header, left: usize) -> Result<(), String> {
         return Err(CUT.into());
     }
     if rows > PARSER_ROWS {
-        return Err(crate::model_limit::too_many(crate::model_limit::OFFERED, PARSER_ROWS));
+        return Err(crate::model_limit::too_many(crate::model_limit::MEMORY, PARSER_ROWS));
     }
     Ok(())
 }
@@ -880,7 +880,7 @@ mod tests {
     fn audit_s10c_text_points_with_a_face() {
         let bytes = ply("ascii", "element vertex 50000000\nproperty float x\nproperty float y\nproperty float z\nelement face 1\nproperty list uchar int vertex_indices\n", b"0 0 0\n1 0 0\n0 1 0\n");
         let e = read(&bytes).unwrap_err();
-        assert!(e.starts_with(crate::model_limit::OFFERED), "{e}");
+        assert!(e.starts_with(crate::model_limit::MEMORY), "{e}");
     }
 
     /// Audit 27/11, D.5: a binary cloud beyond 12.5 million points is refused from its header,

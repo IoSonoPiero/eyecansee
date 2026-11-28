@@ -797,6 +797,8 @@ error-drawing-too-many-placed = Il disegno ripete i suoi blocchi più di { $max 
         [one] milione
        *[other] milioni
     } di volte, troppe per aprirlo.
+# A model refused before the cap of its triangles, because reading it would take too much memory (the tree of a 3MF or an AMF, the rows of a PLY in text): no number.
+error-model-needs-too-much-memory = Il file chiederebbe troppa memoria per essere aperto.
 # A few words after a file's name in the list of a message ("a.gltf: manca il file a.bin"): no capital, no full stop.
 error-gltf-bin-missing-brief = manca il file { $detail }
 error-gltf-bin-outside-brief = i dati sono fuori dalla cartella del modello ({ $detail })
@@ -821,6 +823,7 @@ error-drawing-too-many-placed-brief = blocchi ripetuti più di { $max } { $max -
         [one] milione
        *[other] milioni
     } di volte
+error-model-needs-too-much-memory-brief = troppa memoria per aprirlo
 # The keys of the viewer, under the status bar.
 hint-cad = Rotellina, + e −: zoom (Ctrl + rotellina se la rotellina cambia file) | Trascinare: spostare | 0: tutto il disegno | Ctrl + L: livelli | M: misura | N, Maiusc + N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: successivo | ←, Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | Ctrl + Maiusc + S: salva come immagine | Ctrl + C, Ctrl + X: copia, taglia il file | F2: rinomina | Canc, Maiusc + Canc: elimina, elimina definitivamente | F5: rileggi la cartella | Ctrl + Maiusc + D: segnalibri | Tab, Maiusc + Tab: i pulsanti delle barre | F6: annulla un lavoro | F11: schermo intero | F1: guida | Doppio clic: { $double } | Invio: torna alla griglia | Esc: indietro, o chiude EyeCanSee come la ✕ della finestra
 hint-cad-layouts = Rotellina, + e −: zoom (Ctrl + rotellina se la rotellina cambia file) | Trascinare: spostare | 0: tutto il disegno | L, Maiusc + L: layout successivo, precedente | Ctrl + L: livelli | M: misura | N, Maiusc + N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: file successivo | ←, Backspace, Pag↑: file precedente | Inizio, Fine: primo, ultimo file | Ctrl + Maiusc + S: salva come immagine | Ctrl + C, Ctrl + X: copia, taglia il file | F2: rinomina | Canc, Maiusc + Canc: elimina, elimina definitivamente | F5: rileggi la cartella | Ctrl + Maiusc + D: segnalibri | Tab, Maiusc + Tab: i pulsanti delle barre | F6: annulla un lavoro | F11: schermo intero | F1: guida | Doppio clic: { $double } | Invio: torna alla griglia | Esc: indietro, o chiude EyeCanSee come la ✕ della finestra

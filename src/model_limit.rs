@@ -87,9 +87,16 @@ pub(crate) const UNPACKED_TIMES: &str = "error-model-unpacks-too-many-times";
 pub(crate) const DRAWING_POINTS: &str = "error-drawing-too-many-points";
 pub(crate) const DRAWING_ENTITIES: &str = "error-drawing-too-many-entities";
 pub(crate) const DRAWING_PLACED: &str = "error-drawing-too-many-placed";
+/// A model refused before the cap of its triangles because its reading would take too much
+/// memory (#181): the tree of its XML (`model_3mf::parse_xml`), the rows of a PLY read by the
+/// parser (`model_ply`). Sent as `too_many`, its number for the log; said without it, as the
+/// number counts nodes or rows, not what the user knows of the model.
+pub(crate) const MEMORY: &str = "error-model-needs-too-much-memory";
 /// The rarer refusals said in millions (`said`); the others as their number is.
 const IN_MILLIONS: [&str; 6] = [OFFERED, LINES, PLACED, DRAWING_POINTS, DRAWING_ENTITIES, DRAWING_PLACED];
 const AS_IT_IS: [&str; 3] = [INLINED, UNPACKED, UNPACKED_TIMES];
+/// The rarer refusals said without their number.
+const WITHOUT_NUMBER: [&str; 1] = [MEMORY];
 
 /// The error `id` of a rarer refusal, beyond `max` (`OFFERED` and the others).
 pub(crate) fn too_many(id: &str, max: impl std::fmt::Display) -> String {
@@ -151,6 +158,9 @@ impl Limit {
 /// The sentence of the error `id` with its `detail` (`Limit::error`, `too_many`), or its few
 /// words for the lists (`brief`); `None` for another error.
 pub(crate) fn said(i18n: &crate::i18n::I18n, id: &str, detail: &str, brief: bool) -> Option<String> {
+    if WITHOUT_NUMBER.contains(&id) {
+        return Some(i18n.t(&if brief { format!("{id}-brief") } else { id.to_string() }));
+    }
     let (format, max) = match id {
         _ if is_error(id) => detail.split_once(' ')?,
         _ if IN_MILLIONS.contains(&id) || AS_IT_IS.contains(&id) => ("", detail),
@@ -182,7 +192,7 @@ pub(crate) fn is_error(id: &str) -> bool {
 
 /// Whether `id` is one of the errors `said` says: a cap, or a rarer refusal (`too_many`).
 pub(crate) fn is_said(id: &str) -> bool {
-    is_error(id) || IN_MILLIONS.contains(&id) || AS_IT_IS.contains(&id)
+    is_error(id) || IN_MILLIONS.contains(&id) || AS_IT_IS.contains(&id) || WITHOUT_NUMBER.contains(&id)
 }
 
 /// The lines of a file in text, as `BufRead::lines` gives them (tobj, stl_io), split into words.
@@ -549,8 +559,8 @@ mod tests {
         let said = (
             "The file would take too much memory to open.".to_string(),
             "Il file chiederebbe troppa memoria per essere aperto.".to_string(),
-            Some("it would take too much memory".to_string()),
-            Some("chiederebbe troppa memoria".to_string()),
+            Some("too much memory to open".to_string()),
+            Some("troppa memoria per aprirlo".to_string()),
         );
         // Scaled: a cap of 1000 triangles, so 9000 nodes for a 3MF and 30 000 for an AMF.
         let model = |n: usize| format!("<model><resources><object id=\"1\"><mesh><vertices>{}</vertices></mesh></object></resources></model>", "<vertex/>".repeat(n));

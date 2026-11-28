@@ -793,6 +793,8 @@ error-model-unpacks-too-many-times = Unpacked, the file would be more than { $ma
 error-drawing-too-many-points = The drawing has more than { $max } million points, too many to open.
 error-drawing-too-many-entities = The drawing has more than { $max } million elements, too many to open.
 error-drawing-too-many-placed = The drawing repeats its blocks more than { $max } million times, too many to open.
+# A model refused before the cap of its triangles, because reading it would take too much memory (the tree of a 3MF or an AMF, the rows of a PLY in text): no number.
+error-model-needs-too-much-memory = The file would take too much memory to open.
 # A few words after a file's name in the list of a message ("a.gltf: the file a.bin is missing"): no capital, no full stop.
 error-gltf-bin-missing-brief = the file { $detail } is missing
 error-gltf-bin-outside-brief = the data is outside the model's folder ({ $detail })
@@ -811,6 +813,7 @@ error-model-unpacks-too-many-times-brief = unpacked, more than { $max } times la
 error-drawing-too-many-points-brief = more than { $max } million points
 error-drawing-too-many-entities-brief = more than { $max } million elements
 error-drawing-too-many-placed-brief = blocks repeated more than { $max } million times
+error-model-needs-too-much-memory-brief = too much memory to open
 # The keys of the viewer, under the status bar.
 hint-cad = Wheel, + and −: zoom (Ctrl + wheel when the wheel changes file) | Drag: move | 0: whole drawing | Ctrl + L: layers | M: measure | N, Shift + N: next, previous change of a comparison | →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Ctrl + Shift + S: save as an image | Ctrl + C, Ctrl + X: copy, cut the file | F2: rename | Del, Shift + Del: delete, delete for good | F5: read the folder again | Ctrl + Shift + D: bookmarks | Tab, Shift + Tab: the buttons of the bars | F6: cancel a job | F11: full screen | F1: guide | Double click: { $double } | Enter: back to the grid | Esc: back, or close EyeCanSee as the window's ✕
 hint-cad-layouts = Wheel, + and −: zoom (Ctrl + wheel when the wheel changes file) | Drag: move | 0: whole drawing | L, Shift + L: next, previous layout | Ctrl + L: layers | M: measure | N, Shift + N: next, previous change of a comparison | →, Space, Page Down: next file | ←, Backspace, Page Up: previous file | Home, End: first, last file | Ctrl + Shift + S: save as an image | Ctrl + C, Ctrl + X: copy, cut the file | F2: rename | Del, Shift + Del: delete, delete for good | F5: read the folder again | Ctrl + Shift + D: bookmarks | Tab, Shift + Tab: the buttons of the bars | F6: cancel a job | F11: full screen | F1: guide | Double click: { $double } | Enter: back to the grid | Esc: back, or close EyeCanSee as the window's ✕

@@ -396,7 +396,7 @@ impl Tree {
     }
 }
 
-/// `text` as XML of the format of `limit`, refused with `OFFERED` before its tree takes more than
+/// `text` as XML of the format of `limit`, refused with `MEMORY` before its tree takes more than
 /// `tree_most`: its attributes counted first (one `=` each at least), its nodes by roxmltree as
 /// it builds them. A DTD only outside 3MF, as before.
 pub(crate) fn parse_xml(text: &str, limit: crate::model_limit::Limit) -> Result<Document<'_>, String> {
@@ -406,7 +406,7 @@ pub(crate) fn parse_xml(text: &str, limit: crate::model_limit::Limit) -> Result<
 /// `parse_xml` within what is `left`, which the tree then takes.
 fn parse_within<'t>(text: &'t str, limit: crate::model_limit::Limit, left: &mut Tree) -> Result<Document<'t>, String> {
     let (nodes, attributes) = tree_most(limit);
-    let refused = |n: usize| crate::model_limit::too_many(crate::model_limit::OFFERED, n);
+    let refused = |n: usize| crate::model_limit::too_many(crate::model_limit::MEMORY, n);
     let equals = text.bytes().filter(|&b| b == b'=').count();
     if equals > left.attributes {
         return Err(refused(attributes));
@@ -606,7 +606,7 @@ mod tests {
         let model = |n: usize, vertex: &str| format!("<model><resources><object id=\"1\"><mesh><vertices>{}</vertices></mesh></object></resources></model>", vertex.repeat(n));
         for (what, text) in [("nodes", model(10_000, "<vertex/>")), ("attributes", model(5_000, r#"<vertex x="0" y="0" z="0"/>"#))] {
             let (r, peak) = crate::test_alloc::peak(|| parse_xml(&text, limit).map(|d| d.descendants().count()));
-            assert!(r.as_ref().is_err_and(|e| e.starts_with(crate::model_limit::OFFERED)) && peak < 1 << 20, "{what}: {r:?}, {peak} bytes");
+            assert!(r.as_ref().is_err_and(|e| e.starts_with(crate::model_limit::MEMORY)) && peak < 1 << 20, "{what}: {r:?}, {peak} bytes");
         }
         assert_eq!(parse_xml(&model(100, r#"<vertex x="0" y="0" z="0"/>"#), limit).map(|d| d.descendants().count()), Ok(106));
     }
