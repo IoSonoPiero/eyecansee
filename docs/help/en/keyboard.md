@@ -9,13 +9,13 @@ All the keys of EyeCanSee, grouped by where they work. The menus show the key ne
 | F1 | Open this guide on the page about what you are doing; again to close it |
 | Esc twice, quickly | Close this guide, with the pointer on it or while typing in its search field (a single Esc only leaves the field). When the guide is open over a window, a message for instance, it closes wherever the pointer is, and the window stays open |
 | Tab, **Shift + Tab** (this guide open) | Go through the search field, the contents and the page of this guide; they do not reach the grid or the viewer under it |
+| F6 | Move the keyboard to **Cancel** of a job under way: a copy, a conversion or an export of 3D models (with more than one, F6 again goes to the next); **Enter** or **Space** stops it |
 
 ## In the grid and the viewer
 
 | Key | Action |
 |---|---|
 | F5 | Read the open folder again, and only that one (in the viewer, the open image stays shown) |
-| F6 | Move the keyboard to **Cancel** of a job under way: a copy, a conversion or an export of 3D models (with more than one, F6 again goes to the next); **Enter** or **Space** stops it |
 | F11 | Full screen and back; in the viewer only the image is shown, without menus or bars |
 | **Ctrl + R**, **Ctrl + Shift + R** | Turn the picture 90° clockwise, anticlockwise: in the viewer you see it before saving, in the grid the selected pictures are saved after asking (see [Rotating and flipping](rotate.md)) |
 | **Ctrl + Z**, **Ctrl + Y** | In the viewer: undo, redo an unsaved turn or flip |
@@ -44,7 +44,7 @@ In the first-start window, each page opens with its main button highlighted: **N
 | Backspace | Parent folder |
 | **Ctrl + A** | Select everything in the folder |
 | Tab | Next item; from the last one to the devices |
-| **Shift + Tab** | Previous item; from the first one to the box of a copy or of Convert under way, if there is one, otherwise to the folder open on the left |
+| **Shift + Tab** | Previous item; from the first one to the box of a copy, of Convert or of an export of 3D models under way, if there is one, otherwise to the folder open on the left |
 | **Ctrl + C**, **Ctrl + X**, **Ctrl + V** | Copy, cut, paste (see [Copying and moving](copy-move.md)) |
 | F2 | Rename (see [Renaming and new folders](rename.md)) |
 | **Ctrl + Shift + N** | New folder |
@@ -66,7 +66,7 @@ With the mouse: **Ctrl + click** adds or removes an item, **Shift + click** sele
 | → | Expand the folder; if already expanded, go to its first subfolder |
 | ← | Collapse the folder; if already collapsed, go to its parent |
 | Backspace | Parent folder |
-| Tab | Next folder; from the last one to the box of a copy or of Convert under way, if there is one (its **Cancel**: **Enter** or **Space** presses it, **Tab** goes on to the grid, **Shift + Tab** back to the folders), otherwise to the grid |
+| Tab | Next folder; from the last one to the box of a copy, of Convert or of an export of 3D models under way, if there is one (its **Cancel**: **Enter** or **Space** presses it, **Tab** goes on to the grid, **Shift + Tab** back to the folders), otherwise to the grid |
 | **Shift + Tab** | Previous folder; from the first one to the last device |
 
 In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device enters its first folder), → and ← expand and collapse it, **Enter** opens it on the right, **Tab** goes to the next one and from the last one to the computer's folders, **Shift + Tab** to the previous one and from the first one to the last item of the grid.
@@ -96,6 +96,8 @@ In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device e
 | F2, Del, **Shift + Del** | Rename and delete, as in the grid |
 
 The mouse wheel zooms around the pointer, + and − around the middle of the window; Ctrl and the wheel always zoom, even when the wheel is set to change image (see [Options](options.md)).
+
+**Tab**, the double click, **Ctrl + C**, **Ctrl + X**, F2, Del and **Shift + Del** work in the same way on videos, audio files, 3D models and drawings.
 
 ## In the viewer: videos and audio
 

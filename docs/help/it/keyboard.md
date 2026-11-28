@@ -9,13 +9,13 @@ Tutti i tasti di EyeCanSee, divisi per dove si usano. I menu mostrano il tasto a
 | F1 | Apre questa guida sulla pagina di ciò che stai facendo; di nuovo per chiuderla |
 | Esc due volte, rapidamente | Chiude questa guida, col puntatore sopra o mentre scrivi nel suo campo di ricerca (un solo Esc esce soltanto dal campo). Quando la guida è aperta sopra una finestra, per esempio un messaggio, si chiude ovunque sia il puntatore, e la finestra resta aperta |
 | Tab, **Maiusc + Tab** (con questa guida aperta) | Passano tra il campo di ricerca, l'indice e la pagina di questa guida; non arrivano alla griglia o al visore sotto |
+| F6 | Porta la tastiera su **Annulla** di un lavoro in corso: una copia, una conversione o un'esportazione di modelli 3D (con più lavori, F6 di nuovo passa al successivo); **Invio** o **Spazio** lo fermano |
 
 ## Nella griglia e nel visore
 
 | Tasto | Azione |
 |---|---|
 | F5 | Rilegge la cartella aperta, solo quella (nel visore resta sull'immagine aperta) |
-| F6 | Porta la tastiera su **Annulla** di un lavoro in corso: una copia, una conversione o un'esportazione di modelli 3D (con più lavori, F6 di nuovo passa al successivo); **Invio** o **Spazio** lo fermano |
 | F11 | Schermo intero e ritorno; nel visore si vede solo l'immagine, senza menu né barre |
 | **Ctrl + R**, **Ctrl + Maiusc + R** | Ruota la foto di 90° in senso orario, antiorario: nel visore la vedi prima di salvarla, nella griglia le foto selezionate vengono salvate dopo la conferma (vedi [Ruotare e riflettere](rotate.md)) |
 | **Ctrl + Z**, **Ctrl + Y** | Nel visore: annulla, ripete una rotazione o riflessione non salvata |
@@ -44,7 +44,7 @@ Nella finestra del primo avvio ogni pagina si apre col suo pulsante principale e
 | Backspace | Cartella superiore |
 | **Ctrl + A** | Seleziona tutto nella cartella |
 | Tab | Elemento successivo; dall'ultimo passa ai dispositivi |
-| **Maiusc + Tab** | Elemento precedente; dal primo passa al riquadro di una copia o di Converti in corso, se c'è, altrimenti alla cartella aperta a sinistra |
+| **Maiusc + Tab** | Elemento precedente; dal primo passa al riquadro di una copia, di Converti o di un'esportazione di modelli 3D in corso, se c'è, altrimenti alla cartella aperta a sinistra |
 | **Ctrl + C**, **Ctrl + X**, **Ctrl + V** | Copia, taglia, incolla (vedi [Copiare e spostare](copy-move.md)) |
 | F2 | Rinomina (vedi [Rinominare e nuove cartelle](rename.md)) |
 | **Ctrl + Maiusc + N** | Nuova cartella |
@@ -66,7 +66,7 @@ Con il mouse: **Ctrl + clic** aggiunge o toglie un elemento, **Maiusc + clic** s
 | → | Apre la cartella; se è già aperta, va alla prima sottocartella |
 | ← | Chiude la cartella; se è già chiusa, va a quella superiore |
 | Backspace | Cartella superiore |
-| Tab | Cartella successiva; dall'ultima passa al riquadro di una copia o di Converti in corso, se c'è (il suo **Annulla**: **Invio** o **Spazio** lo premono, **Tab** prosegue alla griglia, **Maiusc + Tab** torna alle cartelle), altrimenti alla griglia |
+| Tab | Cartella successiva; dall'ultima passa al riquadro di una copia, di Converti o di un'esportazione di modelli 3D in corso, se c'è (il suo **Annulla**: **Invio** o **Spazio** lo premono, **Tab** prosegue alla griglia, **Maiusc + Tab** torna alle cartelle), altrimenti alla griglia |
 | **Maiusc + Tab** | Cartella precedente; dalla prima passa all'ultimo dispositivo |
 
 Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositivo aperto entra nella sua prima cartella), → e ← lo aprono e lo chiudono, **Invio** lo apre a destra, **Tab** passa al successivo e dall'ultimo alle cartelle del computer, **Maiusc + Tab** al precedente e dal primo all'ultimo elemento della griglia.
@@ -96,6 +96,8 @@ Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositiv
 | F2, Canc, **Maiusc + Canc** | Rinomina ed elimina, come nella griglia |
 
 La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della finestra; Ctrl con la rotellina ingrandisce sempre, anche quando la rotellina è impostata per cambiare immagine (vedi [Opzioni](options.md)).
+
+**Tab**, il doppio clic, **Ctrl + C**, **Ctrl + X**, F2, Canc e **Maiusc + Canc** funzionano allo stesso modo su video, file audio, modelli 3D e disegni.
 
 ## Nel visore: video e audio
 
