@@ -55,6 +55,9 @@ pub use crate::trash::{android_trashed, aside_name, free_name, in_trash, is_tras
 thread_local! {
     /// Folders read by `Store::names` on this thread: a paste must not read one per file (#90).
     pub static FOLDERS_READ: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Folders listed whole (`Store::list_once`) on this thread: each is a round trip, long on a
+    /// phone or a server.
+    pub static LISTINGS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     /// Bytes `Store::read` and `Store::read_range` gave on this thread: a picture too large for the
     /// memory is told from its start, not read whole (#177).
     pub static BYTES_READ: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
@@ -189,6 +192,8 @@ impl Store {
     }
 
     async fn list_once(&self, dir: &str) -> Result<Listing, Error> {
+        #[cfg(test)]
+        LISTINGS.with(|n| n.set(n.get() + 1));
         match self {
             Store::Dal(op) => list(op, dir).await,
             Store::Mtp(phone) => phone.list(dir).await,
@@ -700,6 +705,43 @@ mod tests {
         assert!(too_deep("top/", "top/").is_ok());
         assert!(too_deep("top/", &deep(MAX_DEPTH)).is_ok());
         assert_eq!(too_deep("top/", &deep(MAX_DEPTH + 1)), Err(("error-too-deep", deep(MAX_DEPTH + 1))));
+    }
+
+    /// Audit 2.24: a hidden file of a save in a folder makes a listing read it once more to tidy
+    /// up (`recover`), and again only when that changed something. The new file of a save on
+    /// its way (in `SAVING`) is not even looked at; an original that stays hidden (its image is
+    /// there) costs the read of the names, not a second listing.
+    #[test]
+    fn audit_2_24_hidden_file_of_a_save_read_once() {
+        let root = std::env::temp_dir().join(format!("eyecansee-2-24-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for d in ["saving-2-24", "aside-2-24", "cut-2-24"] {
+            std::fs::create_dir_all(root.join(d)).unwrap();
+        }
+        std::fs::write(root.join("saving-2-24/a.jpg"), b"a").unwrap();
+        std::fs::write(root.join("saving-2-24/.a.jpg.eyecansee-new"), b"writing").unwrap();
+        std::fs::write(root.join("aside-2-24/b.jpg"), b"b").unwrap();
+        std::fs::write(root.join("aside-2-24/.b.jpg.eyecansee-old"), b"b old").unwrap();
+        std::fs::write(root.join("cut-2-24/.c.jpg.eyecansee-old"), b"c").unwrap();
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&root.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let reads = |dir: &str| {
+            LISTINGS.with(|n| n.set(0));
+            FOLDERS_READ.with(|n| n.set(0));
+            let l = rt.block_on(op.list(dir)).unwrap();
+            (l.files.len(), LISTINGS.with(|n| n.get()) + FOLDERS_READ.with(|n| n.get()))
+        };
+        SAVING.lock().unwrap().insert("saving-2-24/a.jpg".into());
+        let saving = reads("saving-2-24/");
+        SAVING.lock().unwrap().remove("saving-2-24/a.jpg");
+        let aside = reads("aside-2-24/");
+        let cut = reads("cut-2-24/");
+        // (files, folder reads): a save on its way, one listing; an original left hidden, a
+        // listing and its names; an original whose image is missing takes its name back, and
+        // only then is the folder read again.
+        assert_eq!([saving, aside, cut], [(1, 1), (1, 2), (1, 3)]);
+        assert!(root.join("cut-2-24/c.jpg").exists() && root.join("saving-2-24/.a.jpg.eyecansee-new").exists());
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     /// The tests that take what `GONE` holds, one at a time.
