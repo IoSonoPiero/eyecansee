@@ -427,14 +427,14 @@ pub(crate) fn resampled(pic: &Picture, scale: f32, uv: egui::Rect, out: [u32; 2]
 }
 
 /// The new size of one of a slot's pictures, `old` its size (`None`: none yet) and `size` the size
-/// asked: `None` while it holds it; otherwise grown to hold it, in steps of `GRAIN`, never beyond
-/// `max`.
+/// asked, in steps of `GRAIN`, never beyond `max`: `None` while it holds it and is not more than
+/// twice as large on a side (zooming keeps it); grown to hold it; on a side asked less than half,
+/// as asked (audit 4.10: it only grew, and the largest picture of the session stayed, 80 MB for
+/// a photo of 8192 × 5462 fitted to 1920 × 1080).
 fn slot_size(old: Option<[u32; 2]>, size: [u32; 2], max: u32) -> Option<[u32; 2]> {
     let had = old.unwrap_or([0, 0]);
-    if old.is_some() && had[0] >= size[0] && had[1] >= size[1] {
-        return None;
-    }
-    Some(std::array::from_fn(|k| size[k].max(had[k]).div_ceil(GRAIN).saturating_mul(GRAIN).min(max)))
+    let new = std::array::from_fn(|k| if size[k].saturating_mul(2) < had[k] { size[k] } else { size[k].max(had[k]) }.div_ceil(GRAIN).saturating_mul(GRAIN).min(max));
+    (old != Some(new)).then_some(new)
 }
 
 impl Smoother {
