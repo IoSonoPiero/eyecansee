@@ -254,6 +254,21 @@ impl Seen {
         deletable && self.removed.lock().unwrap().insert(original)
     }
 
+    /// The answer to RNFR `path`; `renaming`: the item to rename, if it is there.
+    fn rename_from(&self, path: &str, renaming: &mut Option<String>) -> &'static str {
+        let there = self.split(path).is_some_and(|(dir, name)| self.item(&dir, name).is_some()) || self.stored.lock().unwrap().contains_key(path);
+        *renaming = there.then(|| path.to_string());
+        if there { "350 ready for the new name" } else { "550 no such item" }
+    }
+
+    /// The answer to RNTO `path`, after RNFR (`renaming`).
+    fn rename_to(&self, path: &str, renaming: &mut Option<String>) -> &'static str {
+        match renaming.take() {
+            Some(from) if self.rename(&from, path) => "250 renamed",
+            _ => "550 not renamed",
+        }
+    }
+
     /// RNFR `from`, RNTO `to`: whether it was renamed. A file at `to` is replaced, a folder is not.
     fn rename(&self, from: &str, to: &str) -> bool {
         let sent = self.stored.lock().unwrap().remove(from);
@@ -405,15 +420,8 @@ fn session(control: TcpStream, seen: &Seen) -> std::io::Result<()> {
                 Some(size) => say(&format!("213 {size}"))?,
                 None => say("550 no such file")?,
             },
-            "RNFR" => {
-                let there = seen.split(path).is_some_and(|(dir, name)| seen.item(&dir, name).is_some()) || seen.stored.lock().unwrap().contains_key(path);
-                renaming = there.then(|| path.to_string());
-                say(if there { "350 ready for the new name" } else { "550 no such item" })?
-            }
-            "RNTO" => say(match renaming.take() {
-                Some(from) if seen.rename(&from, path) => "250 renamed",
-                _ => "550 not renamed",
-            })?,
+            "RNFR" => say(seen.rename_from(path, &mut renaming))?,
+            "RNTO" => say(seen.rename_to(path, &mut renaming))?,
             "DELE" | "RMD" => say(if seen.delete(path, command.eq_ignore_ascii_case("RMD")) { "250 deleted" } else { "550 not deleted" })?,
             _ => say("500 unknown command")?,
         }
