@@ -238,6 +238,29 @@ mod tests {
         assert!(matches!(clip_event(&v_up(Modifiers::COMMAND), &mut pasted), (None, true)));
     }
 
+    /// Audit 5.14 (#295): Copy of the part chosen with Selection made it at full size (up to
+    /// 8000 × 8000, a pixel at a time, with the objects) inside the frame, the window still
+    /// meanwhile. The frame asks; the part comes from a thread aside, for Paste too.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn audit_5_14_the_part_is_copied_aside() {
+        use crate::audit_family_1::{Harness, own_folder};
+        if own_folder("edit_page::clip::tests::audit_5_14_the_part_is_copied_aside") {
+            return;
+        }
+        let mut h = Harness::new(&super::super::defects::white("five-fourteen-part"));
+        super::super::defects::editor(&mut h, "a.png", super::super::Tool::Marquee);
+        h.app.editor.as_mut().unwrap().marquee = Some(crate::edit::doc::Area { centre: Pt::new(0.0, 0.0), w: 100.0, h: 80.0, rot: 0.0 });
+        crate::edit::photo::LENSES.with(|n| n.set(0));
+        h.frame(vec![Event::Copy]);
+        let made = crate::edit::photo::LENSES.with(|n| n.get());
+        eprintln!("parts made in the frame of Copy: {made}");
+        assert_eq!(made, 0, "the part made in the frame");
+        h.until(|app| app.editor.as_ref().is_some_and(|w| w.clip.is_some()), "the part copied");
+        let w = h.app.editor.as_ref().unwrap();
+        assert_eq!((w.clip.as_ref().unwrap().1.image().width(), w.note.is_some()), (100, true));
+    }
+
     /// An image pasted from another program larger than the editor takes (20 000 pixels a side)
     /// is refused: it had no limit (audit 5.10). One that fits becomes a patch.
     #[test]

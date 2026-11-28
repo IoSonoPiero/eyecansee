@@ -129,6 +129,8 @@ pub fn under(doc: &Doc, photo: &DynamicImage, area: &Area, scale: f32, filtered:
 /// highlighters and those objects too, drawn in the lens's own axes at its own size: sharp at
 /// any angle of the lens or of the image.
 pub fn lens(doc: &Doc, photo: &DynamicImage, area: &Area, (zoom, max): (f32, u32), filtered: &[Filtered], objects: Option<(&[Obj], &usvg::Options)>) -> RgbaImage {
+    #[cfg(test)]
+    LENSES.with(|n| n.set(n.get() + 1));
     let small = Area { w: area.w / zoom, h: area.h / zoom, ..*area };
     let k = (max as f32 / area.w.max(area.h)).min(1.0);
     let (w, h) = (((area.w * k).round() as u32).max(1), ((area.h * k).round() as u32).max(1));
@@ -219,6 +221,13 @@ fn over(part: &mut RgbaImage, p: &resvg::tiny_skia::Pixmap) {
 fn local(a: &Area, p: Pt, tol: f32) -> Option<(f32, f32)> {
     let d = super::geom::turned(Pt::new(p.x - a.centre.x, p.y - a.centre.y), -a.rot);
     (d.x.abs() <= a.w / 2.0 + tol && d.y.abs() <= a.h / 2.0 + tol).then(|| ((d.x + a.w / 2.0).clamp(0.0, a.w), (d.y + a.h / 2.0).clamp(0.0, a.h)))
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Parts of the photo made on this thread (`lens`): a lens, or Copy of the part chosen, which
+    /// the editor's frame only asks for (audit 5.14).
+    pub static LENSES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 /// What a lens's picture depends on besides its box and zoom: the cover boxes and the filters
