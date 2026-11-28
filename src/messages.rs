@@ -16,20 +16,25 @@ use crate::loader::Msg;
 use crate::source::Listing;
 use crate::listing::Arrival;
 
+/// A deletion done goes into `deleted`, out of the listings with those after it (audit 1.8);
+/// any other message is handled after them.
+fn held_back(deleted: &mut Vec<(String, source::Deletion)>, msg: Msg) -> Option<Msg> {
+    match msg {
+        Msg::Deleted(path, how, Ok(())) => {
+            deleted.push((path, how));
+            None
+        }
+        msg => Some(msg),
+    }
+}
+
 impl App {
     pub(crate) fn receive(&mut self, ctx: &egui::Context) {
         // The deletions done in a row, taken out of their listings together (audit 1.8), before
         // any other message, which comes after them as before.
         let mut deleted = Vec::new();
         while let Ok(msg) = self.rx.try_recv() {
-            let Some(msg) = self.of_this_source(msg) else { continue };
-            let msg = match msg {
-                Msg::Deleted(path, how, Ok(())) => {
-                    deleted.push((path, how));
-                    continue;
-                }
-                msg => msg,
-            };
+            let Some(msg) = self.of_this_source(msg).and_then(|msg| held_back(&mut deleted, msg)) else { continue };
             self.on_deleted_ok(std::mem::take(&mut deleted));
             match msg {
                 Msg::Listed(base, dir, r) => self.on_listed(ctx, &base, dir, r),
