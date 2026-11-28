@@ -210,4 +210,20 @@ mod tests {
             }
         }
     }
+
+    /// `t_plain` takes away only the message's `**`: a message without them reads the same as
+    /// with `t_args` (a `\` or a backtick of its own stays: "(without / or \)"), in every language.
+    #[test]
+    fn plain_takes_only_the_bold() {
+        for lang in ["en", "it"] {
+            let i18n = I18n::new(lang);
+            for id in ids(LANGS[0].1) {
+                let args = [("n", "2"), ("detail", "D"), ("name", "N"), ("known", "yes"), ("how", "trash"), ("what", "images"), ("fingerprint", "F")];
+                let marked = i18n.t_args(&id, &args);
+                if !marked.contains("**") {
+                    assert_eq!(i18n.t_plain(&id, &args), marked, "{lang} {id}");
+                }
+            }
+        }
+    }
 }
