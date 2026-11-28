@@ -138,10 +138,15 @@ enum Hold {
     Marquee { from: Pt, before: Option<crate::edit::doc::Area> },
 }
 
-/// What the texture of the objects was drawn for.
-#[derive(PartialEq)]
+/// What the texture of the objects was drawn for: the document (the letters being typed hidden)
+/// and the rest.
 struct Drawn {
     doc: Doc,
+    seen: Seen,
+}
+
+#[derive(PartialEq)]
+struct Seen {
     /// Previews of filters made since (`Window::filters_made`): not in the document's equality.
     made: u64,
     at: Vec2,
@@ -573,7 +578,7 @@ impl Window {
 
     fn undo(&mut self) {
         let Some(h) = &mut self.history else { return };
-        h.push(self.doc.clone());
+        h.push_if_changed(&self.doc);
         h.undo();
         self.doc = h.doc().clone();
         self.jumped();
@@ -581,7 +586,7 @@ impl Window {
 
     fn redo(&mut self) {
         let Some(h) = &mut self.history else { return };
-        h.push(self.doc.clone());
+        h.push_if_changed(&self.doc);
         h.redo();
         self.doc = h.doc().clone();
         self.jumped();
@@ -768,7 +773,7 @@ impl App {
         }
         w.drop_empty_texts();
         if let Some(h) = &mut w.history {
-            h.push(w.doc.clone());
+            h.push_if_changed(&w.doc);
         }
         if std::mem::take(&mut w.styles_changed) {
             let long = w.long();

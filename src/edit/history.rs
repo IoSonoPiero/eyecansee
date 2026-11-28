@@ -46,6 +46,14 @@ impl History {
         self.trim();
     }
 
+    /// `push` of a copy of `doc`, made only when it is not the document shown: the end of every
+    /// frame asks, and the copy holds every point of the strokes drawn by hand (audit 5.13).
+    pub fn push_if_changed(&mut self, doc: &Doc) {
+        if *doc != *self.doc() {
+            self.push(doc.clone());
+        }
+    }
+
     /// The oldest steps gone while there are too many or they hold too many pixels; one step back
     /// always stays. Without a word: Undo turns grey when there is none left.
     fn trim(&mut self) {

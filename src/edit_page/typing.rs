@@ -36,13 +36,16 @@ pub(super) fn fresh_fields(ctx: &egui::Context, w: &mut Window) {
     }
 }
 
-/// The document as drawn under the field: the letters being typed hidden.
-pub(super) fn hidden(doc: &Doc, editing: Option<usize>) -> Doc {
-    let mut doc = doc.clone();
-    if let Some(text) = editing.and_then(|i| doc.objects.get_mut(i)).and_then(|o| o.shape.text_mut()) {
-        text.clear();
+/// `f` on the document as drawn under the field, the letters being typed hidden: taken out of
+/// `doc` meanwhile, not a copy of it (that was a copy in every frame, audit 5.13).
+pub(super) fn with_hidden<T>(doc: &mut Doc, editing: Option<usize>, f: impl FnOnce(&Doc) -> T) -> T {
+    let text = |doc: &mut Doc| editing.and_then(|i| doc.objects.get_mut(i)).and_then(|o| o.shape.text_mut()).map(std::mem::take);
+    let typed = text(doc);
+    let out = f(doc);
+    if let (Some(typed), Some(t)) = (typed, editing.and_then(|i| doc.objects.get_mut(i)).and_then(|o| o.shape.text_mut())) {
+        *t = typed;
     }
-    doc
+    out
 }
 
 /// The field over the text `i`, centred on `centre` (on the screen), `k` points a pixel of the
@@ -142,10 +145,12 @@ mod tests {
         let bubble = Obj { shape: Shape::Bubble { area: Area { centre: Pt::new(0.0, 0.0), w: 40.0, h: 20.0, rot: 0.0 }, tail: Pt::new(0.0, 30.0), text: "Hi".into(), font: None }, style: Style::default() };
         let doc = Doc { objects: vec![text(None), text(Some((Pt::new(0.0, 0.0), Pt::new(9.0, 0.0), None))), bubble], ..Doc::new(10, 10, None) };
         assert_eq!((can(&doc, 0), can(&doc, 1), can(&doc, 2), can(&doc, 3)), (true, false, true, false));
-        let shown = hidden(&doc, Some(2));
+        let mut all = doc.clone();
+        let shown = with_hidden(&mut all, Some(2), Doc::clone);
         let letters = |d: &Doc, i: usize| d.objects[i].shape.clone().text_mut().cloned();
         assert_eq!((letters(&shown, 0), letters(&shown, 2)), (Some("Ab".into()), Some(String::new())));
-        assert_eq!(hidden(&doc, None), doc);
+        assert_eq!(all, doc, "the letters put back");
+        assert_eq!(with_hidden(&mut all, None, Doc::clone), doc);
     }
 
     /// Ctrl+Z in the field of a text just placed undoes only its own letters: egui keeps a

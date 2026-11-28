@@ -2,7 +2,9 @@
 //! a cloud for thoughts, spikes for a shout), their text broken into lines to fit their width,
 //! and the height they need for it. The same code draws the screen and the saved file.
 
+use std::collections::HashMap;
 use std::fmt::Write;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use resvg::usvg;
 use serde::{Deserialize, Serialize};
@@ -65,6 +67,34 @@ thread_local! {
     pub static MEASURES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
+/// The lines of bubbles kept at most: past them, all go (a text typed adds one a letter).
+const MOST: usize = 512;
+
+/// `lines`, kept for the next frames: `fit` asks for them in every frame and the drawing at every
+/// redraw, and each word is an SVG read by `usvg` (audit 5.13). By text, size, font, width and the
+/// fonts they are measured with.
+fn lines_kept(text: &str, size: f32, font: Option<&str>, width: f32, options: &usvg::Options) -> Arc<[String]> {
+    static KEPT: OnceLock<Mutex<HashMap<u64, Arc<[String]>>>> = OnceLock::new();
+    let key = {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        (text, size.to_bits(), font, width.to_bits(), Arc::as_ptr(&options.fontdb) as usize).hash(&mut h);
+        h.finish()
+    };
+    let kept = KEPT.get_or_init(Default::default);
+    if let Some(l) = kept.lock().ok().and_then(|k| k.get(&key).cloned()) {
+        return l;
+    }
+    let l: Arc<[String]> = lines(text, size, font, width, options).into();
+    if let Ok(mut k) = kept.lock() {
+        if k.len() >= MOST {
+            k.clear();
+        }
+        k.insert(key, l.clone());
+    }
+    l
+}
+
 /// How wide a line is drawn.
 fn measure(line: &str, size: f32, font: Option<&str>, options: &usvg::Options) -> f32 {
     #[cfg(test)]
@@ -91,7 +121,7 @@ pub fn height_for(lines_h: f32, style: &Style) -> f32 {
 pub fn fit(o: &mut Obj, options: &usvg::Options) {
     let Shape::Bubble { area, text, font, .. } = &mut o.shape else { return };
     let size = o.style.letters.max(1.0);
-    let n = lines(text, size, font.as_deref(), text_width(area.w, &o.style), options).len().max(1) as f32;
+    let n = lines_kept(text, size, font.as_deref(), text_width(area.w, &o.style), options).len().max(1) as f32;
     let needed = height_for(1.2 * size * n, &o.style);
     if area.h < needed {
         area.h = needed;
@@ -121,7 +151,7 @@ pub fn svg(out: &mut String, (a, tail): (&Area, Pt), (text, font): (&str, Option
         return Ok(());
     }
     let size = style.letters.max(1.0);
-    let broken = lines(text, size, font, text_width(a.w, style), options).join("\n");
+    let broken = lines_kept(text, size, font, text_width(a.w, style), options).join("\n");
     super::render::text(out, (a.centre, size, a.rot), &broken, font, &format!(r#"fill="rgb({ir},{ig},{ib})""#))
 }
 
@@ -222,6 +252,33 @@ mod tests {
         let mut oval = bubble(400.0, "one two three four five six", Balloon::Oval);
         fit(&mut oval, &o);
         assert!(h(&oval) > h(&wide));
+    }
+
+    /// A bubble's lines are measured once, not in every frame, and again when its text, the size
+    /// of its letters, its font, its width or its shape change (audit 5.13).
+    #[test]
+    fn lines_measured_once() {
+        let o = options();
+        let measures = || MEASURES.with(|n| n.get());
+        let mut b = bubble(120.0, "lines measured once, then kept", Balloon::Rounded);
+        fit(&mut b, &o);
+        let first = measures();
+        assert!(first > 0);
+        fit(&mut b, &o);
+        assert_eq!(measures(), first, "measured again with nothing changed");
+        let changes: [fn(&mut Obj); 5] = [
+            |b| b.shape.text_mut().unwrap().push_str(" more"),
+            |b| b.style.letters = 24.0,
+            |b| if let Shape::Bubble { font, .. } = &mut b.shape { *font = Some("Serif".into()) },
+            |b| b.shape.area_mut().unwrap().w = 160.0,
+            |b| b.style.balloon = Balloon::Oval,
+        ];
+        for (i, change) in changes.iter().enumerate() {
+            let before = measures();
+            change(&mut b);
+            fit(&mut b, &o);
+            assert!(measures() > before, "change {i} not measured");
+        }
     }
 
     /// Every shape draws in its box, filled in the middle; the cloud's tail is puffs (white

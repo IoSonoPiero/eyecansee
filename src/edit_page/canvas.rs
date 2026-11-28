@@ -4,7 +4,7 @@
 
 use eframe::egui::{self, Color32, CursorIcon, Pos2, Rect, TextureId, Vec2};
 
-use super::{Drawn, Follow, GRAB, Grab, Hold, Tool, Window};
+use super::{Drawn, Follow, GRAB, Grab, Hold, Seen, Tool, Window};
 use crate::edit::doc::{Obj, Pt, Shape};
 use crate::edit::geom::{self, Kind};
 use crate::edit::render;
@@ -245,14 +245,16 @@ fn objects_texture(ui: &egui::Ui, w: &mut Window, view: &View, rect: Rect) -> Op
         return None;
     }
     let ppp = ui.ctx().pixels_per_point();
-    // The letters being typed on the image are hidden: the field over them shows them.
-    let doc = super::typing::hidden(&w.doc, w.editing.filter(|_| w.font_preview.is_none()));
-    let key = Drawn { doc, made: w.filters_made, at: view.at, k: view.k, rect, ppp };
-    if let Some((drawn, tex)) = &w.objects
-        && *drawn == key
-    {
-        return Some(tex.id());
-    }
+    // The letters being typed on the image are hidden: the field over them shows them. The
+    // document copied only when it is drawn again.
+    let seen = Seen { made: w.filters_made, at: view.at, k: view.k, rect, ppp };
+    let drawn = &w.objects;
+    let doc = super::typing::with_hidden(&mut w.doc, w.editing.filter(|_| w.font_preview.is_none()), |doc| match drawn {
+        Some((d, _)) if d.seen == seen && d.doc == *doc => None,
+        _ => Some(doc.clone()),
+    });
+    let Some(doc) = doc else { return w.objects.as_ref().map(|(_, t)| t.id()) };
+    let key = Drawn { doc, seen };
     let (iw, ih) = w.size();
     let (left, top) = rotate::corner(iw, ih, w.doc.crop);
     let p0 = view.image(rect.min);
