@@ -246,6 +246,7 @@ impl App {
                 self.listings.insert(dir.clone(), r);
             }
         }
+        self.let_go_listings(ctx);
         // After the files followed: the viewer and the selection already on their file by then.
         if dir == self.dir {
             self.start_found();

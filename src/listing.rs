@@ -6,10 +6,22 @@ use std::collections::{HashMap, HashSet};
 use crate::source::{self, File, Listing};
 use crate::App;
 
+/// The files the listings of the folders seen keep at most, those shown apart (about 150 bytes
+/// each, some 30 MB): past it the folders nothing shows are let go, and read again when visited
+/// (audit 1.14: all were kept until F5).
+const KEPT_FILES: usize = 200_000;
+
+fn kept_files() -> usize {
+    #[cfg(test)]
+    return KEPT_FILES_CAP.with(std::cell::Cell::get);
+    #[cfg(not(test))]
+    KEPT_FILES
+}
+
 #[cfg(test)]
 thread_local! {
     /// The files the listings of the folders seen keep at most (`KEPT_FILES`), lower in a test.
-    pub(crate) static KEPT_FILES_CAP: std::cell::Cell<usize> = const { std::cell::Cell::new(200_000) };
+    pub(crate) static KEPT_FILES_CAP: std::cell::Cell<usize> = const { std::cell::Cell::new(KEPT_FILES) };
     /// Listings rebuilt without the items deleted or moved away, on this thread (audit 1.8: one
     /// for each file).
     pub(crate) static REBUILT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
@@ -66,6 +78,21 @@ impl App {
             };
             self.swap_listing(&dir, new);
         }
+    }
+
+    /// Past `KEPT_FILES` files in the listings, the folders nothing shows are let go: all but the
+    /// open one, those on the way to it, and those open in the left panel, whose subfolders it
+    /// draws. One let go is read again when visited, as a folder not seen before.
+    pub(crate) fn let_go_listings(&mut self, ctx: &eframe::egui::Context) {
+        let held: usize = self.listings.values().flatten().map(|l| l.files.len()).sum();
+        if held <= kept_files() {
+            return;
+        }
+        let open = |id| eframe::egui::collapsing_header::CollapsingState::load(ctx, id).is_some_and(|s| s.is_open());
+        let open: HashSet<String> = self.tree_rows.iter().filter(|(id, _)| open(*id)).map(|(_, dir)| dir.clone()).collect();
+        let (before, here) = (self.listings.len(), &self.dir);
+        self.listings.retain(|k, _| here.starts_with(k.as_str()) || open.contains(k));
+        log!("listings: {held} files held, {} folders let go", before - self.listings.len());
     }
 
     /// Item renamed: its folder is read again (its place in the order may change) and the item is
@@ -537,7 +564,8 @@ mod tests {
         for k in 0..5 {
             crate::audit_family_1::folder(&format!("let-go/sub{k}"), &names);
         }
-        KEPT_FILES_CAP.with(|c| c.set(40));
+        // Less than one subfolder: the one left goes as soon as its parent comes back.
+        KEPT_FILES_CAP.with(|c| c.set(20));
         let mut h = crate::audit_family_1::Harness::new(&root);
         let here = h.app.dir.clone();
         for k in 0..5 {
