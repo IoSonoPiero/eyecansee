@@ -184,7 +184,9 @@ mod tests {
     #[test]
     fn names_in_bold_in_the_windows() {
         let v = "Al*bum_1/x.jpg";
-        let cases: [(&str, &[(&str, &str)], &str); 11] = [
+        // The message, its other values, and the one in bold.
+        type Case<'a> = (&'a str, &'a [(&'a str, &'a str)], &'a str);
+        let cases: [Case; 11] = [
             ("transfer-to", &[], "dir"),
             ("transfer-files-copied", &[("n", "2")], "dir"),
             ("status-file-removed", &[], "name"),
