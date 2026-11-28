@@ -863,6 +863,21 @@ mod tests {
         assert_eq!(d.sheets.len(), 3);
     }
 
+    /// Audit 6.14: the picture of a drawing (thumbnail, Save as…, Convert and resize) shows its
+    /// model space, but every layout was drawn too, each window going over the whole model again.
+    #[test]
+    fn audit_6_14_no_layouts_for_a_picture() {
+        let dxf = placed_with_layouts(10, &["A", "B", "C"]);
+        let drawn = || crate::cad_layout::DRAWN.with(|n| n.replace(0));
+        drawn();
+        crate::decode::decode_full_with(&dxf, "a.dxf", &crate::cad_image::none).unwrap();
+        crate::decode::cad_picture(&dxf, "a.dxf", 256).unwrap();
+        assert_eq!(drawn(), 0, "layouts drawn for two pictures of the model");
+        // The viewer has them.
+        assert_eq!(read(&dxf, "a.dxf").unwrap().sheets.len(), 3);
+        assert_eq!(drawn(), 3);
+    }
+
     /// Audit 27/11, D.3: every DWG and DXF under `EYECANSEE_CAD` (and its folders), read: whether
     /// it opens, its points, and its layouts with their items, to compare before and after the
     /// caps of the whole file.
