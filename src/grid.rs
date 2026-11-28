@@ -230,7 +230,7 @@ impl App {
             let r = Rect::from_two_pos(start, at);
             let mut marked = before.clone();
             marked.extend((up..total).filter(|&p| cell_rect(p).shrink(6.0).intersects(r)).filter_map(|p| self.item_path(p - up)));
-            self.marked = marked;
+            self.marked = marked.into();
             let accent = crate::theme::accent(ui.visuals());
             ui.painter().rect(r, 2.0, accent.gamma_multiply(0.15), egui::Stroke::new(1.0, accent), egui::StrokeKind::Inside);
             // Near the top or bottom edge the grid scrolls, to reach the cells out of sight.

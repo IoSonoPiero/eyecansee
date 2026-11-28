@@ -1,5 +1,6 @@
 //! Viewer: the image at full window, zoom and pan, its keys, the images read ahead.
 
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use eframe::egui::{self, Key};
@@ -7,6 +8,38 @@ use eframe::egui::{self, Key};
 use crate::navigation::Go;
 use crate::actions::Act;
 use crate::{AROUND, App, browser, paint, zoom};
+
+/// The images the viewer moves among (`App::viewer_set`): the whole folder, or the marked ones
+/// (positions in `files()`, in order).
+pub(crate) enum Among {
+    Folder(usize),
+    Marked(Arc<[usize]>),
+}
+
+impl Among {
+    pub(crate) fn len(&self) -> usize {
+        match self {
+            Among::Folder(n) => *n,
+            Among::Marked(m) => m.len(),
+        }
+    }
+
+    /// The `k`-th of them, as a position in `files()`.
+    pub(crate) fn get(&self, k: usize) -> usize {
+        match self {
+            Among::Folder(_) => k,
+            Among::Marked(m) => m[k],
+        }
+    }
+
+    /// Where the file at `i` in `files()` is among them.
+    pub(crate) fn find(&self, i: usize) -> Option<usize> {
+        match self {
+            Among::Folder(n) => (i < *n).then_some(i),
+            Among::Marked(m) => m.binary_search(&i).ok(),
+        }
+    }
+}
 
 /// An Esc left full screen and has not been let go yet: it does not close EyeCanSee (#320).
 // ponytail: one flag for the one window; a release missed while the window had no focus costs one
@@ -309,20 +342,29 @@ impl App {
 
     /// The images the viewer moves among, as positions in `files()`: the marked ones when it
     /// shows one of them and they are more than one (as the slideshow), otherwise the folder.
-    pub(crate) fn viewer_set(&self) -> Vec<usize> {
+    /// Asked at every frame: the marked ones are found again only when the marks or the listing
+    /// change (`selection::Marked`, audit 4.11).
+    pub(crate) fn viewer_set(&self) -> Among {
         let files = self.files();
-        let marked: Vec<usize> = files.iter().enumerate().filter(|(_, f)| self.marked.contains(&f.path)).map(|(i, _)| i).collect();
-        if marked.len() > 1 && self.viewing.is_some_and(|v| marked.contains(&v)) { marked } else { (0..files.len()).collect() }
+        if self.marked.len() > 1
+            && self.viewing.and_then(|v| files.get(v)).is_some_and(|f| self.marked.contains(&f.path))
+        {
+            let marked = self.marked.positions(files, self.generation);
+            if marked.len() > 1 {
+                return Among::Marked(marked);
+            }
+        }
+        Among::Folder(files.len())
     }
 
     /// Requests the open image and its neighbours (among those it moves through), frees the
     /// distant ones.
     pub(crate) fn prefetch_full(&mut self, current: usize) {
         let set = self.viewer_set();
-        let Some(at) = set.iter().position(|&i| i == current) else { return };
+        let Some(at) = set.find(current) else { return };
         let (Some(loader), Some(Ok(listing))) = (&self.loader, self.listings.get(&self.dir)) else { return };
         let n = set.len();
-        let near = |r: usize| (0..=r).flat_map(move |d| [at + d, at + n * r - d]).map(|p| set[p % n]).collect::<Vec<_>>();
+        let near = |r: usize| (0..=r).flat_map(move |d| [at + d, at + n * r - d]).map(|p| set.get(p % n)).collect::<Vec<_>>();
         for i in near(AROUND) {
             // A video's still is not needed here (the player shows it) and reading it would slow
             // down the player's start on a slow disk (dashcam on USB 2: 8 s, 2026-10-27).
@@ -623,7 +665,53 @@ mod tests {
         frame(&mut h);
         let all = frame(&mut h);
         assert!(h.app.title.contains(&(N / 2 + 1).to_string()), "{}", h.app.title);
+        eprintln!("a frame of the viewer among {N} files: {none} bytes with nothing marked, {all} with every file marked");
         assert!(none < 64 << 10 && all < 64 << 10, "a frame held {none} bytes with nothing marked, {all} with every file marked");
+    }
+
+    /// Audit 4.11: the marked files found once are those that would be found again, after every
+    /// change of the marks or of the listing: a mark taken off and put back, a file deleted,
+    /// renamed, the order changed, Ctrl+A, the folder read again.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn the_marked_files_kept_are_those_of_now_4_11() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("viewer::tests::the_marked_files_kept_are_those_of_now_4_11") {
+            return;
+        }
+        let mut h = Harness::new(&folder("among-4-11", &["a.png", "b.png", "c.png", "d.png", "e.png"]));
+        h.until(|app| app.files().len() == 5, "five files");
+        let same = |h: &Harness, what: &str| {
+            let files = h.app.files();
+            let marked: Vec<usize> = files.iter().enumerate().filter(|(_, f)| h.app.marked.contains(&f.path)).map(|(i, _)| i).collect();
+            let fresh = if marked.len() > 1 && h.app.viewing.is_some_and(|v| marked.contains(&v)) { marked } else { (0..files.len()).collect() };
+            let set = h.app.viewer_set();
+            assert_eq!((0..set.len()).map(|k| set.get(k)).collect::<Vec<_>>(), fresh, "{what}");
+        };
+        let path = |h: &Harness, i: usize| h.app.files()[i].path.clone();
+        for i in [0, 2, 4] {
+            let p = path(&h, i);
+            h.app.marked.insert(p);
+        }
+        h.app.viewing = Some(2);
+        same(&h, "three marked");
+        let c = path(&h, 2);
+        h.app.marked.remove(&path(&h, 4));
+        same(&h, "a mark taken off");
+        h.app.marked.insert(path(&h, 3));
+        same(&h, "another put on");
+        h.app.remove_item(&path(&h, 0), false);
+        h.app.viewing = h.app.files().iter().position(|f| f.path == c);
+        same(&h, "a file marked deleted");
+        h.app.set_sort(crate::settings::SortBy::Name, true);
+        same(&h, "the order the other way");
+        h.app.select_all();
+        same(&h, "Ctrl+A");
+        let d = path(&h, 0);
+        h.app.renamed(&d, &format!("{d}.x"));
+        same(&h, "a file renamed");
+        h.app.marked.clear();
+        same(&h, "no marks");
     }
 
     #[test]

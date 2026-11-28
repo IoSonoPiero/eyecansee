@@ -77,14 +77,25 @@ pub struct Show {
     places: Places,
 }
 
-/// Where the images of the slideshow are in the folder's listing, looked for at every frame.
+/// Where the images of the slideshow are in the folder's listing, looked for at every frame (the
+/// one shown, the one it comes from, the next and the one before): where each was found last,
+/// while it is still there. Each search went through the whole folder (audit 4.11).
 #[derive(Default)]
-pub(crate) struct Places;
+pub(crate) struct Places(std::cell::RefCell<std::collections::HashMap<String, usize>>);
 
 impl Places {
     /// Where `path` is among `n` files, `at(i)` the path of the `i`-th.
     pub(crate) fn find<'a>(&self, path: &str, n: usize, at: impl Fn(usize) -> &'a str) -> Option<usize> {
-        (0..n).position(|i| at(i) == path)
+        let mut places = self.0.borrow_mut();
+        if let Some(&i) = places.get(path)
+            && i < n
+            && at(i) == path
+        {
+            return Some(i);
+        }
+        let i = (0..n).position(|i| at(i) == path)?;
+        places.insert(path.to_string(), i);
+        Some(i)
     }
 }
 
@@ -549,6 +560,7 @@ mod tests {
         for _ in 0..100 {
             assert_eq!(places.find(&middle, N, counted(&paths, &looked)), Some(N / 2));
         }
+        eprintln!("100 frames of the slideshow looked at {} paths", looked.get());
         assert!(looked.get() <= N + 100, "100 frames looked at {} paths", looked.get());
         // A file before it gone: found again at its new place.
         paths.remove(0);

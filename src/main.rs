@@ -339,7 +339,7 @@ struct App {
     /// Items marked with Ctrl+click, Shift+click, Shift+arrows or Ctrl+A (paths): when there are
     /// any, they are the selection shown and Delete acts on all of them. `anchor`: where a Shift
     /// range starts.
-    marked: HashSet<String>,
+    marked: selection::Marked,
     anchor: usize,
     /// Rectangle being dragged on the grid: corner where it started (grid coordinates, so it
     /// follows scrolling) and the marks there were already (kept with Ctrl).
