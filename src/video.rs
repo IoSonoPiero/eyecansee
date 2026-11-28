@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use eframe::egui::{self, Color32, Rect, TextureHandle, TextureOptions, pos2, vec2};
+use eframe::egui::{self, Color32, Rect, TextureHandle, pos2, vec2};
 
 use crate::i18n::I18n;
 use crate::transform::Turn;
@@ -670,10 +670,7 @@ fn paint_fitted(painter: &egui::Painter, area: Rect, player: &mpv::Player, textu
     if let Some(image) = player.frame()
         && (texture.is_none() || video.is_none_or(|v| same_shape(image.size, v)))
     {
-        match texture {
-            Some(t) => t.set(image, TextureOptions::LINEAR),
-            None => *texture = Some(painter.ctx().load_texture("video", image, TextureOptions::LINEAR)),
-        }
+        crate::mipmap::put_in(texture, painter.ctx(), "video", image);
     }
     let Some(video) = video else { return false };
     let ppp = painter.ctx().pixels_per_point();
