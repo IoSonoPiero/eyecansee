@@ -88,6 +88,13 @@ impl App {
         m.clear();
     }
 
+    /// Ctrl+C is Measure's: on, usable on the file shown, with results to copy. `raw_input_hook`
+    /// then lets egui's `Event::Copy` through, and `measure_keys` takes it.
+    pub(crate) fn measure_copies(&self) -> bool {
+        let m = &self.model.measure;
+        m.on && self.measure_off().is_none() && m.shown.as_ref().is_some_and(|s| !s.lines.is_empty())
+    }
+
     /// For the status bar while measuring: what is measured, then the results or how to go on.
     pub(crate) fn measure_status(&self) -> Option<(String, bool)> {
         // Not while the file is read: Measure stays on then (audit 27/11, D.7), its results are another file's.
@@ -130,8 +137,10 @@ impl App {
         if !m.on {
             return;
         }
-        // Ctrl+C copies the results, not the file, while there are some.
-        if m.shown.as_ref().is_some_and(|s| !s.lines.is_empty()) && ctx.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::C)) {
+        // Ctrl+C copies the results, not the file, while there are some: egui-winit gives it as
+        // `Event::Copy`, not as the C key. Text selected with the mouse keeps its Ctrl+C.
+        let selected = ctx.plugin::<egui::text_selection::LabelSelectionState>().lock().has_selection();
+        if self.measure_copies() && !selected && ctx.input_mut(|i| take_copy(&mut i.events) | i.consume_key(Modifiers::COMMAND, Key::C)) {
             self.copy_measure(ctx);
         }
         // A model has no areas and no modes: Enter goes back to the grid as without Measure (#345),
@@ -215,6 +224,13 @@ impl App {
         let shown = Shown { what: self.i18n.t(what), lines: cad_lines(&self.i18n, measured(m.mode, &m.pts), unit), hint: self.i18n.t(hint), no_unit: unit.is_none(), more: String::new() };
         self.model.measure.shown = Some(shown);
     }
+}
+
+/// Takes Ctrl+C (`Event::Copy`) from `events`: whether it was there.
+fn take_copy(events: &mut Vec<egui::Event>) -> bool {
+    let n = events.len();
+    events.retain(|e| !matches!(e, egui::Event::Copy));
+    events.len() != n
 }
 
 /// A value written next to the pointer `at`, on a dark band so it reads on any drawing.

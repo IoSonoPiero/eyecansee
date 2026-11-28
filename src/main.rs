@@ -645,9 +645,9 @@ impl eframe::App for App {
             }
             return;
         }
-        // Text selected with the mouse (a message in the error bar): Ctrl+C copies it, not the
-        // files of the grid. egui drops the selection at a click elsewhere.
-        let selected = ctx.plugin::<egui::text_selection::LabelSelectionState>().lock().has_selection();
+        // Text selected with the mouse (a message in the error bar), or Measure's results: Ctrl+C
+        // copies them, not the files. egui drops the selection at a click elsewhere.
+        let selected = self.measure_copies() || ctx.plugin::<egui::text_selection::LabelSelectionState>().lock().has_selection();
         let act = &mut self.act;
         let copied = self.clip.as_ref().map(|c| c.text.as_str());
         let viewing = self.viewing.is_some();
