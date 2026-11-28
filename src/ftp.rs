@@ -146,6 +146,17 @@ fn error(e: FtpError, path: &str) -> Error {
 /// was read whole (audit 27/11 S.10). A line of LIST is about 70 bytes: some 900,000 items.
 const LISTING_MAX: u64 = 64 << 20;
 
+/// The most a file read whole may bring (`Server::read`): the size the server gave plus a margin
+/// of 1/16 of it, at least 1 MiB, for a file that grew a little between SIZE and RETR. Without a
+/// size (refused, or `u32::MAX`, which says it is not known, as for a phone: audit F.11), half of
+/// the memory `ram`, the line past which EyeCanSee reads no file whole (`meta_read`).
+fn read_limit(size: Option<u64>, ram: u64) -> u64 {
+    match size {
+        Some(size) if size != u64::from(u32::MAX) => size.saturating_add((size / 16).max(1 << 20)),
+        _ => ram / 2,
+    }
+}
+
 /// The connection is gone (closed by the server after its idle timeout, network down).
 fn broken(e: &FtpError) -> bool {
     matches!(e, FtpError::ConnectionError(_) | FtpError::BadResponse)
@@ -486,15 +497,31 @@ impl Server {
         self.read_within(path, crate::thumb_memory::ram()).await
     }
 
-    /// `read` on a computer with `ram` bytes of memory.
-    async fn read_within(&self, path: &str, _ram: u64) -> Result<Vec<u8>, Error> {
+    /// `read` on a computer with `ram` bytes of memory: up to `read_limit` bytes (audit 27/11
+    /// S.10, #183: read to its end, a file without an end filled the memory). The size is asked
+    /// (SIZE) on the connection held, one command more per file, as SFTP asks it (`fstat`). Past
+    /// the limit the read stops with an error, the connection, left in the middle of the
+    /// transfer, is not used again, and the file is not read again on another one.
+    async fn read_within(&self, path: &str, ram: u64) -> Result<Vec<u8>, Error> {
         with!(self, path, transfer |c| async {
+            let size = match waited(c.s.size(abs(path))).await {
+                Ok(n) => Some(n as u64),
+                // Refused, or an answer that is no number: not known.
+                Err(FtpError::UnexpectedResponse(_) | FtpError::BadResponse) => None,
+                Err(e) => return Err(e),
+            };
+            let limit = read_limit(size, ram);
             let mut d = waited(self.data(&mut c.s, format!("RETR {}", abs(path)), 0)).await?;
-            let data = read_up_to(&mut d, u64::MAX).await?;
+            let data = read_up_to(&mut d, limit.saturating_add(1)).await?;
+            if data.len() as u64 > limit {
+                log!("ftp: {path:?} longer than {limit} bytes (size given: {size:?}): not read further");
+                c.ok = false;
+                return Ok(Err(("error-detail", format!("{path}: longer than the size the server gave ({limit} bytes)"))));
+            }
             waited(close_data(&mut c.s, d, false)).await?;
-            Ok::<_, FtpError>(data)
+            Ok::<_, FtpError>(Ok(data))
         }
-        .await)
+        .await)?
     }
 
     /// `len` bytes from `offset`, fewer at the end of the file. A transfer stopped before the end
@@ -1203,5 +1230,19 @@ pub(crate) mod tests {
         }
         assert_eq!(rt.block_on(server.read_within("loop/a.jpg", ram)).unwrap(), b"not a jpeg", "a file as long as its size");
         assert_eq!(rt.block_on(server.read_within("links/zeta.jpg", ram)).unwrap().len(), 47, "a link to a file, its size asked");
+    }
+
+    /// What a file read whole may bring: its size plus 1/16, at least 1 MiB more; without a size
+    /// (or with `u32::MAX`, a size not known), half of the memory. Never an overflow.
+    #[test]
+    fn read_limits() {
+        let (mib, gib) = (1u64 << 20, 1u64 << 30);
+        assert_eq!(super::read_limit(Some(0), 16 * gib), mib);
+        assert_eq!(super::read_limit(Some(10), 16 * gib), 10 + mib);
+        assert_eq!(super::read_limit(Some(4 * gib), 16 * gib), 4 * gib + gib / 4, "a big video");
+        assert_eq!(super::read_limit(Some(5 * gib), 2 * gib), 5 * gib + 5 * gib / 16, "not the memory: it was asked for");
+        assert_eq!(super::read_limit(Some(u32::MAX.into()), 16 * gib), 8 * gib);
+        assert_eq!(super::read_limit(None, 16 * gib), 8 * gib);
+        assert_eq!(super::read_limit(Some(u64::MAX), 16 * gib), u64::MAX);
     }
 }
