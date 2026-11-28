@@ -915,6 +915,28 @@ pub(crate) mod tests {
         });
         let _ = std::fs::remove_dir_all(&dir);
     }
+    /// Audit 2.25: `Store::entries` tells folders from files as `is_dir` asked of each name did,
+    /// links followed: to a folder (`loop/again`, `move/out`, `links/self`) a folder, to a file
+    /// (`links/zeta.jpg`) a file. Server: `tests/fake.rs`.
+    #[test]
+    fn entries_tell_folders_as_is_dir() {
+        let (target, _) = fake::start();
+        let op = crate::source::Store::Ftp(super::Server::shared(target));
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let mut folders = Vec::new();
+            for dir in ["loop/", "move/", "links/"] {
+                for (n, folder) in op.entries(dir).await.unwrap() {
+                    assert_eq!(folder, op.is_dir(&format!("{dir}{n}/")).await, "{dir}{n}");
+                    if folder {
+                        folders.push(format!("{dir}{n}"));
+                    }
+                }
+            }
+            folders.sort();
+            assert_eq!(folders, ["links/self", "loop/again", "move/keep", "move/out", "move/sub"]);
+        });
+    }
+
     /// L17 of 2026-11-21 (#183): a copy of a folder of a Storage Box (SFTPGo) with `self`, a link
     /// to the folder itself, brought only `due.jpg`. MLSD told the link as a file of 1 byte, LIST
     /// with Go's "L", which was not read; the copy read it, got no bytes ("Connection error: early

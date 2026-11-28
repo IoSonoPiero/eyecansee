@@ -368,6 +368,9 @@ impl Store {
             Err(_) => Vec::new(), // only Android's trash, no folder of ours
         };
         paths.extend(entries.into_iter().map(|(n, folder)| format!("{dir}{n}{}", if folder { "/" } else { "" })));
+        // Two objects of one name (MTP allows it) are one path, as with `names`.
+        paths.sort();
+        paths.dedup();
         Ok(paths)
     }
 
