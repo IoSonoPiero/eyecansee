@@ -426,20 +426,29 @@ pub(crate) fn resampled(pic: &Picture, scale: f32, uv: egui::Rect, out: [u32; 2]
     Some((slot.id, extent(&slot.out.0)))
 }
 
+/// The new size of one of a slot's pictures, `old` its size (`None`: none yet) and `size` the size
+/// asked: `None` while it holds it; otherwise grown to hold it, in steps of `GRAIN`, never beyond
+/// `max`.
+fn slot_size(old: Option<[u32; 2]>, size: [u32; 2], max: u32) -> Option<[u32; 2]> {
+    let had = old.unwrap_or([0, 0]);
+    if old.is_some() && had[0] >= size[0] && had[1] >= size[1] {
+        return None;
+    }
+    Some(std::array::from_fn(|k| size[k].max(had[k]).div_ceil(GRAIN).saturating_mul(GRAIN).min(max)))
+}
+
 impl Smoother {
     /// The next slot of this frame, large enough for the two passes.
     fn slot(&mut self, mid: [u32; 2], out: [u32; 2]) -> usize {
         let i = self.next;
         self.next += 1;
-        let fits = |t: &wgpu::Texture, size: [u32; 2]| t.width() >= size[0] && t.height() >= size[1];
-        match self.slots.get(i) {
-            Some(slot) if fits(&slot.mid.0, mid) && fits(&slot.out.0, out) => {}
+        let max = self.rs.device.limits().max_texture_dimension_2d;
+        let had = |t: &wgpu::Texture| [t.width(), t.height()];
+        let old = self.slots.get(i).map(|s| (had(&s.mid.0), had(&s.out.0)));
+        let (new_mid, new_out) = (slot_size(old.map(|o| o.0), mid, max), slot_size(old.map(|o| o.1), out, max));
+        match (old, new_mid, new_out) {
+            (Some(_), None, None) => {}
             _ => {
-                let grown = |t: Option<&wgpu::Texture>, size: [u32; 2]| {
-                    let max = self.rs.device.limits().max_texture_dimension_2d;
-                    let old = t.map_or([0, 0], |t| [t.width(), t.height()]);
-                    std::array::from_fn::<u32, 2, _>(|k| size[k].max(old[k]).div_ceil(GRAIN).saturating_mul(GRAIN).min(max))
-                };
                 let make = |size: [u32; 2], format| {
                     let t = self.rs.device.create_texture(&wgpu::TextureDescriptor {
                         label: Some("smooth"),
@@ -454,9 +463,9 @@ impl Smoother {
                     let v = t.create_view(&Default::default());
                     (t, v)
                 };
+                let mid = make(new_mid.or(old.map(|o| o.0)).unwrap_or(mid), MID);
+                let out = make(new_out.or(old.map(|o| o.1)).unwrap_or(out), OUT);
                 let old = self.slots.get(i);
-                let mid = make(grown(old.map(|s| &s.mid.0), mid), MID);
-                let out = make(grown(old.map(|s| &s.out.0), out), OUT);
                 let mut renderer = self.rs.renderer.write();
                 let id = match old {
                     Some(s) => {
