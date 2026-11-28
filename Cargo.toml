@@ -171,6 +171,16 @@ inherits = "release"
 lto = "fat"
 codegen-units = 1
 
+# The Draco decoder's sums of the texture coordinates wrap around, as in a release build:
+# with the checks of the arithmetic of debug builds and tests on, `draco-oxide-core`
+# 0.1.0-alpha.12 panics on real files (`three_ferrari.glb`, attempt to add with overflow in
+# `MeshParallelogramPrediction::predict`), and the model is said damaged (#178).
+[profile.dev.package.draco-oxide-core]
+overflow-checks = false
+
+[profile.dev.package.draco-oxide-decoder]
+overflow-checks = false
+
 # Trial builds by hand (`--profile prova`): as `release`, but only what changed is compiled again.
 # The same code; only the exe is bigger. Never for packages.
 [profile.prova]
