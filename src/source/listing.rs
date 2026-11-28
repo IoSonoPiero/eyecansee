@@ -232,6 +232,7 @@ mod tests {
         h.app.renamed(&old, &format!("{}p000.mov", h.app.dir));
         let Some(Ok(l)) = h.app.listings.get(&h.app.dir) else { panic!("no listing") };
         assert_eq!(l.played(), (2, 1), "renamed into a video");
+        assert!(h.app.thumb_queue_key.is_none(), "the thumbnail queue not made again with the new name");
     }
 
     /// Audit 2.28: sorted by date, each file's date is read once, not twice for each comparison

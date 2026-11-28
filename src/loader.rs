@@ -1530,14 +1530,15 @@ mod tests {
             copies.set(copies.get() + 1);
             vec![File { path: "a.png".into(), size: 1, modified: String::new() }]
         };
+        // No position queued: nothing read, the workers stay idle.
         let generation = loader.next_generation();
-        loader.set_thumb_queue(generation, vec![0], files);
-        loader.set_thumb_queue(generation, vec![0], files);
+        loader.set_thumb_queue(generation, Vec::new(), files);
+        loader.set_thumb_queue(generation, Vec::new(), files);
         assert_eq!(copies.get(), 1, "copied again for the same generation");
         loader.forget_thumb_files();
-        loader.set_thumb_queue(generation, vec![0], files);
+        loader.set_thumb_queue(generation, Vec::new(), files);
         assert_eq!(copies.get(), 2, "not copied again after a rename");
-        loader.set_thumb_queue(loader.next_generation(), vec![0], files);
+        loader.set_thumb_queue(loader.next_generation(), Vec::new(), files);
         assert_eq!(copies.get(), 3, "not copied for a new generation");
         std::fs::remove_dir_all(dir).unwrap();
     }
