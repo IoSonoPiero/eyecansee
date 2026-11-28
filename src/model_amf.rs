@@ -166,6 +166,17 @@ mod tests {
         assert_eq!(read_up_to(one.as_bytes(), &Default::default(), cap).map(|m| m.tris.len()), Ok(20));
     }
 
+    /// Audit 27/11, D.6, the walk: a constellation of 2000 elements of nothing, placed 1000
+    /// times by another, was gone over at each placement (2 million nodes). Scaled as above.
+    #[test]
+    fn audit_d6_work_of_each_constellation_counted() {
+        let cap = crate::model_limit::Limit { max: 100, format: "amf" };
+        let instances = r#"<instance objectid="3"/>"#.repeat(1000);
+        let amf = format!(r#"<amf><constellation id="2">{instances}</constellation><constellation id="3">{}</constellation></amf>"#, "<a/>".repeat(2000));
+        let r = read_up_to(amf.as_bytes(), &Default::default(), cap).map(|m| m.tris.len());
+        assert!(r.as_ref().is_err_and(|e| e.starts_with("error-model-takes-too-long")), "{r:?}");
+    }
+
     #[test]
     fn a_triangle_placed_twice() {
         let amf = r#"<amf><object id="1"><mesh><vertices>

@@ -533,6 +533,17 @@ mod tests {
         assert_eq!(read_as(one.as_bytes(), &|_| None, &Default::default(), cap).map(|m| m.tris.len()), Ok(20));
     }
 
+    /// Audit 27/11, D.6, the Inline: one of 100 addresses of 1000 letters, not found, used 1000
+    /// times, had its addresses copied at each use (100 million letters). Scaled as above.
+    #[test]
+    fn audit_d6_work_of_each_inline_counted() {
+        let cap = crate::model_limit::Limit { max: 100, format: "x3d" };
+        let urls: String = (0..100).map(|k| format!("\"{k}{}\" ", "a".repeat(1000))).collect();
+        let x3d = format!(r#"<X3D><Scene><Inline DEF="i" url='{urls}'/>{}</Scene></X3D>"#, r#"<Inline USE="i"/>"#.repeat(1000));
+        let r = read_as(x3d.as_bytes(), &|_| None, &Default::default(), cap).map(|m| m.tris.len());
+        assert!(r.as_ref().is_err_and(|e| e.starts_with("error-model-takes-too-long")), "{r:?}");
+    }
+
     /// Audit 6.4 (b): a LineSet that declares a million million points over three real ones.
     #[test]
     fn audit_6_4_lineset_count() {

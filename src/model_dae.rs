@@ -354,6 +354,20 @@ mod tests {
         assert_eq!(read_up_to(one.as_bytes(), false, &|_| None, &Default::default(), cap).map(|m| m.tris.len()), Ok(20));
     }
 
+    /// Audit 27/11, D.6, the skin: a geometry of 2000 elements of nothing and a skin of no mesh,
+    /// placed by 1000 nodes, was searched for its skin at each one (2 million nodes). Scaled as
+    /// above.
+    #[test]
+    fn audit_d6_work_of_each_skin_counted() {
+        let cap = crate::model_limit::Limit { max: 100, format: "collada" };
+        let nodes = r##"<node><instance_geometry url="#g"/></node>"##.repeat(1000);
+        let dae = format!(r##"<COLLADA><library_geometries><geometry id="g">{}<skin source="#none"/></geometry></library_geometries>
+            <library_visual_scenes><visual_scene id="s">{nodes}</visual_scene></library_visual_scenes>
+            <scene><instance_visual_scene url="#s"/></scene></COLLADA>"##, "<a/>".repeat(2000));
+        let r = read_up_to(dae.as_bytes(), false, &|_| None, &Default::default(), cap).map(|m| m.tris.len());
+        assert!(r.as_ref().is_err_and(|e| e.starts_with("error-model-takes-too-long")), "{r:?}");
+    }
+
     /// Audit 6.6: a chain of 60 nodes, each one instancing the next twice, the last one empty:
     /// 2^60 visits in a file of a few KB (a node instancing itself is stopped at once by the
     /// depth; a chain is not). It must end (refused, or found empty) without visiting them all.
