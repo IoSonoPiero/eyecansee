@@ -153,8 +153,13 @@ impl App {
                     self.error = Some(self.i18n.t_args("edit-paste-too-big", &[("w", &iw.to_string()), ("h", &ih.to_string()), ("max", &max), ("mp", &mp)]));
                     return;
                 }
-                // Its pixels made aside (audit 5.14: up to 200 megapixels), the patch once they come.
-                w.aside(ctx, "edit-paste", move || super::work::Done::Pasted(patch_pixels(&img)));
+                // Its pixels made aside (audit 5.14: up to 200 megapixels), and the PNG that draws
+                // them, which the first frame drawing it made (audit 5.12); the patch once they come.
+                w.aside(ctx, "edit-paste", move || {
+                    let pixels = patch_pixels(&img);
+                    pixels.as_ref().map(crate::edit::doc::Pixels::png_base64);
+                    super::work::Done::Pasted(pixels)
+                });
                 return;
             }
             (None, None) => {
