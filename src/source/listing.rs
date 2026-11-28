@@ -121,25 +121,38 @@ impl Listing {
     }
 
     /// Images in the order chosen by the user; ties broken by name (`natural`). Those without a
-    /// date (or with zero size) go last, in descending order too.
+    /// date (or with zero size) go last, in descending order too. The extension and the date of
+    /// each file are worked out once, not for each comparison (audit 2.28).
     pub fn sort_files(&mut self, by: SortBy, desc: bool) {
-        let name = |a: &File, b: &File| natural(&a.path, &b.path);
-        let ext = |f: &File| f.path.rsplit_once('.').map(|(_, e)| e.to_lowercase()).unwrap_or_default();
-        let date = |f: &File| crate::human::parse_modified(&f.modified);
-        self.files.sort_by(|a, b| {
+        let tz = jiff::tz::TimeZone::system();
+        let key = |f: &File| match by {
+            SortBy::Type => Key::Ext(f.path.rsplit_once('.').map(|(_, e)| e.to_lowercase()).unwrap_or_default()),
+            SortBy::Date => Key::Date(crate::human::parse_modified_in(&f.modified, &tz)),
+            SortBy::Size => Key::Size(f.size),
+            SortBy::Name => Key::Name,
+        };
+        let mut keyed: Vec<(Key, File)> = std::mem::take(&mut self.files).into_iter().map(|f| (key(&f), f)).collect();
+        keyed.sort_by(|(x, a), (y, b)| {
             let flip = |o: Ordering| if desc { o.reverse() } else { o };
-            let primary = match by {
-                SortBy::Name => flip(name(a, b)),
-                SortBy::Type => flip(ext(a).cmp(&ext(b))),
-                SortBy::Size => (a.size == 0).cmp(&(b.size == 0)).then(flip(a.size.cmp(&b.size))),
-                SortBy::Date => match (date(a), date(b)) {
-                    (Some(x), Some(y)) => flip(x.cmp(&y)),
-                    (x, y) => x.is_none().cmp(&y.is_none()),
-                },
+            let primary = match (x, y) {
+                (Key::Ext(x), Key::Ext(y)) => flip(x.cmp(y)),
+                (Key::Size(x), Key::Size(y)) => (*x == 0).cmp(&(*y == 0)).then(flip(x.cmp(y))),
+                (Key::Date(Some(x)), Key::Date(Some(y))) => flip(x.cmp(y)),
+                (Key::Date(x), Key::Date(y)) => x.is_none().cmp(&y.is_none()),
+                _ => flip(natural(&a.path, &b.path)),
             };
-            primary.then_with(|| name(a, b))
+            primary.then_with(|| natural(&a.path, &b.path))
         });
+        self.files = keyed.into_iter().map(|(_, f)| f).collect();
     }
+}
+
+/// What `sort_files` compares the files by, worked out once for each.
+enum Key {
+    Name,
+    Size(u64),
+    Ext(String),
+    Date(Option<jiff::Timestamp>),
 }
 
 #[cfg(test)]
