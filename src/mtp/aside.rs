@@ -8,7 +8,8 @@
 use std::collections::HashSet;
 use std::sync::Mutex;
 
-use super::COPY_DIR;
+use super::{Phone, COPY_DIR};
+use crate::source::{self, Error};
 
 /// The folders (`"<storage>/<folder>/"`) whose `COPY_DIR` a copy of this process is using.
 static IN_USE: Mutex<Option<HashSet<String>>> = Mutex::new(None);
@@ -28,6 +29,16 @@ impl Drop for InUse {
         if let Some(set) = IN_USE.lock().unwrap().as_mut() {
             set.remove(&self.0);
         }
+    }
+}
+
+impl Phone {
+    /// Whether a copy of `path` into `dir` goes through the hidden folder (`copy_aside`): into
+    /// its own folder (Android does not copy a file there), or onto a name of `dir` that differs
+    /// only by case.
+    pub(super) async fn clash(&self, path: &str, dir: &str) -> Result<bool, Error> {
+        let name = source::name(path).to_lowercase();
+        Ok(dir == source::parent(path) || self.names(dir).await?.iter().any(|n| n.to_lowercase() == name))
     }
 }
 

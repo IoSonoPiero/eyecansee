@@ -654,9 +654,7 @@ impl Phone {
             return r;
         }
         let dir = source::parent(dest);
-        let name = source::name(path).to_lowercase();
-        let clash = dir == source::parent(path) || self.names(&dir).await?.iter().any(|n| n.to_lowercase() == name);
-        if !clash {
+        if !self.clash(path, &dir).await? {
             let h = self.copy_object(path, &dir).await?;
             let place = async {
                 if source::name(dest) != source::name(path) {
