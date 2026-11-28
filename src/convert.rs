@@ -883,4 +883,31 @@ mod tests {
         assert_eq!(std::fs::read(dir.join("a.jpg")).unwrap(), before, "the original written over");
         assert!(dir.join("a (2).jpg").is_file(), "the new file not beside it: {:?}", std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name()).collect::<Vec<_>>());
     }
+
+    /// #366: a picture opened from outside (a double click in the file manager) while the Save as
+    /// page is open was opened at once behind it: viewer and folder changed unseen, and the message
+    /// after Save said the picture shown was the original. Held, as with the editor open, and
+    /// opened when the page closes.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn an_address_from_outside_waits_for_save_as() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("convert::tests::an_address_from_outside_waits_for_save_as") {
+            return;
+        }
+        let dir = folder("save-as-held/a", &["a.jpg"]);
+        let other = folder("save-as-held/b", &["b.jpg"]);
+        let mut h = Harness::new(&dir);
+        let (a, start) = (h.app.files()[0].path.clone(), h.app.dir.clone());
+        h.app.open_convert(Some(a));
+        h.until(|app| app.convert.as_ref().is_some_and(|w| matches!(w.result, Some(Ok(_))) && !w.busy), "the picture encoded");
+        h.app.tx.send(crate::loader::Msg::Open(other.join("b.jpg").display().to_string())).unwrap();
+        for _ in 0..20 {
+            h.frame(Vec::new());
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert_eq!((h.app.dir.as_str(), h.app.convert.is_some()), (start.as_str(), true), "the folder changed behind the Save as page");
+        h.app.convert = None;
+        h.until(|app| app.dir.ends_with("save-as-held/b/"), "the address held opened once the page closed");
+    }
 }
